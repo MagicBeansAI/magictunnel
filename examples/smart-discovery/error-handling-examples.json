@@ -1,0 +1,485 @@
+{
+  "title": "Smart Discovery Error Handling Examples",
+  "description": "Comprehensive examples of error scenarios and recovery strategies in Smart Discovery",
+  "error_scenarios": [
+    {
+      "category": "Tool Not Found Errors",
+      "description": "When Smart Discovery cannot find a suitable tool for the request",
+      "examples": [
+        {
+          "name": "Non-existent Operation",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "deploy application to Mars colony"
+            }
+          },
+          "expected_error": {
+            "success": false,
+            "error": "No suitable tool found for deployment operations",
+            "error_summary": "🔍 I couldn't find a tool that matches your request",
+            "suggestions": [
+              "Available deployment tools: docker_deploy, ssh_deploy, cloud_deploy",
+              "Available system tools: execute_command, service_manager",
+              "Try: 'deploy to production server' or 'run deployment script'"
+            ],
+            "metadata": {
+              "confidence_score": 0.05,
+              "searched_categories": ["deployment", "mars", "colony"],
+              "closest_matches": [
+                {
+                  "tool": "docker_deploy",
+                  "score": 0.2,
+                  "reason": "Can deploy applications to containerized environments"
+                }
+              ]
+            }
+          },
+          "recovery_strategies": [
+            "Rephrase request using available tools",
+            "Use 'execute_command' to run custom deployment scripts",
+            "Check available tools with lower confidence threshold"
+          ]
+        },
+        {
+          "name": "Unsupported Technology",
+          "request": {
+            "name": "smart_tool_discovery", 
+            "arguments": {
+              "request": "compile COBOL program for mainframe"
+            }
+          },
+          "expected_error": {
+            "success": false,
+            "error": "No compiler tools available for COBOL",
+            "suggestions": [
+              "Available compilers: rust_compiler, java_compiler, python_interpreter",
+              "Try: 'execute shell command' to run external COBOL compiler",
+              "Consider using 'file_operations' to prepare COBOL source files"
+            ]
+          },
+          "recovery_strategies": [
+            "Use generic command execution tools",
+            "Prepare files and use external toolchain",
+            "Request addition of specific COBOL tools"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Missing Parameter Errors",
+      "description": "When required parameters cannot be extracted from the request",
+      "examples": [
+        {
+          "name": "Incomplete File Operation",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "read a file"
+            }
+          },
+          "expected_error": {
+            "success": false,
+            "error": "Missing required parameter: 'path'",
+            "error_summary": "📝 I need more information to complete your request",
+            "clarification_request": {
+              "message": "🤔 I found the 'read_file' tool, but I need one more piece of information to help you.",
+              "questions": [
+                {
+                  "parameter": "path",
+                  "question": "📁 What file path would you like to read from?",
+                  "input_type": "text",
+                  "examples": ["./config.yaml", "/path/to/file.txt"],
+                  "required": true
+                }
+              ]
+            },
+            "parameter_help": {
+              "missing_required": ["path"],
+              "parameter_info": {
+                "path": {
+                  "type": "string",
+                  "description": "The file path to read",
+                  "examples": ["./config.yaml", "/path/to/file.txt"],
+                  "suggestions": ["Try: 'read the config.yaml file'"]
+                }
+              }
+            },
+            "usage_examples": {
+              "tool_name": "read_file",
+              "examples": [
+                "read the config.yaml file",
+                "read contents of /path/to/document.txt"
+              ]
+            }
+          },
+          "recovery_strategies": [
+            "Provide specific file path in new request",
+            "Use context to specify file location",
+            "Ask user to clarify which file to read"
+          ]
+        },
+        {
+          "name": "Incomplete HTTP Request",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "make API call"
+            }
+          },
+          "expected_error": {
+            "success": false,
+            "error": "Missing required parameters: 'url', 'method'",
+            "clarification_request": {
+              "message": "🤔 I found the 'http_request' tool, but I need more information to help you.",
+              "questions": [
+                {
+                  "parameter": "url",
+                  "question": "🌐 What URL should I make the request to?",
+                  "input_type": "url",
+                  "examples": ["https://api.example.com/users", "http://localhost:3000/health"],
+                  "required": true
+                },
+                {
+                  "parameter": "method",
+                  "question": "📡 What HTTP method should I use?",
+                  "input_type": "select",
+                  "options": ["GET", "POST", "PUT", "DELETE", "PATCH"],
+                  "default": "GET",
+                  "required": true
+                }
+              ]
+            }
+          },
+          "recovery_strategies": [
+            "Specify URL and HTTP method in request",
+            "Use context to provide API endpoint details",
+            "Reference API documentation for correct parameters"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Ambiguous Request Errors",
+      "description": "When multiple tools could potentially match the request",
+      "examples": [
+        {
+          "name": "Generic Search Request",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "search for something"
+            }
+          },
+          "expected_error": {
+            "success": false,
+            "error": "Ambiguous request - multiple tools could match",
+            "error_summary": "🤔 Your request could match several different tools",
+            "disambiguation": {
+              "possible_tools": [
+                {
+                  "tool": "search_files",
+                  "description": "Search for files by name or content",
+                  "confidence": 0.7,
+                  "example": "search for files containing 'error' in logs"
+                },
+                {
+                  "tool": "web_search",
+                  "description": "Search the internet",
+                  "confidence": 0.6,
+                  "example": "search the web for 'rust documentation'"
+                },
+                {
+                  "tool": "database_search",
+                  "description": "Search database records",
+                  "confidence": 0.65,
+                  "example": "search for users with email domain 'example.com'"
+                }
+              ]
+            },
+            "suggestions": [
+              "Be more specific about what you want to search",
+              "Specify the search domain: files, web, database, logs",
+              "Include search terms or patterns in your request"
+            ]
+          },
+          "recovery_strategies": [
+            "Clarify search domain (files, web, database)",
+            "Include specific search terms or patterns",
+            "Use preferred_tools to limit search scope"
+          ]
+        },
+        {
+          "name": "Generic Data Processing",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "process data"
+            }
+          },
+          "expected_error": {
+            "success": false,
+            "error": "Multiple data processing tools available",
+            "disambiguation": {
+              "possible_tools": [
+                {
+                  "tool": "csv_processor",
+                  "description": "Process CSV data files",
+                  "example": "process customer data from CSV file"
+                },
+                {
+                  "tool": "json_processor", 
+                  "description": "Process JSON data structures",
+                  "example": "process API response JSON data"
+                },
+                {
+                  "tool": "database_processor",
+                  "description": "Process database query results",
+                  "example": "process user records from database"
+                }
+              ]
+            }
+          },
+          "recovery_strategies": [
+            "Specify data format (CSV, JSON, XML, etc.)",
+            "Include data source (file, API, database)",
+            "Describe processing operation (validate, transform, analyze)"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "LLM Service Errors",
+      "description": "When LLM parameter extraction fails or service is unavailable",
+      "examples": [
+        {
+          "name": "LLM Service Timeout",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "complex multi-step data transformation with validation"
+            }
+          },
+          "expected_error": {
+            "success": false,
+            "error": "LLM parameter extraction failed: service timeout",
+            "error_summary": "⏰ I had trouble understanding your request - the analysis service timed out",
+            "fallback_result": {
+              "success": true,
+              "data": "Fallback to rule-based matching",
+              "warnings": [
+                "Used rule-based parameter extraction due to LLM timeout",
+                "Parameter mapping may be less accurate than usual"
+              ],
+              "metadata": {
+                "fallback_used": true,
+                "fallback_strategy": "rule_based_matching",
+                "original_error": "LLM service timeout after 30s"
+              }
+            }
+          },
+          "recovery_strategies": [
+            "Automatic fallback to rule-based matching",
+            "Retry with simplified request",
+            "Use explicit parameter specification"
+          ]
+        },
+        {
+          "name": "Incomprehensible Request",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "do the thing with the stuff from before like we discussed"
+            }
+          },
+          "expected_error": {
+            "success": false,
+            "error": "Unable to understand request - please be more specific",
+            "error_summary": "❓ I need a clearer description of what you want to do",
+            "help": {
+              "issue": "Request too vague for parameter extraction",
+              "llm_response": "Unable to identify specific tool or parameters from request"
+            },
+            "suggestions": [
+              "Try describing what you want to accomplish",
+              "Examples: 'read a file', 'search for text', 'make HTTP request'",
+              "Include specific details like file names, URLs, or search terms",
+              "Break complex requests into simpler steps"
+            ]
+          },
+          "recovery_strategies": [
+            "Provide clearer, more specific request",
+            "Break complex request into multiple steps",
+            "Use action verbs and specific objects"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Configuration and System Errors", 
+      "description": "System-level errors and configuration issues",
+      "examples": [
+        {
+          "name": "Smart Discovery Disabled",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "read configuration file"
+            }
+          },
+          "expected_error": {
+            "success": false,
+            "error": "Smart Discovery service is disabled",
+            "error_code": "DISCOVERY_DISABLED",
+            "help": {
+              "issue": "Smart Discovery feature is turned off in configuration",
+              "solution": "Enable Smart Discovery in magictunnel-config.yaml"
+            },
+            "configuration_help": {
+              "file": "magictunnel-config.yaml",
+              "setting": "smart_discovery.enabled: true",
+              "example": {
+                "smart_discovery": {
+                  "enabled": true,
+                  "default_confidence_threshold": 0.7
+                }
+              }
+            }
+          },
+          "recovery_strategies": [
+            "Enable Smart Discovery in configuration",
+            "Use direct tool calls instead",
+            "Contact administrator to enable feature"
+          ]
+        },
+        {
+          "name": "Registry Service Unavailable",
+          "request": {
+            "name": "smart_tool_discovery", 
+            "arguments": {
+              "request": "execute system command"
+            }
+          },
+          "expected_error": {
+            "success": false,
+            "error": "Tool registry service is unavailable",
+            "error_code": "REGISTRY_ERROR",
+            "error_details": {
+              "technical_details": "Failed to connect to registry service",
+              "service_status": "registry_service: disconnected",
+              "retry_after": 30
+            },
+            "suggestions": [
+              "Retry request in 30 seconds",
+              "Check system status dashboard",
+              "Contact system administrator if problem persists"
+            ]
+          },
+          "recovery_strategies": [
+            "Automatic retry with exponential backoff",
+            "Check service health endpoints",
+            "Fall back to cached tool registry if available"
+          ]
+        }
+      ]
+    }
+  ],
+  "error_recovery_patterns": {
+    "automatic_fallback": {
+      "description": "System automatically tries alternative approaches",
+      "examples": [
+        "LLM unavailable → Rule-based parameter extraction",
+        "High confidence required → Fuzzy matching with warnings",
+        "Tool not found → Similar tool suggestions",
+        "Parameter extraction failed → Interactive parameter collection"
+      ]
+    },
+    "progressive_disclosure": {
+      "description": "Start with simple errors, provide more detail on request",
+      "simple": {
+        "error_summary": "🤔 I need more details to help you",
+        "suggestions": ["Try being more specific about what you want to do"]
+      },
+      "detailed": {
+        "include_error_details": true,
+        "technical_details": "Full technical error information",
+        "trace_ids": "For debugging and support"
+      }
+    },
+    "interactive_clarification": {
+      "description": "Guide users to provide missing information",
+      "patterns": [
+        "Parameter questions with examples",
+        "Multiple choice for ambiguous cases",
+        "Step-by-step guidance for complex requests",
+        "Context-aware suggestions based on request history"
+      ]
+    },
+    "smart_suggestions": {
+      "description": "Intelligent suggestions based on available tools and request analysis",
+      "categories": [
+        "Similar tool recommendations",
+        "Request rephrasing suggestions",
+        "Parameter completion examples",
+        "Workflow step recommendations"
+      ]
+    }
+  },
+  "debugging_techniques": {
+    "enable_detailed_errors": {
+      "request_parameter": "include_error_details: true",
+      "provides": [
+        "Technical error messages",
+        "LLM extraction details",
+        "Tool matching scores",
+        "Performance metrics",
+        "Trace IDs for support"
+      ]
+    },
+    "confidence_tuning": {
+      "lower_threshold": "confidence_threshold: 0.3 for exploratory matching",
+      "higher_threshold": "confidence_threshold: 0.9 for strict matching",
+      "use_cases": [
+        "Development: Lower threshold for experimentation",
+        "Production: Higher threshold for reliability"
+      ]
+    },
+    "preferred_tools": {
+      "usage": "preferred_tools: ['tool1', 'tool2'] to limit search scope",
+      "benefits": [
+        "Faster discovery",
+        "More predictable results",
+        "Debugging specific tool integration"
+      ]
+    },
+    "request_logging": {
+      "enable": "RUST_LOG=debug for detailed request logging",
+      "provides": [
+        "Request processing steps",
+        "Tool matching details",
+        "Parameter extraction process",
+        "Performance timings"
+      ]
+    }
+  },
+  "best_practices": {
+    "error_prevention": [
+      "Use specific, actionable language in requests",
+      "Include context for complex or ambiguous operations",
+      "Test requests with lower confidence thresholds during development",
+      "Use preferred_tools to guide discovery for known use cases"
+    ],
+    "error_handling": [
+      "Implement retry logic with exponential backoff",
+      "Provide fallback options for critical operations", 
+      "Log errors for monitoring and debugging",
+      "Display user-friendly error messages with actionable guidance"
+    ],
+    "debugging": [
+      "Enable detailed error reporting during development",
+      "Monitor success rates and confidence scores",
+      "Track common failure patterns for system improvement",
+      "Use trace IDs to correlate errors across system components"
+    ]
+  }
+}

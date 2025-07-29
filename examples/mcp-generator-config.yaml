@@ -1,0 +1,169 @@
+# MCP Generator Configuration Example (YAML Format)
+#
+# This file demonstrates how to configure the unified capability generator CLI.
+# Use this as a template for your own configuration.
+#
+# The configuration is divided into several sections:
+# - global: Settings that apply to all generators
+# - graphql, grpc, openapi: Generator-specific settings
+# - output: Output file formatting and location settings
+#
+# Generator-specific settings override global settings when both are present.
+
+global:
+  # Global tool prefix for all generators
+  # This prefix is added to all tool names (e.g., "mcp_getThing")
+  tool_prefix: "mcp"
+  
+  # Default output directory for all capability files
+  # This can be overridden in the output section
+  output_dir: "./capabilities"
+  
+  # Global authentication configuration
+  # This applies to all generators unless overridden
+  auth:
+    # Authentication types:
+    # - Bearer token: 
+    #   auth_type:
+    #     Bearer: "TOKEN"
+    # - API key: 
+    #   auth_type:
+    #     ApiKey:
+    #       key: "KEY"
+    #       header: "X-API-Key"
+    # - Basic auth: 
+    #   auth_type:
+    #     Basic:
+    #       username: "USER"
+    #       password: "PASS"
+    # - OAuth: 
+    #   auth_type:
+    #     OAuth:
+    #       token: "TOKEN"
+    #       token_type: "Bearer"
+    auth_type:
+      Bearer: "YOUR_TOKEN"
+    
+    # Additional headers to include in all requests
+    headers:
+      X-Custom-Header: "value"
+
+output:
+  # Output format: always yaml (capability files only support YAML)
+  format: "yaml"
+  
+  # Pretty-print output (adds indentation and line breaks)
+  pretty: true
+  
+  # Output directory (overrides global.output_dir)
+  directory: "./capabilities"
+  
+  # File naming pattern with placeholders:
+  # - {name}: Generator type (graphql, grpc, openapi)
+  # - {ext}: File extension based on format (yaml, json)
+  # Example: "graphql-capabilities.yaml"
+  file_pattern: "{name}-capabilities.{ext}"
+
+# GraphQL generator configuration
+graphql:
+  # GraphQL endpoint URL (required)
+  endpoint: "https://api.example.com/graphql"
+  
+  # Override global tool prefix for GraphQL tools
+  tool_prefix: "graphql"
+  
+  # Whether to include deprecated fields and operations
+  include_deprecated: false
+  
+  # Whether to include descriptions in schemas
+  include_descriptions: true
+  
+  # Whether to generate separate tools for mutations and queries
+  # When true, creates distinct tools for mutations vs. queries
+  # When false, combines them into a single tool
+  separate_mutation_query: true
+  
+  # GraphQL-specific authentication (overrides global auth)
+  auth:
+    # Example of API Key authentication
+    auth_type:
+      ApiKey:
+        key: "YOUR_API_KEY"
+        header: "X-API-Key"
+    
+    # You can also add GraphQL-specific headers
+    # headers:
+    #   GraphQL-Header: "value"
+
+# gRPC generator configuration
+grpc:
+  # gRPC service endpoint (required)
+  endpoint: "localhost:50051"
+  
+  # Override global tool prefix for gRPC tools
+  tool_prefix: "grpc"
+  
+  # Filter which services to include (optional)
+  # If not specified, all services will be included
+  service_filter:
+    - "UserService"
+    - "ProductService"
+  
+  # Filter which methods to include (optional)
+  # If not specified, all methods will be included
+  method_filter:
+    - "GetUser"
+    - "ListProducts"
+  
+  # Streaming strategies:
+  # - "polling": Client polls for updates (simplest)
+  # - "pagination": Use pagination for streaming results
+  # - "agent-level": Let the agent handle streaming
+  server_streaming_strategy: "polling"
+  client_streaming_strategy: "agent-level"
+  bidirectional_streaming_strategy: "pagination"
+  
+  # Whether to include method options in tool definitions
+  include_method_options: true
+  
+  # Whether to generate separate tools for streaming methods
+  # When true, creates distinct tools for streaming operations
+  separate_streaming_tools: false
+  
+  # gRPC-specific authentication can be added:
+  # auth:
+  #   auth_type:
+  #     Basic:
+  #       username: "user"
+  #       password: "pass"
+
+# OpenAPI generator configuration
+openapi:
+  # Base URL for the API (required)
+  base_url: "https://api.example.com"
+  
+  # Override global tool prefix for OpenAPI tools
+  tool_prefix: "api"
+  
+  # Naming convention for tools:
+  # - "operation-id": Use operationId from OpenAPI spec (recommended)
+  # - "method-path": Generate names from HTTP method and path
+  naming_convention: "operation-id"
+  
+  # HTTP methods to include (optional)
+  # If not specified, all methods will be included
+  methods:
+    - "GET"
+    - "POST"
+    - "PUT"
+    - "DELETE"
+  
+  # Whether to include deprecated operations
+  include_deprecated: false
+  
+  # OpenAPI-specific authentication can be added:
+  # auth:
+  #   auth_type:
+  #     OAuth:
+  #       token: "token"
+  #       token_type: "Bearer"

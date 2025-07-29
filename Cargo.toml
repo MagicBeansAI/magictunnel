@@ -1,0 +1,163 @@
+[package]
+name = "magictunnel"
+version = "0.2.48"
+edition = "2021"
+authors = ["gouravd"]
+description = "MagicTunnel - Fastest way to make LLMs talk to your internal systems and external ones"
+license = "MIT"
+repository = "https://github.com/gouravd/magictunnel"
+keywords = ["mcp", "tunnel", "agent", "orchestration", "ai"]
+categories = ["web-programming", "api-bindings"]
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+tokio-tungstenite = { version = "0.21", features = ["rustls-tls-webpki-roots"] }
+async-trait = "0.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+base64 = "0.21"
+
+# Web framework
+actix-web = { version = "4.4", features = ["rustls"] }
+actix-ws = "0.2"  # WebSocket support for Actix-web
+actix-web-actors = "4.3"  # Actor-based WebSocket support
+
+# TLS/SSL support
+rustls = "0.20"
+rustls-pemfile = "1.0"
+
+# gRPC support
+tonic = "0.10"
+tonic-web = "0.10"
+prost = "0.12"
+async-stream = "0.3"
+chrono = { version = "0.4", features = ["serde"] }
+
+# Streaming support
+futures-util = "0.3"
+tokio-stream = "0.1"
+
+# Legacy dependencies (can be removed later)
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json", "stream", "rustls-tls"] }
+
+# Shell expansion for environment variables
+shellexpand = "3.1"
+
+# SSE client
+eventsource-client = "0.12"
+
+# GraphQL support
+graphql_client = "0.13"
+
+# OpenAPI support
+openapiv3 = "2.0"
+swagger = "0.3"
+
+# URL parsing
+url = "2.4"
+urlencoding = "2.1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Configuration
+config = "0.14"
+dotenvy = "0.15"  # .env file support
+dirs = "5.0"  # For finding standard directories
+
+# Command line parsing
+clap = { version = "4.0", features = ["derive"] }
+
+# UUID generation
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# File system operations
+walkdir = "2.0"
+glob = "0.3"
+
+# JSON Schema validation
+jsonschema = "0.17"
+notify = "6.0"
+rayon = "1.8"
+dashmap = "5.5"
+globset = "0.4"
+arc-swap = "1.6"
+
+# Parameter substitution
+regex = "1.10"
+
+# JWT authentication
+jsonwebtoken = "9.2"
+
+# Database support
+tokio-postgres = "0.7"
+rusqlite = { version = "0.30", features = ["bundled"] }
+
+[dev-dependencies]
+# Testing
+tokio-test = "0.4"
+tempfile = "3.8"
+wiremock = "0.5"
+actix-rt = "2.9"  # For testing actix-web applications
+actix-test = "0.1"  # Test utilities for actix-web
+tungstenite = { version = "0.21", features = ["rustls-tls-webpki-roots"] }  # WebSocket client for testing
+tokio-tungstenite = { version = "0.21", features = ["rustls-tls-webpki-roots"] }  # Async WebSocket client
+futures = "0.3"  # For stream testing
+bytes = "1.0"  # For testing byte streams
+
+[build-dependencies]
+tonic-build = "0.10"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+debug = true
+opt-level = 0
+
+[[bin]]
+name = "magictunnel"
+path = "src/main.rs"
+
+[[bin]]
+name = "openapi-generator"
+path = "src/bin/openapi_generator.rs"
+
+[[bin]]
+name = "grpc-generator"
+path = "src/bin/grpc_generator.rs"
+
+[[bin]]
+name = "graphql-generator"
+path = "src/bin/graphql_generator.rs"
+
+[[bin]]
+name = "magictunnel-cli"
+path = "src/bin/mcp-generator.rs"
+
+[[bin]]
+name = "magictunnel-visibility"
+path = "src/bin/magictunnel-visibility.rs"
+
+[[bin]]
+name = "magictunnel-supervisor"
+path = "src/bin/magictunnel-supervisor.rs"
+
+[[bin]]
+name = "version-manager"
+path = "src/bin/version-manager.rs"

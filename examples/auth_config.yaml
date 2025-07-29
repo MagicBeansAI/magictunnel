@@ -1,0 +1,93 @@
+# Example MCP Proxy configuration with authentication enabled
+
+server:
+  host: "127.0.0.1"
+  port: 8080
+
+registry:
+  type: "file"
+  paths:
+    - "capabilities"
+  hot_reload: true
+  validation:
+    strict: false
+    allow_unknown_fields: true
+
+# Authentication configuration
+auth:
+  # Enable authentication
+  enabled: true
+  
+  # Authentication type: api_key, oauth, jwt, or none
+  type: "api_key"
+  
+  # API key configuration
+  api_keys:
+    # List of valid API keys with metadata
+    keys:
+      - key: "admin_key_abcdef123456789"
+        name: "Admin API Key"
+        description: "Full access administrative key"
+        permissions:
+          - "read"
+          - "write"
+          - "admin"
+        active: true
+        # Optional expiration (ISO 8601 format)
+        # expires_at: "2025-12-31T23:59:59Z"
+      
+      - key: "read_only_key_xyz789456123"
+        name: "Read Only API Key"
+        description: "Read-only access for monitoring"
+        permissions:
+          - "read"
+        active: true
+      
+      - key: "service_key_def456789abc123"
+        name: "Service Integration Key"
+        description: "Key for automated service integration"
+        permissions:
+          - "read"
+          - "write"
+        active: true
+        expires_at: "2025-06-30T23:59:59Z"
+    
+    # Require API key in header (default: true)
+    require_header: true
+    
+    # Header name for API key (default: "Authorization")
+    header_name: "Authorization"
+    
+    # Header format with {key} placeholder (default: "Bearer {key}")
+    header_format: "Bearer {key}"
+
+# Optional: OAuth configuration (when type is "oauth")
+# oauth:
+#   provider: "github"
+#   client_id: "your_oauth_client_id"
+#   client_secret: "your_oauth_client_secret"
+#   auth_url: "https://github.com/login/oauth/authorize"
+#   token_url: "https://github.com/login/oauth/access_token"
+
+# Optional: JWT configuration (when type is "jwt")
+jwt:
+  secret: "your_jwt_secret_key_at_least_32_characters_long"
+  algorithm: "HS256"  # Supported: HS256, HS384, HS512, RS256, RS384, RS512, ES256, ES384
+  expiration: 3600  # Token expiration in seconds (1 hour)
+  issuer: "magictunnel"  # Optional: JWT issuer claim
+  audience: "mcp-clients"  # Optional: JWT audience claim
+
+# Optional: Logging configuration
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+
+# Optional: Hybrid routing configuration
+hybrid_routing:
+  enabled: false
+  conflict_resolution:
+    strategy: "local_first"
+    prefix_separator: "_"
+  include_source_metadata: true
+  log_decisions: true

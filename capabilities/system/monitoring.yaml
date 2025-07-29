@@ -1,0 +1,147 @@
+# System Monitoring Capability
+# This demonstrates system monitoring and health check tools
+
+metadata:
+  name: "System Monitoring Tools"
+  description: "Tools for system monitoring, health checks, and performance analysis"
+  version: "2.0.0"
+  author: "SRE Team"
+  tags: ["monitoring", "system", "health", "performance", "metrics"]
+
+tools:
+  - name: "check_disk_usage"
+    description: "Check disk usage for specified paths"
+    inputSchema:
+      type: "object"
+      properties:
+        paths:
+          type: "array"
+          description: "Paths to check disk usage for"
+          items:
+            type: "string"
+          default: ["/"]
+        human_readable:
+          type: "boolean"
+          description: "Display sizes in human readable format"
+          default: true
+        threshold:
+          type: "integer"
+          description: "Alert threshold percentage"
+          default: 80
+          minimum: 1
+          maximum: 100
+      required: []
+    routing:
+      type: "subprocess"
+      config:
+        command: "df"
+        args: ["-h"]
+        timeout: 30
+    hidden: true
+
+  - name: "check_memory_usage"
+    description: "Check system memory usage"
+    inputSchema:
+      type: "object"
+      properties:
+        detailed:
+          type: "boolean"
+          description: "Show detailed memory breakdown"
+          default: false
+        unit:
+          type: "string"
+          description: "Memory unit to display"
+          enum: ["bytes", "kb", "mb", "gb"]
+          default: "mb"
+      required: []
+    routing:
+      type: "subprocess"
+      config:
+        command: "free"
+        args: ["-m"]
+        timeout: 15
+    hidden: true
+
+  - name: "check_process_status"
+    description: "Check status of running processes with optional filtering"
+    inputSchema:
+      type: "object"
+      properties:
+        process_name:
+          type: "string"
+          description: "Name or pattern to filter processes (supports wildcards like 'node', 'python*', '*server')"
+        user:
+          type: "string"
+          description: "Filter by user (optional)"
+        sort_by:
+          type: "string"
+          description: "Sort processes by field"
+          enum: ["cpu", "memory", "pid", "name"]
+          default: "cpu"
+        limit:
+          type: "integer"
+          description: "Limit number of results"
+          default: 20
+          minimum: 1
+          maximum: 100
+      required: []
+    routing:
+      type: "subprocess"
+      config:
+        command: "/bin/bash"
+        args: ["-c", "ps aux | head -1; ps aux | grep -v grep | if [ -n '{process_name}' ]; then grep -i '{process_name}'; else cat; fi | head -n {limit}"]
+        timeout: 30
+    hidden: true
+
+  - name: "check_network_connectivity"
+    description: "Test network connectivity to hosts"
+    inputSchema:
+      type: "object"
+      properties:
+        hosts:
+          type: "array"
+          description: "List of hosts to ping"
+          items:
+            type: "string"
+          default: ["8.8.8.8"]
+        count:
+          type: "integer"
+          description: "Number of ping packets to send"
+          default: 4
+          minimum: 1
+          maximum: 10
+        timeout:
+          type: "integer"
+          description: "Timeout per ping in seconds"
+          default: 5
+          minimum: 1
+          maximum: 30
+      required: []
+    routing:
+      type: "subprocess"
+      config:
+        command: "/sbin/ping"
+        args: ["-c", "{count}", "{hosts[0]}"]
+        timeout: 60
+    hidden: true
+
+  - name: "check_service_status"
+    description: "Check status of system services"
+    inputSchema:
+      type: "object"
+      properties:
+        service_name:
+          type: "string"
+          description: "Name of service to check"
+        all_services:
+          type: "boolean"
+          description: "List all services"
+          default: false
+      required: []
+    routing:
+      type: "subprocess"
+      config:
+        command: "systemctl"
+        args: ["status"]
+        timeout: 30
+    hidden: true

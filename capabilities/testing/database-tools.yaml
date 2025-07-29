@@ -1,0 +1,246 @@
+# Database Agent Testing Capabilities
+# Demonstrates PostgreSQL and SQLite database query routing
+
+tools:
+  # SQLite Database Tools
+  - name: "sqlite_query"
+    description: "Execute SQL queries against SQLite databases"
+    inputSchema:
+      type: "object"
+      properties:
+        database_path:
+          type: "string"
+          description: "Path to SQLite database file"
+          default: ":memory:"
+        query:
+          type: "string"
+          description: "SQL query to execute"
+        timeout:
+          type: "integer"
+          description: "Query timeout in seconds"
+          default: 30
+      required: ["query"]
+    routing:
+      type: "database"
+      config:
+        db_type: "sqlite"
+        connection_string: "{{database_path}}"
+        query: "{{query}}"
+        timeout: "{{timeout}}"
+    hidden: true
+
+  - name: "sqlite_user_query"
+    description: "Query user data from SQLite database with filtering"
+    inputSchema:
+      type: "object"
+      properties:
+        database_path:
+          type: "string"
+          description: "Path to SQLite database file"
+        user_id:
+          type: "integer"
+          description: "User ID to filter by"
+        status:
+          type: "string"
+          description: "User status filter"
+          enum: ["active", "inactive", "pending"]
+      required: ["database_path"]
+    routing:
+      type: "database"
+      config:
+        db_type: "sqlite"
+        connection_string: "{{database_path}}"
+        query: "SELECT * FROM users WHERE ({{user_id}} IS NULL OR id = {{user_id}}) AND ({{status}} IS NULL OR status = '{{status}}')"
+        timeout: 15
+    hidden: true
+
+  # PostgreSQL Database Tools
+  - name: "postgres_query"
+    description: "Execute SQL queries against PostgreSQL databases"
+    inputSchema:
+      type: "object"
+      properties:
+        host:
+          type: "string"
+          description: "PostgreSQL host"
+          default: "localhost"
+        port:
+          type: "integer"
+          description: "PostgreSQL port"
+          default: 5432
+        database:
+          type: "string"
+          description: "Database name"
+          default: "postgres"
+        username:
+          type: "string"
+          description: "Database username"
+          default: "postgres"
+        password:
+          type: "string"
+          description: "Database password"
+        query:
+          type: "string"
+          description: "SQL query to execute"
+        timeout:
+          type: "integer"
+          description: "Query timeout in seconds"
+          default: 60
+      required: ["query"]
+    routing:
+      type: "database"
+      config:
+        db_type: "postgresql"
+        connection_string: "host={{host}} port={{port}} dbname={{database}} user={{username}} password={{password}}"
+        query: "{{query}}"
+        timeout: "{{timeout}}"
+    hidden: true
+
+  - name: "postgres_analytics_query"
+    description: "Execute analytics queries against PostgreSQL with date filtering"
+    inputSchema:
+      type: "object"
+      properties:
+        connection_string:
+          type: "string"
+          description: "Full PostgreSQL connection string"
+        table_name:
+          type: "string"
+          description: "Table to query"
+          default: "analytics_events"
+        start_date:
+          type: "string"
+          description: "Start date for filtering (YYYY-MM-DD)"
+        end_date:
+          type: "string"
+          description: "End date for filtering (YYYY-MM-DD)"
+        metric:
+          type: "string"
+          description: "Metric to aggregate"
+          enum: ["count", "sum", "avg", "max", "min"]
+          default: "count"
+        group_by:
+          type: "string"
+          description: "Column to group by"
+      required: ["connection_string"]
+    routing:
+      type: "database"
+      config:
+        db_type: "postgresql"
+        connection_string: "{{connection_string}}"
+        query: |
+          SELECT 
+            {{group_by ? group_by + ',' : ''}}
+            {{metric}}(*) as result
+          FROM {{table_name}}
+          WHERE 
+            ({{start_date}} IS NULL OR created_at >= '{{start_date}}')
+            AND ({{end_date}} IS NULL OR created_at <= '{{end_date}}')
+          {{group_by ? 'GROUP BY ' + group_by : ''}}
+          ORDER BY result DESC
+        timeout: 120
+    hidden: true
+
+  # Database Management Tools
+  - name: "sqlite_create_table"
+    description: "Create a table in SQLite database"
+    inputSchema:
+      type: "object"
+      properties:
+        database_path:
+          type: "string"
+          description: "Path to SQLite database file"
+        table_name:
+          type: "string"
+          description: "Name of table to create"
+        schema:
+          type: "string"
+          description: "Table schema definition"
+      required: ["database_path", "table_name", "schema"]
+    routing:
+      type: "database"
+      config:
+        db_type: "sqlite"
+        connection_string: "{{database_path}}"
+        query: "CREATE TABLE IF NOT EXISTS {{table_name}} ({{schema}})"
+        timeout: 10
+    hidden: true
+
+  - name: "postgres_table_info"
+    description: "Get table information from PostgreSQL database"
+    inputSchema:
+      type: "object"
+      properties:
+        connection_string:
+          type: "string"
+          description: "PostgreSQL connection string"
+        table_name:
+          type: "string"
+          description: "Table name to inspect"
+        schema_name:
+          type: "string"
+          description: "Schema name"
+          default: "public"
+      required: ["connection_string", "table_name"]
+    routing:
+      type: "database"
+      config:
+        db_type: "postgresql"
+        connection_string: "{{connection_string}}"
+        query: |
+          SELECT 
+            column_name,
+            data_type,
+            is_nullable,
+            column_default
+          FROM information_schema.columns
+          WHERE table_name = '{{table_name}}'
+            AND table_schema = '{{schema_name}}'
+          ORDER BY ordinal_position
+        timeout: 30
+    hidden: true
+
+  # Environment-based Database Connection
+  - name: "env_postgres_query"
+    description: "Execute PostgreSQL query using environment variables for connection"
+    inputSchema:
+      type: "object"
+      properties:
+        query:
+          type: "string"
+          description: "SQL query to execute"
+        timeout:
+          type: "integer"
+          description: "Query timeout in seconds"
+          default: 60
+      required: ["query"]
+    routing:
+      type: "database"
+      config:
+        db_type: "postgresql"
+        connection_string: "host={{env.DB_HOST}} port={{env.DB_PORT}} dbname={{env.DB_NAME}} user={{env.DB_USER}} password={{env.DB_PASSWORD}}"
+        query: "{{query}}"
+        timeout: "{{timeout}}"
+    hidden: true
+
+  - name: "env_sqlite_query"
+    description: "Execute SQLite query using environment variable for database path"
+    inputSchema:
+      type: "object"
+      properties:
+        query:
+          type: "string"
+          description: "SQL query to execute"
+        timeout:
+          type: "integer"
+          description: "Query timeout in seconds"
+          default: 30
+      required: ["query"]
+    routing:
+      type: "database"
+      config:
+        db_type: "sqlite"
+        connection_string: "{{env.SQLITE_DB_PATH}}"
+        query: "{{query}}"
+        timeout: "{{timeout}}"
+    hidden: true

@@ -1,0 +1,108 @@
+metadata:
+  name: LLM Integration Tools
+  description: Tools for integrating with various language models and AI services
+  version: 2.1.0
+  author: AI Team
+  tags:
+  - ai
+  - llm
+  - openai
+  - anthropic
+  - generation
+tools:
+- name: generate_text
+  description: Generate text using a language model
+  inputSchema:
+    properties:
+      max_tokens:
+        default: 1000
+        description: Maximum number of tokens to generate
+        maximum: 4000
+        minimum: 1
+        type: integer
+      model:
+        default: gpt-4
+        description: Model to use (gpt-4, claude-3, etc.)
+        type: string
+      prompt:
+        description: The prompt to send to the language model
+        type: string
+      system_prompt:
+        description: System prompt to set context
+        type: string
+      temperature:
+        default: 0.7
+        description: Sampling temperature (0.0 to 2.0)
+        maximum: 2.0
+        minimum: 0.0
+        type: number
+    required:
+    - prompt
+    type: object
+  routing:
+    type: llm
+    config:
+      api_key_env: OPENAI_API_KEY
+      model: '{model}'
+      provider: openai
+      retry_attempts: 3
+      timeout: 60
+  annotations: null
+  hidden: true
+- name: analyze_sentiment
+  description: Analyze the sentiment of text
+  inputSchema:
+    properties:
+      detailed:
+        default: false
+        description: Return detailed sentiment analysis
+        type: boolean
+      text:
+        description: Text to analyze for sentiment
+        type: string
+    required:
+    - text
+    type: object
+  routing:
+    type: llm
+    config:
+      api_key_env: ANTHROPIC_API_KEY
+      model: claude-3-sonnet
+      provider: anthropic
+      system_prompt: You are a sentiment analysis expert. Analyze the sentiment of the given text and return a JSON response with sentiment (positive/negative/neutral) and confidence score.
+      timeout: 30
+  annotations: null
+  hidden: true
+- name: summarize_text
+  description: Summarize long text content
+  inputSchema:
+    properties:
+      max_length:
+        default: 100
+        description: Maximum length of summary in words
+        maximum: 500
+        minimum: 10
+        type: integer
+      style:
+        default: paragraph
+        description: Summary style
+        enum:
+        - bullet_points
+        - paragraph
+        - executive
+        type: string
+      text:
+        description: Text to summarize
+        type: string
+    required:
+    - text
+    type: object
+  routing:
+    type: llm
+    config:
+      api_key_env: OPENAI_API_KEY
+      model: gpt-4
+      provider: openai
+      timeout: 45
+  annotations: null
+  hidden: true

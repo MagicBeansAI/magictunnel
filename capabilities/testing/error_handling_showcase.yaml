@@ -1,0 +1,307 @@
+# Error Handling and Edge Cases Showcase
+# This demonstrates robust error handling, timeouts, retries, and edge cases
+# for the AgentRouter system
+
+metadata:
+  name: "Error Handling Showcase"
+  description: "Comprehensive demonstration of error handling, timeouts, and edge cases"
+  version: "1.0.0"
+  author: "MCP Proxy Team"
+  tags: ["testing", "error-handling", "timeouts", "retries", "edge-cases"]
+
+tools:
+  # ===== TIMEOUT AND RETRY SCENARIOS =====
+  
+  - name: "timeout_test_subprocess"
+    description: "Test subprocess timeout handling with configurable delays"
+    inputSchema:
+      type: "object"
+      properties:
+        delay_seconds:
+          type: "integer"
+          description: "Delay in seconds (use > timeout to test timeout)"
+          default: 5
+          minimum: 1
+          maximum: 300
+        should_fail:
+          type: "boolean"
+          description: "Whether the command should fail"
+          default: false
+        exit_code:
+          type: "integer"
+          description: "Exit code to return (if should_fail is true)"
+          default: 1
+          minimum: 1
+          maximum: 255
+      required: []
+    routing:
+      type: "subprocess"
+      config:
+        command: "bash"
+        args: [
+          "-c",
+          "echo 'Starting test with {{delay_seconds}}s delay'; sleep {{delay_seconds}}; {{#if should_fail}}echo 'Failing with exit code {{exit_code}}'; exit {{exit_code}}{{else}}echo 'Success after {{delay_seconds}}s'{{/if}}"
+        ]
+        timeout: 10  # Intentionally short to test timeout
+        retry_attempts: 2
+    hidden: true
+
+  - name: "http_retry_test"
+    description: "Test HTTP retry logic with unreliable endpoints"
+    inputSchema:
+      type: "object"
+      properties:
+        endpoint_url:
+          type: "string"
+          description: "URL to test (use httpbin.org for testing)"
+          default: "https://httpbin.org/status/500"
+          format: "uri"
+        expected_failures:
+          type: "integer"
+          description: "Number of expected failures before success"
+          default: 2
+          minimum: 0
+          maximum: 5
+        retry_delay:
+          type: "integer"
+          description: "Delay between retries in seconds"
+          default: 1
+          minimum: 1
+          maximum: 10
+      required: []
+    routing:
+      type: "http"
+      config:
+        method: "GET"
+        url: "{{endpoint_url}}"
+        headers:
+          X-Test-Scenario: "retry-test"
+          X-Expected-Failures: "{{expected_failures}}"
+        timeout: 5
+        retry_attempts: 5
+        retry_delay: "{{retry_delay}}"
+    hidden: true
+
+  # ===== PARAMETER VALIDATION EDGE CASES =====
+
+  - name: "parameter_edge_cases"
+    description: "Test parameter substitution with edge cases and special characters"
+    inputSchema:
+      type: "object"
+      properties:
+        special_chars:
+          type: "string"
+          description: "String with special characters"
+          default: "test@#$%^&*(){}[]|\\:;\"'<>?,./"
+        unicode_text:
+          type: "string"
+          description: "Unicode text"
+          default: "Hello 世界 🌍 Здравствуй мир"
+        json_data:
+          type: "object"
+          description: "Complex JSON data"
+          default: {"nested": {"array": [1, 2, 3], "bool": true, "null": null}}
+        empty_values:
+          type: "array"
+          description: "Array with empty/null values"
+          items:
+            type: "string"
+          default: ["", null, "  ", "valid"]
+        large_number:
+          type: "integer"
+          description: "Large number for testing"
+          default: 9223372036854775807
+      required: []
+    routing:
+      type: "subprocess"
+      config:
+        command: "echo"
+        args: [
+          "Special chars: {{special_chars}}",
+          "Unicode: {{unicode_text}}",
+          "JSON: {{json_data}}",
+          "Empty values: {{empty_values}}",
+          "Large number: {{large_number}}"
+        ]
+        timeout: 30
+    hidden: true
+
+  # ===== NETWORK ERROR SCENARIOS =====
+
+  - name: "network_error_simulation"
+    description: "Simulate various network error conditions"
+    inputSchema:
+      type: "object"
+      properties:
+        error_type:
+          type: "string"
+          description: "Type of network error to simulate"
+          enum: ["timeout", "connection_refused", "dns_failure", "ssl_error", "404", "500", "503"]
+          default: "timeout"
+        custom_endpoint:
+          type: "string"
+          description: "Custom endpoint for testing"
+          format: "uri"
+      required: []
+    routing:
+      type: "http"
+      config:
+        method: "GET"
+        url: "{{#switch error_type}}{{#case 'timeout'}}https://httpbin.org/delay/30{{/case}}{{#case 'connection_refused'}}http://localhost:99999{{/case}}{{#case 'dns_failure'}}http://nonexistent-domain-12345.invalid{{/case}}{{#case 'ssl_error'}}https://expired.badssl.com{{/case}}{{#case '404'}}https://httpbin.org/status/404{{/case}}{{#case '500'}}https://httpbin.org/status/500{{/case}}{{#case '503'}}https://httpbin.org/status/503{{/case}}{{#default}}{{custom_endpoint}}{{/default}}{{/switch}}"
+        headers:
+          X-Error-Type: "{{error_type}}"
+          X-Test-Purpose: "network-error-simulation"
+        timeout: 10
+        retry_attempts: 3
+    hidden: true
+
+  # ===== LLM ERROR SCENARIOS =====
+
+  - name: "llm_error_handling"
+    description: "Test LLM error handling with invalid inputs and API issues"
+    inputSchema:
+      type: "object"
+      properties:
+        test_scenario:
+          type: "string"
+          description: "Error scenario to test"
+          enum: ["invalid_api_key", "rate_limit", "token_limit", "invalid_model", "malformed_prompt"]
+          default: "invalid_api_key"
+        prompt_text:
+          type: "string"
+          description: "Prompt text for testing"
+          default: "This is a test prompt for error handling"
+        model_override:
+          type: "string"
+          description: "Model to use for testing"
+          default: "invalid-model-name"
+      required: []
+    routing:
+      type: "llm"
+      config:
+        provider: "{{test_scenario === 'invalid_api_key' ? 'openai' : 'anthropic'}}"
+        model: "{{test_scenario === 'invalid_model' ? model_override : 'gpt-4'}}"
+        api_key: "{{test_scenario === 'invalid_api_key' ? 'invalid-key-12345' : env.OPENAI_API_KEY}}"
+        timeout: 30
+        retry_attempts: 2
+        system_prompt: "{{test_scenario === 'malformed_prompt' ? 'Invalid JSON: {broken' : 'You are a helpful assistant.'}}"
+        user_prompt: "{{test_scenario === 'token_limit' ? 'A'.repeat(100000) : prompt_text}}"
+    hidden: true
+
+  # ===== WEBSOCKET ERROR SCENARIOS =====
+
+  - name: "websocket_error_handling"
+    description: "Test WebSocket error handling and connection issues"
+    inputSchema:
+      type: "object"
+      properties:
+        error_scenario:
+          type: "string"
+          description: "WebSocket error scenario"
+          enum: ["invalid_url", "connection_refused", "auth_failure", "protocol_error", "timeout"]
+          default: "connection_refused"
+        custom_url:
+          type: "string"
+          description: "Custom WebSocket URL for testing"
+          format: "uri"
+        auth_token:
+          type: "string"
+          description: "Authentication token (use 'invalid' for auth failure test)"
+          default: "valid-token"
+      required: []
+    routing:
+      type: "websocket"
+      config:
+        url: "{{#switch error_scenario}}{{#case 'invalid_url'}}ws://invalid-url-format{{/case}}{{#case 'connection_refused'}}ws://localhost:99999{{/case}}{{#case 'auth_failure'}}wss://echo.websocket.org{{/case}}{{#case 'protocol_error'}}ws://echo.websocket.org{{/case}}{{#case 'timeout'}}wss://echo.websocket.org{{/case}}{{#default}}{{custom_url}}{{/default}}{{/switch}}"
+        headers:
+          Authorization: "Bearer {{error_scenario === 'auth_failure' ? 'invalid-token' : auth_token}}"
+          X-Error-Scenario: "{{error_scenario}}"
+        message: "{{error_scenario === 'protocol_error' ? 'invalid-json-{broken' : '{\"test\": \"message\", \"scenario\": \"' + error_scenario + '\"}'}}"
+        timeout: "{{error_scenario === 'timeout' ? 1 : 30}}"
+    hidden: true
+
+  # ===== RESOURCE EXHAUSTION TESTS =====
+
+  - name: "memory_stress_test"
+    description: "Test memory usage limits and resource management"
+    inputSchema:
+      type: "object"
+      properties:
+        memory_size_mb:
+          type: "integer"
+          description: "Memory to allocate in MB"
+          default: 100
+          minimum: 1
+          maximum: 1000
+        duration_seconds:
+          type: "integer"
+          description: "How long to hold memory"
+          default: 10
+          minimum: 1
+          maximum: 60
+      required: []
+    routing:
+      type: "subprocess"
+      config:
+        command: "python3"
+        args: [
+          "-c",
+          "import time; data = bytearray({{memory_size_mb}} * 1024 * 1024); print(f'Allocated {{memory_size_mb}}MB'); time.sleep({{duration_seconds}}); print('Released memory')"
+        ]
+        timeout: 120
+        memory_limit_mb: 500
+    hidden: true
+
+  - name: "concurrent_request_test"
+    description: "Test handling of concurrent requests and rate limiting"
+    inputSchema:
+      type: "object"
+      properties:
+        concurrent_count:
+          type: "integer"
+          description: "Number of concurrent requests to simulate"
+          default: 5
+          minimum: 1
+          maximum: 20
+        request_delay:
+          type: "number"
+          description: "Delay between requests in seconds"
+          default: 0.1
+          minimum: 0.01
+          maximum: 5.0
+      required: []
+    routing:
+      type: "http"
+      config:
+        method: "GET"
+        url: "https://httpbin.org/delay/{{request_delay}}"
+        headers:
+          X-Concurrent-Count: "{{concurrent_count}}"
+          X-Request-ID: "{{uuid}}"
+        timeout: 30
+    hidden: true
+
+  # ===== MALFORMED INPUT TESTS =====
+
+  - name: "malformed_input_test"
+    description: "Test handling of malformed and unexpected inputs"
+    inputSchema:
+      type: "object"
+      properties:
+        input_type:
+          type: "string"
+          description: "Type of malformed input to test"
+          enum: ["null_bytes", "extremely_long", "binary_data", "control_chars", "mixed_encoding"]
+          default: "null_bytes"
+        custom_input:
+          type: "string"
+          description: "Custom malformed input"
+      required: []
+    routing:
+      type: "subprocess"
+      config:
+        command: "cat"
+        args: []
+        stdin: "{{#switch input_type}}{{#case 'null_bytes'}}Hello\x00World\x00Test{{/case}}{{#case 'extremely_long'}}{{'A'.repeat(10000)}}{{/case}}{{#case 'binary_data'}}\xFF\xFE\xFD\xFC{{/case}}{{#case 'control_chars'}}\x01\x02\x03\x04\x05{{/case}}{{#case 'mixed_encoding'}}Hello 世界 \xFF invalid{{/case}}{{#default}}{{custom_input}}{{/default}}{{/switch}}"
+        timeout: 30
+    hidden: true

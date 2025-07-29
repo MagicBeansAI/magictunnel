@@ -1,0 +1,287 @@
+syntax = "proto3";
+
+package test.comprehensive;
+
+import "data/grpc_test/comprehensive_test_types.proto";
+
+// Comprehensive gRPC service definition with all types of methods
+service ComprehensiveService {
+  // Unary method (standard request-response)
+  rpc GetUser(GetUserRequest) returns (GetUserResponse) {}
+  
+  // Server streaming method (one request, stream of responses)
+  rpc ListUsers(ListUsersRequest) returns (stream ListUsersResponse) {}
+  
+  // Client streaming method (stream of requests, one response)
+  rpc CreateUsers(stream CreateUserRequest) returns (CreateUsersResponse) {}
+  
+  // Bidirectional streaming method (stream of requests, stream of responses)
+  rpc ChatWithSupport(stream ChatMessage) returns (stream ChatMessage) {}
+  
+  // Method with complex input and output types
+  rpc ProcessOrder(OrderRequest) returns (OrderResponse) {}
+  
+  // Method with empty request
+  rpc GetServerStatus(Empty) returns (ServerStatus) {}
+  
+  // Method with empty response
+  rpc LogEvent(LogEventRequest) returns (Empty) {}
+  
+  // Method with oneof field in request
+  rpc SearchEntity(SearchRequest) returns (SearchResponse) {}
+  
+  // Method with map field in response
+  rpc GetFeatureFlags(FeatureFlagRequest) returns (FeatureFlagResponse) {}
+  
+  // Method with nested message types
+  rpc GetUserProfile(GetUserProfileRequest) returns (GetUserProfileResponse) {}
+}
+
+// Empty message for methods without parameters
+message Empty {}
+
+// Request for GetUser method
+message GetUserRequest {
+  string user_id = 1;
+  bool include_details = 2;
+}
+
+// Response for GetUser method
+message GetUserResponse {
+  User user = 1;
+  ResponseMetadata metadata = 2;
+}
+
+// Request for ListUsers method
+message ListUsersRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+  UserFilter filter = 3;
+}
+
+// Response for ListUsers method (streamed)
+message ListUsersResponse {
+  repeated User users = 1;
+  string next_page_token = 2;
+}
+
+// Request for CreateUsers method (streamed)
+message CreateUserRequest {
+  User user = 1;
+}
+
+// Response for CreateUsers method
+message CreateUsersResponse {
+  repeated string user_ids = 1;
+  int32 success_count = 2;
+  int32 failure_count = 3;
+  repeated CreateError errors = 4;
+}
+
+// Chat message for bidirectional streaming
+message ChatMessage {
+  string user_id = 1;
+  string message = 2;
+  int64 timestamp = 3;
+  MessageType type = 4;
+  
+  enum MessageType {
+    TEXT = 0;
+    IMAGE = 1;
+    SYSTEM = 2;
+    TYPING = 3;
+  }
+}
+
+// Request for ProcessOrder method with complex types
+message OrderRequest {
+  string order_id = 1;
+  string customer_id = 2;
+  repeated OrderItem items = 3;
+  PaymentInfo payment = 4;
+  ShippingInfo shipping = 5;
+  map<string, string> metadata = 6;
+}
+
+// Response for ProcessOrder method
+message OrderResponse {
+  string order_id = 1;
+  OrderStatus status = 2;
+  double total_amount = 3;
+  int64 estimated_delivery_time = 4;
+  repeated OrderItem processed_items = 5;
+  
+  enum OrderStatus {
+    PENDING = 0;
+    PROCESSING = 1;
+    SHIPPED = 2;
+    DELIVERED = 3;
+    CANCELLED = 4;
+  }
+}
+
+// Server status response
+message ServerStatus {
+  string version = 1;
+  int32 active_connections = 2;
+  double cpu_usage = 3;
+  double memory_usage = 4;
+  SystemStatus system_status = 5;
+  
+  enum SystemStatus {
+    HEALTHY = 0;
+    DEGRADED = 1;
+    MAINTENANCE = 2;
+    DOWN = 3;
+  }
+}
+
+// Log event request
+message LogEventRequest {
+  string event_name = 1;
+  LogLevel level = 2;
+  string message = 3;
+  map<string, string> context = 4;
+  int64 timestamp = 5;
+  
+  enum LogLevel {
+    DEBUG = 0;
+    INFO = 1;
+    WARNING = 2;
+    ERROR = 3;
+    CRITICAL = 4;
+  }
+}
+
+// Search request with oneof field
+message SearchRequest {
+  oneof query {
+    string text_query = 1;
+    UserFilter user_filter = 2;
+    OrderFilter order_filter = 3;
+  }
+  int32 max_results = 4;
+  bool include_archived = 5;
+}
+
+// Search response
+message SearchResponse {
+  repeated SearchResult results = 1;
+  int32 total_count = 2;
+  double search_time_ms = 3;
+}
+
+// Search result
+message SearchResult {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  double relevance_score = 4;
+  oneof entity {
+    User user = 5;
+    OrderSummary order = 6;
+    ProductSummary product = 7;
+  }
+}
+
+// Feature flag request
+message FeatureFlagRequest {
+  string user_id = 1;
+  string environment = 2;
+  repeated string flag_names = 3;
+}
+
+// Feature flag response with map field
+message FeatureFlagResponse {
+  map<string, FeatureFlag> flags = 1;
+  int64 version = 2;
+}
+
+// Feature flag
+message FeatureFlag {
+  string name = 1;
+  bool enabled = 2;
+  oneof value {
+    string string_value = 3;
+    int32 int_value = 4;
+    double float_value = 5;
+    bool bool_value = 6;
+  }
+  map<string, string> metadata = 7;
+}
+
+// User profile request
+message GetUserProfileRequest {
+  string user_id = 1;
+  bool include_preferences = 2;
+  bool include_activity = 3;
+}
+
+// User profile response with nested messages
+message GetUserProfileResponse {
+  User user = 1;
+  UserPreferences preferences = 2;
+  UserActivity activity = 3;
+  
+  message UserPreferences {
+    string theme = 1;
+    string language = 2;
+    bool notifications_enabled = 3;
+    repeated string subscribed_topics = 4;
+  }
+  
+  message UserActivity {
+    int32 login_count = 1;
+    int64 last_login_time = 2;
+    repeated ActivityItem recent_activity = 3;
+    
+    message ActivityItem {
+      string action = 1;
+      int64 timestamp = 2;
+      string resource_id = 3;
+      map<string, string> details = 4;
+    }
+  }
+}
+
+// Error details for batch operations
+message CreateError {
+  int32 index = 1;
+  string user_id = 2;
+  string error_code = 3;
+  string error_message = 4;
+}
+
+// User filter
+message UserFilter {
+  repeated string user_ids = 1;
+  string email_pattern = 2;
+  UserStatus status = 3;
+  int64 created_after = 4;
+  int64 created_before = 5;
+}
+
+// Order filter
+message OrderFilter {
+  repeated string order_ids = 1;
+  string customer_id = 2;
+  OrderStatus status = 3;
+  int64 ordered_after = 4;
+  int64 ordered_before = 5;
+  
+  enum OrderStatus {
+    ANY = 0;
+    PENDING = 1;
+    PROCESSING = 2;
+    SHIPPED = 3;
+    DELIVERED = 4;
+    CANCELLED = 5;
+  }
+}
+
+// Response metadata
+message ResponseMetadata {
+  string request_id = 1;
+  int64 server_time = 2;
+  string version = 3;
+}

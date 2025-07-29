@@ -1,0 +1,97 @@
+metadata:
+  name: Core File Operations
+  description: Essential file system operations for reading, writing, and managing files
+  version: 1.0.0
+  author: MCP Proxy Team
+  tags:
+  - filesystem
+  - core
+  - io
+tools:
+- name: read_file
+  description: Read the contents of a file
+  inputSchema:
+    properties:
+      encoding:
+        default: utf-8
+        description: 'File encoding (default: utf-8)'
+        type: string
+      path:
+        description: Path to the file to read
+        type: string
+    required:
+    - path
+    type: object
+  routing:
+    type: subprocess
+    config:
+      args:
+      - '{path}'
+      command: cat
+      timeout: 30
+      working_directory: .
+  annotations: null
+  hidden: true
+- name: write_file
+  description: Write content to a file
+  inputSchema:
+    properties:
+      content:
+        description: Content to write to the file
+        type: string
+      create_dirs:
+        default: false
+        description: Create parent directories if they don't exist
+        type: boolean
+      encoding:
+        default: utf-8
+        description: 'File encoding (default: utf-8)'
+        type: string
+      path:
+        description: Path to the file to write
+        type: string
+    required:
+    - path
+    - content
+    type: object
+  routing:
+    type: subprocess
+    config:
+      args:
+      - '{path}'
+      command: tee
+      stdin: '{content}'
+      timeout: 30
+  annotations: null
+  hidden: true
+- name: list_directory
+  description: List contents of a directory
+  inputSchema:
+    properties:
+      path:
+        description: Path to the directory to list
+        type: string
+      recursive:
+        default: false
+        description: List recursively
+        type: boolean
+      show_hidden:
+        default: false
+        description: Include hidden files
+        type: boolean
+    required:
+    - path
+    type: object
+  routing:
+    type: subprocess
+    config:
+      args:
+      - -la
+      - '{path}'
+      command: ls
+      timeout: 30
+  annotations: null
+  hidden: true
+# Test comment
+# Added test comment at Mon Jul 28 03:38:19 IST 2025
+# Final test comment at Mon Jul 28 03:43:41 IST 2025

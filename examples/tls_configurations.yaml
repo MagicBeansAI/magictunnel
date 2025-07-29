@@ -1,0 +1,355 @@
+# TLS Configuration Examples for MCP Proxy
+# This file contains various TLS configuration examples for different deployment scenarios
+
+# =============================================================================
+# 1. DEVELOPMENT CONFIGURATION (Self-Signed Certificates)
+# =============================================================================
+development:
+  server:
+    host: "127.0.0.1"
+    port: 3000
+    websocket: true
+    timeout: 30
+    tls:
+      mode: "application"
+      cert_file: "certs/dev-cert.pem"
+      key_file: "certs/dev-key.pem"
+      min_tls_version: "1.2"
+      hsts_enabled: false  # Disabled for development
+      
+  # Registry and other configs remain the same
+  registry:
+    type: "file"
+    paths:
+      - "capabilities/"
+    hot_reload: true
+    
+  logging:
+    level: "debug"
+    format: "pretty"
+
+# =============================================================================
+# 2. PRODUCTION CONFIGURATION (Application-Level TLS)
+# =============================================================================
+production_direct:
+  server:
+    host: "0.0.0.0"
+    port: 3000
+    websocket: true
+    timeout: 30
+    tls:
+      mode: "application"
+      cert_file: "/etc/ssl/certs/magictunnel.crt"
+      key_file: "/etc/ssl/private/magictunnel.key"
+      ca_file: "/etc/ssl/certs/ca-bundle.crt"
+      min_tls_version: "1.2"
+      cipher_suites:
+        - "TLS_AES_256_GCM_SHA384"
+        - "TLS_CHACHA20_POLY1305_SHA256"
+        - "TLS_AES_128_GCM_SHA256"
+        - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
+      hsts_enabled: true
+      hsts_max_age: 31536000  # 1 year
+      hsts_include_subdomains: true
+      
+  # Enhanced security configuration
+  auth:
+    enabled: true
+    type: "jwt"
+    jwt:
+      secret: "${JWT_SECRET}"
+      algorithm: "RS256"
+      issuer: "magictunnel.example.com"
+      audience: "mcp-clients"
+      
+  logging:
+    level: "info"
+    format: "json"
+    
+  monitoring:
+    enabled: true
+    metrics_endpoint: "/metrics"
+
+# =============================================================================
+# 3. BEHIND REVERSE PROXY CONFIGURATION
+# =============================================================================
+production_proxy:
+  server:
+    host: "127.0.0.1"  # Internal only
+    port: 3000
+    websocket: true
+    timeout: 30
+    tls:
+      mode: "behind_proxy"
+      behind_proxy: true
+      trusted_proxies:
+        - "10.0.0.0/8"      # Private network
+        - "172.16.0.0/12"   # Docker networks
+        - "192.168.0.0/16"  # Local networks
+        - "127.0.0.1/32"    # Localhost
+      # Validate forwarded headers
+      require_forwarded_proto: true
+      require_forwarded_for: true
+      
+  # Security headers handled by reverse proxy
+  auth:
+    enabled: true
+    type: "api_key"
+    api_key:
+      header_name: "Authorization"
+      prefix: "Bearer "
+      
+  logging:
+    level: "info"
+    format: "json"
+
+# =============================================================================
+# 4. AUTO-DETECTION CONFIGURATION (Hybrid)
+# =============================================================================
+production_auto:
+  server:
+    host: "0.0.0.0"
+    port: 3000
+    websocket: true
+    timeout: 30
+    tls:
+      mode: "auto"
+      # Certificates for direct mode
+      cert_file: "/etc/ssl/certs/magictunnel.crt"
+      key_file: "/etc/ssl/private/magictunnel.key"
+      # Proxy settings for behind-proxy mode
+      trusted_proxies:
+        - "10.0.0.0/8"
+        - "172.16.0.0/12"
+        - "192.168.0.0/16"
+      # Auto-detection settings
+      auto_detect_headers:
+        - "X-Forwarded-Proto"
+        - "X-Forwarded-For"
+        - "X-Real-IP"
+      fallback_mode: "application"  # If detection fails
+      
+  auth:
+    enabled: true
+    type: "oauth"
+    oauth:
+      provider: "github"
+      client_id: "${OAUTH_CLIENT_ID}"
+      client_secret: "${OAUTH_CLIENT_SECRET}"
+      redirect_url: "https://magictunnel.example.com/auth/oauth/callback"
+      
+  logging:
+    level: "info"
+    format: "json"
+
+# =============================================================================
+# 5. KUBERNETES CONFIGURATION
+# =============================================================================
+kubernetes:
+  server:
+    host: "0.0.0.0"
+    port: 3000
+    websocket: true
+    timeout: 30
+    tls:
+      mode: "behind_proxy"
+      behind_proxy: true
+      trusted_proxies:
+        - "10.0.0.0/8"      # Cluster network
+        - "172.16.0.0/12"   # Pod network
+      # Kubernetes-specific headers
+      trust_kubernetes_headers: true
+      
+  # Use Kubernetes secrets for sensitive data
+  auth:
+    enabled: true
+    type: "jwt"
+    jwt:
+      secret_file: "/var/secrets/jwt/secret"
+      algorithm: "RS256"
+      public_key_file: "/var/secrets/jwt/public.pem"
+      
+  registry:
+    type: "file"
+    paths:
+      - "/app/capabilities"
+    hot_reload: true
+    
+  logging:
+    level: "info"
+    format: "json"
+    
+  monitoring:
+    enabled: true
+    metrics_endpoint: "/metrics"
+    health_endpoint: "/health"
+
+# =============================================================================
+# 6. DOCKER COMPOSE CONFIGURATION
+# =============================================================================
+docker_compose:
+  server:
+    host: "0.0.0.0"
+    port: 3000
+    websocket: true
+    timeout: 30
+    tls:
+      mode: "behind_proxy"
+      behind_proxy: true
+      trusted_proxies:
+        - "172.16.0.0/12"   # Docker default network
+      
+  registry:
+    type: "file"
+    paths:
+      - "/app/capabilities"
+    hot_reload: true
+    
+  logging:
+    level: "info"
+    format: "json"
+
+# =============================================================================
+# 7. ENTERPRISE CONFIGURATION (mTLS)
+# =============================================================================
+enterprise_mtls:
+  server:
+    host: "0.0.0.0"
+    port: 3000
+    websocket: true
+    timeout: 30
+    tls:
+      mode: "application"
+      cert_file: "/etc/ssl/certs/server.crt"
+      key_file: "/etc/ssl/private/server.key"
+      ca_file: "/etc/ssl/certs/ca-bundle.crt"
+      # Mutual TLS (client certificate authentication)
+      client_ca_file: "/etc/ssl/certs/client-ca.crt"
+      require_client_cert: true
+      verify_client_cert: true
+      min_tls_version: "1.3"  # Require TLS 1.3
+      cipher_suites:
+        - "TLS_AES_256_GCM_SHA384"
+        - "TLS_CHACHA20_POLY1305_SHA256"
+      hsts_enabled: true
+      hsts_max_age: 63072000  # 2 years
+      hsts_include_subdomains: true
+      hsts_preload: true
+      
+  # Certificate-based authentication
+  auth:
+    enabled: true
+    type: "certificate"
+    certificate:
+      ca_file: "/etc/ssl/certs/client-ca.crt"
+      verify_chain: true
+      extract_cn: true  # Use CN as username
+      
+  logging:
+    level: "info"
+    format: "json"
+    audit_enabled: true
+    audit_file: "/var/log/magictunnel/audit.log"
+
+# =============================================================================
+# 8. HIGH AVAILABILITY CONFIGURATION
+# =============================================================================
+high_availability:
+  server:
+    host: "0.0.0.0"
+    port: 3000
+    websocket: true
+    timeout: 30
+    tls:
+      mode: "auto"
+      cert_file: "/etc/ssl/certs/magictunnel.crt"
+      key_file: "/etc/ssl/private/magictunnel.key"
+      # Support certificate rotation
+      cert_reload_enabled: true
+      cert_reload_interval: 3600  # Check every hour
+      trusted_proxies:
+        - "10.0.0.0/8"
+        - "172.16.0.0/12"
+        - "192.168.0.0/16"
+      # Load balancer health checks
+      health_check_path: "/health"
+      
+  # Distributed authentication
+  auth:
+    enabled: true
+    type: "jwt"
+    jwt:
+      secret: "${JWT_SECRET}"
+      algorithm: "RS256"
+      # Distributed key management
+      jwks_url: "https://auth.example.com/.well-known/jwks.json"
+      jwks_refresh_interval: 300
+      
+  # High availability registry
+  registry:
+    type: "distributed"
+    redis_url: "redis://redis-cluster:6379"
+    paths:
+      - "/app/capabilities"
+    hot_reload: true
+    
+  logging:
+    level: "info"
+    format: "json"
+    
+  monitoring:
+    enabled: true
+    metrics_endpoint: "/metrics"
+    distributed_tracing: true
+    jaeger_endpoint: "http://jaeger:14268/api/traces"
+
+# =============================================================================
+# 9. TESTING CONFIGURATION
+# =============================================================================
+testing:
+  server:
+    host: "127.0.0.1"
+    port: 3000
+    websocket: true
+    timeout: 30
+    tls:
+      mode: "disabled"  # Disabled for testing
+      
+  registry:
+    type: "memory"  # In-memory for tests
+    paths:
+      - "test/capabilities"
+    hot_reload: false
+    
+  auth:
+    enabled: false  # Disabled for testing
+    
+  logging:
+    level: "debug"
+    format: "pretty"
+
+# =============================================================================
+# ENVIRONMENT VARIABLE EXAMPLES
+# =============================================================================
+# These can be used to override configuration values:
+#
+# # TLS Mode
+# MCP_TLS_MODE=application
+# MCP_TLS_CERT_FILE=/etc/ssl/certs/server.crt
+# MCP_TLS_KEY_FILE=/etc/ssl/private/server.key
+# MCP_TLS_MIN_VERSION=1.2
+# MCP_TLS_HSTS_ENABLED=true
+#
+# # Behind Proxy
+# MCP_TLS_BEHIND_PROXY=true
+# MCP_TLS_TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12
+#
+# # Authentication
+# MCP_AUTH_ENABLED=true
+# MCP_AUTH_TYPE=jwt
+# JWT_SECRET=your-secret-key
+#
+# # Server
+# MCP_HOST=0.0.0.0
+# MCP_PORT=3000

@@ -1,0 +1,108 @@
+# gRPC Generator Configuration Example (YAML Format)
+# This file demonstrates how to configure the gRPC capability generator
+# for a hypothetical user management service.
+#
+# Usage:
+# 1. Ensure your gRPC service is running at the specified endpoint
+# 2. Adjust the service and method filters to match your proto definitions
+# 3. Run: mcp-generator grpc --config grpc-config.yaml --proto user_service.proto
+#
+# Note: This example assumes a local gRPC service, but can be adapted
+# for any gRPC service by changing the endpoint and auth settings.
+
+# Global settings that apply to all generators
+# These can be overridden by generator-specific settings
+global:
+  # Default prefix for all tool names
+  tool_prefix: "api"
+  # Base directory for output files
+  output_dir: "./capabilities"
+
+# Output file settings
+output:
+  # Output format (yaml or json)
+  format: "yaml"
+  # Enable pretty-printing for better readability
+  pretty: true
+  # Override the global output directory for gRPC specifically
+  directory: "./capabilities/grpc"
+  # Custom file naming pattern
+  # This will generate: grpc-user-service.yaml
+  file_pattern: "grpc-{name}.{ext}"
+
+# gRPC-specific configuration
+grpc:
+  # The gRPC service endpoint
+  # This should point to your running gRPC service
+  endpoint: "localhost:50051"
+
+  # Override the global tool prefix for gRPC tools
+  # This will make tools named like: grpc_GetUser, grpc_CreateUser
+  tool_prefix: "grpc"
+
+  # Service filtering (optional)
+  # Only include these specific services from the proto file
+  # If not specified, all services will be included
+  service_filter:
+    - "UserService"
+    - "AuthService"
+
+  # Method filtering (optional)
+  # Only include these specific methods from the services
+  # If not specified, all methods will be included
+  method_filter:
+    - "GetUser"
+    - "CreateUser"
+    - "UpdateUser"
+    - "DeleteUser"
+    - "ListUsers"
+    - "AuthenticateUser"
+
+  # Streaming strategy configuration
+  # These determine how streaming methods are represented as MCP tools
+
+  # Server streaming: service sends multiple responses
+  # Options: "polling", "pagination", "agent-level"
+  server_streaming_strategy: "polling"
+
+  # Client streaming: client sends multiple requests
+  # Options: "polling", "pagination", "agent-level"
+  client_streaming_strategy: "agent-level"
+
+  # Bidirectional streaming: both client and server stream
+  # Options: "polling", "pagination", "agent-level"
+  bidirectional_streaming_strategy: "pagination"
+
+  # Whether to include method options in tool definitions
+  # This adds metadata about the gRPC method options
+  include_method_options: true
+
+  # Whether to generate separate tools for streaming methods
+  # When true, creates distinct tools for streaming operations
+  # When false, combines streaming and unary methods
+  separate_streaming_tools: false
+
+  # Authentication configuration for the gRPC service
+  # This example uses Basic authentication
+  auth:
+    auth_type:
+      Basic:
+        username: "admin"
+        password: "your_secure_password"
+
+    # Additional headers for gRPC requests
+    headers:
+      X-Service-Version: "v1"
+      X-Client-ID: "magictunnel"
+
+# Example command to run this configuration:
+# mcp-generator grpc --config grpc-config.yaml --proto user_service.proto
+#
+# For secure credentials, consider using environment variables:
+# 1. Export credentials: export GRPC_PASSWORD="your-secure-password"
+# 2. Edit this file to use: 
+#    auth:
+#      auth_type:
+#        Basic:
+#          username: "admin"
+#          password: "${GRPC_PASSWORD}"

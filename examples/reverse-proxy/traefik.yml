@@ -1,0 +1,329 @@
+# Traefik Configuration for MCP Proxy with TLS Termination
+# This configuration provides TLS termination and load balancing for MCP Proxy
+
+# Global configuration
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+# API and dashboard configuration
+api:
+  dashboard: true
+  insecure: false  # Disable insecure API access
+
+# Entry points configuration
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entrypoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  
+  websecure:
+    address: ":443"
+    http:
+      tls:
+        options: default
+        certResolver: letsencrypt
+      middlewares:
+        - security-headers@file
+        - rate-limit@file
+
+# Certificate resolvers
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: admin@example.com
+      storage: /letsencrypt/acme.json
+      httpChallenge:
+        entryPoint: web
+      # Alternative: DNS challenge for wildcard certificates
+      # dnsChallenge:
+      #   provider: cloudflare
+      #   resolvers:
+      #     - "1.1.1.1:53"
+      #     - "8.8.8.8:53"
+
+# Providers configuration
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: magictunnel-network
+  
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+# Logging configuration
+log:
+  level: INFO
+  filePath: /var/log/traefik/traefik.log
+
+accessLog:
+  filePath: /var/log/traefik/access.log
+  format: json
+  fields:
+    headers:
+      defaultMode: keep
+      names:
+        Authorization: drop  # Don't log auth headers
+        X-API-Key: drop
+
+# Metrics configuration
+metrics:
+  prometheus:
+    addEntryPointsLabels: true
+    addServicesLabels: true
+    addRoutersLabels: true
+
+# Tracing configuration (optional)
+# tracing:
+#   jaeger:
+#     samplingServerURL: http://jaeger:5778/sampling
+#     localAgentHostPort: jaeger:6831
+
+---
+# Dynamic configuration file (/etc/traefik/dynamic.yml)
+
+# TLS configuration
+tls:
+  options:
+    default:
+      minVersion: "VersionTLS12"
+      maxVersion: "VersionTLS13"
+      cipherSuites:
+        - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
+        - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+        - "TLS_AES_256_GCM_SHA384"
+        - "TLS_CHACHA20_POLY1305_SHA256"
+        - "TLS_AES_128_GCM_SHA256"
+      curvePreferences:
+        - CurveP521
+        - CurveP384
+      sniStrict: true
+
+# HTTP services
+http:
+  services:
+    magictunnel:
+      loadBalancer:
+        servers:
+          - url: "http://magictunnel:3001"
+          # Add more servers for load balancing
+          # - url: "http://magictunnel-2:3000"
+          # - url: "http://magictunnel-3:3000"
+        
+        # Health check configuration
+        healthCheck:
+          path: /health
+          interval: 30s
+          timeout: 5s
+          
+        # Load balancing method
+        # sticky:
+        #   cookie:
+        #     name: magictunnel-server
+        #     secure: true
+        #     httpOnly: true
+
+  # Routers configuration
+  routers:
+    magictunnel:
+      rule: "Host(`magictunnel.example.com`)"
+      service: magictunnel
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - security-headers
+        - rate-limit
+        - mcp-headers
+        
+    # WebSocket specific router (if needed for special handling)
+    magictunnel-ws:
+      rule: "Host(`magictunnel.example.com`) && PathPrefix(`/mcp/ws`)"
+      service: magictunnel
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - security-headers
+        - ws-headers
+        - rate-limit-ws
+
+  # Middlewares
+  middlewares:
+    # Security headers
+    security-headers:
+      headers:
+        accessControlAllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        accessControlAllowOriginList:
+          - "https://magictunnel.example.com"
+        accessControlMaxAge: 100
+        addVaryHeader: true
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+        customResponseHeaders:
+          X-Frame-Options: "DENY"
+          X-Content-Type-Options: "nosniff"
+          X-XSS-Protection: "1; mode=block"
+          Referrer-Policy: "strict-origin-when-cross-origin"
+          Content-Security-Policy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' wss:; frame-ancestors 'none';"
+        stsSeconds: 63072000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+
+    # MCP-specific headers
+    mcp-headers:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+          X-Forwarded-Host: "magictunnel.example.com"
+          X-Forwarded-Port: "443"
+
+    # WebSocket headers
+    ws-headers:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+          X-Forwarded-Host: "magictunnel.example.com"
+          Connection: "upgrade"
+          Upgrade: "websocket"
+
+    # Rate limiting
+    rate-limit:
+      rateLimit:
+        average: 100  # requests per second
+        burst: 200
+        period: 1s
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+            excludedIPs:
+              - "127.0.0.1/32"
+              - "10.0.0.0/8"
+
+    # WebSocket rate limiting (more permissive)
+    rate-limit-ws:
+      rateLimit:
+        average: 10
+        burst: 20
+        period: 1s
+
+    # Authentication middleware (if using Traefik auth)
+    # auth:
+    #   basicAuth:
+    #     users:
+    #       - "admin:$2y$10$..."  # Generated with htpasswd
+    
+    # IP whitelist (for admin endpoints)
+    admin-whitelist:
+      ipWhiteList:
+        sourceRange:
+          - "127.0.0.1/32"
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"
+
+    # Compression
+    compression:
+      excludedContentTypes:
+        - "text/event-stream"  # Don't compress SSE
+        - "application/grpc"   # Don't compress gRPC
+
+    # Circuit breaker
+    circuit-breaker:
+      expression: "NetworkErrorRatio() > 0.3 || ResponseCodeRatio(500, 600, 0, 600) > 0.3"
+
+    # Retry middleware
+    retry:
+      attempts: 3
+      initialInterval: 100ms
+
+# TCP services (for gRPC if needed)
+tcp:
+  services:
+    magictunnel-grpc:
+      loadBalancer:
+        servers:
+          - address: "magictunnel:4000"
+        
+  routers:
+    magictunnel-grpc:
+      rule: "HostSNI(`grpc.magictunnel.example.com`)"
+      service: magictunnel-grpc
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+        passthrough: false  # Terminate TLS at Traefik
+
+---
+# Docker Compose example for Traefik + MCP Proxy
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Dashboard (secure in production)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ./letsencrypt:/letsencrypt
+      - ./logs:/var/log/traefik
+    networks:
+      - magictunnel-network
+    labels:
+      # Dashboard configuration
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.example.com`)"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.middlewares=admin-whitelist@file"
+
+  magictunnel:
+    image: magictunnel:latest
+    container_name: magictunnel
+    restart: unless-stopped
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./capabilities:/app/capabilities:ro
+    networks:
+      - magictunnel-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.magictunnel.rule=Host(`magictunnel.example.com`)"
+      - "traefik.http.routers.magictunnel.entrypoints=websecure"
+      - "traefik.http.routers.magictunnel.tls.certresolver=letsencrypt"
+      - "traefik.http.services.magictunnel.loadbalancer.server.port=3000"
+      - "traefik.http.routers.magictunnel.middlewares=security-headers@file,rate-limit@file,mcp-headers@file"
+      
+      # WebSocket specific labels
+      - "traefik.http.routers.magictunnel-ws.rule=Host(`magictunnel.example.com`) && PathPrefix(`/mcp/ws`)"
+      - "traefik.http.routers.magictunnel-ws.entrypoints=websecure"
+      - "traefik.http.routers.magictunnel-ws.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.magictunnel-ws.middlewares=security-headers@file,ws-headers@file,rate-limit-ws@file"
+
+networks:
+  magictunnel-network:
+    driver: bridge

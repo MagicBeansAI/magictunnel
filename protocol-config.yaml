@@ -1,0 +1,90 @@
+# MCP Generator Configuration (YAML Format)
+# This file demonstrates all available configuration options for the unified capability generator.
+
+# Global settings applied to all generators
+global:
+  # Global tool prefix for all generators
+  tool_prefix: "mcp"
+  # Default output directory
+  output_dir: "./capabilities"
+
+  # Global authentication configuration (optional)
+  # Uncomment and configure as needed:
+  # auth:
+  #   auth_type:
+  #     Bearer: "YOUR_TOKEN"
+  #   headers:
+  #     X-Custom-Header: "value"
+
+# Output format settings
+output:
+  # Output format: always yaml (capability files only support YAML)
+  format: "yaml"
+  # Pretty-print output
+  pretty: true
+  # Output directory (overrides global.output_dir)
+  directory: "./capabilities"
+  # File naming pattern
+  file_pattern: "{name}-capabilities.{ext}"
+
+# GraphQL generator configuration
+graphql:
+  # GraphQL endpoint URL (required)
+  endpoint: "https://api.example.com/graphql"
+  # Override global tool prefix
+  tool_prefix: "graphql"
+  # Include deprecated fields and operations
+  include_deprecated: false
+  # Include descriptions in schemas
+  include_descriptions: true
+  # Generate separate tools for mutations and queries
+  separate_mutation_query: true
+
+  # GraphQL-specific authentication (optional)
+  # Uncomment and configure as needed:
+  # auth:
+  #   auth_type:
+  #     ApiKey:
+  #       key: "YOUR_API_KEY"
+  #       header: "X-API-Key"
+  #   headers: {}
+
+# gRPC generator configuration
+grpc:
+  # gRPC service endpoint (required)
+  endpoint: "localhost:50051"
+  # Override global tool prefix
+  tool_prefix: "grpc"
+  # Filter services to include
+  service_filter:
+    - "UserService"
+    - "ProductService"
+  # Filter methods to include
+  method_filter:
+    - "GetUser"
+    - "ListProducts"
+  # Streaming strategies
+  server_streaming_strategy: "polling"
+  client_streaming_strategy: "agent-level"
+  bidirectional_streaming_strategy: "pagination"
+  # Include method options
+  include_method_options: true
+  # Generate separate tools for streaming methods
+  separate_streaming_tools: false
+
+# OpenAPI generator configuration
+openapi:
+  # Base URL for the API (required)
+  base_url: "https://api.example.com"
+  # Override global tool prefix
+  tool_prefix: "api"
+  # Naming convention for tools
+  naming_convention: "operation-id"
+  # HTTP methods to include
+  methods:
+    - "GET"
+    - "POST"
+    - "PUT"
+    - "DELETE"
+  # Include deprecated operations
+  include_deprecated: false

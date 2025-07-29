@@ -1,0 +1,79 @@
+metadata:
+  name: Smart Tool Discovery
+  description: Intelligent tool discovery and execution using natural language
+  version: 1.0.0
+  author: Smart Discovery Team
+  tags:
+  - ai
+  - discovery
+  - intelligent
+  - nlp
+  - proxy
+tools:
+- name: smart_tool_discovery
+  description: >
+    🎯 THE UNIVERSAL TOOL - Use this for ANY task you want to accomplish! 
+    Instead of figuring out which specific tool to use, just tell me what you want to do 
+    in plain English and I'll automatically find the perfect tool, extract the right parameters, 
+    and execute it for you. I have access to ALL available tools (file operations, network requests, 
+    system commands, APIs, etc.) and can intelligently route your request to the best one. 
+    
+    # 🚀 SMART SEQUENTIAL EXECUTION: For multi-step tasks, I'll identify the FIRST step, 
+    # execute it, and then suggest the next logical step with recommended inputs. This gives you 
+    # control over each step while providing intelligent guidance for complex workflows.
+    
+    This is your go-to tool when you're not sure which specific tool to use or want to save time.
+  inputSchema:
+    type: object
+    properties:
+      request:
+        type: string
+        description: >
+          Your request or what you want to accomplish. Be as specific as possible.
+          Examples: 'read a file called config.yaml', 'search for files containing error', 
+          'make an HTTP POST request to the API'
+        minLength: 1
+        maxLength: 1000
+      context:
+        type: string
+        description: >
+          Additional context about your request (optional). This helps with better 
+          tool selection and parameter mapping.
+        maxLength: 500
+      preferred_tools:
+        type: array
+        description: >
+          List of preferred tool names to consider first (optional). If you know 
+          which tools you'd like to use, specify them here.
+        items:
+          type: string
+        maxItems: 10
+      confidence_threshold:
+        type: number
+        description: >
+          Minimum confidence score (0.0-1.0) for tool selection (optional, default: 0.7).
+          Lower values are more permissive, higher values are more strict.
+        minimum: 0.0
+        maximum: 1.0
+        default: 0.7
+      sequential_mode:
+        type: boolean
+        description: >
+          Enable smart sequential execution for multi-step tasks (default: true).
+          When enabled, complex requests are decomposed into sequential steps,
+          executing only the first step and suggesting the next with recommended inputs.
+        default: true
+    required:
+    - request
+    additionalProperties: false
+  routing:
+    type: smart_discovery
+    config:
+      # Smart discovery configuration - uses global settings from magictunnel-config.yaml
+      enabled: true
+  annotations:
+    smart_discovery: "true"
+    single_interface: "true"
+    natural_language: "true"
+  hidden: false
+  enabled: true

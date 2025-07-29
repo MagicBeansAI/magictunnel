@@ -1,0 +1,180 @@
+syntax = "proto3";
+
+package test.comprehensive;
+
+// User message with all field types
+message User {
+  string id = 1;
+  string email = 2;
+  string name = 3;
+  int32 age = 4;
+  bool active = 5;
+  UserStatus status = 6;
+  UserType type = 7;
+  repeated string roles = 8;
+  Address address = 9;
+  repeated PhoneNumber phone_numbers = 10;
+  map<string, string> attributes = 11;
+  bytes profile_image = 12;
+  int64 created_at = 13;
+  int64 updated_at = 14;
+  double account_balance = 15;
+  float rating = 16;
+  oneof verification {
+    EmailVerification email_verification = 17;
+    PhoneVerification phone_verification = 18;
+    DocumentVerification document_verification = 19;
+  }
+}
+
+// User status enum
+enum UserStatus {
+  UNKNOWN = 0;
+  ACTIVE = 1;
+  INACTIVE = 2;
+  SUSPENDED = 3;
+  PENDING = 4;
+}
+
+// User type enum
+enum UserType {
+  STANDARD = 0;
+  PREMIUM = 1;
+  ADMIN = 2;
+  GUEST = 3;
+}
+
+// Address message
+message Address {
+  string street = 1;
+  string city = 2;
+  string state = 3;
+  string country = 4;
+  string postal_code = 5;
+  bool is_primary = 6;
+  AddressType type = 7;
+  
+  enum AddressType {
+    HOME = 0;
+    WORK = 1;
+    SHIPPING = 2;
+    BILLING = 3;
+    OTHER = 4;
+  }
+}
+
+// Phone number message
+message PhoneNumber {
+  string number = 1;
+  PhoneType type = 2;
+  bool verified = 3;
+  
+  enum PhoneType {
+    MOBILE = 0;
+    HOME = 1;
+    WORK = 2;
+    OTHER = 3;
+  }
+}
+
+// Email verification
+message EmailVerification {
+  bool verified = 1;
+  int64 verified_at = 2;
+  string verification_code = 3;
+  int64 code_expires_at = 4;
+}
+
+// Phone verification
+message PhoneVerification {
+  bool verified = 1;
+  int64 verified_at = 2;
+  string verification_code = 3;
+  int64 code_expires_at = 4;
+}
+
+// Document verification
+message DocumentVerification {
+  string document_type = 1;
+  string document_id = 2;
+  bool verified = 3;
+  int64 verified_at = 4;
+  string verification_authority = 5;
+}
+
+// Order item
+message OrderItem {
+  string product_id = 1;
+  string product_name = 2;
+  int32 quantity = 3;
+  double unit_price = 4;
+  double total_price = 5;
+  repeated string options = 6;
+  map<string, string> attributes = 7;
+}
+
+// Payment information
+message PaymentInfo {
+  string payment_id = 1;
+  PaymentMethod method = 2;
+  string transaction_id = 3;
+  double amount = 4;
+  string currency = 5;
+  PaymentStatus status = 6;
+  int64 processed_at = 7;
+  
+  enum PaymentMethod {
+    CREDIT_CARD = 0;
+    DEBIT_CARD = 1;
+    BANK_TRANSFER = 2;
+    DIGITAL_WALLET = 3;
+    CASH = 4;
+    OTHER = 5;
+  }
+  
+  enum PaymentStatus {
+    PENDING = 0;
+    AUTHORIZED = 1;
+    CAPTURED = 2;
+    FAILED = 3;
+    REFUNDED = 4;
+  }
+}
+
+// Shipping information
+message ShippingInfo {
+  string tracking_number = 1;
+  string carrier = 2;
+  ShippingMethod method = 3;
+  Address shipping_address = 4;
+  double shipping_cost = 5;
+  int64 estimated_delivery = 6;
+  
+  enum ShippingMethod {
+    STANDARD = 0;
+    EXPRESS = 1;
+    OVERNIGHT = 2;
+    INTERNATIONAL = 3;
+    PICKUP = 4;
+  }
+}
+
+// Order summary
+message OrderSummary {
+  string order_id = 1;
+  string customer_id = 2;
+  int32 item_count = 3;
+  double total_amount = 4;
+  int64 order_date = 5;
+  string status = 6;
+}
+
+// Product summary
+message ProductSummary {
+  string product_id = 1;
+  string name = 2;
+  string category = 3;
+  double price = 4;
+  float rating = 5;
+  int32 stock = 6;
+}

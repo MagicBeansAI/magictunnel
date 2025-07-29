@@ -1,0 +1,201 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# MagjcTunnel binaries
+./magictunnel
+magictunnel
+target/release/magictunnel
+target/debug/magictunnel
+
+external-mcp-servers.yaml
+
+# Cargo
+Cargo.lock
+Cargo.toml.bak
+
+# IDE and editor files
+.vscode/
+.idea/
+.cursorignore
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+log/
+
+# Configuration files (keep templates, ignore actual configs)
+config.yaml
+config.yml
+config.json
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.dev
+.env.prod
+.env.test
+
+# Keep config templates
+!config.yaml.template
+!config.yml.template
+!config.json.template
+!.env.example
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Capability registry files (keep examples, ignore actual registries)
+capabilities/*.yaml
+capabilities/*.yml
+capabilities/*.json
+
+# Keep capability examples
+!capabilities/examples/
+!capabilities/*.example.yaml
+!capabilities/*.example.yml
+!capabilities/*.example.json
+
+# API keys and secrets
+api_keys.txt
+secrets.yaml
+secrets.yml
+*.key
+*.pem
+*.p12
+
+# Google Service Account credentials
+*-gdrive-*.json
+ak-gdrive-magictunnel.json
+service-account*.json
+google-service-account*.json
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Testing
+coverage/
+*.profraw
+
+# Documentation build
+docs/_build/
+docs/build/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Backup files
+*.bak
+*.backup
+
+# Performance profiling
+*.prof
+*.flamegraph
+
+# Benchmark results
+criterion/
+
+# Local development
+.local/
+local/
+
+# SSL certificates
+*.crt
+*.csr
+*.srl
+
+# JWT tokens
+*.jwt
+
+# Cache directories
+.cache/
+cache/
+
+# Node.js (if using any JS tooling)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python (if using any Python scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Terraform (if using infrastructure as code)
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Kubernetes (if using K8s deployment)
+*.kubeconfig
+
+# Monitoring and metrics
+prometheus_data/
+grafana_data/
+
+# Backup and archive files
+*.tar.gz
+*.zip
+*.rar
+*.7z
+
+# System files
+.fuse_hidden*
+.nfs*
+
+# Network configuration
+hosts
+resolv.conf
+
+# Process management
+*.pid
+*.sock
+
+# Memory dumps
+*.core
+*.dump
+
+# Profiling data
+*.prof
+*.trace
+
+# Benchmark data
+benches/target/

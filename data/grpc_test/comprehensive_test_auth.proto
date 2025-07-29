@@ -1,0 +1,296 @@
+syntax = "proto3";
+
+package test.auth;
+
+// Service with authentication requirements
+service AuthenticatedService {
+  // Method with service-level authentication
+  rpc GetSecureData(SecureDataRequest) returns (SecureDataResponse) {
+    option (auth_required) = true;
+  }
+  
+  // Method with method-level authentication
+  rpc UpdateSecureData(UpdateSecureDataRequest) returns (UpdateSecureDataResponse) {
+    option (auth_required) = true;
+    option (required_roles) = "admin,editor";
+  }
+  
+  // Method with API key authentication
+  rpc ListSecureResources(ListResourcesRequest) returns (ListResourcesResponse) {
+    option (auth_type) = API_KEY;
+  }
+  
+  // Method with OAuth authentication
+  rpc CreateSecureResource(CreateResourceRequest) returns (CreateResourceResponse) {
+    option (auth_type) = OAUTH;
+    option (oauth_scopes) = "resources.write,resources.create";
+  }
+  
+  // Method with JWT authentication
+  rpc DeleteSecureResource(DeleteResourceRequest) returns (DeleteResourceResponse) {
+    option (auth_type) = JWT;
+    option (required_claims) = "resource_access";
+  }
+  
+  // Method with custom header authentication
+  rpc ValidateSecureResource(ValidateResourceRequest) returns (ValidateResourceResponse) {
+    option (auth_type) = CUSTOM;
+    option (auth_header) = "X-Custom-Auth";
+  }
+  
+  // Method with no authentication (public)
+  rpc GetPublicResourceInfo(PublicResourceRequest) returns (PublicResourceResponse) {
+    option (auth_required) = false;
+  }
+  
+  // Streaming method with authentication
+  rpc StreamSecureEvents(StreamEventsRequest) returns (stream SecureEvent) {
+    option (auth_required) = true;
+    option (auth_type) = OAUTH;
+    option (oauth_scopes) = "events.read";
+  }
+}
+
+// Custom options for authentication
+extend google.protobuf.MethodOptions {
+  bool auth_required = 50000;
+  string required_roles = 50001;
+  AuthType auth_type = 50002;
+  string oauth_scopes = 50003;
+  string required_claims = 50004;
+  string auth_header = 50005;
+}
+
+// Authentication types
+enum AuthType {
+  NONE = 0;
+  API_KEY = 1;
+  OAUTH = 2;
+  JWT = 3;
+  BASIC = 4;
+  CUSTOM = 5;
+}
+
+// Secure data request
+message SecureDataRequest {
+  string resource_id = 1;
+  bool include_metadata = 2;
+  string version = 3;
+}
+
+// Secure data response
+message SecureDataResponse {
+  string resource_id = 1;
+  bytes data = 2;
+  map<string, string> metadata = 3;
+  AccessInfo access_info = 4;
+}
+
+// Access information
+message AccessInfo {
+  string user_id = 1;
+  repeated string roles = 2;
+  int64 access_time = 3;
+  string access_level = 4;
+  bool temporary_access = 5;
+  int64 expiration_time = 6;
+}
+
+// Update secure data request
+message UpdateSecureDataRequest {
+  string resource_id = 1;
+  bytes data = 2;
+  map<string, string> metadata = 3;
+  string update_reason = 4;
+  bool create_revision = 5;
+}
+
+// Update secure data response
+message UpdateSecureDataResponse {
+  string resource_id = 1;
+  string version = 2;
+  int64 updated_at = 3;
+  string status = 4;
+  string revision_id = 5;
+}
+
+// List resources request
+message ListResourcesRequest {
+  string parent_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+  string filter = 4;
+  string order_by = 5;
+}
+
+// List resources response
+message ListResourcesResponse {
+  repeated ResourceSummary resources = 1;
+  string next_page_token = 2;
+  int32 total_size = 3;
+}
+
+// Resource summary
+message ResourceSummary {
+  string id = 1;
+  string name = 2;
+  string type = 3;
+  int64 created_at = 4;
+  int64 updated_at = 5;
+  string owner_id = 6;
+  int64 size_bytes = 7;
+  string status = 8;
+}
+
+// Create resource request
+message CreateResourceRequest {
+  string parent_id = 1;
+  string name = 2;
+  string type = 3;
+  bytes data = 4;
+  map<string, string> metadata = 5;
+  repeated string tags = 6;
+  AccessControl access_control = 7;
+}
+
+// Access control
+message AccessControl {
+  string owner_id = 1;
+  Visibility visibility = 2;
+  repeated AccessRule access_rules = 3;
+  
+  enum Visibility {
+    PRIVATE = 0;
+    SHARED = 1;
+    PUBLIC = 2;
+    ORGANIZATION = 3;
+  }
+}
+
+// Access rule
+message AccessRule {
+  string principal_id = 1;
+  PrincipalType principal_type = 2;
+  string permission = 3;
+  int64 expiration_time = 4;
+  
+  enum PrincipalType {
+    USER = 0;
+    GROUP = 1;
+    ROLE = 2;
+    SERVICE = 3;
+    ANONYMOUS = 4;
+  }
+}
+
+// Create resource response
+message CreateResourceResponse {
+  string resource_id = 1;
+  string version = 2;
+  int64 created_at = 3;
+  string status = 4;
+  string resource_url = 5;
+}
+
+// Delete resource request
+message DeleteResourceRequest {
+  string resource_id = 1;
+  bool permanent = 2;
+  string deletion_reason = 3;
+  bool cascade = 4;
+}
+
+// Delete resource response
+message DeleteResourceResponse {
+  string resource_id = 1;
+  string status = 2;
+  int64 deleted_at = 3;
+  int32 affected_resources = 4;
+}
+
+// Validate resource request
+message ValidateResourceRequest {
+  string resource_id = 1;
+  ValidationLevel level = 2;
+  repeated string validation_types = 3;
+  
+  enum ValidationLevel {
+    BASIC = 0;
+    STANDARD = 1;
+    STRICT = 2;
+    CUSTOM = 3;
+  }
+}
+
+// Validate resource response
+message ValidateResourceResponse {
+  string resource_id = 1;
+  bool valid = 2;
+  repeated ValidationResult results = 3;
+  int64 validation_time = 4;
+}
+
+// Validation result
+message ValidationResult {
+  string validation_type = 1;
+  bool passed = 2;
+  string message = 3;
+  int32 severity = 4;
+  string code = 5;
+  map<string, string> details = 6;
+}
+
+// Public resource request
+message PublicResourceRequest {
+  string resource_id = 1;
+  string format = 2;
+}
+
+// Public resource response
+message PublicResourceResponse {
+  string resource_id = 1;
+  string name = 2;
+  string description = 3;
+  int64 created_at = 4;
+  int64 size_bytes = 5;
+  string download_url = 6;
+  string content_type = 7;
+}
+
+// Stream events request
+message StreamEventsRequest {
+  string resource_id = 1;
+  EventType event_type = 2;
+  int64 since_timestamp = 3;
+  bool include_metadata = 4;
+  
+  enum EventType {
+    ALL = 0;
+    ACCESS = 1;
+    MODIFICATION = 2;
+    PERMISSION = 3;
+    SYSTEM = 4;
+  }
+}
+
+// Secure event
+message SecureEvent {
+  string event_id = 1;
+  string resource_id = 2;
+  EventType type = 3;
+  string user_id = 4;
+  string action = 5;
+  int64 timestamp = 6;
+  map<string, string> metadata = 7;
+  bytes details = 8;
+  
+  enum EventType {
+    ACCESS = 0;
+    CREATE = 1;
+    UPDATE = 2;
+    DELETE = 3;
+    PERMISSION_CHANGE = 4;
+    VALIDATION = 5;
+    SYSTEM = 6;
+  }
+}

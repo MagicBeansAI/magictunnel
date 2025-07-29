@@ -1,0 +1,75 @@
+# GraphQL Generator Configuration Example (YAML Format)
+# This file demonstrates how to configure the GraphQL capability generator
+# for the GitHub GraphQL API as a practical example.
+#
+# Usage:
+# 1. Replace YOUR_GITHUB_TOKEN with your actual GitHub personal access token
+# 2. Run: mcp-generator graphql --config graphql-config.yaml
+#
+# Note: This example uses the GitHub GraphQL API, but the configuration
+# can be adapted for any GraphQL API by changing the endpoint and auth settings.
+
+# Global settings that apply to all generators
+# These can be overridden by generator-specific settings
+global:
+  # Default prefix for all tool names
+  tool_prefix: "api"
+  # Base directory for output files
+  output_dir: "./capabilities"
+
+# Output file settings
+output:
+  # Output format (yaml or json)
+  format: "yaml"
+  # Enable pretty-printing for better readability
+  pretty: true
+  # Override the global output directory for GraphQL specifically
+  directory: "./capabilities/graphql"
+  # Custom file naming pattern
+  # This will generate: graphql-github.yaml
+  file_pattern: "graphql-{name}.{ext}"
+
+# GraphQL-specific configuration
+graphql:
+  # The GraphQL endpoint URL
+  # This is the GitHub GraphQL API endpoint
+  endpoint: "https://api.github.com/graphql"
+
+  # Override the global tool prefix for GraphQL tools
+  # This will make tools named like: github_repository, github_user
+  tool_prefix: "github"
+
+  # Whether to include deprecated fields and operations
+  # GitHub API has some deprecated fields, set to true if you want them
+  include_deprecated: false
+
+  # Whether to include descriptions in schemas
+  # This adds helpful documentation to the generated tools
+  include_descriptions: true
+
+  # Whether to generate separate tools for mutations and queries
+  # When true, creates distinct tools for mutations vs. queries
+  # When false, combines them into a single tool
+  separate_mutation_query: true
+
+  # Authentication configuration for GitHub GraphQL API
+  # GitHub GraphQL API requires a Bearer token
+  auth:
+    # Use a personal access token with appropriate scopes
+    # See: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
+    auth_type:
+      Bearer: "YOUR_GITHUB_TOKEN"
+    
+    # Additional headers required by GitHub API
+    headers:
+      User-Agent: "MCP-Generator-Example"
+
+# Example command to run this configuration:
+# mcp-generator graphql --config graphql-config.yaml
+#
+# To use environment variables for the token:
+# 1. Export your token: export GITHUB_TOKEN="your-token-here"
+# 2. Edit this file to use: 
+#    auth:
+#      auth_type:
+#        Bearer: "${GITHUB_TOKEN}"

@@ -1,0 +1,412 @@
+syntax = "proto3";
+
+package test.streaming;
+
+// Service focused on streaming scenarios
+service StreamingService {
+  // Server streaming: 1 request → stream of responses
+  rpc GetDataStream(DataRequest) returns (stream DataResponse) {}
+  
+  // Client streaming: stream of requests → 1 response
+  rpc UploadData(stream UploadChunk) returns (UploadSummary) {}
+  
+  // Bidirectional streaming: stream ↔ stream
+  rpc ChatSession(stream ChatRequest) returns (stream ChatResponse) {}
+  
+  // Server streaming with complex response type
+  rpc MonitorResource(ResourceRequest) returns (stream ResourceUpdate) {}
+  
+  // Client streaming with complex request type
+  rpc ProcessBatch(stream BatchItem) returns (BatchSummary) {}
+  
+  // Bidirectional streaming with complex types
+  rpc LiveAnalytics(stream AnalyticsRequest) returns (stream AnalyticsResponse) {}
+  
+  // Server streaming with error scenarios
+  rpc StreamWithErrors(ErrorTestRequest) returns (stream ErrorTestResponse) {}
+  
+  // Long-running bidirectional stream
+  rpc PersistentConnection(stream ConnectionMessage) returns (stream ConnectionMessage) {}
+}
+
+// Basic data request
+message DataRequest {
+  string resource_id = 1;
+  int32 max_items = 2;
+  bool include_metadata = 3;
+  StreamingOptions options = 4;
+}
+
+// Streaming options
+message StreamingOptions {
+  int32 batch_size = 1;
+  int32 interval_ms = 2;
+  CompressionType compression = 3;
+  
+  enum CompressionType {
+    NONE = 0;
+    GZIP = 1;
+    ZSTD = 2;
+  }
+}
+
+// Data response for server streaming
+message DataResponse {
+  string item_id = 1;
+  bytes data = 2;
+  int32 sequence_number = 3;
+  bool has_more = 4;
+  map<string, string> metadata = 5;
+  int64 timestamp = 6;
+}
+
+// Upload chunk for client streaming
+message UploadChunk {
+  string upload_id = 1;
+  int32 chunk_number = 2;
+  bytes data = 3;
+  bool is_last_chunk = 4;
+  int32 total_chunks = 5;
+  string checksum = 6;
+}
+
+// Upload summary response
+message UploadSummary {
+  string upload_id = 1;
+  int32 chunks_received = 2;
+  int64 total_bytes = 3;
+  string file_id = 4;
+  bool success = 5;
+  repeated ChunkError errors = 6;
+  int64 processing_time_ms = 7;
+}
+
+// Chunk error
+message ChunkError {
+  int32 chunk_number = 1;
+  string error_code = 2;
+  string error_message = 3;
+}
+
+// Chat request for bidirectional streaming
+message ChatRequest {
+  string session_id = 1;
+  string user_id = 2;
+  string message = 3;
+  MessageType type = 4;
+  int64 timestamp = 5;
+  map<string, string> metadata = 6;
+  
+  enum MessageType {
+    TEXT = 0;
+    TYPING = 1;
+    READ_RECEIPT = 2;
+    MEDIA = 3;
+    SYSTEM = 4;
+  }
+}
+
+// Chat response for bidirectional streaming
+message ChatResponse {
+  string session_id = 1;
+  string message_id = 2;
+  string content = 3;
+  string sender_id = 4;
+  MessageType type = 5;
+  int64 timestamp = 6;
+  repeated Attachment attachments = 7;
+  
+  enum MessageType {
+    TEXT = 0;
+    TYPING = 1;
+    SYSTEM = 2;
+    MEDIA = 3;
+    ERROR = 4;
+  }
+}
+
+// Attachment
+message Attachment {
+  string id = 1;
+  string name = 2;
+  string mime_type = 3;
+  int64 size = 4;
+  string url = 5;
+  bytes thumbnail = 6;
+}
+
+// Resource monitoring request
+message ResourceRequest {
+  string resource_id = 1;
+  repeated MetricType metrics = 2;
+  int32 interval_seconds = 3;
+  int64 duration_seconds = 4;
+  
+  enum MetricType {
+    CPU = 0;
+    MEMORY = 1;
+    DISK = 2;
+    NETWORK = 3;
+    CUSTOM = 4;
+  }
+}
+
+// Resource update for server streaming
+message ResourceUpdate {
+  string resource_id = 1;
+  int64 timestamp = 2;
+  repeated MetricValue metrics = 3;
+  ResourceStatus status = 4;
+  map<string, string> labels = 5;
+  
+  enum ResourceStatus {
+    HEALTHY = 0;
+    WARNING = 1;
+    CRITICAL = 2;
+    UNKNOWN = 3;
+  }
+}
+
+// Metric value
+message MetricValue {
+  string name = 1;
+  double value = 2;
+  string unit = 3;
+  MetricType type = 4;
+  
+  enum MetricType {
+    GAUGE = 0;
+    COUNTER = 1;
+    HISTOGRAM = 2;
+    SUMMARY = 3;
+  }
+}
+
+// Batch item for client streaming
+message BatchItem {
+  string batch_id = 1;
+  int32 item_index = 2;
+  oneof payload {
+    UserData user_data = 3;
+    TransactionData transaction_data = 4;
+    LogData log_data = 5;
+  }
+  int64 timestamp = 6;
+  string source = 7;
+}
+
+// User data
+message UserData {
+  string user_id = 1;
+  string name = 2;
+  string email = 3;
+  map<string, string> attributes = 4;
+}
+
+// Transaction data
+message TransactionData {
+  string transaction_id = 1;
+  string user_id = 2;
+  double amount = 3;
+  string currency = 4;
+  string status = 5;
+}
+
+// Log data
+message LogData {
+  string level = 1;
+  string message = 2;
+  string service = 3;
+  map<string, string> context = 4;
+}
+
+// Batch summary
+message BatchSummary {
+  string batch_id = 1;
+  int32 total_items = 2;
+  int32 successful_items = 3;
+  int32 failed_items = 4;
+  repeated ItemError errors = 5;
+  int64 processing_time_ms = 6;
+  string status = 7;
+}
+
+// Item error
+message ItemError {
+  int32 item_index = 1;
+  string error_code = 2;
+  string error_message = 3;
+}
+
+// Analytics request for bidirectional streaming
+message AnalyticsRequest {
+  string session_id = 1;
+  RequestType type = 2;
+  oneof query {
+    TimeSeriesQuery time_series = 3;
+    AggregationQuery aggregation = 4;
+    AlertQuery alert = 5;
+  }
+  map<string, string> parameters = 6;
+  
+  enum RequestType {
+    SUBSCRIBE = 0;
+    QUERY = 1;
+    CONFIGURE = 2;
+    UNSUBSCRIBE = 3;
+  }
+}
+
+// Time series query
+message TimeSeriesQuery {
+  string metric = 1;
+  int64 start_time = 2;
+  int64 end_time = 3;
+  string resolution = 4;
+  repeated string dimensions = 5;
+}
+
+// Aggregation query
+message AggregationQuery {
+  string metric = 1;
+  AggregationType aggregation = 2;
+  repeated string group_by = 3;
+  string filter = 4;
+  
+  enum AggregationType {
+    SUM = 0;
+    AVG = 1;
+    MIN = 2;
+    MAX = 3;
+    COUNT = 4;
+    PERCENTILE = 5;
+  }
+}
+
+// Alert query
+message AlertQuery {
+  string alert_id = 1;
+  AlertState state = 2;
+  int64 since = 3;
+  
+  enum AlertState {
+    ALL = 0;
+    ACTIVE = 1;
+    RESOLVED = 2;
+  }
+}
+
+// Analytics response for bidirectional streaming
+message AnalyticsResponse {
+  string session_id = 1;
+  ResponseType type = 2;
+  oneof data {
+    TimeSeriesData time_series = 3;
+    AggregationData aggregation = 4;
+    AlertData alert = 5;
+    StatusUpdate status = 6;
+  }
+  int64 timestamp = 7;
+  
+  enum ResponseType {
+    DATA = 0;
+    STATUS = 1;
+    ERROR = 2;
+    HEARTBEAT = 3;
+  }
+}
+
+// Time series data
+message TimeSeriesData {
+  string metric = 1;
+  repeated DataPoint points = 2;
+  string resolution = 3;
+  
+  message DataPoint {
+    int64 timestamp = 1;
+    double value = 2;
+    map<string, string> dimensions = 3;
+  }
+}
+
+// Aggregation data
+message AggregationData {
+  string metric = 1;
+  repeated AggregationResult results = 2;
+  
+  message AggregationResult {
+    double value = 1;
+    map<string, string> dimensions = 2;
+  }
+}
+
+// Alert data
+message AlertData {
+  repeated Alert alerts = 1;
+  
+  message Alert {
+    string alert_id = 1;
+    string name = 2;
+    AlertState state = 3;
+    int64 triggered_at = 4;
+    int64 resolved_at = 5;
+    string severity = 6;
+    string description = 7;
+    
+    enum AlertState {
+      ACTIVE = 0;
+      RESOLVED = 1;
+      ACKNOWLEDGED = 2;
+    }
+  }
+}
+
+// Status update
+message StatusUpdate {
+  string code = 1;
+  string message = 2;
+  map<string, string> details = 3;
+}
+
+// Error test request
+message ErrorTestRequest {
+  string test_id = 1;
+  ErrorScenario scenario = 2;
+  int32 error_after_n_messages = 3;
+  bool recover_after_error = 4;
+  
+  enum ErrorScenario {
+    TIMEOUT = 0;
+    INVALID_ARGUMENT = 1;
+    PERMISSION_DENIED = 2;
+    RESOURCE_EXHAUSTED = 3;
+    INTERNAL = 4;
+    UNAVAILABLE = 5;
+  }
+}
+
+// Error test response
+message ErrorTestResponse {
+  string test_id = 1;
+  int32 sequence_number = 2;
+  bool is_error = 3;
+  string error_message = 4;
+  bytes data = 5;
+}
+
+// Connection message for persistent connections
+message ConnectionMessage {
+  string connection_id = 1;
+  MessageType type = 2;
+  bytes payload = 3;
+  int64 timestamp = 4;
+  int32 sequence_number = 5;
+  
+  enum MessageType {
+    CONNECT = 0;
+    DATA = 1;
+    HEARTBEAT = 2;
+    ERROR = 3;
+    DISCONNECT = 4;
+  }
+}

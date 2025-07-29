@@ -1,0 +1,125 @@
+tools:
+  - name: google_sheets_read
+    description: Read data from a Google Spreadsheet (auto-detects OAuth2 or Service Account authentication)
+    hidden: true
+    inputSchema:
+      type: object
+      properties:
+        spreadsheet_id:
+          type: string
+          description: The ID of the Google Spreadsheet
+        range:
+          type: string
+          description: The range to read (e.g., 'Sheet1!A1:E10' or 'A:Z')
+      required:
+        - spreadsheet_id
+        - range
+    routing:
+      type: subprocess
+      config:
+        command: python3
+        args:
+          - "./google_sheets_oauth_tools.py"
+          - "read"
+          - "{spreadsheet_id}"
+          - "{range}"
+        timeout: 30
+        working_directory: "."
+
+  - name: google_sheets_write
+    description: Write data to a Google Spreadsheet (auto-detects OAuth2 or Service Account authentication)
+    hidden: true
+    inputSchema:
+      type: object
+      properties:
+        spreadsheet_id:
+          type: string
+          description: The ID of the Google Spreadsheet
+        range:
+          type: string
+          description: The range to write to (e.g., 'Sheet1!A1:E10')
+        values:
+          type: array
+          description: 2D array of values to write
+          items:
+            type: array
+            items:
+              oneOf:
+                - type: string
+                - type: number
+                - type: boolean
+      required:
+        - spreadsheet_id
+        - range
+        - values
+    routing:
+      type: subprocess
+      config:
+        command: python3
+        args:
+          - "/Users/gouravd/Development/magicbeanbs100x/magictunnel/google_sheets_oauth_tools.py"
+          - "write"
+          - "{spreadsheet_id}"
+          - "{range}"
+          - "{values}"
+        timeout: 30
+        working_directory: "."
+
+  - name: google_sheets_create
+    description: Create a new Google Spreadsheet (auto-detects OAuth2 or Service Account authentication)
+    hidden: true
+    inputSchema:
+      type: object
+      properties:
+        title:
+          type: string
+          description: The title for the new spreadsheet
+      required:
+        - title
+    routing:
+      type: subprocess
+      config:
+        command: python3
+        args:
+          - "/Users/gouravd/Development/magicbeanbs100x/magictunnel/google_sheets_oauth_tools.py"
+          - "create"
+          - "{title}"
+        timeout: 30
+        working_directory: "."
+
+  - name: google_sheets_list_sheets
+    description: List all sheets in a Google Spreadsheet (auto-detects OAuth2 or Service Account authentication)
+    hidden: true
+    inputSchema:
+      type: object
+      properties:
+        spreadsheet_id:
+          type: string
+          description: The ID of the Google Spreadsheet
+      required:
+        - spreadsheet_id
+    routing:
+      type: subprocess
+      config:
+        command: python3
+        args:
+          - "./google_sheets_oauth_tools.py"
+          - "list_sheets"
+          - "{spreadsheet_id}"
+        timeout: 30
+        working_directory: "."
+
+  - name: google_sheets_list_spreadsheets
+    description: List all accessible Google Spreadsheets (auto-detects OAuth2 or Service Account authentication)
+    hidden: true
+    inputSchema:
+      type: object
+    routing:
+      type: subprocess
+      config:
+        command: python3
+        args:
+          - "./google_sheets_oauth_tools.py"
+          - "list_spreadsheets"
+        timeout: 30
+        working_directory: "."

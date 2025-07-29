@@ -1,0 +1,246 @@
+{
+  "title": "Smart Discovery Basic Usage Examples",
+  "description": "Collection of basic Smart Discovery requests demonstrating fundamental patterns",
+  "examples": [
+    {
+      "category": "File Operations",
+      "description": "Basic file operations using natural language",
+      "examples": [
+        {
+          "name": "Read Configuration File",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "read the config.yaml file"
+            }
+          },
+          "expected_tool": "read_file",
+          "explanation": "Simple file read operation. Smart Discovery will find the read_file tool and extract the path parameter."
+        },
+        {
+          "name": "Read File with Full Path",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "read contents of /etc/hosts file"
+            }
+          },
+          "expected_tool": "read_file",
+          "explanation": "Reads a file with absolute path. The path is clearly specified in the request."
+        },
+        {
+          "name": "Write Data to File",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "write application logs to output.log file",
+              "context": "Save error messages and debug information"
+            }
+          },
+          "expected_tool": "write_file",
+          "explanation": "File write operation with context providing additional details about the content."
+        },
+        {
+          "name": "Search for Files",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "find all Python files in the src directory"
+            }
+          },
+          "expected_tool": "search_files",
+          "explanation": "File search operation with pattern and directory specification."
+        }
+      ]
+    },
+    {
+      "category": "HTTP Operations", 
+      "description": "HTTP requests and API interactions",
+      "examples": [
+        {
+          "name": "Simple GET Request",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "make GET request to https://api.example.com/health"
+            }
+          },
+          "expected_tool": "http_request",
+          "explanation": "Basic HTTP GET request with URL specified in natural language."
+        },
+        {
+          "name": "POST Request with Data",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "send POST request with user registration data",
+              "context": "Submit JSON payload {\"name\": \"John\", \"email\": \"john@example.com\"} to /api/users endpoint"
+            }
+          },
+          "expected_tool": "http_request", 
+          "explanation": "POST request with JSON data. Context provides specific payload and endpoint details."
+        },
+        {
+          "name": "Authenticated API Call",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "make authenticated request to user profile API",
+              "context": "Use Bearer token authentication to GET /api/profile"
+            }
+          },
+          "expected_tool": "http_request",
+          "explanation": "API request with authentication. Context specifies the auth method and endpoint."
+        },
+        {
+          "name": "API Health Check",
+          "request": {
+            "name": "smart_tool_discovery", 
+            "arguments": {
+              "request": "check if the payment service API is responding"
+            }
+          },
+          "expected_tool": "http_request",
+          "explanation": "Health check request. Smart Discovery understands this as an HTTP GET to a health endpoint."
+        }
+      ]
+    },
+    {
+      "category": "Database Operations",
+      "description": "Database queries and data operations", 
+      "examples": [
+        {
+          "name": "Select User Data",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "get all users from the database"
+            }
+          },
+          "expected_tool": "database_query",
+          "explanation": "Basic SELECT query. Smart Discovery will generate appropriate SQL or use query tool."
+        },
+        {
+          "name": "Filtered Query",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "find users created in the last 7 days",
+              "context": "Query users table where created_at > now() - 7 days"
+            }
+          },
+          "expected_tool": "database_query",
+          "explanation": "Filtered query with date condition. Context provides SQL hints."
+        },
+        {
+          "name": "Insert New Record",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "add new customer to the database",
+              "context": "Insert into customers table with name and email fields"
+            }
+          },
+          "expected_tool": "database_insert",
+          "explanation": "Database insert operation with table and field specifications."
+        },
+        {
+          "name": "Update Record",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "update user status to active",
+              "context": "Set status='active' for user with email john@example.com"
+            }
+          },
+          "expected_tool": "database_update",
+          "explanation": "Update operation with specific field and condition."
+        }
+      ]
+    },
+    {
+      "category": "System Operations",
+      "description": "System monitoring and process management",
+      "examples": [
+        {
+          "name": "System Health Check",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "check system health and resource usage"
+            }
+          },
+          "expected_tool": "system_monitor",
+          "explanation": "System monitoring request to check CPU, memory, and disk usage."
+        },
+        {
+          "name": "Execute Shell Command", 
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "run the build script for the project"
+            }
+          },
+          "expected_tool": "execute_command",
+          "explanation": "Execute a build script. Smart Discovery will find the command execution tool."
+        },
+        {
+          "name": "Service Status Check",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "check if nginx service is running"
+            }
+          },
+          "expected_tool": "service_monitor",
+          "explanation": "Service status check. Will use appropriate system monitoring tool."
+        },
+        {
+          "name": "Log Analysis",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "search for error messages in application logs",
+              "context": "Look for 'ERROR' or 'FATAL' in /var/log/app.log from last hour"
+            }
+          },
+          "expected_tool": "log_search",
+          "explanation": "Log file analysis with pattern matching and time range."
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Be specific about file paths, URLs, and data when possible",
+    "Use context to provide additional details that may not fit naturally in the request",
+    "Action verbs like 'read', 'write', 'send', 'get' help with tool matching",
+    "Include format information (JSON, CSV, YAML) when relevant",
+    "Specify authentication methods in context for API requests"
+  ],
+  "common_patterns": {
+    "file_operations": [
+      "read [file]",
+      "write [data] to [file]", 
+      "search for [pattern] in [directory]",
+      "copy [source] to [destination]"
+    ],
+    "http_requests": [
+      "make [METHOD] request to [URL]",
+      "send [data] to [endpoint]",
+      "check if [service] is responding",
+      "authenticate with [service] API"
+    ],
+    "database_queries": [
+      "get [data] from [table]",
+      "find [records] where [condition]",
+      "insert [data] into [table]",
+      "update [table] set [field] = [value]"
+    ],
+    "system_operations": [
+      "check [service] status",
+      "run [script/command]",
+      "monitor [resource]",
+      "search [logs] for [pattern]"
+    ]
+  }
+}

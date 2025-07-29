@@ -1,0 +1,32 @@
+# Rust formatting configuration for MCP Proxy
+
+# Basic formatting
+max_width = 100
+hard_tabs = false
+tab_spaces = 4
+
+# Import formatting
+imports_granularity = "Crate"
+group_imports = "StdExternalCrate"
+reorder_imports = true
+
+# Function formatting
+fn_args_layout = "Tall"
+brace_style = "SameLineWhere"
+
+# Control flow formatting
+control_brace_style = "AlwaysSameLine"
+match_block_trailing_comma = true
+
+# Comment formatting
+normalize_comments = true
+wrap_comments = true
+comment_width = 80
+
+# String formatting
+format_strings = true
+
+# Misc formatting
+use_small_heuristics = "Default"
+newline_style = "Unix"
+edition = "2021"

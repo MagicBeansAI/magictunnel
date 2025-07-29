@@ -1,0 +1,112 @@
+# OpenAPI Generator Configuration Example (YAML Format)
+# This file demonstrates how to configure the enhanced OpenAPI capability generator
+# for the Swagger Petstore API as a practical example.
+#
+# Features demonstrated:
+# - OpenAPI 3.0 and Swagger 2.0 support
+# - Advanced schema parsing with inheritance patterns
+# - Comprehensive reference resolution ($ref support)
+# - Complex nested object handling
+# - Authentication integration
+#
+# Usage:
+# 1. Replace "your_api_key" with your actual API key if required
+# 2. Run: mcp-generator openapi --config openapi-config.yaml --spec petstore.json
+#
+# Note: This example uses the Swagger Petstore API, but the configuration
+# can be adapted for any OpenAPI-based service by changing the base URL and auth settings.
+
+# Global settings that apply to all generators
+# These can be overridden by generator-specific settings
+global:
+  # Default prefix for all tool names
+  tool_prefix: "api"
+  # Base directory for output files
+  output_dir: "./capabilities"
+
+# Output file settings
+output:
+  # Output format (yaml or json)
+  format: "yaml"
+  # Enable pretty-printing for better readability
+  pretty: true
+  # Override the global output directory for OpenAPI specifically
+  directory: "./capabilities/openapi"
+  # Custom file naming pattern
+  # This will generate: openapi-petstore.yaml
+  file_pattern: "openapi-{name}.{ext}"
+
+# OpenAPI-specific configuration
+openapi:
+  # The base URL for the API
+  # This is combined with paths from the OpenAPI spec
+  base_url: "https://petstore.swagger.io/v2"
+
+  # Override the global tool prefix for OpenAPI tools
+  # This will make tools named like: petstore_getPetById
+  tool_prefix: "petstore"
+
+  # Naming convention for tools:
+  # - "operation-id": Use operationId from OpenAPI spec (recommended)
+  # - "method-path": Generate names from HTTP method and path (e.g., get_pets_by_id)
+  naming_convention: "operation-id"
+
+  # HTTP methods to include in the capability file
+  # Only operations with these methods will be processed
+  methods:
+    - "GET"
+    - "POST"
+    - "PUT"
+    - "DELETE"
+
+  # Whether to include deprecated operations
+  # Set to true if you want to include operations marked as deprecated
+  include_deprecated: false
+
+  # Advanced schema processing options (new enhanced features)
+  # Enable complex schema validation and enhancement
+  enable_schema_validation: true
+  # Support for inheritance patterns (AllOf, OneOf, AnyOf)
+  enable_inheritance_patterns: true
+  # Comprehensive reference resolution
+  enable_ref_resolution: true
+
+  # Authentication configuration for the OpenAPI service
+  # This example uses API Key authentication
+  auth:
+    # API Key authentication with key and header name
+    auth_type:
+      ApiKey:
+        key: "your_api_key"
+        header: "X-API-Key"
+
+    # Other authentication options:
+    # Bearer token: 
+    # auth_type:
+    #   Bearer: "YOUR_TOKEN"
+    # 
+    # Basic auth: 
+    # auth_type:
+    #   Basic:
+    #     username: "user"
+    #     password: "pass"
+    # 
+    # OAuth 2.0: 
+    # auth_type:
+    #   OAuth: "oauth_token"
+
+    # Additional headers for API requests (enhanced feature)
+    headers:
+      X-API-Version: "v2"
+      X-Client-ID: "magictunnel"
+
+# Example command to run this configuration:
+# mcp-generator openapi --config openapi-config.yaml --spec petstore.json
+#
+# For secure credentials, consider using environment variables:
+# 1. Export your API key: export API_KEY="your-actual-api-key"
+# 2. Edit this file to use: 
+#    auth_type:
+#      ApiKey:
+#        key: "${API_KEY}"
+#        header: "X-API-Key"

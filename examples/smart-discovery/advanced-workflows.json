@@ -1,0 +1,438 @@
+{
+  "title": "Smart Discovery Advanced Workflow Examples",
+  "description": "Complex real-world workflows demonstrating Smart Discovery in multi-step scenarios",
+  "workflows": [
+    {
+      "name": "Application Configuration Management",
+      "description": "Complete workflow for loading, validating, and applying application configuration",
+      "steps": [
+        {
+          "step": 1,
+          "name": "Load Configuration",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "read application configuration from YAML file",
+              "context": "Load config/app.yaml for application startup sequence"
+            }
+          },
+          "expected_result": "Configuration file contents",
+          "next_action": "Parse and validate configuration structure"
+        },
+        {
+          "step": 2,
+          "name": "Validate Configuration",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "validate configuration structure and required fields",
+              "context": "Ensure database URL, API keys, and port settings are present and valid"
+            }
+          },
+          "expected_result": "Validation results with any missing or invalid fields",
+          "next_action": "Apply validated configuration to application"
+        },
+        {
+          "step": 3,
+          "name": "Apply Configuration", 
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "update application settings with validated configuration",
+              "context": "Apply database connection, API endpoints, and feature flags to running application"
+            }
+          },
+          "expected_result": "Application successfully configured",
+          "next_action": "Verify configuration by testing key functionality"
+        },
+        {
+          "step": 4,
+          "name": "Verify Configuration",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "test database connection and API endpoints",
+              "context": "Health check to ensure configuration is working correctly"
+            }
+          },
+          "expected_result": "All services responding correctly",
+          "next_action": "Configuration management complete"
+        }
+      ],
+      "error_handling": [
+        {
+          "error": "Configuration file not found",
+          "action": "Use default configuration or prompt for config file path"
+        },
+        {
+          "error": "Invalid configuration format",
+          "action": "Show validation errors and suggest corrections"
+        },
+        {
+          "error": "Missing required fields",
+          "action": "List missing fields and provide examples"
+        }
+      ]
+    },
+    {
+      "name": "API Integration Testing",
+      "description": "Comprehensive API testing workflow with authentication and error handling",
+      "steps": [
+        {
+          "step": 1,
+          "name": "Basic Connectivity Test",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "check if API endpoint is reachable",
+              "context": "GET request to https://api.example.com/health to verify basic connectivity"
+            }
+          },
+          "expected_result": "200 OK response from health endpoint",
+          "next_action": "Test authentication mechanism"
+        },
+        {
+          "step": 2,
+          "name": "Authentication Test",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "test API authentication with credentials",
+              "context": "Authenticate using Bearer token to verify API key is valid and active"
+            }
+          },
+          "expected_result": "Successful authentication response",
+          "next_action": "Test core API functionality"
+        },
+        {
+          "step": 3,
+          "name": "Functional API Test",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "make authenticated request to user profile endpoint",
+              "context": "GET /api/user/profile with Bearer token to test core functionality"
+            }
+          },
+          "expected_result": "User profile data returned successfully",
+          "next_action": "Test data modification operations"
+        },
+        {
+          "step": 4,
+          "name": "Data Modification Test",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "create test user account via API",
+              "context": "POST to /api/users with test data to verify write operations work"
+            }
+          },
+          "expected_result": "Test user created successfully",
+          "next_action": "Cleanup test data"
+        },
+        {
+          "step": 5,
+          "name": "Cleanup Test Data",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "delete test user account",
+              "context": "DELETE /api/users/{test_user_id} to clean up test data"
+            }
+          },
+          "expected_result": "Test user deleted successfully",
+          "next_action": "API integration testing complete"
+        }
+      ],
+      "metrics": [
+        "Response times for each endpoint",
+        "Authentication success rate",
+        "Error rates and types",
+        "API availability percentage"
+      ]
+    },
+    {
+      "name": "Data Processing Pipeline",
+      "description": "ETL workflow for processing and transforming data from various sources",
+      "steps": [
+        {
+          "step": 1,
+          "name": "Extract Source Data",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "read customer data from CSV input file",
+              "context": "Extract data from input/customers.csv for daily processing pipeline"
+            }
+          },
+          "expected_result": "Raw customer data loaded from CSV",
+          "next_action": "Validate and clean the extracted data"
+        },
+        {
+          "step": 2,
+          "name": "Transform and Clean Data",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "validate and clean customer data",
+              "context": "Remove duplicates, validate email formats, standardize phone numbers, and handle missing fields"
+            }
+          },
+          "expected_result": "Cleaned and validated customer records",
+          "next_action": "Enrich data with additional information"
+        },
+        {
+          "step": 3,
+          "name": "Enrich Data",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "lookup additional customer information from external API",
+              "context": "Enrich customer records with geographic data and demographic information"
+            }
+          },
+          "expected_result": "Enriched customer data with additional fields",
+          "next_action": "Load processed data into target database"
+        },
+        {
+          "step": 4,
+          "name": "Load to Database",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "insert processed customer data into database",
+              "context": "Bulk insert into customers table with upsert logic for existing records"
+            }
+          },
+          "expected_result": "Data successfully loaded into database",
+          "next_action": "Generate processing report"
+        },
+        {
+          "step": 5,
+          "name": "Generate Report",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "create data processing summary report",
+              "context": "Generate report with record counts, data quality metrics, and processing statistics"
+            }
+          },
+          "expected_result": "Processing report with metrics and statistics",
+          "next_action": "Archive processed files and notify stakeholders"
+        }
+      ],
+      "quality_checks": [
+        "Data completeness validation",
+        "Format and type checking",
+        "Duplicate detection and removal",
+        "Business rule validation",
+        "Referential integrity checks"
+      ]
+    },
+    {
+      "name": "Development and Deployment Pipeline",
+      "description": "CI/CD workflow for building, testing, and deploying applications",
+      "steps": [
+        {
+          "step": 1,
+          "name": "Build Application",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "run project build script",
+              "context": "Execute build.sh to compile application for production deployment"
+            }
+          },
+          "expected_result": "Application built successfully",
+          "next_action": "Run automated test suite"
+        },
+        {
+          "step": 2,
+          "name": "Run Tests",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "execute comprehensive test suite",
+              "context": "Run unit tests, integration tests, and security scans before deployment"
+            }
+          },
+          "expected_result": "All tests pass successfully",
+          "next_action": "Deploy to staging environment"
+        },
+        {
+          "step": 3,
+          "name": "Deploy to Staging",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "deploy application to staging environment",
+              "context": "Deploy built application to staging server for final validation"
+            }
+          },
+          "expected_result": "Staging deployment successful",
+          "next_action": "Run smoke tests on staging"
+        },
+        {
+          "step": 4,
+          "name": "Staging Validation",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "run smoke tests on staging deployment",
+              "context": "Verify core functionality and API endpoints work correctly in staging"
+            }
+          },
+          "expected_result": "Staging validation successful",
+          "next_action": "Deploy to production"
+        },
+        {
+          "step": 5,
+          "name": "Production Deployment",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "deploy application to production environment",
+              "context": "Blue-green deployment to production with rollback capability"
+            }
+          },
+          "expected_result": "Production deployment successful",
+          "next_action": "Monitor application health"
+        },
+        {
+          "step": 6,
+          "name": "Post-Deployment Monitoring",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "monitor application health and performance",
+              "context": "Check response times, error rates, and resource utilization after deployment"
+            }
+          },
+          "expected_result": "Application running healthy in production",
+          "next_action": "Deployment pipeline complete"
+        }
+      ],
+      "rollback_strategy": [
+        {
+          "trigger": "High error rate detected",
+          "action": "Automatic rollback to previous version"
+        },
+        {
+          "trigger": "Performance degradation",
+          "action": "Alert team and prepare manual rollback"
+        },
+        {
+          "trigger": "Critical functionality broken",
+          "action": "Immediate rollback and incident response"
+        }
+      ]
+    },
+    {
+      "name": "Security Audit and Compliance",
+      "description": "Comprehensive security assessment and compliance checking workflow",
+      "steps": [
+        {
+          "step": 1,
+          "name": "Code Security Scan",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "run security analysis on application source code",
+              "context": "Static analysis to detect vulnerabilities, insecure patterns, and compliance issues"
+            }
+          },
+          "expected_result": "Security scan report with findings",
+          "next_action": "Check dependency vulnerabilities"
+        },
+        {
+          "step": 2,
+          "name": "Dependency Audit",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "audit application dependencies for known vulnerabilities",
+              "context": "Check npm/pip/cargo dependencies against CVE database"
+            }
+          },
+          "expected_result": "Dependency vulnerability report",
+          "next_action": "Infrastructure security assessment"
+        },
+        {
+          "step": 3,
+          "name": "Infrastructure Security",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "scan infrastructure configuration for security issues",
+              "context": "Check server configurations, network settings, and access controls"
+            }
+          },
+          "expected_result": "Infrastructure security assessment",
+          "next_action": "Compliance validation"
+        },
+        {
+          "step": 4,
+          "name": "Compliance Check",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "validate compliance with security standards",
+              "context": "Check against GDPR, SOC2, and industry-specific compliance requirements"
+            }
+          },
+          "expected_result": "Compliance status report",
+          "next_action": "Generate security dashboard"
+        },
+        {
+          "step": 5,
+          "name": "Security Reporting",
+          "request": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+              "request": "generate comprehensive security report",
+              "context": "Consolidated report with risk assessment, remediation priorities, and compliance status"
+            }
+          },
+          "expected_result": "Executive security dashboard",
+          "next_action": "Schedule remediation tasks"
+        }
+      ],
+      "compliance_frameworks": [
+        "GDPR - Data protection and privacy",
+        "SOC 2 - Security and availability controls", 
+        "PCI DSS - Payment card data security",
+        "HIPAA - Healthcare data protection",
+        "ISO 27001 - Information security management"
+      ]
+    }
+  ],
+  "workflow_patterns": {
+    "error_handling": {
+      "retry_with_backoff": "Automatically retry failed operations with exponential backoff",
+      "graceful_degradation": "Continue workflow with reduced functionality when non-critical steps fail",
+      "rollback_on_failure": "Automatically undo changes when critical steps fail",
+      "manual_intervention": "Pause workflow and alert operators for complex failures"
+    },
+    "parallel_execution": {
+      "independent_tasks": "Run multiple independent operations concurrently",
+      "data_partitioning": "Process data in parallel chunks",
+      "environment_isolation": "Deploy to multiple environments simultaneously",
+      "multi_source_extraction": "Extract from multiple data sources in parallel"
+    },
+    "monitoring_and_alerting": {
+      "progress_tracking": "Report workflow progress and estimated completion",
+      "performance_metrics": "Track execution times and resource usage",
+      "quality_gates": "Enforce quality thresholds at each step",
+      "stakeholder_notifications": "Notify relevant teams of workflow status"
+    }
+  },
+  "best_practices": [
+    "Use context to provide detailed workflow state and requirements",
+    "Include error handling and rollback strategies in workflow design",
+    "Monitor and log each step for debugging and audit purposes",
+    "Implement quality gates and validation at critical steps",
+    "Use appropriate confidence thresholds for different risk levels",
+    "Design workflows to be resumable from any step",
+    "Include progress reporting and stakeholder notifications"
+  ]
+}

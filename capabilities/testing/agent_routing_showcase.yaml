@@ -1,0 +1,383 @@
+# Agent Routing Showcase Capability
+# This demonstrates all eight agent types with advanced parameter substitution
+# and comprehensive error handling features of the new AgentRouter system
+
+metadata:
+  name: "Agent Routing Showcase"
+  description: "Comprehensive demonstration of all agent routing types with advanced features including gRPC and SSE support"
+  version: "1.0.0"
+  author: "MCP Proxy Team"
+  tags: ["testing", "routing", "agents", "showcase", "comprehensive"]
+
+tools:
+  # ===== SUBPROCESS AGENT EXAMPLES =====
+  
+  - name: "advanced_file_search"
+    description: "Advanced file search with parameter substitution and environment variables"
+    inputSchema:
+      type: "object"
+      properties:
+        pattern:
+          type: "string"
+          description: "Search pattern (supports regex)"
+        directory:
+          type: "string"
+          description: "Directory to search in"
+          default: "."
+        file_type:
+          type: "string"
+          description: "File extension filter"
+          default: "*"
+        max_depth:
+          type: "integer"
+          description: "Maximum search depth"
+          default: 5
+          minimum: 1
+          maximum: 20
+        case_sensitive:
+          type: "boolean"
+          description: "Case sensitive search"
+          default: false
+      required: ["pattern"]
+    routing:
+      type: "subprocess"
+      config:
+        command: "find"
+        args: [
+          "{{directory}}", 
+          "-maxdepth", "{{max_depth}}", 
+          "-name", "*.{{file_type}}", 
+          "-exec", "grep", 
+          "{{case_sensitive ? '' : '-i'}}", 
+          "{{pattern}}", 
+          "{}", "+"
+        ]
+        timeout: 60
+        env:
+          SEARCH_PATTERN: "{{pattern}}"
+          SEARCH_DIR: "{{directory}}"
+          LC_ALL: "C"
+    hidden: true
+
+  - name: "system_info_collector"
+    description: "Collect comprehensive system information with dynamic command building"
+    inputSchema:
+      type: "object"
+      properties:
+        info_types:
+          type: "array"
+          description: "Types of information to collect"
+          items:
+            type: "string"
+            enum: ["cpu", "memory", "disk", "network", "processes"]
+          default: ["cpu", "memory", "disk"]
+        output_format:
+          type: "string"
+          description: "Output format"
+          enum: ["json", "text", "csv"]
+          default: "json"
+        detailed:
+          type: "boolean"
+          description: "Include detailed information"
+          default: false
+      required: []
+    routing:
+      type: "subprocess"
+      config:
+        command: "bash"
+        args: [
+          "-c",
+          "echo 'System Info Collection'; {{#each info_types}}{{#if @first}}{{else}} && {{/if}}echo '=== {{this}} ===' && {{#switch this}}{{#case 'cpu'}}cat /proc/cpuinfo | head -20{{/case}}{{#case 'memory'}}free -h{{/case}}{{#case 'disk'}}df -h{{/case}}{{#case 'network'}}ip addr show{{/case}}{{#case 'processes'}}ps aux | head -10{{/case}}{{/switch}}{{/each}}"
+        ]
+        timeout: 45
+        env:
+          OUTPUT_FORMAT: "{{output_format}}"
+          DETAILED: "{{detailed}}"
+    hidden: true
+
+  # ===== HTTP AGENT EXAMPLES =====
+
+  - name: "api_health_checker"
+    description: "Advanced API health checking with dynamic headers and retry logic"
+    inputSchema:
+      type: "object"
+      properties:
+        endpoints:
+          type: "array"
+          description: "API endpoints to check"
+          items:
+            type: "string"
+            format: "uri"
+        auth_token:
+          type: "string"
+          description: "Authentication token"
+        user_agent:
+          type: "string"
+          description: "Custom User-Agent header"
+          default: "magictunnel-HealthChecker/1.0"
+        timeout:
+          type: "integer"
+          description: "Request timeout in seconds"
+          default: 30
+          minimum: 5
+          maximum: 120
+        expected_status:
+          type: "integer"
+          description: "Expected HTTP status code"
+          default: 200
+      required: ["endpoints"]
+    routing:
+      type: "http"
+      config:
+        method: "GET"
+        url: "{{endpoints[0]}}"
+        headers:
+          Authorization: "Bearer {{auth_token}}"
+          User-Agent: "{{user_agent}}"
+          X-Health-Check: "true"
+          X-Timestamp: "{{now}}"
+        timeout: "{{timeout}}"
+        follow_redirects: true
+        retry_attempts: 3
+    hidden: true
+
+  - name: "webhook_sender"
+    description: "Send webhook notifications with dynamic payload construction"
+    inputSchema:
+      type: "object"
+      properties:
+        webhook_url:
+          type: "string"
+          description: "Webhook URL to send to"
+          format: "uri"
+        event_type:
+          type: "string"
+          description: "Type of event"
+          enum: ["alert", "info", "warning", "error"]
+        message:
+          type: "string"
+          description: "Message content"
+        metadata:
+          type: "object"
+          description: "Additional metadata"
+          additionalProperties: true
+        priority:
+          type: "string"
+          description: "Message priority"
+          enum: ["low", "normal", "high", "critical"]
+          default: "normal"
+      required: ["webhook_url", "event_type", "message"]
+    routing:
+      type: "http"
+      config:
+        method: "POST"
+        url: "{{webhook_url}}"
+        headers:
+          Content-Type: "application/json"
+          X-Event-Type: "{{event_type}}"
+          X-Priority: "{{priority}}"
+          X-Source: "magictunnel"
+        body: |
+          {
+            "event_type": "{{event_type}}",
+            "message": "{{message}}",
+            "priority": "{{priority}}",
+            "timestamp": "{{now}}",
+            "metadata": {{metadata}},
+            "source": "magictunnel-agent-router"
+          }
+        timeout: 30
+    hidden: true
+
+  # ===== LLM AGENT EXAMPLES =====
+
+  - name: "intelligent_code_reviewer"
+    description: "AI-powered code review with configurable models and prompts"
+    inputSchema:
+      type: "object"
+      properties:
+        code:
+          type: "string"
+          description: "Code to review"
+        language:
+          type: "string"
+          description: "Programming language"
+          enum: ["python", "javascript", "rust", "go", "java", "typescript"]
+        review_type:
+          type: "string"
+          description: "Type of review to perform"
+          enum: ["security", "performance", "style", "comprehensive"]
+          default: "comprehensive"
+        model_preference:
+          type: "string"
+          description: "Preferred AI model"
+          enum: ["gpt-4", "claude-3-sonnet", "claude-3-opus"]
+          default: "gpt-4"
+        max_suggestions:
+          type: "integer"
+          description: "Maximum number of suggestions"
+          default: 10
+          minimum: 1
+          maximum: 50
+      required: ["code", "language"]
+    routing:
+      type: "llm"
+      config:
+        provider: "{{model_preference.startsWith('gpt') ? 'openai' : 'anthropic'}}"
+        model: "{{model_preference}}"
+        api_key: "{{model_preference.startsWith('gpt') ? env.OPENAI_API_KEY : env.ANTHROPIC_API_KEY}}"
+        timeout: 120
+        system_prompt: |
+          You are an expert {{language}} code reviewer specializing in {{review_type}} analysis.
+          Provide up to {{max_suggestions}} actionable suggestions for improvement.
+          Format your response as JSON with: {
+            "overall_score": 1-10,
+            "suggestions": [{"line": number, "type": "string", "message": "string", "severity": "low|medium|high"}],
+            "summary": "string"
+          }
+        user_prompt: |
+          Please review this {{language}} code for {{review_type}} issues:
+          
+          ```{{language}}
+          {{code}}
+          ```
+    hidden: true
+
+  - name: "multilingual_translator"
+    description: "Advanced translation with context awareness and quality scoring"
+    inputSchema:
+      type: "object"
+      properties:
+        text:
+          type: "string"
+          description: "Text to translate"
+        source_language:
+          type: "string"
+          description: "Source language (auto-detect if not specified)"
+        target_language:
+          type: "string"
+          description: "Target language"
+        context:
+          type: "string"
+          description: "Context for better translation (technical, casual, formal, etc.)"
+          default: "general"
+        preserve_formatting:
+          type: "boolean"
+          description: "Preserve original formatting"
+          default: true
+      required: ["text", "target_language"]
+    routing:
+      type: "llm"
+      config:
+        provider: "anthropic"
+        model: "claude-3-sonnet"
+        api_key: "{{env.ANTHROPIC_API_KEY}}"
+        base_url: "{{env.ANTHROPIC_BASE_URL}}"
+        timeout: 60
+        system_prompt: |
+          You are a professional translator with expertise in {{target_language}}.
+          Context: {{context}}
+          {{#if preserve_formatting}}Preserve all formatting, markdown, and structure.{{/if}}
+          {{#if source_language}}Source language: {{source_language}}{{else}}Auto-detect source language.{{/if}}
+          
+          Provide translation with confidence score (0-100) in this JSON format:
+          {
+            "translated_text": "string",
+            "detected_source_language": "string",
+            "confidence_score": number,
+            "notes": "string"
+          }
+    hidden: true
+
+  # ===== WEBSOCKET AGENT EXAMPLES =====
+
+  - name: "realtime_chat_bot"
+    description: "Real-time chat bot with WebSocket connection and session management"
+    inputSchema:
+      type: "object"
+      properties:
+        websocket_url:
+          type: "string"
+          description: "WebSocket server URL"
+          format: "uri"
+        message:
+          type: "string"
+          description: "Message to send"
+        session_id:
+          type: "string"
+          description: "Chat session ID"
+        bot_personality:
+          type: "string"
+          description: "Bot personality type"
+          enum: ["helpful", "technical", "casual", "formal"]
+          default: "helpful"
+        response_timeout:
+          type: "integer"
+          description: "Response timeout in seconds"
+          default: 30
+      required: ["websocket_url", "message"]
+    routing:
+      type: "websocket"
+      config:
+        url: "{{websocket_url}}"
+        headers:
+          Authorization: "Bearer {{env.CHAT_API_KEY}}"
+          X-Session-ID: "{{session_id}}"
+          X-Bot-Personality: "{{bot_personality}}"
+          X-Client: "magictunnel-agent"
+        message: |
+          {
+            "type": "chat_message",
+            "session_id": "{{session_id}}",
+            "message": "{{message}}",
+            "personality": "{{bot_personality}}",
+            "timestamp": "{{now}}"
+          }
+        timeout: "{{response_timeout}}"
+    hidden: true
+
+  - name: "live_data_streamer"
+    description: "Stream live data updates via WebSocket with filtering and aggregation"
+    inputSchema:
+      type: "object"
+      properties:
+        stream_url:
+          type: "string"
+          description: "WebSocket stream URL"
+          format: "uri"
+        data_types:
+          type: "array"
+          description: "Types of data to stream"
+          items:
+            type: "string"
+            enum: ["metrics", "logs", "events", "alerts"]
+          default: ["metrics"]
+        filters:
+          type: "object"
+          description: "Data filters"
+          additionalProperties: true
+        aggregation_window:
+          type: "integer"
+          description: "Aggregation window in seconds"
+          default: 60
+          minimum: 1
+          maximum: 3600
+      required: ["stream_url"]
+    routing:
+      type: "websocket"
+      config:
+        url: "{{stream_url}}"
+        headers:
+          X-Data-Types: "{{data_types.join(',')}}"
+          X-Aggregation-Window: "{{aggregation_window}}"
+          X-Client-ID: "magictunnel-{{uuid}}"
+        message: |
+          {
+            "action": "subscribe",
+            "data_types": {{data_types}},
+            "filters": {{filters}},
+            "aggregation_window": {{aggregation_window}},
+            "client_id": "magictunnel-{{uuid}}"
+          }
+        timeout: 300
+    hidden: true

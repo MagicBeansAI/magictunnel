@@ -1,0 +1,122 @@
+tools:
+  - name: so_today_visit_performance
+    description: "Sales officer's dashboard showing visit related erformance metrics for today"
+    hidden: true
+    inputSchema:
+      type: object
+      properties:
+        range:
+          type: string
+          description: "Optional: specific range to read (default: all data)"
+          default: "A:Z"
+      required: []
+    routing:
+      type: subprocess
+      config:
+        command: python3
+        args:
+          - "/Users/gouravd/Development/magicbeanbs100x/magictunnel/google_sheets_tools.py"
+          - "read"
+          - "1U3Z25eyfu1mm0KyZTScSRpvSaPZK-A6j1-CvC3q0p7c"  # Your actual sheet ID
+          - "Summary SO_Today!{range}"
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: "/Users/gouravd/Development/magicbeanbs100x/magictunnel/ak-gdrive-magictunnel.json"
+        timeout: 120
+        working_directory: "."
+
+  - name: so_this_month_visit_performance
+    description: "Sales officers dashboard showing visit related performance metrics for this month"
+    hidden: true
+    inputSchema:
+      type: object
+      properties:
+        range:
+          type: string
+          description: "Optional: specific range to read (default: all data)"
+          default: "A:Z"
+      required: []
+    routing:
+      type: subprocess
+      config:
+        command: python3
+        args:
+          - "/Users/gouravd/Development/magicbeanbs100x/magictunnel/google_sheets_tools.py"
+          - "read"
+          - "1U3Z25eyfu1mm0KyZTScSRpvSaPZK-A6j1-CvC3q0p7c"
+          - "Summary SO_July'25!{range}"
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: "/Users/gouravd/Development/magicbeanbs100x/magictunnel/ak-gdrive-magictunnel.json"
+        timeout: 120
+        working_directory: "."
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Force reload test - check hot reload working
+# Debug test Mon Jul 28 04:22:59 IST 2025
+# Hot reload test - change to trigger reload
+# Testing capabilities hot reload fix - 23:04

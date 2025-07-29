@@ -1,0 +1,9950 @@
+type Query {
+  checkPincodeWarehouseServiceable(
+    customerId: Int
+    pincode: ID
+  ): PincodeWarehouses!
+  getBrand(id: [ID!]): [Brand!]
+  getCategory(id: [ID!]): [ProductCategory!]
+  getFilters(id: ID!): Filter!
+  getHomeScreen(
+    code: ID
+    id: [ID!]
+    extraId: ID
+    addressId: ID
+    couponId: ID
+    dsoOrder: Boolean
+  ): HomeScreen!
+  getLiveInventory: DocumentLink!
+  getLuckyDrawDetails: LuckyDrawDetails!
+  getMyProfile(customerId: Int): ProductCustomer
+  getProduct(id: [ID!]!, fromStore: Boolean): [Product!]
+  getProductBySKU(code: [ID!]!, fromStore: Boolean): [Product!]
+  getProductScreen(id: ID!): HomeScreenView!
+  listBrands(page: PageDefinitionInput): [Brand!]
+  listCategories(page: PageDefinitionInput): [ProductCategory!]
+  listProducts(page: PageDefinitionInput): [Product!]
+  listSnapshots(
+    status: [SnapshotStatus!]
+    page: PageDefinitionInput
+  ): [Snapshot!]
+  ping: String
+  search(
+    text: String!
+    onlyTypes: [SearchType!]
+    highlight: Boolean
+    shopId: ID
+  ): SearchResult!
+  searchProduct(text: String!, type: String!): ProductSearchResults!
+  getAllDiscountRewards(args: DiscountRewardsInputType!): DiscountRewards!
+  getAppliedDiscounts(
+    args: GetAppliedDiscountsInputType!
+  ): AppliedDiscountResponseType
+  getBrands(id: [ID!]): [CouponBrand!]
+  getCategories(id: [ID!]): [CouponProductCategory!]
+  getCompleteCouponDetails(id: Int!): GetCompleteCouponDetailsType
+  getCouponRewards(
+    page: Page
+    couponRewardStatus: CouponRewardStatus
+    customerId: Int
+  ): [CouponRewardList]
+  getDiscountCoupons(
+    args: GetDiscountCouponInputType
+    limit: Int
+    offset: Int
+  ): [DiscountCouponType]
+  getDiscountCouponsForApproval: [DiscountCouponType]
+  getDiscountRuleGroups(
+    args: GetDiscountRuleGroupInputType
+  ): [DiscountRuleGroupType]
+  getDiscountRules(args: GetDiscountRuleInputType): [DiscountRuleType]
+  getFreebieAndNormalSkus: FreebieAndNormalSkusOutput
+  getFreebieArticleMapping(
+    freebieSkuId: [String]
+    freebieSkuName: String
+    normalSkuId: [String]
+    normalSkuName: String
+  ): [FreebieArticleMappingOutput]
+  getFreeBieCoupon(filter: FreeBieCouponFilter!): freeBieCouponRes
+  getProductSegment(
+    args: GetProductSegmentInputType
+    paginate: PaginationInput
+  ): ProductSegmentTypeWithPagination
+  getUserCouponsByAdmin(customerId: ID!): [UserDiscountCouponAdminType]
+  getUserDiscountCoupons(
+    args: GetUserDiscountCouponInputType!
+  ): [UserDiscountCouponType]
+  getUserDiscounts: [UserDiscountType]
+  getUserSegment(
+    args: GetUserSegmentInputType
+    limit: Int
+    offset: Int
+  ): [UserSegmentType]
+  getUserSegmentRelation(
+    args: GetUserSegmentRelationInputType
+  ): [UserSegmentRelationType]
+  validatePicking(data: ValidatePickingInput): ValidatePickingResponse
+  validateAppliedCoupons(
+    args: ValidateAppliedCouponsInputType!
+  ): ValidatedCouponsType
+  validateCashbackCoupons(
+    args: ValidateCashbackCouponsInputType!
+  ): ValidatedCouponsType
+  checkQuantityChanges(code: [ID!]): InventoryQuantityCompatDiff!
+  checkQuantityPlaced(code: [ID!]): InventoryQuantityCompatDiff!
+  getInventoryEntity(code: [ID!]!): [InventoryEntity]
+  getInventoryInfo(
+    parent_warehouse_loc: String
+    virtual_warehouse_id: ID
+    virtual_warehouse_required: Boolean
+    page_no: Int
+    page_size: Int
+    parent_non_allocated_quantity: Boolean
+    skus: [String!]
+  ): InventoryInfoResult
+  getInventoryOrigin(code: [ID!]!): [InventoryOrigin]
+  getVirtualWarehouse(
+    page_no: Int
+    page_size: Int
+    parent_warehouse_loc: String
+    child_warehouse_loc: String
+    virtual_warehouse_id: ID
+  ): VirtualWarehouseReadResult
+  getVirtualWarehouseAllocationRules(
+    parent_warehouse_loc: String!
+    product_specific_rules: Boolean
+    page_no: Int
+    page_size: Int
+    sku: String
+  ): VirtualWarehouseRulesReadResult
+  getVirtualWarehouseAllocationTriggers(
+    page_no: Int
+    page_size: Int
+    trigger_by: String
+    parent_trigger_id: ID
+    warehouse_id: ID
+    trigger_id: ID
+  ): VirtualWarehouseTriggerArrayResult
+  getWarehouseProductExceptionList(
+    warehouse_id: ID!
+    page_no: Int
+    page_size: Int
+    sku: String
+  ): VirtualWarehouseExceptionItemArrayResult
+  isQuantitiesLocked: QuantitiesLockedResult
+  listInventoryRepeatables: [InventoryRepeatable!]
+  warehouseList: WarehouseListResult
+  checkUserDocument(document_no: String): CheckUserDocumentResult
+  getCustomerUuid: String
+  getAccountOutstanding: AccountOutstandingRes
+  getActivePolicies: PolicyResult
+  getActiveVouchersWithCount(
+    customerId: Int
+    pageNo: Int!
+    pageSize: Int!
+    type: VoucherTypes
+  ): ActiveVouchersWithCountResult
+  getCustomerAccountStatus: AccountStatus
+  getCustomerKYCStatusAndVerificationFlow(
+    args: SendKYCOTPInput
+  ): GetCustomerKYCStatusAndVerificationFlow
+  getCustomerNotifications(
+    args: GetNotificationInputType!
+  ): [CustomerNotificationType]
+  getGiftConfig: PromoGiftConfig
+  getGifts(page_size: Int, page_no: Int, type: String): PromoGiftConfig
+  getGRNFlags: GRNFlags
+  getIsAllowedToPlaceOrder: IsAllowedToPlaceOrderType
+  getIsTokenAmountRequired(
+    args: TokenAmountRequiredInputType
+  ): TokenAmountRequiredType
+  getKYCDocuments: KYCDocuments
+  getLoadingScreenMessages(
+    language: String
+    limit: Int
+  ): LoadingScreenMessagesResult
+  getLoyaltySchemes(customerId: Int): LoyaltySchemes
+  getLoyaltyTransactions(
+    coupon_id: Int!
+    offset: Int
+    limit: Int
+    customerId: Int
+  ): [LoyaltySchemeTransaction]
+  getReferralInfo(customer_id: ID): ReferralInfo
+  getReferralUser(referral_code: String): ReferralUserResult
+  getStatesByPincode(pincode: String): StatesByPincodeResult
+  getUserKYCInfo: UserKycInfoResult
+  getYearEndWrapper(customer_id: ID): YearEndWrapper
+  showAKReferral: AKReferralResult
+  showDocumentConfirmation: ShowDocumentConfirmationResult!
+  validateDocuments(documents: [ValidateDocumentInput]): OpResult
+  checkPayment(order_id: ID, type: QRType): PaymentConfirmation!
+  checkPaymentBulk(orderIds: [Int!]): PaymentInfo!
+  generateQR(order_id: ID, amount: Float, type: QRType): QRResult!
+  generateVA(customer_id: ID): VirtualAccount!
+  getOrderPaymentStatus(orderId: Int!): [PaymentOrderStatusOutput]
+  getPaymentLink(orderId: ID!): PaymentLinkOutput
+  getCSATOrders(customerId: Int): [CSATOrder]!
+  getCSATTickets(
+    ticketType: TicketType!
+    orderId: ID
+    issueId: ID
+    page: Page
+  ): [CSATTicket]!
+  getIssues: [CSATIssue]!
+  getTickets: [Ticket]
+  getCountFor(query: String, args: JSON): Int
+  allTrips(filter: Filters): AllTrips
+  allTripsCount(filter: Filters): Int
+  getCmsBalance(date: String, warehouseIds: [Int]): [cmsBalance]
+  getCsatTickets(
+    id: ID
+    ticket_ids: [String]
+    warehouse_ids: [Int]
+    order_ids: [Int]
+    user_id: Int
+    contact_no: String
+    date_range: DateRange
+    status: [CsatStatus]
+    owner_id: Int
+    sub_status: [String]
+  ): TicketRes
+  getCsatComments(ticket_id: ID!): CommentRes
+  getNotificationCount: Int!
+  deliveryPersons(filter: Filters): [Drivers]
+  getAllDrivers(filter: Filters): [Drivers]
+  deliveryPersonsCount(filter: Filters): Int
+  findBifrostProducts(name: String, productIds: [Int]): [bifrostProduct]
+  getAllCostingMethods: GetAllCostingMethodsRes
+  getAllDmsVehicles(
+    warehouseIds: [Int!]
+    vehicleNumber: [String]
+    vehicleType: [String]
+    vendorName: String
+  ): GetAllVehiclesRes
+  getAllDmsVendors(warehouseIds: [Int!]): GetAllVendorsRes
+  getAllOrdersCount(filters: Filters): Int
+  getAllRoutes(warehouseIds: [Int!], routeName: String): GetRoutes
+  getAllVehicles(
+    warehouseIds: [Int!]
+    vehicleNumber: [String]
+    vehicleType: [String]
+    vendorName: String
+  ): GetAllVehiclesRes
+  getAllVendors(warehouseIds: [Int!]): GetAllVendorsRes
+  getAuditLogData(
+    dateRange: DateRange
+    warehouseIds: [Int!]
+    limit: Int
+    offset: Int
+  ): [AuditHistory!]!
+  getBatchConverterDetails(
+    erp_stock_reconciliation_id: String
+    type: BatchType!
+    warehouseIds: [Int!]
+    fromDate: String
+    toDate: String
+    offset: Int
+    limit: Int
+  ): [GetBatchConverterDetailsOutput]
+  getBatchConverterItemsDetails(id: Int!): GetBatchConverterItemsDetailsOutput
+  getCmsLedger(
+    transactionName: String
+    fromDate: String
+    toDate: String
+    warehouseId: Int!
+    offset: Int
+    limit: Int!
+  ): CmsLedgerRes
+  getCmsSubTransactions(transactionName: String!): [CmsTransactionType]
+  getCmsTransactionDetails(transactionName: String!): CmsTransactionDetails
+  getCmsTransactions(
+    transactionName: String
+    transactionId: Int
+    fromDate: String
+    toDate: String
+    transactionTypes: [String]
+    statuses: [String]
+    offset: Int
+    limit: Int!
+    warehouseIds: [Int!]
+    subStatuses: [TxnSubStatus]
+  ): [CmsTransactionType]
+  getCsatOrderDetails(orderId: Int): GetCompleteOrderDetailsRes
+  getDeliveryOrderDetails(orderId: Int): deliveryOrderDetails
+  getReturnReasons: [returnReason]
+  getDeliveryReturnReasons: [returnReason]
+  getDMSReturnReasons: [returnReason]
+  getDMSReturns(tripId: Int!): [ReturnItem]
+  getDmsVehicleDetails(vehicleId: Int!): GetVehicleDetailsRes
+  getEvents(orderIds: [Int], limit: Int!, offset: Int): [TypeGetEvents]
+  getEventsCount(orderIds: [Int]): Int
+  getFinanceSubTransactions(transactionName: String!): [CmsTransactionType]
+  getFinanceTransactionDetails(transactionName: String!): CmsTransactionDetails
+  getGtmOrder(orderId: Int): [order]
+  getGtmUsers(
+    id: Int
+    name: String
+    email: String
+    active: Boolean
+  ): [GtmUserData]
+  getBifrostWarehouses: [bifrostWarehouse]
+  getLowDenominationTxns(warehouseIds: [Int]): [GetLowDenominationTxnsRes]
+  getOrderReconciliationDetails(
+    filters: Filters
+  ): GetOrderReconciliationDetailsRes
+  getOrderReconciliationDetailsCount(filters: Filters): Int
+  getOrderReturnsDetails(
+    warehouseIds: [Int!]
+    orderId: Int!
+    id: Int
+  ): GetOrderReturnsDetails
+  getOrders(filter: Filters): [order]
+  getOrdersCount(filter: Filters): Int
+  getCancelledOrders(filter: Filters): [order]
+  getDeliveryOrders(filter: Filters): [order]
+  getCmsOrder(orderId: Int!, warehouseId: Int!): cmsOrderRes
+  getOrderValue(orderId: Int!, items: [product!]!): GetOrderValueRes
+  getPendingTransactions(
+    transactionName: String
+    transactionType: [TransactionType]
+    fromDate: String
+    toDate: String
+    dateType: TransactionsDateTypes
+    warehouseIds: [Int!]
+    offset: Int
+    limit: Int
+    statuses: [TransactionStatuses]
+    subStatuses: [TxnSubStatus]
+  ): [PendingData]
+  getPendingTransactionsCount(
+    transactionName: String
+    transactionType: [TransactionType]
+    fromDate: String
+    toDate: String
+    dateType: TransactionsDateTypes
+    warehouseIds: [Int!]
+    offset: Int
+    limit: Int
+    statuses: [TransactionStatuses]
+    subStatuses: [TxnSubStatus]
+  ): Int
+  getReturnsData(filter: Filters): GetReturnsData
+  getReturnsDataCount(filter: Filters): Int
+  getRoutes(warehouseIds: [Int!], routeName: String): GetRoutes
+  getRTOBin(warehouseId: Int): RTOBinData
+  getSettlementMonitoringData(
+    args: RazorpaySettlementArgs
+  ): RazorpaySettlementOutput
+  getSummaryDailyBalance(
+    dateRange: DateRange!
+    warehouseIds: [Int!]
+  ): [SummaryDailyBalance]!
+  getSurveyReport(
+    warehouseIds: [Int!]
+    productId: [Int!]
+    dateRange: DateRange
+    source: String
+    objectiveId: Int
+    billDateRange: DateRange
+  ): SurveyReportResults
+  getTransactionCycleDetails(cycleId: Int!): TransactionCycle!
+  getTrip(tripId: ID!, order_status: OrderStatus): TripData
+  getTripOpeningAndClosingDetails(
+    tripId: Int!
+  ): GetTripOpeningAndClosingDetailsRes
+  getTripReconciliationDetails(
+    filters: Filters
+  ): GetTripReconciliationDetailsRes
+  getTripReconciliationDetailsCount(filters: Filters): Int
+  getTripsStocksData(tripId: Int!): [GetTripsStocksDataRes]
+  getTxnCycle(warehouseId: Int!): warehouseCmsStatus
+  getBifrostOrdersForReview(tripId: Int!): [getUnApprovedBifrostOrdersRes]
+  getUser: GetUserResult
+  getVehicleDetails(vehicleId: Int!): GetVehicleDetailsRes
+  getVendorCostingDetails(
+    warehouseId: Int!
+    vendorId: Int!
+  ): GetVendorCostingDetailsRes
+  getVendorDetails(vendorId: Int!): GetVendorDetailsRes
+  getWarehouseDailyBalances(
+    dateRange: DateRange
+    warehouseIds: [Int!]
+    limit: Int
+    offset: Int
+  ): [WarehouseDailyBalance]!
+  getWarehouseReconciliationDetails(
+    filters: Filters
+  ): GetWarehouseReconciliationDetailsRes
+  getWarehouseReconciliationDetailsCount(filters: Filters): Int
+  getOrderProductBatchDetails(
+    orderId: Int!
+    showLimitedShelfLife: Boolean
+  ): [DeliveryItemsWithBatch]
+  getCsatOrderProductBatchDetails(
+    orderId: Int!
+    showLimitedShelfLife: Boolean
+  ): [DeliveryItemsWithBatch]
+  reports(filters: ReportFilters): [Report]
+  reportsCount(filters: ReportFilters): Int
+  getDmsReturnedStocks(tripId: Int!): getDmsReturnedStocksResponse
+  getStockReconciliations(
+    submittedBy: String
+    dateRange: DateRange
+    status: StockReconciliationStatus
+  ): StockReconciliationsRes
+  getStockReconciliationDetails(id: Int!): StockReconciliationDetails
+  trackStockReconciliations(
+    piId: Int!
+    warehouse: String
+    status: LiveTrackingStatus
+    skuId: String
+    itemName: String
+    qtyDifference: NumberRange
+    valueDifference: NumberRange
+    physicalQtyIsZero: Boolean
+    systemQtyIsZero: Boolean
+    sort: OrderByInput!
+  ): TrackStockReconciliationsRes
+  stockReconciliationSummary(
+    piId: Int!
+    warehouse: String
+    status: LiveTrackingStatus
+    skuId: String
+    itemName: String
+    qtyDifference: NumberRange
+    valueDifference: NumberRange
+    physicalQtyIsZero: Boolean
+    systemQtyIsZero: Boolean
+    sort: OrderByInput!
+  ): TrackStockReconciliationsRes
+  test(id: String): Boolean
+  vmsTripLevelReport(filters: Filters): [VmsTripLevelReportRes]
+  vmsTripLevelReportCount(filters: Filters): Int
+  getAllOrders(filters: Filters): [GetAllOrdersRes]
+  getCompleteOrderDetails(orderId: Int): GetCompleteOrderDetailsRes
+  fetchOrders(trip_id: ID!, status: OrderStatus): OrderResultV2
+  getDSOCustomer(
+    customerType: DSOCustomerType
+    filters: DSOCustomerFilters
+    page: Page
+  ): [DSOCustomer]!
+  getDSOAttendanceStatus: String
+  getDSOTasksByNameOrNumber(
+    name: String
+    number: String
+    offset: Int
+    limit: Int
+  ): GetDSOTasksResponse
+  getDSOTasks(limit: Int, offset: Int): GetDSOTasksResponse
+  getDSOInventory(
+    taskId: Int!
+    offset: Int
+    limit: Int
+    filters: DSOInventoryFilter
+    capture: Boolean
+  ): DSOInventoryResponse
+  getDSOCart(partnerId: Int!): DSOCartType
+  dsoHomeDashboard: DSOHomeDashboard
+  getDSOScheme: DSOSchemeResponse!
+  getDSODistance(dsoLocation: DSOLatLongInput!, taskId: Int!): Int!
+  getCashbackTransactions(
+    cashbackId: ID!
+    page: PageDefinitionInput
+  ): [CashbackTransaction]
+  getWalletCashbacks(page: PageDefinitionInput): [WalletCashbackResponse]
+  getWalletInfo(wallets: [WalletTypes]): [WalletInfoResponse]
+  getInvoicesToClose(
+    customer: ZohoCustomer!
+    excluded_states: [String]!
+    included_states: [String]!
+    due_date_after: String!
+    orderIds: [Int]
+  ): [Invoice]
+  getAttendanceStatus(kekaEnabled: Boolean): AttendanceType
+  getCustomersCreditDetails(
+    customerIds: [ID!]!
+  ): [CustomersCreditDetailsResult]!
+  getDisputeData(filters: DisputeFilters, page: Page): [DisputeData]!
+  getDistance(fosLocation: FOSLocation!, customerId: ID!): Int!
+  getFilterScreen: [Objective]!
+  getFOSByPhoneNumber(phoneNo: String!): FOSUser
+  getFOSCustomerLocation(customerIds: [ID!]): GetFOSCustomerLocation
+  getFosOnboardingLeads(status: TaskFilter): OnboardingLeadsResult
+  getFosTasksByNameOrNumber(
+    name: String
+    number: String
+    offset: Int
+    limit: Int
+    latitude: Float
+    longitude: Float
+  ): TasksResultV2
+  getFOSUserDetails(customerId: ID!, type: SurveyTypes): FOSUserDetails
+  getReports: Reports
+  getAdhocSurveyQuestions(surveyId: ID!): AdhocSurveyQuestionsType
+  getTasks(type: TaskFilter, offset: Int, limit: Int): TaskResult
+  getTasksV2(
+    type: TaskFilter
+    latitude: Float
+    longitude: Float
+    objectiveFilter: ObjectiveFilterInput
+    mtdFilterInput: MTDFilterInput
+    offset: Int
+    limit: Int
+  ): TasksResultV2
+  getUserByContact(contactNo: String!): [Tasks]
+  getUserProfile(customerId: String!): UserShopDetails!
+  getContentSection(lastId: ID, pageSize: Int): GetContentSectionResult!
+  getPosts(args: GetPostsInput): GetPostResult!
+  getCartScreen(
+    code: ID
+    id: [ID!]
+    extraId: ID
+    dsoOrder: Boolean
+  ): CartScreen!
+  getDsoOrderDetails(
+    fromDate: String
+    toDate: String
+  ): [getDsoOrderDetailsOutput]
+  getItemsByOrder(
+    orderId: ID!
+    addressId: ID!
+    page: PageDefinitionInput
+  ): ReorderProductList
+  getOrderByCustomer(id: ID!): OrderListItem!
+  getOrdersByCustomer(
+    page: PageDefinitionInput
+    addressId: ID
+  ): [OrderListItem!]
+  getOrderTimeline(id: ID!): OrderTimeline!
+  bulkCohortPricingView(
+    warehouse_ids: [Int!]
+    variant_type: variantTypeEnum
+    variant_size: variantSizeEnum
+    sku_id: String
+  ): CohortPricingTypeRes
+  couponExceptionSKUs(
+    warehouseIDs: [Int!]!
+    sku: String
+    sku_type: ExceptionSkuType
+  ): CouponExceptionSKURes
+  minimumMarginCount(filter: MinimumMarginFilter): [MinimumMarginCount]
+  getWarehouseWAC(filter: WACFilter): [WarehouseWAC]
+  getAlerts(
+    skuId: ID
+    warehouseId: ID
+    page: Page
+    childWarehouse: ID
+    fromTime: String
+    toTime: String
+    variantType: VariantType
+    variantSize: VariantSize
+    skuIds: [ID]
+  ): [GetAlertsResult]!
+  getGlobalVariants(
+    skuIds: [String]
+    whClassificationType: [WhClassificationType]
+    page: Page
+  ): [GetGlobalVariantResult]
+  getInventoryViewDetails(
+    warehouseId: Int!
+    name: String
+    sku: [String]
+    variantType: [VariantType]
+    segmentIds: [Int]
+  ): [getInventoryViewDetailsOutput]
+  getProductQtyWithWholesalePrice(
+    warehouseIds: [Int]
+    name: String
+    skus: [String]
+  ): [getProductQtyWithWholesalePriceOutput]
+  getRules(
+    ruleType: RuleType
+    ruleId: ID
+    warehouseIds: [ID]
+    segmentId: ID
+    page: Page
+  ): [GetRulesResult]!
+  getRuleSegments(
+    ruleSegmentType: RuleSegmentType
+    getBulkUploadSegments: Boolean
+    page: Page
+  ): [RuleSegment]!
+  getRuleSegmentsDetails(
+    ruleSegmentId: Int!
+    page: Page
+  ): RuleSegmentDetailsResult!
+  getVariantSlabQty(
+    skuIds: [String]
+    skuName: String
+    warehouseIds: [Int]
+    page: Page
+  ): getVariantSlabQtyResult
+  getVariantWhClassification(
+    warehouseIds: [Int]
+    whClassificationType: [WhClassificationType]
+  ): [getVariantWhClassificationResult]
+  marginComparison(filter: MarginComparisonFilter): [MarginComparison]
+  minimumMargin(filter: MinimumMarginFilter): [MinimumMargin]
+  warehouseRules(warehouseIds: [ID]): [WarehouseRule]
+  getCampaignCohortsList(args: GetSurveysInput): [GetCampaignCohortListOutput]
+  getCampaigns(args: GetCampaignInput): GetCampaignsOutput!
+  getSurveys(args: GetSurveysInput): GetSurveysOutput!
+  getTriggerList: SurveyTriggersOutput!
+  accountStatementV2(
+    customerId: String!
+    lenderService: String
+  ): AccountStatementV2
+  accountStatement(customerId: String!, lenderService: String): AccountStatement
+  allCreditCustomer(customerIds: [String!], page: PageInfo): [CreditCustomer]
+  creditEligibility(customerId: String!, contact: String!): CreditEligibility
+  customerCreditPaymentInfo(
+    customerId: String!
+    orderId: String!
+  ): CustomerCreditPaymentInfo
+  creditCustomer(customerId: String!, lenderService: String): CreditCustomer
+  getAllCreditCustomers(
+    customerIds: [String!]
+    contact: String
+    page: PageInfo
+  ): [CreditCustomerData]
+  getCustomerCreditInfo(customerId: String!): CustomerCreditInfo
+  lenderPaymentStatus(orderId: ID!): Loan
+  searchSyncState: OpResult!
+  translationBatchCheck(batchId: ID!): TranslationBatch!
+  translationBatchList(lastId: ID): [TranslationBatch!]!
+  translationSyncState: OpResult!
+  decryptContact(contact: [String!]): [String!]!
+  encryptContact(contact: [String!]): [String!]!
+  getAuthToken: String
+  getCustomerDecryptedContact(id: [ID!]): [String!]!
+  getCustomerToken(phoneNumber: PhoneNumberInput!): Authorization
+  getSignedToken: String
+  getTokenForCsat(phoneNumber: PhoneNumberInput): CsatAuthorization
+}
+
+type Mutation {
+  customerSearchFeedback(searched: String!, feedback: String!): OpResult!
+  openReward(
+    reward_id: ID
+    generate_zero_amount: Boolean
+    spin_type: SpinType
+  ): OpenRewardResult!
+  productAction(
+    action: ProductAction!
+    op: ProductActionOperation!
+    ids: [ID!]!
+  ): [OpResult!]!
+  redeemLuckyDraw(spinRewardId: ID!): OpResult!
+  updateMyPaymentDetails(details: PaymentAccountUpdate!): OpResult!
+  updateMyProduct(id: ID!, update: SellmoreShopProductUpdate!): OpResult!
+  updateMyProductVariants(
+    update: [SellmoreShopProductVariantUpdate!]
+  ): OpResult!
+  updateMyProfile(profile: CustomerProfileUpdate!): OpResult!
+  updateMyShop(shop: SellmoreShopUpdate!): OpResult!
+  updateSellmoreShopOrder(id: ID!, update: SellmoreShopOrderUpdate!): OpResult!
+  updateSellmoreStatus(
+    phoneNumber: String!
+    status: SellmoreStatus!
+    delete: String
+  ): OpResult!
+  updateShop(
+    link: String!
+    secret: String!
+    shop: SellmoreShopUpdate!
+  ): OpResult!
+  activateDiscountCoupon(args: ActivateDiscountCouponInputType!): Boolean
+  addDiscountCoupon(args: AddDiscountCouponInputType!): DiscountCouponType!
+  addDiscountRule(args: AddDiscountRuleInputType!): DiscountRuleType!
+  addDiscountRuleGroup(
+    args: AddDiscountRuleGroupInputType!
+  ): DiscountRuleGroupType!
+  addLoyaltyScheme(args: LoyaltySchemeCreationInput!): OpResult
+  addProductSegment(args: AddProductSegmentInputType!): ProductSegmentType!
+  addProductSegmentRelation(
+    args: AddProductSegmentRelationInputType!
+  ): OpResult!
+  addUserSegment(args: AddUserSegmentInputType!): UserSegmentType!
+  addUserSegmentRelation(
+    args: AddUserSegmentRelationInputType!
+  ): UserSegmentRelationType!
+  addUserSegmentRelationByNumber(
+    contact_no: String!
+    segment_id: Int!
+  ): OpResult!
+  addUserSegmentRelations(args: AddUserSegmentRelationsInputType!): OpResult!
+  addUserToCouponSegment(args: AddUserToCouponSegmentInputType!): Boolean!
+  applyPromocode(args: ApplyPromocodeInputType!): ApplyDiscountResponseType
+  approveCouponRequest(id: Int!): OpResult
+  rejectCouponRequest(id: Int!): OpResult
+  bulkUploadLoyalty(file: String!): OpResult
+  createCoupon(couponDetails: CreateCouponInput!): OpResult
+  createFreebieArticleMapping(freebie: freebieInput!): OpResult
+  deleteDiscountRule(args: DeleteDiscountRuleInputType!): Boolean
+  deleteDiscountRuleGroup(args: DeleteDiscountRuleGroupInputType!): Boolean
+  deleteDiscountCoupon(args: DeleteDiscountCouponInputType!): Boolean
+  disableFreebieArticleStatus(id: ID!): OpResult
+  duplicateCoupon(
+    id: Int!
+    name: String!
+    start_date: String!
+    end_date: String!
+  ): DiscountCouponType!
+  extendCoupon(args: ExtendCouponInputType!): Boolean
+  extendDiscountCoupon(args: ExtendCouponInputType!): Boolean
+  flushUserSegment(id: Int!): OpResult
+  removeDiscountCoupons(
+    args: RemoveDiscountCouponsInputType!
+  ): RemoveDiscountCouponResponseType
+  upsertFreebieCoupon(input: UpsertFreebieCouponInput!): OpResult
+  consolidateInventoryDetails(
+    channel: [InventoryEntityChannel!]
+    inventoryOriginBranch: [InventoryOriginBranchInput!]
+    repeat: String
+    doNext: Boolean
+  ): Boolean!
+  createOrUpdateVirtualWarehouse(
+    parent_warehouse_loc: String!
+    child_warehouse_loc: String!
+    priority: Int!
+    status: VirtualWarehouseStatus
+  ): VirtualWarehouseCreateResult
+  createOrUpdateVirtualWarehouseAllocationRules(
+    parent_warehouse_loc: String!
+    product_specific_rules: Boolean
+    rules: [VirtualWarehouseRuleInput]
+  ): VirtualWarehouseRulesReadResult
+  deleteInventoryEntity(code: [ID!]!): Boolean!
+  vwInventoryReport(
+    user: String
+    parent_warehouse_loc: String
+    virtual_warehouse_id: ID
+    virtual_warehouse_required: Boolean
+    page_no: Int
+    page_size: Int
+    parent_non_allocated_quantity: Boolean
+    skus: [String!]
+  ): Boolean
+  moveInventoryBack(
+    warehouse_id: ID!
+    skus: [String!]
+  ): VirtualWarehouseTriggerResult
+  removeInventoryRepeatable(key: ID!): Boolean!
+  resetCache(entity: [ID!], id: [ID!]): Boolean!
+  resetInventoryCache: Boolean!
+  retryVirtualWarehouseAllocation(trigger_id: ID): VirtualWarehouseTriggerResult
+  setInventoryEntity(code: ID!, sync: [InventoryEntitySyncUpdate!]): Boolean!
+  syncCompatDetails(
+    channel: [InventoryEntityChannel!]
+    inventoryOriginBranch: [InventoryOriginBranchInput!]
+    repeat: String
+    doNext: Boolean
+  ): Boolean!
+  triggerAutoAllocation(
+    warehouse_id: ID!
+    sync_type: String
+    payload: String
+  ): VirtualWarehouseTriggerResult
+  triggerManualAllocation(
+    calc_type: String!
+    source_warehouse_id: ID
+    source_warehouse_type: VirtualWarehouseTriggerWarehouseType!
+    allocation: [ManualAllocationObj]!
+  ): VirtualWarehouseTriggerResult
+  updateInventoryDetails(
+    channel: [InventoryEntityChannel!]
+    inventoryOriginBranch: [InventoryOriginBranchInput!]
+    repeat: String
+    doNext: Boolean
+  ): Boolean!
+  updateInventoryList(
+    channel: [InventoryEntityChannel!]
+    inventoryOriginBranch: [InventoryOriginBranchInput!]
+    fromDate: Int
+    toDate: Int
+    repeat: String
+    doNext: Boolean
+  ): Boolean!
+  updateInventoryListDetails(
+    channel: [InventoryEntityChannel!]
+    inventoryOriginBranch: [InventoryOriginBranchInput!]
+    fromDate: Int
+    toDate: Int
+    repeat: String
+    doNext: Boolean
+  ): Boolean!
+  updateInventorySnapshot(repeat: String): Boolean!
+  updateWarehouseProductExceptionList(
+    warehouse_id: ID!
+    products: [SKU]
+  ): VirtualWarehouseExceptionItemArrayResult
+  approveAccountDeletion(id: Int!, email: String!): OpResult
+  approveAccountReactivation(id: Int!, email: String!): OpResult
+  banUser(
+    customer_id: ID!
+    actioned_by: String!
+    reason: String!
+    status: Boolean
+    customer_document_id: ID
+    banned_customer_document_id: ID
+  ): BanUserResult
+  claimGift(gift_type: String!, otp: Int!): OpResult
+  confirmAccountDeletionRequest(otp: String): OpResult
+  confirmDocument(id: ID, confirm: Confirmation): OpResult!
+  createCustomerDeliveryCharge(
+    payload: [CustomerDeliveryChargeInput]!
+  ): OpResult
+  deactivateCustomerDeliveryCharge(payload: [ID]!, by: String!): OpResult
+  generateAccountDeletionRequest(remarks: String): OpResult
+  markNotificationAsRead(args: MarkNotificationAsReadInputType): Boolean
+  markPolicyViewedOrAccepted(policyId: [String!], type: PolicyType): OpResult!
+  placeWithoutGSTInvoice(args: PlaceWithoutGSTInvoice!): KYCResult
+  reactivateAccount(phoneNo: String): OpResult
+  rejectCustomerAction(id: Int!): OpResult
+  resendKYCOTP(args: ResendKYCOTPInput!): KYCResult
+  sendCustomerOtp(
+    type: SendOTPType!
+    resend: Boolean
+    customer_id: ID
+  ): OpResult
+  sendKYCVerificationOTP(args: SendKYCOTPInput!): KYCResult
+  updateCartOnboardingStatus: Boolean
+  updateReferralCode(referral_code: String!): ReferralUserResult
+  verifyKYCOTP(args: VerifyKYCOTPInput!): KYCResult
+  paymentCapture(args: PaymentCaptureArgs!): OpResult
+  createTicket(newTicket: TicketInput!): Result!
+  addAuditLog(
+    warehouseId: Int!
+    auditBalance: Float!
+    comment: String
+    document: String!
+  ): OpResult!
+  addPhysicalCash(
+    cashAmount: Float!
+    warehouseId: Float!
+    denominations: [CmsDenominationInput]!
+  ): OpResult!
+  addTripRemark(id: Int!, remark: String!): OpResult!
+  addTxnCycleComment(cycleId: Int!, comment: String!): OpResult!
+  approveDMSItemReason(items: [productReasons]!): OpResult
+  bulkCohortPricingViewReport(
+    warehouse_ids: [Int!]
+    variant_type: variantTypeEnum
+    variant_size: variantSizeEnum
+    sku_id: String
+  ): OpResult
+  addCsatComment(
+    ticket_id: Int!
+    comment: String!
+    attachment: [AttachmentInput]
+  ): CsatComment
+  updateCsatTicket(
+    id: Int!
+    status: CsatStatus
+    owner_id: Int
+    warehouse_id: Int
+  ): OpResult
+  assignCsatTicket(id: Int!, user_ids: [Int!]!): OpResult
+  deleteAudit(id: Int!): OpResult!
+  deleteTxnCycle(cycleId: Int!): OpResult!
+  retryFailedMessages(orderIds: [Int]!): OpResult
+  generateProductSegmentReport(
+    id: Int
+    couponId: Int
+    applicableOn: ReportApplicabilityInputType
+    cohortId: Int
+  ): OpResult
+  updateVendorCostingDetails(
+    vendorWarehouseId: Int!
+    vendorWarehouseCostingTimePeriodsId: Int
+    costingMethodName: String
+    startTime: String
+    endTime: String
+    costingData: [CostingDataInput]
+  ): OpResult
+  assignDriver(tripId: ID!, driver_id: ID!): CommonResult
+  bulkSubmitReturns(returnIds: [String!]): OpResult
+  cancelCmsTransaction(
+    transactionName: String!
+    id: Int!
+    reason: String!
+  ): OpResult
+  closeTrip(tripId: ID!): OpResult
+  closeOrder(orderIds: [Int!]): String
+  collectCash(
+    tripId: ID!
+    amount: Float!
+    denomination: [CashDenominationsInput!]
+  ): CommonResult
+  collectStock(tripId: ID!, returned_skus: [ReturnedSKUInput!]): CommonResult
+  createCmsCollection(transaction: CmsCollection): OpResult
+  createCmsTransaction(transaction: CmsTransaction): OpResult
+  createTrip(warehouseId: Int!): CreateTrip
+  createVehicleType(vehicleType: String!): OpResult
+  addDeliveryPerson(
+    name: String
+    contact: String!
+    password: String
+    aadhar: String
+    pan: String
+    driving_license: String
+    warehouse_id: Int
+    address: String
+    pincode: Int
+    vehicle_name: String
+    vehicle_number: String
+    active: Boolean
+  ): OpResult
+  resetPassword(driver_id: Int, new_password: String): OpResult
+  exportToCsv(reportName: String, filters: JSON): OpResult
+  generateReport(reportName: ReportName, filters: Filters): String
+  generateCouponReport(args: BifrostGetDiscountCouponInputType): OpResult
+  syncOrders(shipments: [shipment!], trip_id: Int!): SyncResult
+  updateOrder(shipment: shipment, tripId: Int!): OpResult
+  updateDummyOrder(shipment: shipment): OpResult
+  assignOrders(trip_id: ID!, order_ids: [Int!]): OpResult
+  cancelOrder(
+    orderId: Int!
+    remark: String
+    reason: String
+    order_ids: [Int]
+  ): OpResult
+  refreshOrder(orderId: Int!): OpResult
+  singleUpload(fileName: String!): String
+  submitReturns(
+    skuReturnQty: [SkuReturnQty!]
+    orderId: Int!
+    warehouseName: String!
+    warehouseId: Int!
+  ): OpResult
+  updateBatchConverterDetails(
+    type: BatchType!
+    validateBCDetails: [BatchConverterDetailsInput]!
+  ): validateBatchConverterDetailsOutput
+  updateOrderRoute(orderId: Int!, routeId: Int): OpResult
+  updateTripOpeningAndClosingDetails(
+    driverId: ID
+    tripId: ID!
+    dummyTrip: Boolean!
+    openingDetails: OpeningDetailsInput
+    closingDetails: ClosingDetailsInput
+  ): OpResult
+  upsertGtmUser(
+    name: String
+    email: String!
+    warehouseIds: [GtmWareHouse]!
+    modules: [GtmModules]!
+    role: String
+    status: Boolean!
+  ): OpResult
+  setConsoleUserClaims(id: Int!): OpResult
+  upsertRoute(routeId: Int, routeName: String!, warehouseId: Int!): OpResult
+  upsertVehicle(
+    vehicleId: Int
+    vehicleNumber: String!
+    vehicleType: VehicleTypes
+    vendorIds: [Int!]
+    defaultVendorId: Int
+    isActive: Boolean
+  ): OpResult
+  upsertVendor(
+    warehouseIds: [Int!]
+    vendorName: String!
+    vendorId: Int
+    isActive: Boolean
+  ): OpResult
+  reviewOrderStatus(
+    id: Int!
+    status: reviewOrderStatusEnum!
+    remark: String!
+  ): OpResult
+  reviewTransactionEntries(id: Int!, remark: String!): OpResult
+  initiatePi(
+    initiationDate: String!
+    warehouseId: Int!
+  ): StockReconciliationDetails
+  updatePiStageTwo(
+    id: Int!
+    file: String
+    validations: [PiValidationInput]
+    status: StockReconciliationStatus
+  ): StockReconciliationDetails
+  updatePiStageThree(
+    id: Int!
+    batchReport: String
+    stockReport: String
+    task: PiTaskStatusInput
+  ): StockReconciliationDetails
+  updatePiStageFour(id: Int!, underTaking: String, comment: String): OpResult
+  markPiComplete(id: Int!): OpResult
+  submitStockReconciliation(id: Int!): OpResult
+  deleteSkuReconciliation(
+    skuId: String!
+    warehouse: String!
+    piId: Int!
+  ): OpResult
+  deletePi(id: Int!): OpResult
+  updatePiSku(
+    id: ID!
+    physicalQty: Int
+    valuationRate: Float
+    expiryDateCaptured: String
+    remainShelfLifeDays: Int
+  ): OpResult
+  insertPiSku(piId: Int!, skuId: String!, warehouse: String!): OpResult
+  updateDefaultVendor(id: Int!, defaultVendorId: Int!): OpResult
+  updateExpiryDateForBatchItems(id: Int!): OpResult
+  userLogin(contact_no: String!, password: String!): UserLoginType
+  endTrip(
+    tripId: ID!
+    completed_at: String!
+    tripEndSpeedometerImage: String
+  ): CommonResult
+  resendOtp(trip_id: ID!, order_id: Int!): OpResult
+  startTrip(trip_id: ID!, tripStartSpeedometerImage: String): OpResult
+  tripOfd(trip_id: ID!): OpResult
+  createPicklist(orderIds: [Int!]!): OpResult
+  resetBifrostCache(entities: [String!]!): Boolean
+  createDSOCustomer(
+    customerType: DSOCustomerType!
+    details: DSOCustomerDetails!
+  ): DSOCustomerResponse!
+  completeDSOTask(details: CompleteDSOTaskInput!): OpResult
+  updateDSOAttendance(status: DSOAttendanceStatus!): OpResult
+  updateDSOUser(userDetails: UpdateDSOUserInput!): DSOUser
+  captureDSOInventory(input: InventoryCaptureDSOInput!): OpResult
+  updateDSOCartItem(input: DSOCartItemInput!): OpResult
+  placeDSOOrder(dsoCustomerId: ID!): OpResult
+  createDSOVisit(user_id: Int!): CreateDSOVisitRes!
+  updateDSOPricing(input: [DSOVariantPrice]!): OpResult
+  insertRefundTxn(data: RefundTxnInput): OpResult
+  insertWalletTxn(
+    by: WalletTransactionDetails!
+    to: WalletTransactionDetails!
+    created_by: String!
+    meta: MetaData
+    order_id: Int
+  ): OpResult!
+  recordPayment(
+    invoice: InvoiceIn!
+    amount: Float
+    transactionRef: String!
+  ): OpResult!
+  completeTask(details: CompleteTask): OpResult
+  createOrUpdateCustomerObjectiveMapping(
+    objectCustomerData: [ObjectCustomerInput]!
+    action: ActionType!
+  ): OpResult
+  createOrUpdateObjectiveWarehouseMapping(
+    objectWarehouseData: [ObjectWarehouseInput]!
+    action: ActionType!
+    createdBy: String!
+  ): OpResult
+  generateFOSReferralCode(userDetails: GenerateFOSReferral): FOSUser!
+  submitAdhocSurvey(
+    surveyId: ID!
+    fosUserId: Int
+    customerId: Int
+    data: [SubmitAdhocTaskInput!]
+  ): OpResult
+  submitLead(args: SubmitLeadInput): OpResult
+  updateAttendance(status: AttendanceType!, kekaEnabled: Boolean): OpResult
+  updateCLUser(userDetails: CLUserInput): CLUser!
+  updateDisputeStatus(
+    disputeId: ID!
+    disputeStatus: DisputeStatus!
+    updatedBy: String!
+  ): OpResult
+  updateFosPlannedTask(
+    plannedTaskId: Int!
+    priority: Int!
+    uploadedBy: String!
+  ): OpResult
+  updateFosPriority(args: Priority): OpResult
+  updateFOSUser(userDetails: FOSUserInput): FOSUser!
+  updateUserDetails(
+    customerId: ID!
+    questionsList: [QuestionsList]
+    storeFrontImage: String
+    storeInsideImage: String
+    latitude: String
+    longitude: String
+    accuracy: String
+  ): OpResult
+  uploadSelfie(uploadSelfieInput: UploadSelfieInput): OpResult
+  upsertFosCustomerMapping(
+    fosCustomerMappingInput: [FosCustomerMappingInput]
+  ): OpResult
+  upsertObjectiveSubobjectiveMapping(
+    objectiveInput: [ObjectiveSubobjectiveMappingInput]
+    createdBy: String!
+    action: ActionType!
+  ): OpResult
+  createOrUpdateSection(
+    args: CreateOrUpdateSectionInput
+  ): CreateOrUpdateSectionResult
+  createPosts(args: [CreatePostInput]): CreatePostResult
+  updatePost(postUpdate: UpdatePostInput): Boolean
+  updateMyBasket(args: updateBasketArgs): OpResult!
+  updateMyBasketV2(args: updateBasketArgs): UpdateMyBasketOutput!
+  createOrder(args: CreateOrderArgs!): CreateOrderResult!
+  createToken(
+    type: TokenType!
+    tokenApplicability: TokenApplicability!
+    tokenValue: Int!
+    ids: [ID]!
+    createdBy: String
+  ): CreateTokenResult!
+  fixOrderDetails(args: FixOrderArgs!): [OpResult!]
+  generateOrderInvoice(orderId: ID!): OrderInvoiceGenerationOutput!
+  loadCartByOrder(
+    orderId: ID!
+    addressId: ID!
+    reorder: ReorderInputArgs
+    priceChange: PriceChangeInputArgs
+  ): LoadCartOrderResult!
+  markTokenAsInactive(
+    tokenId: ID
+    tokenApplicability: TokenApplicability!
+    ids: [ID]
+  ): MarkTokenInactiveResult!
+  addCouponExceptionSKUs(input: [AddCouponExceptionInput!]!): OpResult
+  bulkCohortPricingAction(
+    list: [CohortPricing!]!
+    upload: Boolean
+    upload_id: String!
+  ): GlobalVariantResult!
+  bulkUpdateAlerts(bulkAlerts: [BulkAlertsData!]!): GlobalVariantResult!
+  createMarginComparisonRule(rule: MarginComparisonInput, by: String): Response
+  createMinimumMarginRule(rules: [MinimumMarginInput]!, by: String!): Response
+  createGlobalVariants(
+    globalVariants: [GlobalVariantData!]!
+  ): GlobalVariantResult!
+  createRule(
+    ruleType: RuleType!
+    warehouseIds: [ID!]!
+    ruleSegmentId: ID
+    rules: [RulesData!]!
+  ): OpResult!
+  createRuleSegment(ruleSegmentInput: RuleSegmentInput!): OpResult!
+  createVariantSlabQty(
+    variantSlabQty: [VariantSlabQtyData!]!
+  ): GlobalVariantResult!
+  createVariantWhClassification(
+    variantWhClassification: [VariantWhClassificationData!]!
+  ): GlobalVariantResult!
+  deleteCouponExceptionSKUs(input: [DeleteCouponExceptionInput!]!): OpResult
+  deleteGlobalVariant(input: [DeleteGlobalVariantInput!]!): GlobalVariantResult!
+  deleteRuleSegment(ruleSegmentIds: [ID!]!): OpResult!
+  deleteVariantSlabQty(
+    input: [DeleteVariantSlabQtyInput!]!
+  ): GlobalVariantResult!
+  InventoryViewDetailsReport(
+    warehouseId: Int!
+    name: String
+    sku: [String]
+    variantType: [VariantType]
+    segmentIds: [Int]
+    user: String
+  ): Boolean
+  retryVariantMarginTrigger(triggerId: Int!): OpResult
+  toggleVariantMarginRule(ruleId: ID): WarehouseRule
+  updateAlerts(alertsIds: [Int!], Action: AlertsAction!): OpResult!
+  updateBulkUploadSegment(
+    updateType: SegmentUpdateType!
+    updateData: [SegmentUpdateDetails!]!
+  ): OpResult!
+  updateRules(updateRulesData: UpdateRulesData!): OpResult!
+  updateRuleSegment(
+    updateType: SegmentUpdateType!
+    segmentId: ID!
+    segmentIds: [String!]!
+  ): OpResult!
+  updateRuleStatus(ruleId: ID!, status: ActiveStatus!): OpResult!
+  updateVariantWhClassification(
+    updateVariantWhClassification: [UpdateVariantWhClassificationData!]!
+  ): OpResult!
+  createCampaign(args: CampaignCreationInput!): OpResult
+  createSurveyUserCohort(args: SurveyCohortCreationInput!): OpResult
+  generateSurvey(args: GenerateSurveyInput!): OpResult!
+  sumbitAkSurvey(args: AKSurveySubmissionInput!): OpResult
+  toggleCampaign(args: ToggleCampaignInput!): OpResult
+  applyCreditDelivery(
+    customerId: ID!
+    orderId: ID!
+    amount: Float!
+    lenderService: String
+  ): Loan
+  applyCredit(
+    customerId: ID!
+    orderId: ID!
+    amount: Float!
+    lenderService: String
+  ): Loan
+  completeCredit(
+    customerId: ID!
+    orderId: ID!
+    captureAmount: Float!
+    voidAmount: Float!
+  ): String
+  customerLenderMappingV2(
+    customerId: [String!]
+    lender: [String!]
+    action: String!
+  ): String
+  customerLenderMapping(customerId: String!, lender: String!): String
+  onboardCustomer(customerData: CustomerData, lenderService: String!): String
+  voidCredit(customerId: ID!, orderId: ID!, amount: Float!): Boolean
+  writeAuthApprovedEvent(orderId: String!): Loan
+  searchSync(op: SearchSyncCommand!, params: SearchSyncCommandParams): OpResult!
+  translationBatchApply(fileId: ID!): OpResult!
+  translationBatchCancel(batchId: ID!): TranslationBatch!
+  translationBatchStart(
+    params: TranslationSyncCommandParams!
+  ): [TranslationBatch!]!
+  translationSync(
+    op: TranslationSyncCommand!
+    params: TranslationSyncCommandParams!
+  ): OpResult!
+  callToCustomer(
+    docType: CustomerDocumentType!
+    docId: ID!
+  ): CallToCustomerResult!
+  generateOtp(creds: GenerateOtpInput!): GenerateOtpResult!
+  login(creds: LoginCreds!): LoginResult!
+  loginStart(creds: LoginCreds!, extra: LoginExtraInput): LoginResult!
+}
+
+# The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+scalar JSON
+
+# The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+scalar JSONObject
+
+enum AuthorizationKind {
+  CUSTOMER_TOKEN
+  CUSTOMER_KALEYRA_VERIFICATION
+  CUSTOMER_BUREAUID_TRANSACTION
+  CUSTOMER_SAWO_VERIFICATION
+  ADMIN_TOKEN
+  DSO
+}
+
+enum AuthorizationRealm {
+  APNAKLUB
+  SELLMORE
+}
+
+enum CustomerKycStatus {
+  IN_PROCESS
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum LoginMethod {
+  KALEYRA
+  BUREAU_ID
+  PASSWORD
+  SAWO
+  CSAT
+  TRUECALLER
+  INTERNAL
+  OTPLess
+  ANY
+}
+
+enum UserSubtype {
+  WHOLESALER
+  GTM
+  SELLMORE_ANONYMOUS
+  SELLMORE_VERIFIED
+}
+
+enum UserType {
+  RESELLER
+  SELLMORE
+  reseller
+}
+
+input GenerateOtpInput {
+  customerId: Int!
+  contact: String!
+  reason: String!
+}
+
+input InternalCreds {
+  email: String!
+  verification: PasswordCredsVerification
+}
+
+input LoginExtraInput {
+  utm: UTMInput
+  userType: UserType
+  subType: UserSubtype
+  language: String
+}
+
+input OTPLessCreds {
+  verification: OTPLessCredsVerification
+}
+
+input OTPLessCredsVerification {
+  phoneNumber: String
+  token: String
+}
+
+input PasswordCredsVerification {
+  password: String!
+}
+
+input TruecallerCreds {
+  verification: TruecallerVerification
+}
+
+input TruecallerCredsV2 {
+  verification: TruecallerVerificationV2
+}
+
+input TruecallerVerification {
+  signature: String
+  payload: String
+  signatureAlgorithm: String
+}
+
+input TruecallerVerificationV2 {
+  clientId: String!
+  codeVerifier: String!
+  authCode: String!
+}
+
+input UTMInput {
+  source: String
+  campaign: String
+  medium: String
+  content: String
+}
+
+type LoginSuccess {
+  method: LoginMethod!
+  authorization: Authorization!
+  message: String
+  user: User!
+  flags: UserFlags
+}
+
+type LoginErrorDetails {
+  deletion_request_id: String
+}
+
+type LoginError {
+  method: LoginMethod!
+  code: Int!
+  message: String
+  details: JSON
+  detailsV2: LoginErrorDetails
+}
+
+type Admin {
+  id: ID!
+  phone_number: String
+  email: String
+}
+
+input AnonymousCreds {
+  token: String!
+  shopId: ID
+  shopLink: String
+}
+
+type Authorization {
+  value: ID!
+  kind: AuthorizationKind!
+  realm: AuthorizationRealm!
+}
+
+input BureauIDCreds {
+  phoneNumber: PhoneNumberInput!
+  verification: BureauIDCredsVerification
+}
+
+input BureauIDCredsVerification {
+  transactionId: ID!
+}
+
+type CsatAuthorization {
+  user: CsatUserDetails
+  token: Authorization
+}
+
+type CsatUserDetails {
+  id: ID!
+  firstName: String
+  lastName: String
+  pincode: String
+  whId: ID
+  whName: String
+}
+
+input CsatCreds {
+  phoneNumber: PhoneNumberInput!
+  verification: KaleyraCredsVerification
+}
+
+type Customer {
+  id: ID!
+  contact_no: String!
+  email: String
+  kyc_status: CustomerKycStatus!
+  user_type: UserType
+  sub_type: UserSubtype
+  show_details_form: Boolean!
+}
+
+type DsoUser {
+  id: ID!
+  phone_no: String
+}
+
+input FosCreds {
+  phoneNumber: PhoneNumberInput!
+  verification: PasswordCredsVerification
+}
+
+type GenerateOtpResult {
+  success: Boolean
+  message: String
+  otp: Int
+}
+
+input KaleyraCreds {
+  phoneNumber: PhoneNumberInput!
+  verification: KaleyraCredsVerification
+  ivr: Boolean
+}
+
+input KaleyraCredsVerification {
+  code: ID!
+  otp: ID!
+}
+
+input LoginCreds {
+  kaleyraCreds: KaleyraCreds
+  bureauIDCreds: BureauIDCreds
+  sawoCreds: SawoCreds
+  passwordCreds: PasswordCreds
+  anonymousCreds: AnonymousCreds
+  csatCreds: CsatCreds
+  fosCreds: FosCreds
+  truecallerCreds: TruecallerCreds
+  truecallerCredsV2: TruecallerCredsV2
+  internalCreds: InternalCreds
+  otplessCreds: OTPLessCreds
+  DSOCreds: FosCreds
+}
+
+input PasswordCreds {
+  phoneNumber: PhoneNumberInput
+  email: String
+  verification: PasswordCredsVerification
+}
+
+type PhoneNumber {
+  countryCode: String
+  number: String
+}
+
+input PhoneNumberInput {
+  countryCode: String
+  number: String
+}
+
+input SawoCreds {
+  phoneNumber: PhoneNumberInput!
+  verification: SawoCredsVerification
+}
+
+input SawoCredsVerification {
+  userId: ID!
+  verificationToken: ID!
+}
+
+type UserFlags {
+  cart_onboarding: Boolean
+}
+
+union LoginResult = LoginSuccess | LoginError
+
+union User = Customer | Admin | DsoUser
+
+enum CartTypeList {
+  AK_EXPRESS
+  REGULAR
+}
+
+enum ChargeType {
+  FLAT
+  PERCENTAGE
+}
+
+enum HomeScreenSectionLayoutType {
+  SINGLE
+  HORIZONTAL
+  VERTICAL
+  GRID
+  LIST
+  HORIZONTAL_COMPRESSED
+}
+
+enum HomeScreenSectionStatus {
+  ENABLED
+  DISABLED
+}
+
+enum HomeScreenSectionWidgetType {
+  SPECIAL
+  CIRCULAR
+  RECTANGULAR
+  SEARCHTEXT
+  WIDEBOX
+  BOX
+  GRID
+  SINGLE
+  ICON_TITLE
+  COMPRESSED
+}
+
+enum HoverLabelPosition {
+  TOP_RIGHT
+  TOP_LEFT
+  BOTTOM_RIGHT
+  BOTTOM_LEFT
+}
+
+enum ItemImageShape {
+  UNDEFINED
+  SQUARE
+  VERTICAL
+  HORIZONTAL
+}
+
+enum ItemStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum KycExpStatus {
+  EXP1
+  EXP2
+  NO_EXP
+}
+
+enum KycStatus {
+  IN_PROCESS
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum LoyaltyMilestoneStatuses {
+  INCOMPLETE
+  COMPLETE
+  INPROGRESS
+}
+
+enum LoyaltySchemeStatusEnum {
+  ACTIVE
+  EXPIRED
+  UPCOMING
+}
+
+enum MarkerAlignment {
+  LEFT
+  RIGHT
+  CENTER
+  EXPANDED
+}
+
+enum MarkerPosition {
+  TOP
+  MIDDLE
+  BOTTOM
+  HIDDEN
+  BOTTOM_HIGH_PRIORITY
+}
+
+enum MarkerStatus {
+  ACTIVE
+  HIDDEN
+  DISABLED
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum MilestoneDiscountTypeView {
+  FLAT
+  PERCENTAGE
+}
+
+enum PaymentItemType {
+  CHARGE
+  PAYMENT
+  TOTAL
+}
+
+enum PaymentMethodType {
+  NONE
+  COD
+  WALLET
+  ONLINE
+  CREDIT
+  PROMOTIONAL_WALLET
+}
+
+enum PincodeDeliveryStatus {
+  DELIVER
+  NOT_DELIVER
+}
+
+enum ProductAction {
+  NOTIFYME
+}
+
+enum ProductActionOperation {
+  SET
+  RESET
+}
+
+enum ProductAdType {
+  PRODUCT
+  IMAGE
+  VIDEO
+}
+
+enum ProductUnitType {
+  UNDEFINED
+  ITEMS
+}
+
+enum ProductVariantType {
+  GTM
+  ECOM
+  MOTHERHUB
+}
+
+enum ProductAttributes {
+  BEAUTY_SHADES
+}
+
+enum RewardType {
+  CASH
+  GIFT
+  NO_GIFT
+  SPIN
+}
+
+enum ScreenCode {
+  HOME
+  PRODUCT
+  PRODUCTS
+  BRANDS
+  BRAND
+  CATEGORIES
+  CATEGORY
+}
+
+enum SearchType {
+  PRODUCT
+  BRAND
+  CATEGORY
+  AKEXPRESS
+  MOTHERHUB
+}
+
+enum SellmoreOrderPaymentMethod {
+  UPI
+  BANK
+  COD
+}
+
+enum SellmoreOrderStatus {
+  PLACED
+  PUSHED
+  DELIVERY
+  DELIVERED
+  DONE
+  CANCELLED
+}
+
+enum SellmoreShopProductStatus {
+  PRICE
+  MARGIN
+  DEFAULT
+}
+
+enum SellmoreShopStatus {
+  NEW
+  APPROVED
+}
+
+enum SellmoreStatus {
+  NO
+  PROPOSE
+  ACCEPTED
+  DECLINED
+}
+
+enum SlabOfferType {
+  ERROR
+  OFFER
+}
+
+enum SnapshotStatus {
+  CREATING
+  ACTIVE
+  OLD
+}
+
+enum SnapshotType {
+  FULL
+  PARTIAL_0
+  PARTIAL_1
+}
+
+enum SpinType {
+  HULK
+  DIWALI
+}
+
+enum UpiAccountType {
+  BHIM
+  PHONEPE
+  PAYTM
+  GOOGLEPAY
+}
+
+input BankAccountUpdateDetails {
+  name: String
+  bank: String
+  number: ID
+  ifsc: ID
+  pan: ID
+}
+
+input CustomerProfileUpdate {
+  pincode: String
+  sellmoreStatus: SellmoreStatus
+  customerId: Int
+}
+
+input FilterDefinitionInput {
+  id: ID!
+  optionIds: [ID!]
+}
+
+input OpenRewardInput {
+  reward_id: Int
+  generate_zero_amount: Boolean
+}
+
+input PageDefinitionInput {
+  # ID of entity to start from (non inclusive)
+  fromId: ID
+
+  # Number of items pef page
+  limit: Int
+}
+
+input PageNumberDefinitionInput {
+  # Number of page, starting from 1
+  number: Int
+
+  # Number of items per page
+  limit: Int
+}
+
+input PaymentAccountUpdate {
+  id: ID
+  upiDetails: UpiAccountUpdateDetails
+  bankDetails: BankAccountUpdateDetails
+}
+
+input PaymentMethodsChosen {
+  isWallet: Boolean!
+  isOnline: Boolean!
+  isCod: Boolean!
+  isCredit: Boolean!
+  walletsUsed: [WalletTypes]
+  creditLender: ID
+}
+
+enum WalletTypes {
+  WALLET
+  PROMOTIONAL_WALLET
+}
+
+input SellmoreShopOrderUpdate {
+  status: SellmoreOrderStatus
+}
+
+input SellmoreShopProductUpdate {
+  mrp: Float
+  price: Float
+  margin: Float
+  status: SellmoreShopProductStatus
+  quantity: Int
+}
+
+input SellmoreShopProductVariantUpdate {
+  id: ID!
+  mrp: Float
+  price: Float
+  margin: Float
+  status: SellmoreShopProductStatus
+}
+
+input SellmoreShopUpdate {
+  name: String
+  address: String
+  city: String
+  state: String
+  pincode: String
+  phone: String
+  acceptCod: Boolean
+  defaultMargin: Float
+  link: String
+  segment: SellmoreShopSegment
+  gtm: String
+}
+
+input UpiAccountUpdateDetails {
+  upiId: ID
+  name: ID
+  phone: ID
+  type: UpiAccountType!
+}
+
+type AlertBanner {
+  status: PincodeDeliveryStatus
+  text: String
+  subText: String
+  icon: String
+  color: String
+}
+
+type AlertBannerWidget {
+  items: [AlertBanner!]
+}
+
+type Amount {
+  value: Float
+}
+
+type AppBarWidget {
+  items: [AppBarItems!]
+}
+
+type AppBarItems {
+  id: ID!
+  type: MediaType
+  link: String!
+  imagekitLink: String
+}
+
+union AttributeData = BeautyAttributeData
+
+type BankAccount {
+  id: ID!
+  name: String!
+  bank: String!
+  number: ID!
+  ifsc: ID!
+  pan: ID!
+}
+
+type BannerImage {
+  id: ID!
+  seqId: ID!
+  link: String!
+  imagekitLink: String
+  deeplink: String
+  updated_at: Int!
+  expanding: ScreenLink
+  isVideoBanner: Boolean
+  isAKAd: Boolean
+}
+
+type BannerWidget {
+  items(id: [ID!], page: PageDefinitionInput): [BannerImage!]
+}
+
+type BeautyAttributeData {
+  groupLabel: String
+  colorCode: String
+  colorLabel: String
+}
+
+type Brand {
+  id: ID!
+  seqId: ID!
+  code: ID!
+  details: BrandDetails
+  appearance: BrandAppearance!
+  akGuarantee: BrandAkGuarantee!
+}
+
+type BrandAdDetailsWidget {
+  details: BrandAdDetailsWidgetItem
+}
+
+type BrandAdDetailsWidgetItem {
+  brandId: ID!
+  title: String!
+  subTitle: String!
+  brandImage: String!
+}
+
+type BrandAkGuarantee {
+  status: Boolean!
+  title: String
+  icon: ItemImage
+}
+
+type BrandAppearance {
+  id: ID!
+  showMargin: Boolean!
+  detailsLink: ScreenLink
+  ord: Int!
+  isAKAd: Boolean
+}
+
+type BrandBackground {
+  id: ID!
+  seqId: ID!
+  details: BrandBackgroundDetails
+  expanding: ScreenLink
+  hoverLabel: HoverLabel
+}
+
+type BrandBackgroundDetails {
+  name: String!
+  titleImage: ItemImage!
+}
+
+type BrandDetails {
+  name: String!
+  description: String
+  address: String
+  images: [ItemImage!]
+  pincode: String
+  state: String
+  city: String
+  updated_at: Int!
+  margin: Float
+  preferredMargin: Float
+}
+
+type BrandDetailsWidget {
+  brand: Brand
+  banners: [ItemImage!]
+}
+
+type BrandItems {
+  items(id: [ID!], page: PageDefinitionInput): [Brand!]
+}
+
+type BrandSearchItem {
+  matched: [SearchItemMatch!]
+  brand: Brand!
+}
+
+type BrandSearchResults {
+  found: Int!
+  items(page: PageNumberDefinitionInput): [BrandSearchItem!]
+}
+
+type ButtonItem {
+  text: String!
+  deepLink: String!
+  background: ButtonItemBackground
+  font: ButtonItemFont
+}
+
+type ButtonItemBackground {
+  color: String
+}
+
+type ButtonItemFont {
+  color: String
+}
+
+type ButtonWidget {
+  details: ButtonItem
+}
+
+type Cart {
+  cart: CartDetails
+  details: ProductDetailsWidget
+}
+
+type CartDetails {
+  productId: Int
+  variantId: Int
+  quantity: Int
+  noOfUnits: Int
+  akPrice: Float
+  slab: slabPriceDetails
+  isServiceable: Boolean
+  isPriceUpdated: Boolean
+  isFreeItem: Boolean
+  bottomInfoLabel: String
+  freebieProductInfo: [FreebieProducts!]
+  couponDiscount: Float
+  exception: ProductExceptionMarker
+}
+
+type slabPriceDetails {
+  variantId: Int
+  price: Float
+}
+
+type ProductExceptionMarker {
+  isException: Boolean
+  markerText: String
+}
+
+type CartAnchorDiscountWidget {
+  details: CartAnchorDiscountDetails
+}
+
+type CartAnchorDiscountDetails {
+  images: [ItemImage!]
+  anchorCouponDetails: AnchorCouponDetails
+  anchorVariantDetails: AnchorVariantDetails
+  anchorProductDetails: AnchorProductDetails
+}
+
+type AnchorProductDetails {
+  productId: ID
+  productName: String
+  price: Float
+  quantity: Int
+  existingQuantity: Int
+}
+
+type AnchorVariantDetails {
+  variantId: String
+}
+
+type AnchorCouponDetails {
+  couponDescription: String
+}
+
+type CartCoupons {
+  details: CartCouponDetails
+  items: [CartCouponItems!]
+}
+
+type CartCouponDetails {
+  title: CartCouponTitle
+  subTitle: CartCouponTitle
+}
+
+type CartCouponTitle {
+  key: String
+  value: String
+}
+
+type CartCouponItems {
+  id: ID
+  name: String
+  description: String
+  value: Float
+  isApplied: Boolean
+  autoApply: Boolean
+  type: String
+  startDate: String
+  endDate: String
+  discountType: String
+  discount: Float
+  canBeClubbed: Boolean
+  brandId: String
+  minOrderValue: Float
+}
+
+type CartItems {
+  items(id: [ID!], page: PageDefinitionInput): [Cart!]
+}
+
+type CartType {
+  details: CartTypeDetails
+}
+
+type CartTypeDetails {
+  type: CartTypeList
+  title: String
+  msg: CartTypeMsg
+  total: Float
+  search: CartTypeLink
+  errors: [Title]
+}
+
+type CartTypeMsg {
+  key: String
+  value: String
+  extra: [CartTypeExtra]
+}
+
+type CartTypeExtra {
+  key: String
+  value: String
+}
+
+type CartTypeLink {
+  deeplink: String
+}
+
+type CategoryDetailsWidget {
+  category: ProductCategory
+  banners: [ItemImage!]
+}
+
+type CategorySearchItem {
+  matched: [SearchItemMatch!]
+  category: ProductCategory!
+}
+
+type CategorySearchResults {
+  found: Int!
+  items(page: PageNumberDefinitionInput): [CategorySearchItem!]
+}
+
+type ChildProductsCount {
+  attribute: ProductAttributes
+  count: Int
+}
+
+type Coupon {
+  id: ID!
+  name: String!
+  description: String
+  expiry: Int!
+  color: CouponColor!
+  images: [ItemImage!]
+  isApplied: Boolean!
+  bestPrice: CouponBestPrice!
+}
+
+type CouponColor {
+  title: String!
+  background: String!
+}
+
+type CouponBestPrice {
+  price: Float!
+  margin: Int!
+  discount: Float!
+}
+
+type CouponItems {
+  items(id: [ID!], page: PageDefinitionInput): [Coupon!]
+}
+
+type CouponReward {
+  id: ID
+  coupon_id: Int
+  name: String
+  description: String
+  start_date: String
+  end_date: String
+  discount_type: String
+  discount: Float
+  discount_value: Float
+  max_discount_value: Int
+  can_be_clubbed: Boolean
+  discount_applicability: String
+  brand_id: Int
+  image: String
+  min_order_value: Float
+}
+
+type CreditDetailsBannerWidget {
+  info: [CreditDetailsBanner]
+}
+
+type CreditDetailsBanner {
+  id: ID!
+  code: String!
+  seqId: ID!
+  link: String!
+  imagekitLink: String
+  expanding: ScreenLink
+  isVideoBanner: Boolean
+  isAKAd: Boolean
+}
+
+type CreditDetailsWidget {
+  creditDetails: CreditDetails
+  offers: [CreditOffers]
+  isActive: Boolean
+}
+
+type CreditDetails {
+  creditCustomerSummary: CreditCustomerSummary
+  accountSummary: AccountSummary
+}
+
+type CreditCustomerSummary {
+  isApplyNowEnabled: Boolean
+  customerId: String
+  activated: Boolean
+  lenderService: String
+  bnplInterestRate: Float
+  bnplRepaymentPeriod: Int
+  redirectUrl: String
+  onboardingUrl: String
+  onboardingStatus: String
+  remark: String
+}
+
+type AccountSummary {
+  customerId: String
+  lenderAccountStatus: LenderAccountStatus
+  balance: Amount
+  limit: Amount
+  dueAmount: Amount
+  dueDate: String
+  daysOverdue: Int
+  totalDueAmount: Amount
+  lenderTransactionsUrl: String
+  lenderRepaymentUrl: String
+  lenderTransactions: Redirect
+  lenderRepayment: Redirect
+  lenderType: String
+  encdata: String
+  mcode: String
+  checksum: String
+  repaymentRedirectUrl: String
+  lenderDetails: LenderDetails
+  message: String
+}
+
+type CreditOffers {
+  offerHeading: String
+  offerDetails: String
+}
+
+enum LenderAccountStatus {
+  ACTIVE
+  DUE
+  OVERDUE
+  BLOCKED
+  INACTIVE
+}
+
+type LenderDetails {
+  name: String
+  logo: String
+}
+
+type Redirect {
+  redirectType: RedirectType
+  redirectBody: String
+}
+
+enum RedirectType {
+  HTML
+  URL
+}
+
+type CustomerAddress {
+  addressLine1: String
+  addressLine2: String
+}
+
+type DeferredItem {
+  screenCode: String!
+  sectionCode: String!
+  type: String
+  params: [DeferredItemParam!]
+}
+
+type DeferredItemParam {
+  key: String
+  value: String
+}
+
+type DeferredWidget {
+  details: DeferredWidgetDetails
+  items(id: [ID!], page: PageDefinitionInput): [DeferredItem!]
+}
+
+type DeferredWidgetDetails {
+  toLoad: Boolean
+}
+
+type DividerWidget {
+  color: String!
+}
+
+type DiwaliBannerWidget {
+  info: Info
+}
+
+type Info {
+  isVisible: Boolean!
+  nextSpinTime: Int
+  link: String
+  items: [ImageItems]
+  baseValue: String
+  orderedAmt: String
+  deliveredAmt: String
+  startDate: String
+  endDate: String
+  walletCashback: String
+  milestones: [Milestones]
+}
+
+type ImageItems {
+  id: String
+  link: String
+  imagekitLink: String
+  deeplink: String
+}
+
+type DocumentLink {
+  link: String!
+  imagekitLink: String
+}
+
+type FeaturedCouponResult {
+  code: String
+  coupons: [FeaturedCouponsType]
+}
+
+type FeaturedCouponsType {
+  id: ID
+  name: String
+  description: String
+  status: Boolean
+  termsAndCondition: String
+  expiry: String
+  items: [Product]
+  basketProductIds: [ID]
+}
+
+type FeaturedCouponsWidget {
+  items: [FeaturedCouponsType]
+}
+
+type FeaturesWidget {
+  links: [ScreenLink!]
+}
+
+type Filter {
+  id: ID!
+  name: String!
+  isSearchable: Boolean
+  isMultiSelect: Boolean
+  isDeferred: Boolean
+  images: [ItemImage!]
+  options: [FilterOptions!]
+  children: [Filter!]
+}
+
+type FilterOptions {
+  id: ID!
+  name: String!
+  isDefault: Boolean
+  images: [ItemImage!]
+}
+
+type FilterItems {
+  templateId: String
+  items: [Filter!]
+}
+
+type FreebieCouponSlabs {
+  description: String!
+  id: ID!
+}
+
+type FreebieCoupons {
+  primaryDescription: String!
+  name: String!
+  id: ID!
+  slabs: [FreebieCouponSlabs!]
+}
+
+type FreebieDetails {
+  freebieCoupons: [FreebieCoupons!]
+  freebieProductInfo: [FreebieProducts!]
+}
+
+type FreebiePriceOutput {
+  amount: Float!
+  strikeThroughLabel: Boolean
+}
+
+type FreebieProportions {
+  freebieOfferGroup: Int!
+  parentOfferGroup: Int!
+}
+
+type FreebieProducts {
+  productName: String!
+  quantity: Int!
+  price: FreebiePriceOutput!
+  imageKitLink: String!
+  availableQuantity: Int
+  offerGroup: FreebieProportions
+}
+
+type HomeScreen {
+  id: ID!
+  seqId: ID!
+  code: ID!
+  title: String
+  views(view: [ID!]): [HomeScreenView!]
+  updated_at: Int!
+}
+
+type HomeScreenSection {
+  id: ID!
+  seqId: ID!
+  code: ID
+  title: String
+  description: String
+  status: HomeScreenSectionStatus!
+  appearance: HomeScreenSectionAppearance!
+  content: HomeScreenSectionContent
+  updated_at: Int!
+}
+
+type HomeScreenSectionAppearance {
+  showOnEmpty: Boolean!
+  widgetType: HomeScreenSectionWidgetType
+  layoutType: HomeScreenSectionLayoutType
+  scrollable: Boolean!
+  expanding: ScreenLink
+  reload: Boolean!
+  hideAkPrice: Boolean!
+  isHidden: Boolean!
+  titleLink: HomeScreenSectionTitleIcon
+  titleColor: String
+  templateId: String
+  isPaginated: Boolean
+}
+
+type HomeScreenSectionTitleIcon {
+  link: String!
+  imagekitLink: String
+  position: String
+}
+
+union HomeScreenSectionContent =
+    ProductItems
+  | BrandItems
+  | MetricsWidget
+  | AppBarWidget
+  | ProductCategoryItems
+  | BannerWidget
+  | FeaturesWidget
+  | KycWidget
+  | ProductDetailsWidget
+  | LinksWidget
+  | SearchedItems
+  | BrandDetailsWidget
+  | CategoryDetailsWidget
+  | TimerWidget
+  | SellmoreShopWidget
+  | AlertBannerWidget
+  | RichTextWidget
+  | KYCUploadWidget
+  | KYCCallWidget
+  | SingleBannerWidget
+  | RefundWidget
+  | MilestonesWidget
+  | SpinTheWheelWidget
+  | DiwaliBannerWidget
+  | HomeSectionList
+  | BrandBackground
+  | OverlayWidget
+  | TableTextItems
+  | CouponItems
+  | DividerWidget
+  | SlabOffers
+  | SummaryCartInfo
+  | CartType
+  | CartItems
+  | PaymentSummary
+  | CartCoupons
+  | PaymentMethod
+  | NudgeItems
+  | LoyaltyWidget
+  | ImageWidget
+  | MenuWidget
+  | ImageTextWidget
+  | DeferredWidget
+  | BrandAdDetailsWidget
+  | ButtonWidget
+  | SlabAppliedWidget
+  | SupportingDocKycWidget
+  | FeaturedCouponsWidget
+  | CartAnchorDiscountWidget
+  | OffersCouponWidget
+  | ProductCategory
+  | SpecialEventWidget
+  | RewardItems
+  | CreditDetailsWidget
+  | CreditDetailsBannerWidget
+  | PaymentMethodDeferred
+  | FilterItems
+  | CartValueDiscountEstimatorWidget
+
+type HomeScreenView {
+  id: ID!
+  seqId: ID!
+  title: String
+  description: String
+  sections(
+    id: [ID!]
+    code: [ID!]
+    page: PageDefinitionInput
+  ): [HomeScreenSection!]
+  updated_at: Int!
+}
+
+type HomeSectionList {
+  expanding: ScreenLink
+  items(
+    id: [ID!]
+    extraId: ID
+    page: PageDefinitionInput
+  ): [HomeSectionListItem!]
+}
+
+type HomeSectionListItem {
+  seqId: ID!
+  appearance: HomeSectionAppearance!
+  sections: [HomeScreenSection!]
+}
+
+type HomeSectionAppearance {
+  widgetType: String
+  layoutType: String
+  backgroundColor: String
+  isAKAd: Boolean
+}
+
+type HoverLabel {
+  hoverLabelImage: ItemImage
+  hoverLabelPosition: HoverLabelPosition
+}
+
+type ImageItem {
+  primaryId: ID!
+  secondaryId: ID
+  image: String
+  placeHolderText: String!
+  deeplink: String!
+}
+
+type ImageTextWidget {
+  items: [ImageTextItem!]
+}
+
+type ImageTextItem {
+  title: Title!
+  subTitle: Title
+  images: [ItemImage!]
+}
+
+type ImageWidget {
+  imageItem(page: PageDefinitionInput): [ImageItem!]!
+}
+
+type ItemImage {
+  id: ID!
+  seqId: ID!
+  link: String!
+  imagekitLink: String
+  position: String
+  shape: ItemImageShape
+  updated_at: Int!
+}
+
+type ItemWeight {
+  value: Float!
+  uom: String!
+}
+
+enum KycFlowType {
+  OLD
+  NEW
+}
+
+type Kyc {
+  flow: KycFlowType
+  experiment: KycExpStatus
+  status: KycStatus!
+  videoUrl: String
+  imgUrl: String
+  videoThumbnail: String
+  rejectedReason: String
+  documentType: String
+  documentNo: String
+  expectedDate: Int!
+  addToCart: Boolean
+
+  # Flag to decide whether to display product price
+  hidePrice: Boolean
+
+  # Flag to enable/disable search in client
+  isSearch: Boolean
+  docStatus: String
+}
+
+type KYCCallWidget {
+  items: [KycWidgetDetails]
+}
+
+type KYCUploadWidget {
+  items: [KycWidgetDetails]
+}
+
+type KycWidget {
+  text: String
+  document(id: [ID!]): Kyc
+}
+
+type KycWidgetDetails {
+  title: String
+  icon: String
+  buttonType: String
+  buttonText: String
+  leadingButtonIcon: String
+  onPressedType: String
+}
+
+type LimitedStockDetails {
+  shelfLife: Int
+  cashback_percentage: Float
+  quantity: Int
+}
+
+type LinksWidget {
+  links: [ScreenLink!]
+  templateId: ID
+}
+
+type LoyaltyCoupons {
+  title: String!
+  expiry: String!
+  deeplink: String!
+  reward: String!
+}
+
+type LoyaltySchemeStatusType {
+  status: LoyaltySchemeStatusEnum
+  text: String
+  text_colour: String
+  background_colour: String
+}
+
+type LoyaltyGMVType {
+  current: String
+  limit: String
+}
+
+type LoyaltySchemeRewardView {
+  image: String
+  description: String
+}
+
+type LoyaltySchemeMilestonesView {
+  description: String
+  status: LoyaltyMilestoneStatuses
+  brand_status: LoyaltyMilestoneStatuses
+  reward: LoyaltySchemeRewardView
+  discount_type: MilestoneDiscountTypeView
+  upper_limit: Float
+  lower_limit: Float
+  discount_value: Float
+  sequence: Int
+}
+
+type LoyaltySchemesView {
+  id: Int
+  title: String
+  status: LoyaltySchemeStatusType
+  start_time: String
+  end_time: String
+  cashback_earned: String
+  gmv: LoyaltyGMVType
+  deeplink: String
+  milestone: [LoyaltySchemeMilestonesView]
+}
+
+type LoyaltyItems {
+  home_screen_loyalty_title: String!
+  wallet_balance: Float
+  show_new_marker: Boolean
+  schemes(offset: Int, limit: Int): [LoyaltySchemesView]
+}
+
+type LoyaltyWidget {
+  details: LoyaltyItems
+}
+
+type LuckyDrawDetails {
+  spinCount: SpinCount!
+  slotMachineItems: [SlotMachineItem]!
+  spinReward: SpinReward
+  showWinnersList: Boolean!
+}
+
+type MenuDetails {
+  name: String!
+  icon: ItemImage
+  deeplink: String
+  textPosition: String
+}
+
+type MenuWidget {
+  items: [MenuDetails!]
+}
+
+type MetricsWidget {
+  items: [MetricsWidgetItem!]
+}
+
+type MetricsWidgetItem {
+  id: ID!
+  title: MetricsEntity
+  desc: MetricsEntity
+  background: MetricsBg
+}
+
+type MetricsEntity {
+  text: String!
+  color: String!
+}
+
+type MetricsBg {
+  color: String
+}
+
+type MilestonesWidget {
+  info: Info
+}
+
+type Milestones {
+  text: String
+  status: Boolean
+  percentage: Int
+  amt: String
+  cashback: Float
+}
+
+type NotifyMeSearchResults {
+  section: HomeScreenSection!
+}
+
+type Nudge {
+  text: String!
+  background: String!
+  button: [NudgeButton!]
+}
+
+type NudgeButton {
+  text: String!
+  deeplink: String!
+}
+
+type NudgeItems {
+  items: [Nudge!]
+}
+
+type OffersCouponWidget {
+  offerCoupons(page: Int, limit: Int): [FeaturedCouponsType]
+}
+
+type OpenRewardResult {
+  op: OpResult!
+  spin_type: SpinType
+  reward: Reward
+  coupon: CouponReward
+}
+
+type OpResult {
+  result: Boolean!
+  code: Int
+  message: String
+}
+
+type OverlayWidget {
+  image: ItemImage!
+  expanding: ScreenLink
+}
+
+union PaymentAccount = UpiAccount | BankAccount
+
+type PaymentMethod {
+  details: PaymentMethodDetails
+  items: [PaymentMethodItems!]
+}
+
+type PaymentMethodDetails {
+  title: Title
+  checks: PaymentMethodChecks
+}
+
+type PaymentMethodChecks {
+  methods: [PaymentMethodChecksItem!]
+}
+
+type PaymentMethodChecksItem {
+  type: PaymentMethodType
+  list: [PaymentMethodChecksItemList!]
+}
+
+type PaymentMethodChecksItemList {
+  enable: Boolean
+  value: PaymentMethodType
+}
+
+type PaymentMethodOption {
+  id: ID!
+  title: Title!
+  subTitle: Title!
+  description: Title!
+  icon: String!
+}
+
+type PaymentMethodItems {
+  status: Boolean
+  title: Title
+  type: String
+  subTitle: Title
+  desc: Title
+  options: [PaymentMethodOption!]
+  amount: PaymentMethodAmount!
+  tooltip: String
+  align: PaymentMethodItemAlignment
+}
+
+enum PaymentMethodItemAlignment {
+  HORIZONTAL
+  VERTICAL
+}
+
+type PaymentMethodAmount {
+  type: ChargeType
+  value: Float
+}
+
+type PaymentMethodDeferred {
+  type: PaymentMethodType
+  details: DeferredPaymentDetails
+}
+
+type DeferredPaymentDetails {
+  key: String
+  value: String
+  extra: [DeferredPaymentExtraDetails]
+}
+
+type DeferredPaymentExtraDetails {
+  key: String
+  value: String
+}
+
+type PaymentSummary {
+  title: PaymentSummaryTitle
+  checks: PaymentSummaryChecks
+  summary(args: PaymentMethodsChosen!): [PaymentSummaryItems]
+}
+
+type PaymentSummaryTitle {
+  key: String
+  value: String
+  extra: [PaymentSummaryExtra]
+}
+
+type PaymentSummaryExtra {
+  key: String
+  value: String
+}
+
+type PaymentSummaryChecks {
+  minCODOrder: PaymentSummaryCheckItem
+  minShippingValue: PaymentSummaryCheckItem
+  minOrderValue: Float
+}
+
+type PaymentSummaryCheckItem {
+  value: Float
+  charges: PaymentSummaryCharges
+}
+
+type PaymentSummaryCharges {
+  title: PaymentSummaryTitle
+  type: ChargeType
+  value: Float
+}
+
+type PaymentSummaryItems {
+  id: String
+  title: PaymentSummaryTitle
+  subTitle: PaymentSummaryTitle
+  type: PaymentItemType
+  paymentMethodType: PaymentMethodType
+  value: Float
+  valueLabel: StyledLabel
+  tooltip: String
+}
+
+type StyledLabel {
+  value: Float
+  valueStyles: TextStyles
+  label: String
+  labelStyles: TextStyles
+}
+
+type TextStyles {
+  color: String
+  textDecoration: TextDecoration
+}
+
+enum TextDecoration {
+  None
+  LineThrough
+  Underline
+  Overline
+}
+
+type PincodeWarehouses {
+  isAddToCart: Boolean!
+  gtm: Boolean!
+  homeGtm: Boolean!
+  currentGtmServiceable: Boolean!
+  otherGtmServiceable: Boolean!
+  sfxServiceable: Boolean!
+  gtmWarehouses: [Warehouse!]
+  isSelfPickup: Boolean
+}
+
+type Product {
+  id: ID!
+  seqId: ID!
+  status: ItemStatus
+  sku: Sku!
+  details: ProductDetails
+  categories: [ProductCategory!]
+  brand: Brand
+  warehouse: Warehouse
+  prices(time: Int): ProductPrices
+  variants: [ProductVariant!]
+  shopPrices: ProductPrices
+  shopPriceSetting: SellmoreShopProductPrice
+  shopVariants: [ProductVariant!]
+  shopPriceVariantsSetting: [SellmoreShopProductVariantPrice!]
+  wholesales: [ProductWholesale!]
+  quantities: ProductQuantities
+  appearance: ProductAppearance!
+  oldProductData: String
+  markers: [ProductMarker!]!
+  coupons: [Coupon!]
+  loyaltyCoupons: [LoyaltyCoupons!]
+  freebie: FreebieDetails
+  attributes(productAttribute: ProductAttributes): AttributeData
+  childProducts(
+    productAttribute: ProductAttributes
+    page: PageDefinitionInput
+  ): [Product]
+  childProductsCount(productAttribute: ProductAttributes): ChildProductsCount
+  limitedStockDetails: LimitedStockDetails
+  nudges: [Nudge!]
+}
+
+type ProductAppearance {
+  outOfStock: Boolean!
+  isServiceable: Boolean!
+  showHotDeal: Boolean!
+  variantType: ProductVariantType
+  forDiwaliSale: Boolean!
+  showLimitedTimeDeal: Boolean!
+  showLastPieces: Boolean!
+  showPriceDrop: Boolean!
+  showLimitedStock: Boolean!
+  showBackInStock: Boolean!
+  showDiscount: Boolean!
+  detailsLink: ScreenLink
+  sellmore: Boolean!
+  isAKAd: Boolean
+  adType: ProductAdType
+  adLink: String
+  actions: [ProductAction!]
+  notifyme: Boolean!
+}
+
+type ProductCategory {
+  id: ID!
+  seqId: ID!
+  name: String!
+  previous: [ProductCategory!]
+  next: [ProductCategory!]
+  details: ProductCategoryDetails
+  appearance: ProductCategoryAppearance!
+  updated_at: Int!
+}
+
+type ProductCategoryAppearance {
+  id: ID!
+  showMargin: Boolean!
+  detailsLink: ScreenLink
+  ord: Int!
+}
+
+type ProductCategoryDetails {
+  images: [ItemImage!]
+  margin: Float
+  preferredMargin: Float
+  catalogue: String
+  level: Int!
+}
+
+type ProductCategoryItems {
+  items(id: [ID!], page: PageDefinitionInput): [ProductCategory!]
+}
+
+type ProductCustomer {
+  id: ID
+  seqId: ID
+  firstName: String
+  lastName: String
+  email: String
+  contact: String
+  pincode: String
+  sellmoreStatus: SellmoreStatus!
+}
+
+type ProductDetails {
+  name: String!
+  description: String
+  keyFeatures: String
+  guaranteeOffered: String
+  cancellation: String
+  servisableBy: String
+  ean: String
+  hsn: String
+  images: [ItemImage!]
+  weight: ItemWeight!
+  updated_at: Int!
+  edited_at: Int
+}
+
+type ProductDetailsWidget {
+  product: Product
+}
+
+type ProductItems {
+  items(
+    id: [ID!]
+    page: PageDefinitionInput
+    filter: [FilterDefinitionInput!]
+  ): [Product!]
+}
+
+type ProductMarker {
+  id: ID!
+  type: String!
+  image: String!
+  position: MarkerPosition!
+  alignment: MarkerAlignment!
+  deeplink: String
+  status: MarkerStatus
+  priority: Int
+}
+
+type ProductPrices {
+  mrp: Float
+  brandPrice: Float
+  salePrice: Float
+  baseCost: Float
+  discountedBaseCost: Float
+  preferredCost: Float
+  updated_at: Int!
+}
+
+type ProductQuantities {
+  # Total number of item in stock
+  total: Int!
+
+  # Number of item ordered and commited to pay
+  commited: Int!
+
+  # Number of item in a shopping card
+  reserved: Int!
+
+  # Number of items available for order
+  available: Int!
+  maxHotDealQty: Int
+  updated_at: Int!
+}
+
+type ProductSearchItem {
+  matched: [SearchItemMatch!]
+  product: Product!
+}
+
+type ProductSearchResults {
+  found: Int!
+  items(page: PageNumberDefinitionInput): [ProductSearchItem!]
+}
+
+type ProductUnit {
+  code: ID!
+  name: String!
+  updated_at: Int!
+}
+
+type ProductVariant {
+  id: ID!
+  seqId: ID!
+  slabNumber: Int!
+  name: String
+  status: ItemStatus
+  unit: ProductUnit
+  numberOfUnits: Int
+  prices(time: Int): ProductPrices
+  quantityLimit: Int
+  updated_at: Int!
+  variant_banner_text: String
+  variant_banner_bg_colour: String
+  free_item_qty: Int
+  cart: ProductVariantCart!
+}
+
+type ProductVariantCart {
+  qty: Int!
+}
+
+type ProductWholesale {
+  id: ID!
+  seqId: ID!
+  slabNumber: Int!
+  quantityLow: Int!
+  quantityHigh: Int!
+  priceLow: Float!
+  priceHigh: Float!
+  caseMrp: Float!
+  caseSize: Int
+  updated_at: Int!
+}
+
+type RefundWidget {
+  description: String
+  title: String
+}
+
+type Reward {
+  id: ID!
+  customer_id: ID!
+  customer: RewardCustomer
+  image: ItemImage
+  reward_type: String!
+  name: String!
+  amount: Float!
+  enable_date: Int!
+  valid_upto_date: Int!
+  opened: Boolean!
+  opened_at: Int
+  created_at: Int!
+  updated_at: Int!
+}
+
+type RewardCustomer {
+  id: ID!
+  shop_name: String
+  location: String
+  win_count: Int
+}
+
+type RewardItems {
+  items(id: [ID!], page: PageDefinitionInput): [Reward!]
+}
+
+type RichText {
+  text: String!
+  color: String!
+  size: Int!
+  weight: Int!
+}
+
+type RichTextWidget {
+  items: [RichText!]
+}
+
+type ScreenLink {
+  title: String
+  screen: ID!
+  id: ID
+  displayFlashTag: Boolean
+}
+
+type SearchedItem {
+  text: String!
+}
+
+type SearchedItems {
+  items(page: PageDefinitionInput): [SearchedItem!]
+}
+
+union SearchItem = ProductSearchItem | BrandSearchItem | CategorySearchItem
+
+type SearchItemMatch {
+  property: String!
+  excerpt: String!
+}
+
+type SearchResult {
+  searched: String!
+  results: [SearchResults!]
+}
+
+union SearchResults =
+    ProductSearchResults
+  | BrandSearchResults
+  | CategorySearchResults
+  | NotifyMeSearchResults
+
+type SellmoreAkPurchase {
+  id: ID!
+  AWB: ID!
+  status: String!
+  rider: [String!]
+}
+
+type SellmoreOrder {
+  id: ID!
+  customerID: ID!
+  addressID: ID!
+  address: CustomerAddress
+  customer: ProductCustomer
+  status: SellmoreOrderStatus!
+  shopPurchase: SellmoreShopPurchase
+  akPurchase: SellmoreAkPurchase
+  details: SellmoreOrderDetails
+  amounts: SellmoreOrderAmounts
+  paymentMethod: SellmoreOrderPaymentMethod
+  created_at: Int!
+  updated_at: Int!
+}
+
+type SellmoreOrderAmounts {
+  price: Float!
+  cod: Float!
+  taxCod: Float!
+  delivery: Float!
+  taxDelivery: Float!
+  discount: Float!
+  coupon: Float!
+  total: Float!
+  paid: Float!
+}
+
+type SellmoreOrderDetails {
+  items: [SellmoreOrderItem!]
+}
+
+type SellmoreOrderItem {
+  quantity: Int!
+  product: SellmoreOrderProduct!
+}
+
+type SellmoreOrderProduct {
+  name: String!
+}
+
+type SellmoreShop {
+  status: SellmoreShopStatus!
+  name: String
+  address: String
+  city: String
+  state: String
+  pincode: String
+  phone: String
+  acceptCod: Boolean!
+  defaultMargin: Float
+  link: String
+  segment: SellmoreShopSegment
+  paymentAccounts: [PaymentAccount!]
+  b2b: Boolean!
+  warehouses: [Warehouse!]
+}
+
+type SellmoreShopProductPrice {
+  price: Float
+  mrp: Float
+  margin: Float
+  status: SellmoreShopProductStatus!
+  basePrice: Float
+  baseMrp: Float
+  updated_at: Int!
+}
+
+type SellmoreShopPurchase {
+  status: SellmoreOrderStatus!
+}
+
+enum SellmoreShopSegment {
+  DEFAULT
+  BEAUTY
+}
+
+type SellmoreShopProductVariantPrice {
+  variant_id: ID!
+  price: Float
+  mrp: Float
+  margin: Float
+  status: SellmoreShopProductStatus!
+  basePrice: Float
+  baseMrp: Float
+  updated_at: Int!
+}
+
+type SellmoreShopWidget {
+  id: ID
+  details: SellmoreShop
+}
+
+type SingleBannerWidget {
+  banner: ItemImage
+}
+
+type Sku {
+  code: ID!
+}
+
+type SlabAppliedWidget {
+  item: SlabAppliedWidgetDetails
+}
+
+type SlabAppliedWidgetDetails {
+  id: ID
+  name: String
+  description: String
+  status: Boolean
+}
+
+type SlabOffers {
+  details: SlabOfferDetails
+}
+
+type SlabOfferDetails {
+  status: Boolean
+  msg: String
+  info: String
+  items: [SlabOfferItems]
+}
+
+type SlabOfferItems {
+  status: Boolean
+  type: SlabOfferType
+  color: String
+  msg: Title
+  info: Title
+}
+
+type SlotMachineItem {
+  rewardId: ID!
+  image: ItemImage!
+  rewardType: RewardType
+}
+
+type Snapshot {
+  id: ID!
+  seqId: ID!
+  link: String!
+  status: SnapshotStatus!
+  type: SnapshotType!
+  created_at: Int!
+}
+
+type SpecialEventVouchers {
+  total: Int
+  current: Int
+}
+
+type SpecialEventOutput {
+  bgImage: ItemImage!
+  image: ItemImage!
+  titleImage: ItemImage!
+  text: String
+  milestones: [Int]
+  deeplink: String
+  customerVouchers: SpecialEventVouchers
+}
+
+type SpecialEventWidget {
+  details: SpecialEventOutput
+}
+
+type SpinCount {
+  totalSpinCount: Int!
+  redeemedSpinCount: Int!
+  totalWins: Int!
+}
+
+type SpinReward {
+  id: ID!
+  name: String!
+  rewardId: ID!
+  rewardType: RewardType!
+  amount: Float!
+  congratulationMessage: String!
+}
+
+type SpinWheelOptions {
+  amount: Float!
+  color: String!
+  text: String!
+}
+
+type SpinTheWheelConfig {
+  spin_the_wheel: [SpinWheelOptions!]
+  next_spin_time: Int!
+  spin_type: SpinType
+  reward: [Reward]
+  coupon_reward: [CouponReward]
+}
+
+type SpinTheWheelWidget {
+  config: SpinTheWheelConfig!
+}
+
+type SummaryCartInfo {
+  details: SummaryCartInfoDetails
+}
+
+type SummaryCartInfoDetails {
+  basketId: Int!
+  csatId: Int
+  addressId: Int!
+  total: Float!
+  productCount: Int!
+  createdAt: Int!
+  updatedAt: Int!
+  errors: [SummaryCartInfoErrors!]
+}
+
+type SummaryCartInfoErrors {
+  code: Int!
+  message: String!
+}
+
+type SupportingDocKyc {
+  status: KycStatus!
+  imgUrl: String
+  imgKitUrl: String
+  rejectedReason: String
+  documentType: String
+  documentNo: String
+  expectedDate: Int!
+  addToCart: Boolean
+  hidePrice: Boolean
+  isSearch: Boolean
+  docStatus: String
+}
+
+type SupportingDocKycWidget {
+  text: String
+  document: SupportingDocKyc
+}
+
+type TableTextItems {
+  items: [TableText!]
+}
+
+type TableText {
+  col: Int!
+  sentences: [String!]
+}
+
+type TimerWidget {
+  remaining: Int
+  titleColor: String
+  images: [ItemImage]
+  text: TimerTextWidget
+}
+
+type TimerTextWidget {
+  color: String
+}
+
+type Title {
+  key: String
+  value: String
+  extra: [TitleExtra]
+}
+
+type TitleExtra {
+  key: String
+  value: String
+}
+
+type UpiAccount {
+  id: ID!
+  upiId: ID
+  name: String
+  phone: String
+  type: UpiAccountType!
+}
+
+type Warehouse {
+  id: ID!
+  seqId: ID!
+  code: ID!
+  details: WarehouseDetails
+}
+
+type WarehouseDetails {
+  name: String!
+  description: String
+  address: String
+  images: [ItemImage!]
+  pincode: String
+  state: String
+  city: String
+  type: String
+  contact: String
+  gstin: String
+  updated_at: Int!
+}
+
+type CartValueDiscountEstimatorWidget {
+  details(cartValue: Int): CartValueDiscountEstimatorWidgetDetails
+}
+
+type CartValueDiscountEstimatorWidgetDetails {
+  header: CartValueDiscountEstimatorWidgetHeader
+  show: Boolean
+  deeplink: String
+  cartValue: Int
+  sliderConfig: CartValueDiscountEstimatorWidgetSliderConfig
+  couponMap: [CartValueDiscountEstimatorWidgetCouponMap]
+}
+
+type CartValueDiscountEstimatorWidgetHeader {
+  title: String
+}
+
+type CartValueDiscountEstimatorWidgetSliderConfig {
+  minValue: Int
+  maxValue: Int
+  coverageAreaPercentage: Float
+  coverageAreaValue: Float
+}
+
+type CartValueDiscountEstimatorWidgetCouponMap {
+  type: String
+  value: Float
+  maxValue: Int
+  minValue: Int
+  cartValue: Int
+  minCount: Int
+  maxDiscount: Int
+}
+
+type ApplicabilityType {
+  type: BifrostApplicableType
+  value: [Int]
+}
+
+enum BifrostApplicableType {
+  CART
+  BRAND
+  CATEGORY
+  SEGMENT
+}
+
+enum CouponActionType {
+  APPROVAL
+  EXTEND
+}
+
+enum CouponRewardStatus {
+  ACTIVE
+  ALL
+}
+
+enum CouponState {
+  NEW
+  EXPIRING_SOON
+  USED
+  EXPIRED
+  ACTIVE
+}
+
+enum CouponType {
+  CASHBACK
+  INSTANT
+  INVISIBLE
+}
+
+enum DisbursalSource {
+  WALLET
+}
+
+enum DiscountApplicability {
+  CART
+  PRODUCT
+  WALLET
+  LOYALTY
+  INVISIBLE
+}
+
+enum DiscountCouponStatusType {
+  PENDING
+  ACTIVE
+  DELETED
+}
+
+enum DiscountCouponSubStatusType {
+  LIVE
+  UPCOMING
+  EXPIRED
+}
+
+enum DiscountRewardsType {
+  REWARDS
+  COUPONS
+  CASHBACK
+}
+
+enum DiscountRuleExecutor {
+  AND
+  OR
+  NOT
+}
+
+enum RulesExecutorType {
+  LESSTHAN
+  GREATERTHAN
+  LESSTHANOREQUAL
+  GREATERTHANOREQUAL
+  EQUALS
+  INCLUDES
+}
+
+enum RuleItemType {
+  # Number of times a user can use this promocode
+  NUMBER_OF_TIMES_FOR_USER
+  ITEMS
+  UNIQUE_ITEMS
+  CART_VALUE
+  BRAND_ID
+  PRODUCT_ID
+  CATEGORY_ID
+  USER_ID
+  USER_PINCODE
+  WAREHOUSE_ID
+
+  # There is no validation on this as of yet but for the sake of making it work only use
+  # COD, ONLINE, COD_WITH_TOKEN, CREDIT, COD_WITH_WALLET, ONLINE_WITH_WALLET;
+  PAYMENT_METHOD
+
+  # Accepts string true or false. Use EQUALS as executor
+  IS_GTM
+  USER_DISTRICT
+  USER_STATE
+
+  # Pass comma separated brand ids in string, eg: "12,167,435". This is total item count, not unique item count
+  ITEM_COUNT_FROM_BRANDS
+  ITEM_VALUE_FROM_BRANDS
+  ITEM_COUNT_FROM_CATEGORIES
+
+  # Pass comma separated product ids, preferably without space but not mandaatory.
+  # First item should be the value we want to compare value from products with.
+  # eg: we want 10000 worth of items from product ids 313,41,343 then this should be
+  # 10000,313,41,343
+  ITEM_VALUE_FROM_PRODUCT_IDS
+  ITEM_VALUE_FROM_CATEGORIES
+  PAST_ORDER_COUNT
+  LAST_ORDER_DATE
+  VARIANT_ID
+  SKU_ID
+  SHOP_ID
+  SEGMENT_ID
+
+  # AT a time in cart, if passed coupon is applied, this won't be applicable
+  # Pass coupon name in values
+  CANNOT_BE_CLUBBED_WITH_COUPON
+
+  # This coupon cannot be applied if the passed coupon id has been used previously.
+  # Difference between this and CANNOT_BE_CLUBBED_WITH_COUPON is this applies across all orders (past orders)
+  # while CANNOT_BE_CLUBBED_WITH_COUPON applies to one cart.
+  # Pass id in value, just one id, if more are needed, use multiple rules with AND
+  CANNOT_APPLY_IF_COUPON_USED
+
+  # This is used to keep discounts across coupons
+  # So Let's say a user has used coupon B n number of times,
+  # then this will be applicable.
+  # pass number of times and id in values eg: "4,16" where 4 is number of times user needs to have used coupon with ID 16
+  OTHER_COUPON_NUMBER_OF_TIMES
+
+  # Pass comma separated product's segment_ids, preferably without space but not mandatory.
+  # First item should be the value we want to compare value from products with.
+  # eg: we want 10000 worth of items from product in the segment_ids 1, 2, 3 then this should be passed
+  # 10000,1,2,3
+  ITEM_VALUE_FROM_PRODUCT_SEGMENTS
+  ITEM_COUNT_FROM_PRODUCT_SEGMENTS
+
+  # Pass comma separated product's segment_ids, preferably without space but not mandatory.
+  # First item should be the min. quantity we want for this rule to be applied.
+  # eg: we want 6 units of an item from products in the segment_ids 1, 2, 3 then this should be passed
+  # 6,1,2,3
+  SEGMENT_PRODUCT_QUANTITY_COUNT
+}
+
+enum DiscountRuleStatusType {
+  ACTIVE
+  DELETED
+}
+
+enum DiscountType {
+  FLAT
+  PERCENTAGE
+}
+
+input UpsertFreebieCouponInput {
+  id: Int
+  name: String
+  description: String
+  status: Boolean
+  product_id: Int
+  free_product_id: Int
+  user_cohort_id: Int
+  show_on_offers: Boolean
+  start_date: String
+  end_date: String
+  coupon_slabs: [CouponSlabInput]!
+  coupon_warehouses: [CouponWarehouseInput]!
+}
+
+input CouponSlabInput {
+  slab_no: Int!
+  product_qty: Int!
+  free_qty: Int!
+}
+
+input CouponWarehouseInput {
+  warehouse_id: Int!
+  is_active: Boolean!
+}
+
+input DateRange {
+  fromDate: String!
+  toDate: String!
+}
+
+input FreeBieCouponFilter {
+  id: Int
+  name: String
+  product_sku: [String]
+  product_name: String
+  free_product_sku: [String]
+  free_product_name: String
+  status: Boolean
+  dateRange: DateRange
+}
+
+type freeBieCouponRes {
+  count: Int
+  data(limit: Int!, offset: Int!): [FreebieBieCoupon]
+}
+
+type FreebieBieCoupon {
+  id: Int
+  name: String
+  description: String
+  status: Boolean
+  product_id: Int
+  product_name: String
+  product_sku: String
+  free_product_id: Int
+  free_product_name: String
+  free_product_sku: String
+  user_cohort_id: Int
+  show_on_offers: Boolean
+  start_date: String
+  end_date: String
+  created_by: String
+  coupon_slabs: [CouponSlab]
+  coupon_warehouses: [CouponWarehouse]
+  created_at: String
+  updated_at: String
+}
+
+type CouponWarehouse {
+  id: Int
+  freebie_coupon_id: Int
+  warehouse_id: Int
+  name: String
+  product_qty: Int
+  free_product_qty: Int
+  is_active: Boolean
+  created_at: String
+  updated_at: String
+}
+
+type CouponSlab {
+  id: Int
+  freebie_coupon_id: Int
+  description: String
+  slab_no: Int
+  product_qty: Int
+  free_qty: Int
+  created_at: String
+  updated_at: String
+}
+
+input ActivateDiscountCouponInputType {
+  id: ID!
+  isBeauty: Boolean
+  reCalculateOffers: Boolean
+  isAkPreferred: Boolean
+}
+
+input AddDiscountCouponInputType {
+  name: String!
+  description: String!
+  start_date: String!
+  end_date: String!
+  rulegroups: String!
+  discount_type: DiscountType!
+
+  # Deprecated. Value from this field will no longer be used for calculation if discount_value field is present. While this accepts float value, please only use integer value here
+  discount: Int
+
+  # New discount field for float value support
+  discount_value: Float!
+  max_discount_value: Int
+  can_be_clubbed: Boolean
+  discount_applicability: DiscountApplicability
+
+  # Required if discount appplicability is product. Format: stringified JSON, validation/format eg: {"type": "ITEM_VALUE_FROM_BRANDS", "values": "276,277"}
+  # Where "276,277" are comma separated brand ids. Look at utils/validateDiscountedItemInput for supported "type" inputs
+  cart_items_discounted: String
+  auto_apply: Boolean
+  revalidate: Boolean
+
+  # For slab discounts, this field should be set to true
+  is_slab: Boolean
+  slab_warehouse_ids: [Int]
+}
+
+input AddDiscountRuleGroupInputType {
+  name: String!
+  rules: String!
+}
+
+input AddDiscountRuleInputType {
+  name: String!
+  item: RuleItemType!
+  rule_executor: RulesExecutorType!
+  values: String!
+}
+
+input AddProductSegmentInputType {
+  name: String!
+  description: String!
+}
+
+input AddProductSegmentRelationInputType {
+  segment_id: Int!
+  products: [productSegmentRelationInput]!
+}
+
+input productSegmentRelationInput {
+  sku_id: String!
+  warehouse_ids: [Int]!
+}
+
+input AddUserSegmentInputType {
+  name: String!
+  description: String!
+}
+
+input AddUserSegmentRelationInputType {
+  segment_id: Int!
+  user_id: Int!
+}
+
+input AddUserSegmentRelationsInputType {
+  segmentId: Int!
+  userIds: [Int!]
+}
+
+input AddUserToCouponSegmentInputType {
+  couponId: Int!
+}
+
+input ApplyPromocodeInputType {
+  coupons: [ID]
+  couponName: [String]
+  basketId: ID!
+}
+
+input CashbackBasketData {
+  basket: CashbackBasketType!
+  basketItems: [CashbackBasketItemsType!]!
+}
+
+input CashbackBasketItemsType {
+  id: ID!
+  basket_id: ID!
+  product_id: ID!
+  variant_id: ID!
+  sku: String!
+  quantity: Int!
+  final_price: Float
+  final_ak_price: Float
+  mrp: Float
+  number_of_units: Int!
+  entity_id: ID!
+  brand_id: ID!
+  category_id: ID!
+  is_exception: Boolean
+}
+
+input CashbackBasketType {
+  id: ID!
+  customer_id: ID!
+  address_id: ID!
+  total_mrp: Float!
+  total_price: Float!
+  count: Int!
+  uniq_count: Int!
+  created_at: String!
+  updated_at: String!
+}
+
+input CreateCouponInput {
+  title: String
+  couponName: String!
+  discountType: DiscountType!
+  couponDescription: String!
+  maxDiscount: Int
+  discount: Float
+  isSlab: Boolean
+  autoApply: Boolean
+  showOnOffers: Boolean
+  canBeClubbed: Boolean
+  applicableOn: ApplicabilityInputType!
+  couponType: CouponType!
+  rules: JSON
+  cohort: [Int]
+  excludedCohorts: [Int]
+  startDate: String!
+  endDate: String!
+  maxRedemptionPerUser: Int
+  warehouseNotIdsIn: [Int]
+  warehouseIdsIn: [Int]
+}
+
+input ApplicabilityInputType {
+  type: BifrostApplicableType!
+  value: [Int]
+}
+
+input DeleteDiscountCouponInputType {
+  id: ID!
+}
+
+input DeleteDiscountRuleGroupInputType {
+  id: ID!
+}
+
+input DeleteDiscountRuleInputType {
+  id: ID!
+}
+
+input DiscountRewardsInputType {
+  addressId: String!
+}
+
+input ExtendCouponInputType {
+  id: ID!
+  startDate: String!
+  endDate: String!
+}
+
+input freebieInput {
+  product_id: Int!
+  free_product_id: Int!
+  free_qty: Int!
+  min_qty: Int!
+  status: Boolean!
+}
+
+input GetAppliedDiscountsInputType {
+  basketId: ID!
+}
+
+# id has #1 priority, if an id or an array of id is given, status will be ignored. If no id, status is used, no input means all coupons are returned
+input GetDiscountCouponInputType {
+  # to search for a single coupon, pass a single id in array eg: [11]
+  id: [Int]
+  status: DiscountCouponStatusType
+  sub_status: DiscountCouponSubStatusType
+  name: String
+  coupon_type: CouponType
+  title: String
+}
+
+# id has #1 priority, if an id or an array of id is given, status will be ignored. If no id, status is used, no input means all rules are returned
+input GetDiscountRuleGroupInputType {
+  # to search for a single rule, pass a single id in array eg: [11]
+  id: [Int]
+  status: DiscountRuleStatusType
+}
+
+# id has #1 priority, if an id or an array of id is given, status will be ignored. If no id, status is used, no input means all rules are returned
+input GetDiscountRuleInputType {
+  # to search for a single rule, pass a single id in array eg: [11]
+  id: [Int]
+  status: DiscountRuleStatusType
+}
+
+input GetProductSegmentInputType {
+  id: Int
+  ids: [Int]
+  name: String
+}
+
+input GetUserDiscountCouponInputType {
+  basketId: ID!
+}
+
+input GetUserSegmentInputType {
+  id: ID
+  ids: [ID]
+  name: String
+}
+
+input GetUserSegmentRelationInputType {
+  id: ID
+  user_id: ID
+  segment_id: ID
+}
+
+input LoyaltyMilestonesInput {
+  upper_limit: Float!
+  lower_limit: Float!
+  discount_type: DiscountType!
+  discount_value: Float!
+  sequence: Int!
+  disbursal_source: DisbursalSource
+  description: String
+  brand_lower_limit: Float
+  brand_ids: [Int!]!
+}
+
+input LoyaltySchemeCreationInput {
+  milestones: [LoyaltyMilestonesInput!]
+  couponDetails: CreateCouponInput!
+}
+
+input Page {
+  page_no: Int
+  limit: Int
+}
+
+input PaginationInput {
+  page: Int!
+  size: Int!
+}
+
+input RemoveDiscountCouponsInputType {
+  basket_id: ID!
+  coupons: [String]
+}
+
+input ValidatePickingInput {
+  orderId: ID
+  picklistData: [PicklistItemInput]
+}
+
+input PicklistItemInput {
+  name: String
+  sku: String
+  qty: Int
+  pickedQty: Int
+  picked: Boolean
+  mainItemSku: String
+  location: String
+  batch: String
+}
+
+input ValidateAppliedCouponsInputType {
+  paymentMethod: String!
+  basketId: ID!
+  customerId: ID!
+}
+
+input ValidateCashbackCouponsInputType {
+  couponIds: [Int!]!
+  customerId: ID!
+  cashbackData: CashbackBasketData!
+}
+
+type AppliedDiscountsType {
+  id: ID
+  name: String
+  discount: Float
+  canBeClubbed: Int
+  description: String
+  discountApplicability: DiscountApplicability
+}
+
+type AppliedDiscountResponseType {
+  valid: Boolean
+  total: Float
+  coupons: [AppliedDiscountsType]
+}
+
+type ApplyPromocodeResultType {
+  id: ID
+  applicable: Boolean
+  message: String
+  name: String
+  description: String
+  discount_type: String
+  discount: Float
+  discount_value: Float
+  can_be_clubbed: Boolean
+  discount_applicability: String
+  max_discount_value: Int
+}
+
+type ApplyDiscountResponseType {
+  totalDiscount: String
+  appliedCoupons: [String]
+  response: [ApplyPromocodeResultType]
+}
+
+type CouponBrand {
+  id: ID!
+  name: String!
+}
+
+type CouponRewardList {
+  id: ID
+  coupon_id: Int
+  name: String
+  description: String
+  start_date: String
+  end_date: String
+  discount_type: String
+  discount: Float
+  discount_value: Float
+  max_discount_value: Int
+  can_be_clubbed: Boolean
+  discount_applicability: String
+  brand_id: Int
+  image: String
+  min_order_value: Float
+  state: CouponState
+  deeplink: String
+  reward_description: String
+}
+
+type DiscountCouponType {
+  title: String
+  id: ID
+  coupon_id: Int
+  name: String
+  description: String
+  start_date: String
+  end_date: String
+  rulegroups: String
+  discount_type: DiscountType
+  coupon_type: CouponType
+  discount: Float
+  discount_value: Float
+  max_discount_value: Int
+  can_be_clubbed: Boolean
+  discount_applicability: String
+  auto_apply: Boolean
+  show_on_offers: Boolean
+  status: String
+  sub_status: String
+  action: CouponActionType
+  created_by: ID
+  requested_by: String
+  created_at: String
+  updated_at: String
+}
+
+type DiscountRewards {
+  valid: Boolean!
+  total: Float!
+  list: [DiscountRewardsListItem!]
+}
+
+type DiscountRewardsListItem {
+  id: ID!
+  name: String!
+  description: String
+  value: Float!
+  isApplied: Boolean!
+  autoApply: Boolean!
+  type: String!
+  startDate: String
+  endDate: String
+  discountType: String!
+  discount: Float!
+  canBeClubbed: Boolean!
+  brandId: String
+  minOrderValue: Float
+}
+
+type DiscountRuleGroupType {
+  id: ID
+  name: String
+  rules: String
+  created_by: ID
+  created_at: String
+  updated_at: String
+  status: String
+}
+
+type DiscountRuleType {
+  id: ID
+  name: String
+  item: RuleItemType
+  rule_executor: String
+  values: String
+  created_by: ID
+  created_at: String
+  updated_at: String
+  status: String
+}
+
+type FreebieAndNormalSkusOutput {
+  normalSkus: [skuData]
+  freebieSkus: [skuData]
+}
+
+type skuData {
+  skuId: String
+  productId: Int
+}
+
+type FreebieArticleMappingOutput {
+  id: ID!
+  freebieSkuId: String
+  freebieSkuName: String
+  normalSkuId: String
+  normalSkuName: String
+  freeQty: Int
+  minQty: Int
+}
+
+type GetCompleteCouponDetailsType {
+  title: String
+  id: ID
+  name: String
+  description: String
+  start_date: String
+  end_date: String
+  discount_type: DiscountType
+  discount: Float
+  discount_value: Float
+  max_discount_value: Int
+  can_be_clubbed: Boolean
+  coupon_type: CouponType
+  applicable_on: ApplicabilityType
+  rules: JSON
+  auto_apply: Boolean
+  show_on_offers: Boolean
+  status: String
+  created_by: ID
+  is_slab: Boolean
+  created_at: String
+  updated_at: String
+  user_segment: [Int]
+  excluded_cohorts: [Int]
+  max_redemption_per_user: Int
+  warehouse_not_in_ids: [Int]
+  warehouse_ids: [Int]
+  allow_coupon_duplication: Boolean
+}
+
+type PicklistItem {
+  name: String
+  sku: String
+  qty: Int
+  pickedQty: Int
+  picked: Boolean
+  mainItemSku: String
+  location: String
+  batch: String
+}
+
+type CouponProductCategory {
+  id: ID!
+  name: String!
+}
+
+type ProductSegmentType {
+  id: ID
+  name: String
+  description: String
+  no_of_products: Int
+}
+
+type ProductSegmentTypeWithPagination {
+  data: [ProductSegmentType]
+  total_pages: Int
+  cursor: Int
+  has_next_page: Boolean
+}
+
+type RemoveDiscountCouponResponseType {
+  result: Boolean
+  message: String
+  remainingDiscount: Float
+}
+
+type UserDiscountCouponAdminType {
+  name: String
+  description: String
+  start_date: String
+  end_date: String
+  discount_type: String
+  discount_value: Float
+  discount_applicability: String
+  max_discount_value: Int
+  can_be_clubbed: Boolean
+  privateDescription: String
+}
+
+type UserDiscountCouponType {
+  id: ID
+  name: String
+  description: String
+  start_date: String
+  end_date: String
+  discount_type: String
+  discount: Float
+  discount_value: Float
+  max_discount_value: Int
+  can_be_clubbed: Boolean
+  discount_applicability: String
+}
+
+type UserDiscountType {
+  id: ID
+  name: String
+  description: String
+  start_date: String
+  end_date: String
+  discount_type: String
+  discount: Float
+  discount_value: Float
+  max_discount_value: Int
+  can_be_clubbed: Boolean
+  discount_applicability: String
+}
+
+type UserSegmentRelationType {
+  id: ID
+  segment_id: ID
+  user_id: ID
+}
+
+type UserSegmentType {
+  id: ID
+  name: String
+  description: String
+  no_of_users: Int
+}
+
+type ValidatePickingResponse {
+  incorrectItems: [IncorrectItemsResponse]
+}
+
+type IncorrectItemsResponse {
+  items: [PicklistItem]
+  label: String
+  main_item: ItemResponse
+  freebie_item: ItemResponse
+}
+
+type ItemResponse {
+  item_name: String
+  item_code: String
+  ordered_qty: Int
+}
+
+type ValidatedCouponsType {
+  success: Boolean
+  couponDiscount: Float
+  couponList: [String]
+}
+
+enum InventoryEntityChannel {
+  PRODUCT
+  QUANTITY
+  BRAND
+  WAREHOUSE
+  PRICE
+  CATEGORY
+  IMAGE
+  WHOLESALE
+}
+
+enum InventoryImageShape {
+  UNDEFINED
+  SQUARE
+  TALL
+  WIDE
+}
+
+enum InventoryOriginEntitySyncStatus {
+  UNKNOWN
+  ACTIVE
+  IGNORE
+}
+
+enum VirtualWarehouseStatus {
+  A
+  D
+}
+
+enum VirtualWarehouseTriggerWarehouseType {
+  VIRTUAL
+  MOTHERHUB
+}
+
+input InventoryEntityChannelSync {
+  channel: InventoryEntityChannel!
+  doSync: Boolean!
+}
+
+input InventoryEntitySyncUpdate {
+  originCode: ID!
+  status: InventoryOriginEntitySyncStatus!
+  channels: [InventoryEntityChannelSync!]!
+}
+
+input InventoryOriginBranchInput {
+  originCode: ID!
+  branchCode: ID
+}
+
+input ManualAllocationItemObj {
+  sku: String!
+  quantity: Float!
+}
+
+input ManualAllocationObj {
+  warehouse_id: Int!
+  warehouse_type: VirtualWarehouseTriggerWarehouseType!
+  items: [ManualAllocationItemObj]
+}
+
+input VirtualWarehouseRuleInput {
+  virtual_warehouse_id: ID!
+  sku: String
+  value: Float!
+}
+
+type InventoryBrand {
+  entity: InventoryEntity!
+  name: String!
+  description: String!
+  address_line_1: String
+  address_line_2: String
+  city: String
+  state: String
+  pincode: String
+  created_at: Int!
+  updated_at: Int!
+}
+
+type InventoryCategory {
+  entity: InventoryEntity!
+  name: String!
+  created_at: Int!
+  updated_at: Int!
+}
+
+union InventoryConsolidatedEntity =
+    InventoryProduct
+  | InventoryQuantity
+  | InventoryBrand
+  | InventoryWarehouse
+  | InventoryCategory
+  | InventoryImage
+  | InventoryPrice
+
+type InventoryDiff {
+  newInChannel: [ID!]
+  deletedInChannel: [ID!]
+  changedInChannel: [ID!]
+}
+
+type InventoryEntity {
+  channel: ID!
+  code: ID!
+  details(
+    inventoryOriginBranch: [InventoryOriginBranchInput!]
+  ): [InventoryOriginEntity!]
+  consolidated(time: Int): InventoryConsolidatedEntity!
+}
+
+type InventoryImage {
+  entity: InventoryEntity!
+  link: String!
+  shape: InventoryImageShape
+  contact: String
+  created_at: Int!
+  updated_at: Int!
+}
+
+type InventoryInfo {
+  warehouse_id: ID
+  warehouse_loc: String
+  virtual_warehouse_id: ID
+  virtual_warehouse_name: ID
+  product_id: ID
+  product_name: String
+  sku: String
+  total_quantity: Int
+  reserved_quantity: Int
+  casepack_left_quantity: Int
+  available_quantity: Int
+  wac: Float
+}
+
+type InventoryInfoResult implements OpResultInterface {
+  result: Boolean!
+  message: String
+  code: Int!
+  data: [InventoryInfo]
+}
+
+type InventoryOrigin {
+  code: String!
+  name: String!
+  branches: [InventoryOriginBranch!]
+  details(from: ID, limit: Int): [InventoryOriginEntity!]
+}
+
+type InventoryOriginBranch {
+  code: String!
+  name: String!
+  origin: InventoryOrigin!
+  details(from: ID, limit: Int): [InventoryOriginEntity!]
+}
+
+type InventoryOriginEntity {
+  origin: InventoryOrigin!
+  branch: InventoryOriginBranch
+  sync: InventoryOriginEntitySync!
+  raw_data: String
+  created_at: Int!
+  updated_at: Int!
+}
+
+type InventoryOriginEntitySync {
+  entity: InventoryEntity!
+  origin: InventoryOrigin!
+  status: InventoryOriginEntitySyncStatus!
+}
+
+type InventoryPrice {
+  entity: InventoryEntity!
+  variant: InventoryProductVariant!
+  mrp: Float
+  saleCost: Float
+  baseCost: Float
+  created_at: Int!
+}
+
+type InventoryProduct {
+  entity: InventoryEntity!
+  brand: InventoryBrand
+  warehouse: InventoryWarehouse
+  seller: InventorySeller
+  variants: [InventoryProductVariant!]
+  images: [InventoryImage!]
+  categories: [InventoryCategory!]
+  name: String!
+  description: String!
+  status: String
+  hide_on_app: Boolean!
+  ean: String
+  hsn: String
+  key_features: String
+  guarantee_offered: String
+  cancellation: String
+  serviceable_by: String
+  tax_percentage: Float!
+  comission: Float!
+  created_at: Int!
+  updated_at: Int!
+}
+
+type InventoryProductVariant {
+  entity: InventoryEntity!
+  product: InventoryProduct!
+  unit: InventoryUnit!
+  snab_no: Int!
+  name: String!
+  hide_on_app: Boolean!
+  number_of_units: Int!
+  prices: InventoryPrice
+  created_at: Int!
+  updated_at: Int!
+}
+
+type InventoryQuantity {
+  entity: InventoryEntity!
+  entity_id: ID!
+
+  # Total number of item in stock
+  total: Int!
+
+  # Number of item ordered and commited to pay
+  commited: Int!
+
+  # Number of item in a shopping card
+  reserved: Int!
+
+  # Number of items available for order
+  available: Int!
+  created_at: Int!
+  updated_at: Int!
+}
+
+type InventoryQuantityCompat {
+  sku: ID!
+  totalQuantity: Int
+  localPlaced: Int
+  commitedQuantity: Int
+  localQuantityDLA: Int
+  localQuantityOCK: Int
+  localQuantityM01: Int
+}
+
+type InventoryQuantityCompatChange {
+  inventory: InventoryQuantity!
+  compat: InventoryQuantityCompat!
+}
+
+type InventoryQuantityCompatDiff {
+  deletedInCompat: [InventoryQuantity!]
+  newInCompat: [InventoryQuantityCompat!]
+  changedInCompat: [InventoryQuantityCompatChange!]
+}
+
+type InventoryRepeatable {
+  key: String!
+  name: String!
+  cron: String
+  every: String
+  next: String
+}
+
+type InventorySeller {
+  code: ID!
+  name: String!
+  created_at: Int!
+  updated_at: Int!
+}
+
+type InventoryUnit {
+  code: ID!
+  name: String!
+  created_at: Int!
+  updated_at: Int!
+}
+
+type InventoryWarehouse {
+  entity: InventoryEntity!
+  name: String!
+  description: String!
+  address_line_1: String
+  address_line_2: String
+  city: String
+  state: String
+  pincode: String
+  email: String
+  contact: String
+  created_at: Int!
+  updated_at: Int!
+}
+
+interface OpResultInterface {
+  result: Boolean!
+  message: String
+  code: Int!
+}
+
+type QuantitiesLocked {
+  locked: Boolean
+}
+
+type QuantitiesLockedResult implements OpResultInterface {
+  result: Boolean!
+  message: String
+  code: Int!
+  data: QuantitiesLocked
+}
+
+input SKU {
+  sku: String!
+}
+
+type VirtualWarehouse {
+  id: ID
+  parent_warehouse_loc: String
+  child_warehouse_loc: String
+  name: String
+  priority: Int
+  status: VirtualWarehouseStatus
+  updated_by: String
+  created_at: Int
+  updated_at: Int
+}
+
+type VirtualWarehouseCreateResult implements OpResultInterface {
+  result: Boolean!
+  message: String
+  code: Int!
+  data: VirtualWarehouse
+}
+
+type VirtualWarehouseExceptionItem {
+  id: ID
+  product_id: ID
+  product_name: String
+  sku: String
+  warehouse_id: ID
+  updated_by: String
+  created_at: Int
+  updated_at: Int
+}
+
+type VirtualWarehouseExceptionItemArrayResult implements OpResultInterface {
+  result: Boolean!
+  message: String
+  code: Int!
+  data: [VirtualWarehouseExceptionItem]
+}
+
+type VirtualWarehouseReadResult implements OpResultInterface {
+  result: Boolean!
+  message: String
+  code: Int!
+  data: [VirtualWarehouse]
+}
+
+type VirtualWarehouseRule {
+  id: ID
+  virtual_warehouse_id: ID
+  virtual_warehouse_name: String
+  product_id: ID
+  sku: String
+  product_name: String
+  value: Float
+  updated_by: String
+  created_at: Int
+  updated_at: Int
+}
+
+type VirtualWarehouseRulesReadResult implements OpResultInterface {
+  result: Boolean!
+  message: String
+  code: Int!
+  data: [VirtualWarehouseRule]
+}
+
+type VirtualWarehouseTrigger {
+  id: ID
+  warehouse_id: ID
+  trigger_type: String
+  calc_type: String
+  sync_type: String
+  payload: String
+  status: String
+  remark: String
+  result: String
+  parent_trigger_id: ID
+  created_at: Int
+  updated_at: Int
+}
+
+type VirtualWarehouseTriggerArrayResult implements OpResultInterface {
+  result: Boolean!
+  message: String
+  code: Int!
+  data: [VirtualWarehouseTrigger]
+}
+
+type VirtualWarehouseTriggerResult implements OpResultInterface {
+  result: Boolean!
+  message: String
+  code: Int!
+  data: VirtualWarehouseTrigger
+}
+
+type WarehouseList {
+  id: ID
+  warehouse_loc: String
+  name: String
+}
+
+type WarehouseListResult implements OpResultInterface {
+  result: Boolean!
+  message: String
+  code: Int!
+  data: [WarehouseList]
+}
+
+enum AccountStatus {
+  ACTIVE
+  DELETED
+  PENDING
+}
+
+enum Confirmation {
+  YES
+  NO
+}
+
+enum KYCStatus {
+  APPROVED
+  REJECTED
+  IN_PROCESS
+  PENDING
+}
+
+enum LoyaltyMilestoneStatus {
+  INCOMPLETE
+  COMPLETE
+  INPROGRESS
+}
+
+enum LoyaltySchemeStatus {
+  ACTIVE
+  EXPIRED
+  UPCOMING
+}
+
+enum LoyaltySegmentType {
+  PRODUCT
+  USER
+  WAREHOUSE
+  BRAND
+  CATEGORY
+  ALL
+}
+
+enum MilestoneDiscountType {
+  FLAT
+  PERCENTAGE
+}
+
+enum PolicyType {
+  REMOVABLE
+  STICKY
+}
+
+enum SendOTPType {
+  AKDIWALI2023
+  LOGIN
+}
+
+enum VoucherTypes {
+  TATA_EVENT
+  AKDIWALI2023
+  AKBAM
+}
+
+input CustomerDeliveryChargeInput {
+  customerId: ID!
+  exemptBasketThreshold: Float!
+  deliveryCharge: Float!
+  remarks: String
+  updatedBy: String
+}
+
+input GetNotificationInputType {
+  status: String = "U"
+}
+
+enum DeliveryNpsState {
+  SKIPPED
+  SUBMITTED
+}
+
+input MarkNotificationAsReadInputType {
+  id: ID
+  markAllAsRead: Boolean = false
+  application: String
+  action: DeliveryNpsState
+}
+
+input PlaceWithoutGSTInvoice {
+  allowWithoutGSTNumber: Boolean
+  basketId: String!
+}
+
+input ResendKYCOTPInput {
+  requestId: ID!
+}
+
+input SendKYCOTPInput {
+  gstin: String!
+  phone_no: String!
+  email: String!
+}
+
+input TokenAmountRequiredInputType {
+  forceRefresh: Boolean = false
+  basketId: ID
+}
+
+input ValidateDocumentInput {
+  document_no: String
+  doc_type: String
+}
+
+input VerifyKYCOTPInput {
+  requestId: ID!
+  otp: String!
+}
+
+type AccountOutstandingRes {
+  pendingPayment: [PendingPaymentType]
+  deletionRequestId: String
+  body: String
+  walletReimbursement: String
+}
+
+type PendingPaymentType {
+  orderId: Int
+  pendingAmount: Float
+}
+
+type ActiveVouchersWithCountResult {
+  result: Boolean!
+  message: String
+  vouchers: [Voucher!]
+  eligible: Int!
+  active: Int!
+  redeemed: Int!
+}
+
+type Voucher {
+  id: ID
+  display_id: String
+  customer_id: ID
+  order_id: Int
+  warehouse_id: ID
+  status: String
+  voucher_id: Int
+  created_at: Int
+  updated_at: Int
+}
+
+type AKReferralResult {
+  result: Boolean!
+  message: String!
+  visible: Boolean!
+}
+
+type BannedDocumentMatch {
+  document_no: String
+  image_url: String
+  banned_customer_id: ID
+  banned_reason: String
+  message: String
+  banned_doc_id: ID
+}
+
+type BanUserResult {
+  result: Boolean!
+  message: String
+  id: ID
+  customer_id: ID
+  reason: String
+  banned_by: String
+  status: Boolean
+  created_at: Int
+  updated_at: Int
+}
+
+type CheckUserDocumentResult {
+  result: Boolean!
+  message: String
+  code: Int
+  banned_document: BannedDocumentMatch
+  duplicate_documents: DuplicateDocumentMatch
+}
+
+type DuplicateDocumentMatch {
+  duplicates: [KycDocumentDuplicates]
+}
+
+type KycDocumentDuplicates {
+  customer_id: ID
+  phone_no: String
+  address: String
+  document_id: ID
+}
+
+type GetCustomerKYCStatusAndVerificationFlow {
+  otpFlowEnabled: Boolean!
+  attemptsLeft: Int!
+  resendAttemptsLeft: Int!
+  kycStatus: String
+  isKycSuccessViaOTPFlow: Boolean
+}
+
+type NotificationActionType {
+  label: String
+  uiType: String
+  actionType: String
+  actionUrl: String
+}
+
+type NotificationMetaType {
+  application: String
+}
+
+type CustomerNotificationType {
+  id: ID
+  customer_id: ID
+  title: String
+  image_url: String
+  content: String
+  action: NotificationActionType
+  status: String
+  created_at: String
+  updated_at: String
+  meta: NotificationMetaType
+}
+
+type GRNFlags {
+  last_grn_date: String
+  is_experimental_user: Boolean
+  result: Boolean
+  message: String
+}
+
+type IsAllowedToPlaceOrderType {
+  isAllowedToPlaceOrder: Boolean
+}
+
+type SupportingDocInfoV2 {
+  required: Boolean!
+  supportingDocType: String
+  showOtpButton: Boolean
+}
+
+type KYCDocument {
+  id: ID
+  customer_id: ID
+  document_no: String
+  doc_type: String
+  status: String
+  rejection_reason: String
+  fromOtpFlow: Boolean
+  state: String
+  city: String
+  pincode: String
+  img_url: String
+  created_at: Int
+  updated_at: Int
+  child_doc: KYCDocument
+  supportingDocInfo: SupportingDocInfoV2
+  img_url2: String
+}
+
+type KYCDocLabel {
+  bgColor: String
+  labelColor: String
+  labelIcon: String
+  labelText: String
+}
+
+type KYCDocTitle {
+  key: String!
+  value: String!
+}
+
+type KYCDocumentsList {
+  title: KYCDocTitle!
+  id: ID!
+  docType: String!
+  label: KYCDocLabel
+}
+
+type KYCDocuments {
+  documents: [KYCDocumentsList]
+}
+
+type KYCDetails {
+  isExhausted: Boolean
+}
+
+type KYCResult {
+  result: Boolean
+  code: Int
+  message: String
+  requestId: ID
+  details: KYCDetails
+}
+
+type LoadingScreenMessagesResult {
+  result: Boolean!
+  code: Int
+  message: String
+  loadingScreenMessages: [String!]
+}
+
+type LoyaltyGMV {
+  current: String
+  limit: String
+}
+
+type LoyaltySchemeMilestones {
+  description: String
+  status: LoyaltyMilestoneStatus
+  brand_status: LoyaltyMilestoneStatus
+  reward: LoyaltySchemeReward
+  discount_type: MilestoneDiscountType
+  upper_limit: Float
+  lower_limit: Float
+  discount_value: Float
+  brand_lower_limit: Float
+  brand_ids: [Int]
+  sequence: Int
+}
+
+type LoyaltySchemeReward {
+  image: String
+  description: String
+}
+
+type LoyaltySchemes {
+  home_screen_loyalty_title: String
+  wallet_balance: Float
+  schemes(
+    offset: Int
+    limit: Int
+    coupon_id: Int
+    status: LoyaltySchemeStatus
+    name: String
+  ): [LoyaltySchemesType]
+}
+
+type LoyaltySchemeSegments {
+  type: LoyaltySegmentType
+  id: Int
+  name: String
+}
+
+type LoyaltySchemeStatuses {
+  status: LoyaltySchemeStatus
+  text: String
+  text_colour: String
+  background_colour: String
+}
+
+type LoyaltySchemesType {
+  id: Int
+  title: String
+  scheme_description: String
+  start_time: String
+  end_time: String
+  cashback_earned: String
+  gmv: LoyaltyGMV
+  status: LoyaltySchemeStatuses
+  reward: LoyaltySchemeReward
+  milestone: [LoyaltySchemeMilestones]
+  transactions(offset: Int, limit: Int): [LoyaltySchemeTransaction]
+  segments(type: LoyaltySegmentType): [LoyaltySchemeSegments]
+}
+
+type LoyaltySchemeTransaction {
+  order_id: Int
+  eligible_order_gmv: Float
+  eligible_delivered_gmv: Float
+  brand_eligible_ordered_gmv: Float
+  brand_eligible_delivered_gmv: Float
+}
+
+type Policy {
+  title: String
+  buttonText: String
+  consentText: String
+  content: String
+  active: Boolean
+  type: PolicyType
+  id: Int
+}
+
+type PolicyResult {
+  policies: [Policy]
+  isPolicyAvailable: Boolean
+}
+
+type PromoGiftConfig {
+  result: Boolean
+  code: Int
+  message: String
+  gifts: [PromoGifts!]
+}
+
+type PromoGifts {
+  type: String!
+  name: String!
+  image_url: String!
+  voucher_count: Int!
+  amount: Int
+  created_at: String
+  updated_at: String
+}
+
+type ReferralInfo {
+  amount: Float
+  link: String
+}
+
+type ReferralUserResult {
+  result: Boolean!
+  message: String!
+  id: ID
+  referral_code: String
+  name: String
+  phone_no: String
+  status: String
+  created_at: Int
+  updated_at: Int
+}
+
+type ShowDocumentConfirmationResult {
+  result: Boolean!
+  code: Int
+  message: String
+  document_no: String
+  document_id: ID
+}
+
+type StateList {
+  states: [String!]
+}
+
+type StatesByPincodeResult {
+  result: Boolean!
+  code: Int
+  message: String
+  data: StateList
+}
+
+type TokenAmountRequiredType {
+  isTokenAmountRequired: Boolean
+  tokenAmountPercentage: Float
+}
+
+enum NotifyStateType {
+  INFO
+  WARN
+  BLOCK
+}
+
+type NotifyState {
+  type: NotifyStateType
+  date: Int
+}
+
+type SupportingDocInfo {
+  required: Boolean!
+  notify_state: NotifyState
+  parent_document_no: String
+  parent_document_id: ID
+  parent_doc_type: String
+  supporting_doc_type: String
+}
+
+type KYCOrderPlacementPopUps {
+  showSupportingDocPopup: Boolean
+  gstCancelledAllowPlace: Boolean
+  gstDocumentNumber: String
+}
+
+type SupportingDocBottomSheet {
+  is_eligible: Boolean
+  eligible_order_amount_without_pan: Float
+  max_order_amount_without_pan: Float
+  is_pan_in_progress: Boolean
+}
+
+type UserKycInfoResult {
+  result: Boolean!
+  code: Int
+  message: String
+  user_kyc_status: KYCStatus
+  supporting_doc_info: SupportingDocInfo
+  supporting_doc_bottom_sheet(basketId: ID): SupportingDocBottomSheet
+  popups: KYCOrderPlacementPopUps
+  kyc_verification_version: Int
+  documents: [KYCDocument]
+}
+
+type YearEndWrapper {
+  link: String
+  result: Boolean
+}
+
+enum AccountType {
+  CURRENT
+  SAVINGS
+}
+
+enum QRType {
+  URL
+  VPA_VALUE
+  BASE64
+  CCGATEWAY
+  PAYMENTLINK
+}
+
+enum VPAAccountError {
+  VA
+  VPA
+}
+
+input PaymentCaptureArgs {
+  razorpayOrderId: String!
+  razorpayPaymentId: String!
+  orderId: Int!
+  fee: Int
+  tax: Int
+}
+
+type AccountInfo {
+  id: ID
+  account_no: ID
+  ifsc: String
+  vpa: String
+  type: AccountType
+  name: String
+  bank_name: String
+}
+
+type PaymentConfirmation {
+  result: Boolean!
+  code: Int
+  message: String
+  reference_id: String
+  utr: String
+  integration_type: String
+  amount: Float
+}
+
+type BulkDetails {
+  order_id: Int
+  reference_id: String
+  utr: String
+  integration_type: String
+  amount: Float
+}
+
+type PaymentInfo {
+  result: Boolean!
+  code: Int
+  message: String
+  details: [BulkDetails]
+}
+
+type PayRequest {
+  id: ID
+  order_id: ID!
+  amount: ID
+  provider_name: String
+  integration_type: String
+  payment_reference_id: String
+  provider_order_id: String!
+  order_id_alias: String
+  status: String!
+  provider_token: String
+  message: String
+  created_at: ID
+  updated_at: ID
+}
+
+type PaymentLinkOutput {
+  result: Boolean!
+  code: Int
+  message: String
+  payment_requests: [PayRequest]
+}
+
+type PaymentOrderStatusOutput {
+  orderId: Int!
+  amount: Float!
+  orderIdAlias: String!
+  dbStatus: Boolean
+  razorPayStatus: Boolean
+  providerName: String
+  integrationType: String
+  createdAt: String
+}
+
+type QRDetails {
+  redirect_url: String
+  cancel_url: String
+  access_code: String
+  enc_val: String
+}
+
+type QRResult {
+  result: Boolean!
+  code: Int
+  message: String
+  url: String
+  type: QRType
+  created_at: String
+  details: QRDetails
+}
+
+type VirtualAccount {
+  opResult: VAOpResult
+  accountInfo: AccountInfo
+}
+
+type VAOpResult {
+  result: Boolean!
+  code: Int
+  message: String
+  errorMessage: [VPAError]
+}
+
+type VPAError {
+  account: VPAAccountError
+  message: String
+}
+
+enum TicketType {
+  OPEN
+  RESOLVED
+}
+
+input TicketInput {
+  orderId: ID
+  issueId: ID
+  description: String
+  customerId: Int
+}
+
+type CSATIssue {
+  issueId: ID!
+  issueString: String!
+}
+
+type CSATOrder {
+  orderId: ID!
+  totalAmount: Float!
+  createdAt: String!
+}
+
+type CSATTicket {
+  id: ID!
+  ticketId: ID
+  orderId: ID
+  issue: String
+  createdAt: String!
+  resolvedAt: String
+  status: TicketType!
+}
+
+type Result {
+  result: Boolean!
+  code: Int
+  message: String
+  ticket: CSATTicket
+}
+
+type Ticket {
+  ticketId: String
+  title: String
+  dateCreated: String
+  dateResolved: String
+  orderId: String
+  ticketStatus: String
+  isResolved: Boolean
+}
+
+input BifrostGetDiscountCouponInputType {
+  id: [Int]
+  status: BifrostDiscountCouponStatusType
+  name: String
+  coupon_type: BifrostCouponType
+}
+
+enum BifrostDiscountCouponStatusType {
+  PENDING
+  ACTIVE
+  DELETED
+}
+
+enum BifrostCouponType {
+  CASHBACK
+  INSTANT
+}
+
+type bifrostProduct {
+  id: Int
+  name: String
+}
+
+enum variantTypeEnum {
+  AK2
+  GTM
+}
+
+enum variantSizeEnum {
+  RETAIL
+  WHOLESALE
+  MEGA
+  BULK
+}
+
+type TicketRes {
+  count: Int
+  data(limit: Int!, offset: Int!): [CsatTicket]
+}
+
+type CommentRes {
+  count: Int
+  data(limit: Int!, offset: Int!): [CsatComment]
+}
+
+type CsatTicket {
+  id: Int
+  ticket_id: ID
+  customer_id: Int
+  contact_no: String
+  order_id: Int
+  description: String
+  medium: String
+  warehouse_id: Int
+  issue_type: String
+  status: CsatStatus
+  owner_id: Int
+  owner_email: String
+  resolved_at: BifrostISOTime
+  created_at: BifrostISOTime
+  updated_at: BifrostISOTime
+  notification_count: Int
+  tat: String
+  sub_status: String
+}
+
+type AttachmentType {
+  type: String
+  url: String
+}
+
+input AttachmentInput {
+  type: String!
+  url: String!
+}
+
+type CsatComment {
+  id: ID!
+  ticket_id: ID!
+  user_id: ID!
+  user: String
+  email: String
+  comment: String!
+  attachment: [AttachmentType]
+  is_user_comment: Boolean
+  created_at: BifrostISOTime!
+}
+
+enum CsatStatus {
+  OPEN
+  RESOLVED
+  DUPLICATE
+  UNATTENDED
+}
+
+enum ApproveAndRejectStatus {
+  Approved
+  Rejected
+}
+
+enum BatchType {
+  UPDATE_EXPIRY_DATE
+  TRANSFER_BATCH
+}
+
+enum CurrencyType {
+  R1
+  R10
+  R20
+  R50
+  R100
+  R200
+  R500
+  R2000
+}
+
+enum DeliveryPaymentType {
+  UPI
+  CASH
+  NEFT
+  PREPAID
+  CREDIT
+  WALLET
+  ONLINE
+  PAYMENTLINK
+  DIGITAL_DISCOUNT
+  REFUND
+}
+
+enum FinanceTab {
+  Approval
+  AllTransactions
+}
+
+enum OrderSource {
+  B2B
+  DSO
+  GIFT
+}
+
+enum OrderStatus {
+  Placed
+  PushFailed
+  Allocated
+  PicklistCreated
+  Picked
+  PartiallyPicked
+  Packed
+  PartiallyPacked
+  Billed
+  PartiallyBilled
+  TripAssigned
+  OutForDelivery
+  Delivered
+  RTO
+  NotAttempted
+  ReAttempted
+  ProcessedForCancellation
+  Cancelled
+}
+
+enum PaymentModeTypes {
+  COD
+  CREDIT
+  PREPAID
+  WALLET
+  ONLINE
+}
+
+enum ReportName {
+  OrderReport
+  SkuReport
+  OrderReconciliationReport
+  TripReconciliationReport
+  WarehouseReconciliationReport
+  UsersReport
+  getCmsTransactions
+  getCmsLedger
+  DeliveryOrdersTabOrderReport
+  DeliveryOrdersTabSkuReport
+  DeliveryTripsTabOrderReport
+  DeliveryTripsTabTripReport
+  GetCmsBalance
+  VehiclesReport
+  RoutesReport
+  AllVendors
+  VmsTripLevelData
+  ProductSegmentReport
+  GetAlerts
+  CouponSegmentReport
+  UserSegmentReport
+  CouponReport
+  GetGlobalVariant
+  MinimumMarginReport
+  MarginComparisonReport
+  DailyViewCashReport
+  SummaryDailyBalance
+  generateReport
+  getAuditLogData
+  CashViewTxnReport
+  MitReport
+  BatchReport
+  RazorpaySettlementReport
+  PiSkuReport
+  PiErpReport
+  PiLog
+  VariantSlabQty
+  ExceptionSkus
+  bulkCohortPricingViewReport
+}
+
+enum RequirementType {
+  Permanent
+  Adhoc
+}
+
+enum TransactionsDateTypes {
+  posting_date
+  creation_date
+}
+
+enum TransactionStatuses {
+  Approved
+  Cancelled
+}
+
+enum TransactionType {
+  Deposition
+  Expense
+  Collection
+}
+
+enum TripStatus {
+  Created
+  Closed
+  OrderAssigned
+  DeliveryPersonAssigned
+  DeliveryStarted
+  CashCollected
+  StockCollected
+  DeliveryComplete
+}
+
+enum UserRoles {
+  DELIVERY
+  MANAGER
+  EXECUTIVE
+  ADMIN
+}
+
+enum VehicleTypes {
+  TATA_ACE
+  BOLERO
+  EV
+  TEMPO_3W
+}
+
+enum WhClassificationType {
+  NEW
+  OLD
+}
+
+type GetOrderValueRes {
+  updatedItems: [DeliveryUpdatedItems]
+  totalPayable: Int
+  priceDistribution: [BifrostPriceDistribution]
+  errorMessage: String
+}
+
+type BifrostPriceDistribution {
+  name: String
+  value: Float
+}
+
+type DeliveryUpdatedItems {
+  skuID: String
+  qty: Int
+  freeItem: DeliveryFreeSku
+}
+
+type DeliveryFreeSku {
+  skuID: String
+  qty: Int
+}
+
+input GtmModules {
+  name: String!
+  status: Boolean!
+}
+
+input GtmWareHouse {
+  id: Int!
+  status: Boolean!
+}
+
+input ReportApplicabilityInputType {
+  type: ReportBifrostApplicableType!
+  value: [Int]
+}
+
+enum ReportBifrostApplicableType {
+  CART
+  BRAND
+  CATEGORY
+  SEGMENT
+}
+
+input BatchConverterDetailsInput {
+  sku: String!
+  source_bin: String!
+  source_batch: String!
+  transfer_qty: Int
+  target_bin: String
+  target_batch: String
+  expiry_date: String
+}
+
+input CashDenominationsInput {
+  currency: Int
+  amount: Int
+  units: Int
+}
+
+input Filters {
+  orderIds: [Int]
+  orderId: Int
+  userIds: [Int]
+  statuses: [OrderStatus]
+  tripStatus: [TripStatus]
+  dateType: String
+  fromDate: String
+  driverId: Int
+  driverIds: [Int]
+  toDate: String
+  warehouseIds: [Int]
+  warehouseId: Int
+  transactionTypes: [String]
+  transactionStatuses: [String]
+  pincode: [Int]
+  transactionName: String
+  tripClosed: Boolean
+  isUpiverified: Boolean
+  whStatus: String
+  customerContact: [String]
+  orderType: [String]
+  driver: String
+  tripIds: [Int]
+  tripId: Int
+  returnIds: [String]
+  createdBy: [Int]
+  offset: Int
+  limit: Int
+  id: Int
+  name: String
+  email: String
+  active: Boolean
+  date: String
+  vehicleType: [VehicleTypes]
+  vehicleNumber: [String]
+  routeName: String
+  vendorName: String
+  reconciliationMismatch: Boolean
+  routeId: Int
+  skuId: String
+  skuIds: [String]
+  variantSizes: [String]
+  skus: [String]
+  productId: [Int]
+  source: String
+  objectiveId: Int
+  billDateRange: DateRange
+  erpStockReconciliationId: String
+  batchType: BatchType
+  pi: PiFilters
+  piSku: PiSku
+  showNoReturnOrders: Boolean
+  orderSource: [OrderSource]
+  skuName: String
+  whClassificationType: [WhClassificationType]
+  isShelfPickup: Boolean
+}
+
+input PiFilters {
+  submittedBy: String
+  dateRange: DateRange
+  status: StockReconciliationStatus
+}
+
+input PiSku {
+  piId: Int!
+  warehouse: String
+  status: LiveTrackingStatus
+  skuId: String
+  itemName: String
+  qtyDifference: NumberRange
+  valueDifference: NumberRange
+  physicalQtyIsZero: Boolean
+  systemQtyIsZero: Boolean
+  sort: OrderByInput!
+}
+
+input OpeningDetailsInput {
+  vehicleVendorMappingId: Int
+  requirement: RequirementType
+  routeId: Int
+  openingKms: Int
+  vehicleInTime: String
+}
+
+input ClosingDetailsInput {
+  closingKms: Int
+  vehicleOutTime: String
+  vehicleBrokeDown: Boolean
+  tollTax: Float
+  parkingCharges: Float
+  additionalVehicleCharges: Float
+  otherCharges: Float
+}
+
+input payment {
+  type: String!
+  amount: Float!
+  reference: String
+}
+
+input pettyCashInput {
+  category: String!
+  amount: Float!
+}
+
+input product {
+  sku_id: String!
+  qty: Int!
+  remark: String
+  reasonId: Int
+  reasonApprovalStatus: Boolean
+}
+
+input productReasons {
+  id: Int!
+  reasonId: Int
+  reasonApprovalStatus: Boolean
+}
+
+input RazorpaySettlementDateParam {
+  # Format: dd-mm-yyyy
+  from: String
+  to: String
+}
+
+input RazorpaySettlementPaginationParam {
+  # Default to 10
+  limit: Int
+
+  # Default to 0
+  offset: Int
+}
+
+input RazorpaySettlementFilterParam {
+  orderIds: [Int]
+  pagination: RazorpaySettlementPaginationParam
+}
+
+input RazorpaySettlementArgs {
+  # ENUM - RECEIVED/SETTLEMENT, DEFAULT: SETTLEMENT
+  filterDateBy: String
+  date: RazorpaySettlementDateParam
+  filters: RazorpaySettlementFilterParam
+}
+
+input ReportFilters {
+  offset: Int
+  limit: Int
+}
+
+input ReturnedSKUInput {
+  sku_id: String
+  expected_return: Int
+  returned: Int
+}
+
+input SelectedVendors {
+  vendorId: Int
+  vendorName: String
+  isDefault: Boolean
+}
+
+input shipment {
+  order_id: Int!
+  latLong: latLong
+  product: [product]
+  payments: [payment]
+  status: OrderStatus!
+  remark: String
+  time: String
+  orderClickTime: String
+  isLlmRequired: Boolean
+}
+
+input latLong {
+  latitude: String
+  longitude: String
+  accuracy: Float
+}
+
+input SkuReturnQty {
+  id: Int
+  skuId: String
+  mainSkuId: String
+  productId: Int
+  skuName: String
+  mrp: Float
+  price: Float
+  orderedQty: Int
+  packedQty: Int
+  deliveredQty: Int
+  returnedQty: Int
+  returnQty: Int
+}
+
+input CmsDenominationInput {
+  currencyType: CurrencyType
+  currencyCount: Int
+}
+
+input CmsTransaction {
+  transactionType: TransactionType
+  amount: Int
+  subType: String
+  description: String
+  warehouseId: Int
+  warehouse: String
+  document: String
+  denominations: [CmsDenominationInput]
+  pettyCash: [pettyCashInput]
+  bankId: String
+  bank: String
+  txnCharges: Float
+  transactionName: String
+}
+
+input CmsCollection {
+  orderId: Int
+  payments: [payment]
+  amount: Int
+  warehouseId: Int
+  warehouse: String
+  denominations: [CmsDenominationInput]
+}
+
+input CostingDataInput {
+  vendorCostingsId: Int
+  requirement: RequirementType
+  vehicleType: VehicleTypes
+  fixedCost: Float
+  perKmCost: Float
+}
+
+input userRegisterType {
+  name: String!
+  city: String!
+  pincode: Int!
+  license: String
+  aadhar_card: String!
+  contact_no: String!
+  password: String!
+}
+
+type DeliveryItemsWithBatch {
+  name: String
+  productSku: String
+  deliveredQty: Int
+  batchNo: String
+  batchExpiry: BifrostISOTime
+  remainingShelfLife: Int
+  thresholdShelfLife: Int
+  discount: Float
+  cashbackAmount: Float
+  isLimitedShelfLife: Boolean
+  batchQty: Int
+}
+
+enum reviewOrderStatusEnum {
+  FAKE
+  VALID
+}
+
+type getUnApprovedBifrostOrdersRes {
+  id: Int
+  orderId: Int
+  previousStatus: OrderStatus
+  currentStatus: OrderStatus
+  subStatus: reviewOrderStatusEnum
+  customerDetails: customerDetails
+  latLong: Latlong
+  deliveryRemark: String
+  imageUrl: String
+  remark: String
+}
+
+type PendingDetails {
+  pendingData: [PendingData]
+}
+
+type PendingData {
+  id: Int
+  creationDate: String
+  postingDate: String
+  warehouse: String
+  transactionType: String
+  transactionId: String
+  amount: Float
+  approvedAmount: Float
+  imgurl: String
+  status: String
+  subStatus: TxnSubStatus
+  denominations: JSON
+}
+
+type returnReason {
+  id: Int
+  reason: String
+  status: String
+  fault: String
+}
+
+type RTOBin {
+  name: String
+  qty: Int
+}
+
+scalar BifrostISOTime
+
+enum StockReconciliationStatus {
+  ASSIGNED
+  INITIATED
+  STARTED
+  INPROGRESS
+  COMPLETED
+}
+
+type StockReconciliation {
+  id: ID!
+  initiationDate: BifrostISOTime!
+  piActualDate: BifrostISOTime
+  piCreator: String
+  warehouse: String
+  totalSkuCount: Int
+  totalSkuValue: Float
+  totalPositiveSkuValue: Float
+  totalNegativeSkuValue: Float
+  totalValueVariance: Float
+  piComments: String
+  erpNextStockReconciliationId: String
+  status: StockReconciliationStatus
+}
+
+enum PiValidationList {
+  itemsWithMultipleBatchesAtLocation
+  sameBatchesAtDifferentLocations
+  maxItemsAtLocation
+}
+
+type PiValidationType {
+  name: PiValidationList
+  value: Int
+  userId: Int
+  userEmail: String
+  isApproved: Boolean
+}
+
+type PiCheckType {
+  status: Boolean
+  fileUrl: String
+  validations: [PiValidationType]
+}
+
+input PiValidationInput {
+  name: PiValidationList
+  isApproved: Boolean
+}
+
+type PiTaskStatus {
+  id: Int
+  userEmail: String!
+  status: StockReconciliationStatus!
+}
+
+input PiTaskStatusInput {
+  id: Int
+  userEmail: String!
+  status: StockReconciliationStatus!
+}
+
+type stageThreeType {
+  batchReport: String
+  stockBalance: String
+  tasks: [PiTaskStatus]
+}
+
+type stageFourType {
+  totalValueDifference: Float
+  totalQtyChange: Int
+  StockReconciliationId: String
+  comment: String
+  underTacking: String
+  skuList(limit: Int!, offset: Int!): [PiSummaryStatus]
+}
+
+type StockReconciliationDetails {
+  id: ID
+  initiationDate: BifrostISOTime
+  piActualDate: BifrostISOTime
+  piCreator: String
+  warehouse: String
+  totalSkuCount: Int
+  totalSkuValue: Float
+  totalPositiveSkuValue: Float
+  totalNegativeSkuValue: Float
+  totalValueVariance: Float
+  piComments: String
+  erpNextStockReconciliationId: String
+  stageTwo: PiCheckType
+  stageThree: stageThreeType
+  stageFourType: stageFourType
+  status: StockReconciliationStatus
+}
+
+type StockReconciliationsRes {
+  count: Int
+  data(limit: Int, offset: Int): [StockReconciliation]
+}
+
+enum LiveTrackingStatus {
+  DONE
+  PENDING
+}
+
+input NumberRange {
+  lowerBound: Int
+  upperBound: Int
+}
+
+type PiSkuStatus {
+  id: ID!
+  skuId: String!
+  itemName: String!
+  mrp: Float
+  warehouse: String
+  warehouseType: String
+  batch: String
+  physicalQty: Int
+  systemQty: Int
+  diffQty: Float
+  valuationRate: Float
+  expiryDateCaptured: BifrostISOTime
+  remainShelfLifeDays: Int
+  remainShelfLifePercentage: Float
+  createdBy: String
+  createdAt: BifrostISOTime
+  barcode: String
+}
+
+type PiSummaryStatus {
+  skuID: ID
+  itemName: String
+  qty: Float
+  valuationRate: Float
+  currentQty: Float
+  crValRate: Float
+  batchNumber: String
+  newBatchNumber: String
+  expiryDate: BifrostISOTime
+  qtyDiff: Float
+  valueDiff: Float
+}
+
+type TrackStockReconciliationsRes {
+  count: Int
+  data(limit: Int, offset: Int): [PiSkuStatus]
+}
+
+enum OrderEnum {
+  DESC
+  ASC
+}
+
+input OrderByInput {
+  sortBy: String!
+  order: OrderEnum!
+}
+
+type SurveyReportResults {
+  found: Int!
+  objectiveId: Int
+  AllObjective: [Int]
+  items(page: PageNumberDefinitionInput): SurveyReportItems
+}
+
+type SurveyReportItems {
+  keys: [String!]
+  row: [SurveyReportRow]
+}
+
+type SurveyReportRow {
+  uid: String
+  col: [SurveyReportCol]
+}
+
+type SurveyReportCol {
+  key: String
+  value: String
+}
+
+enum TxnSubStatus {
+  Pending
+  Reviewed
+}
+
+type AllTrips {
+  trips: [Trips]
+  allDrivers: [AllDrivers]
+}
+
+type Trips {
+  id: ID
+  warehouseId: ID
+  warehouseName: String
+  driverId: ID
+  name: String
+  status: TripStatus
+  startedAt: String
+  completedAt: String
+  closedAt: String
+  createdBy: String
+  cashCollected: Int
+  returnSku: [ReturnedSku]
+  createdAt: String
+  updatedAt: String
+  gmv: Float
+  numberOfOrders: Int
+  message: String
+  routeName: String
+  remark: String
+  transactionStartDate: String
+  transactionCycleDate: String
+}
+
+type AllDrivers {
+  driverId: Int
+  driverName: String
+}
+
+type AuditHistory {
+  id: Int
+  warehouseId: Int!
+  warehouse: String!
+  date: String!
+  auditBalance: Float!
+  warehouseBalance: Float!
+  cashBalance: Float!
+  auditor: String!
+  comment: String
+  document: String
+}
+
+type BatchConverterDetails {
+  sku: String!
+  source_bin: String!
+  source_batch: String!
+  transfer_qty: Int
+  target_bin: String
+  target_batch: String
+  expiry_date: String
+  errorMessage: String
+}
+
+type CashDenomination {
+  amount: Int
+  units: Int
+}
+
+type CashFlow {
+  cashFlowType: String
+  transactionType: String
+  amount: Float
+}
+
+type cmsBalance {
+  warehouse: String
+  balance: Float
+  erpBalance: Float
+  difference: Float
+  denominations: JSON
+}
+
+type cmsOrder {
+  orderId: Int
+  wallet: Float
+  advance: Float
+  orderGmv: Float
+  deliveredGmv: Float
+  outstandingAmount: Float
+  payments: JSON
+}
+
+type cmsOrderRes {
+  code: Int
+  message: String
+  result: Boolean
+  data: cmsOrder
+}
+
+type CmsTransactionType {
+  transactionName: String
+  postingDate: String
+  createdAt: String
+  warehouse: String
+  id: Int
+  amount: Float
+  subType: String
+  description: String
+  status: String
+  document: String
+  transactionType: String
+  balance: Float
+  txnCharges: Float
+  denominations: JSON
+  bankId: String
+  bank: String
+  pettyCash: [pettyCash]
+  createdByUser: String
+  cancelledBy: String
+  cancellationRemark: String
+  approvedAmount: Float
+  canBeCancelled: Boolean
+  subStatus: TxnSubStatus
+  cancelledAt: String
+}
+
+type CmsLedgerRes {
+  openingBalance: Float
+  closingBalance: Float
+  erpBalance: Float
+  transactions: [CmsTransactionType]
+}
+
+type CmsTransactionDetails {
+  transactionName: String
+  postingDate: String
+  createdAt: String
+  warehouse: String
+  id: Int
+  amount: Float
+  subType: String
+  description: String
+  status: String
+  subStatus: TxnSubStatus
+  reviewedBy: String
+  document: String
+  transactionType: String
+  balance: Float
+  denominations: JSON
+  bankId: String
+  bank: String
+  subTransactions: [CmsTransactionType]
+  linkedTransactions: [GetLowDenominationTxnsRes]
+  pettyCash: [pettyCash]
+  exchangeCharges: Float
+  pendingAmount: Float
+  txnCharges: Float
+  createdByUser: String
+  cancelledBy: String
+  cancellationRemark: String
+  reviewerRemark: String
+}
+
+type CommonResult {
+  message: String
+}
+
+type orderPayments {
+  id: Int
+  tripId: String
+  orderId: String
+  paymentReference: String
+  paymentType: String
+  amount: Float
+  driverId: String
+  deletedAt: String
+  createdAt: String
+  updatedAt: String
+}
+
+type orderItems {
+  orderId: String
+  productId: String
+  productSku: String
+  orderedQty: Int
+  packedQty: Int
+  deliveredQty: Int
+  itemPrice: Float
+  itemRate: Float
+  productName: String
+  reasonId: Int
+  reasonApprovalStatus: Boolean
+  reason: String
+  fault: String
+}
+
+type deliveryOrderDetails {
+  orderId: String
+  payableAmount: Float
+  status: String
+  customerName: String
+  pincode: String
+  paymentMode: String
+  creditChargesPercentage: Int
+  wallet: Int
+  advance: Int
+  productsOrderedValue: Float
+  otherCharges: Int
+  productsShippedValue: Float
+  customerId: String
+  contactNo: String
+  payments: [orderPayments]
+  items: [orderItems]
+}
+
+type CreateTrip {
+  id: ID
+  message: String
+}
+
+type customerDetails {
+  customerId: Int
+  customer_name: String
+  business_name: String
+  delivery_address: String
+  contact_no: String
+  pincode: Int
+  city: String
+  state: String
+  latlong: Latlong
+  isNeftEnabled: Boolean
+}
+
+type Latlong {
+  latitude: String
+  longitude: String
+}
+
+type Drivers {
+  id: ID
+  name: String
+  driverReceived: Float
+  cashCollected: Float
+  contact: String
+  status: String
+  warehouseId: ID
+  createdAt: String
+  vehicleName: String
+  message: String
+}
+
+type DriverData {
+  id: ID
+  name: String
+}
+
+type GetAllCostingMethodsRes {
+  costingMethods: [CostingMethod]
+}
+
+type CostingMethod {
+  costingMethodName: String
+}
+
+type GetAllOrdersRes {
+  orderId: Int
+  orderedAt: String
+  customerName: String
+  customerId: Int
+  status: String
+  packedPercentage: Float
+  warehouse: String
+  orderType: String
+  paymentMode: String
+  assignedUser: String
+  assignedTime: String
+  saveTime: String
+  submitTime: String
+  routeName: String
+  orderedGmv: Float
+  noOfAttempts: Int
+  isNoReturnOrder: Boolean
+  orderSource: String
+}
+
+type GetAllVehiclesRes {
+  vehiclesData: [AllVehicleDetails]
+  vehicleTypes: [VehicleTypes]
+}
+
+type AllVehicleDetails {
+  vehicleVendorMappingId: Int
+  vehicleId: Int
+  vehicleNumber: String
+  vehicleType: VehicleTypes
+  vendorId: Int
+  vendorName: String
+  isActive: Boolean
+  isDefault: Boolean
+}
+
+type GetAllVendorsRes {
+  vendorsData: [AllVendorDetails]
+}
+
+type AllVendorDetails {
+  vendorId: Int
+  vendorName: String
+  isActive: Boolean
+}
+
+type GetBatchConverterDetailsOutput {
+  id: Int
+  erp_stock_reconciliation_id: String
+  warehouse: String
+  created_by: String
+  created_at: String
+}
+
+type GetBatchConverterItemsDetailsOutput {
+  id: Int!
+  erp_stock_reconciliation_id: String!
+  created_by: String!
+  created_at: String!
+  any_pending_status: Boolean!
+  batchItems: [BatchItems]!
+}
+
+type BatchItems {
+  sku: String
+  source_bin: String
+  source_batch: String
+  source_total_qty: Int
+  source_valuation_rate: Float
+  transfer_qty: Int
+  target_bin: String
+  target_batch: String
+  target_total_qty: Int
+  target_valuation_rate: Float
+  new_batch_no: String
+  new_batch_total_qty: Int
+  status: String
+  expiry_date: String
+  created_at: String
+}
+
+type Timeline {
+  state: String
+  time: String
+}
+
+type DeliveryItems {
+  name: String
+  mrp: Float
+  akPrice: Float
+  akRate: Float
+  orderedQty: Int
+  productSku: String
+  packedQty: Int
+  deliveredQty: Int
+  returnedQty: Int
+  reasonId: Int
+  reasonApprovalStatus: Boolean
+  reason: String
+  fault: String
+  free_item: FreeBifrostItems
+  expiry: String
+}
+
+type FreeBifrostItems {
+  name: String
+  mrp: Float
+  akPrice: Float
+  akRate: Float
+  orderedQty: Int
+  productSku: String
+  packedQty: Int
+  deliveredQty: Int
+  returnedQty: Int
+  reasonId: Int
+  reasonApprovalStatus: Boolean
+  reason: String
+  fault: String
+  expiry: String
+}
+
+type DeliveryCustomerDoc {
+  imgUrl: String
+  documentNo: String
+  docType: String
+  status: String
+}
+
+type UserRanking {
+  orderFrequency: Float
+  partnerGMV: Float
+  rto: Float
+  akMargin: Float
+  cancellation: Float
+  pastTickets: Int
+  wallet_transaction: [CmsWalletTransaction]
+}
+
+type CmsWalletTransaction {
+  date: String
+  debit: Float
+  credit: Float
+  remarks: String
+}
+
+type DeliveryCustomer {
+  customerId: Int
+  contactNo: String
+  customerName: String
+  address: String
+  document: DeliveryCustomerDoc
+}
+
+type cancellationInfo {
+  by: String
+  reason: String
+  remark: String
+}
+
+type GetCompleteOrderDetailsRes {
+  orderId: Int
+  deliveryCharges: Float
+  paymentMode: String
+  parentWarehouseId: Int
+  linkedOrder: Int
+  orderType: String
+  codCharges: Float
+  discount: Float
+  status: String
+  error: String
+  timeline: [Timeline]
+  items: [DeliveryItems]
+  customer: DeliveryCustomer
+  payments: [PaymentsData]
+  cancellationInfo: cancellationInfo
+  routeId: Int
+  routeName: String
+  warehouseId: Int
+  advance: Float
+  couponInfo: JSON
+  userRanking: UserRanking
+  salesInvoiceUrl: String
+  isNoReturnOrder: Boolean
+  platformFee: Float
+  selfPickupDiscount: Float
+}
+
+type TypeGetEvents {
+  orderId: Int
+  failedEvents: [String]
+}
+
+type GetLowDenominationTxnsRes {
+  transactionName: String
+  amount: Float
+  pendingAmount: Float
+  exchangeCharges: Float
+  createdBy: String
+  transactionCycleDate: String
+  createdAt: String
+}
+
+type GetOrderReconciliationDetailsRes {
+  orderReconciliationData: [OrderReconciliationDataRes]
+}
+
+type GetOrderReturnsDetails {
+  returnOrderData: ReturnOrderData
+  message: String
+  result: Boolean
+  code: Int
+}
+
+type ReturnOrderData {
+  orderDetails: [GtmOrderReturnsDetails]
+  warehouseName: String
+  warehouseId: Int
+  orderId: Int
+}
+
+type GtmOrderReturnsDetails {
+  id: Int
+  productId: Int
+  skuId: String
+  skuName: String
+  mrp: Float
+  price: Float
+  orderedQty: Int
+  packedQty: Int
+  returnedQty: Int
+  deliveredQty: Int
+  createdBy: String
+  freeItem: GtmOrderFreeReturnsDetails
+}
+
+type GtmOrderFreeReturnsDetails {
+  id: Int
+  productId: Int
+  skuId: String
+  skuName: String
+  mrp: Float
+  price: Float
+  orderedQty: Int
+  packedQty: Int
+  returnedQty: Int
+  deliveredQty: Int
+  createdBy: String
+}
+
+type GetReturnsData {
+  returnsData: [ReturnsData]
+  allUsers: [AllUsers]
+}
+
+type ReturnsData {
+  id: Int
+  date: String
+  returnId: String
+  orderId: String
+  warehouse: String
+  createdBy: String
+  returnQty: Int
+  refundAmount: Float
+}
+
+type AllUsers {
+  userId: Int
+  userName: String
+}
+
+type GetRoutes {
+  routesData: [RoutesData]
+}
+
+type RoutesData {
+  id: Int
+  name: String
+  warehouseId: Int
+  warehouseName: String
+}
+
+type GetTripOpeningAndClosingDetailsRes {
+  driverId: Int
+  driverName: String
+  status: TripStatus
+  warehouseId: Int
+  openingDetails: OpeningDetails
+  closingDetails: ClosingDetails
+}
+
+type OpeningDetails {
+  dummyTrip: Boolean
+  vendorId: Int
+  vehicleId: Int
+  vehicleType: VehicleTypes
+  requirement: RequirementType
+  routeId: Int
+  openingKms: Int
+  vehicleInTime: String
+  tripStartSpeedometerImage: String
+}
+
+type ClosingDetails {
+  closingKms: Int
+  vehicleOutTime: String
+  vehicleBrokeDown: Boolean
+  tripEndSpeedometerImage: String
+  additionalCosts: AdditionalCosts
+}
+
+type AdditionalCosts {
+  tollTax: Float
+  parkingCharges: Float
+  additionalVehicleCharges: Float
+  otherCharges: Float
+}
+
+type GetTripReconciliationDetailsRes {
+  tripReconciliationData: [TripReconciliationDataRes]
+}
+
+type GetTripsStocksDataRes {
+  tripId: Int
+  orderId: Int
+  skuId: String
+  name: String
+  returnQty: Int
+  remark: String
+}
+
+type GetUserResult {
+  result: Boolean!
+  code: Int
+  message: String
+  data: UserDetails
+}
+
+type GetVehicleDetailsRes {
+  vehicleDetails: VehicleDetails
+}
+
+type VehicleDetails {
+  vehicleId: Int
+  vehicleNumber: String
+  vehicleType: VehicleTypes
+  isActive: Boolean
+  vendors: [VehicleVendorDetails]
+}
+
+type VehicleVendorDetails {
+  id: Int
+  name: String
+  isDefault: Boolean
+}
+
+type GetVendorCostingDetailsRes {
+  vendorWarehouseId: Int
+  costingDetails: [VendorCostingDetails]
+}
+
+type VendorCostingDetails {
+  vendorWarehouseCostingTimePeriodId: Int
+  startTime: String
+  endTime: String
+  costingData: [VendorCostingData]
+}
+
+type VendorCostingData {
+  vendorCostingsId: Int
+  requirement: RequirementType
+  vehicleType: VehicleTypes
+  fixedCost: Float
+  perKmCost: Float
+}
+
+type GetVendorDetailsRes {
+  vendorDetails: VendorDetails
+}
+
+type VendorDetails {
+  vendorId: Int
+  vendorName: String
+  isActive: Boolean
+  warehouse: JSON
+}
+
+type WarehouseData {
+  String: String
+}
+
+type GetWarehouseReconciliationDetailsRes {
+  warehouseReconciliationData: [WarehouseReconciliationDataRes]
+}
+
+type ItemsData {
+  orderId: ID
+  productId: ID
+  productSku: String
+  orderedQty: Int
+  packedQty: Int
+  deliveredQty: Int
+  itemPrice: Float
+  productName: String
+  reasonId: Int
+  reasonApprovalStatus: Boolean
+  free_item: FreeBifrostItemsData
+}
+
+type FreeBifrostItemsData {
+  orderId: ID
+  productId: ID
+  productSku: String
+  orderedQty: Int
+  packedQty: Int
+  deliveredQty: Int
+  itemPrice: Float
+  productName: String
+  reasonId: Int
+  reasonApprovalStatus: Boolean
+}
+
+type ReturnItem {
+  id: Int
+  tripId: Int
+  orderId: ID
+  productId: ID
+  productSku: String
+  orderedQty: Int
+  packedQty: Int
+  deliveredQty: Int
+  itemPrice: Float
+  productName: String
+  reasonId: Int
+  reasonApprovalStatus: Boolean
+  reason: String
+  fault: String
+}
+
+type SyncResult {
+  result: Boolean!
+  code: Int
+  message: String
+  successes: [Int]
+  failures: [Int]
+}
+
+type order {
+  order_id: Int
+  customer: String
+  pincode: Int
+  order_date: String
+  status: String
+  total_order_value: Float
+  ak_shipped_price: Float
+  payment_mode: String
+  billed_date: String
+  warehouse_name: String
+  ofd_date: String
+  delivered_date: String
+  trip_closed: Boolean
+  rto_date: String
+  trip_id: Int
+  delivered_gmv: Float
+  reason: String
+  routeName: String
+}
+
+type OrderData {
+  orderId: ID
+  customerId: ID
+  contactNo: String
+  payableAmount: Float
+  status: OrderStatus
+  completedAt: String
+  cashCollected: Float
+  customerName: String
+  pincode: Int
+  otp: String
+  paymentMode: PaymentModeTypes
+  items: [ItemsData]
+  payments: [PaymentsData]
+  creditChargesPercentage: Float
+  wallet: Float
+  advance: Float
+  productsShippedValue: Float
+  otherCharges: Float
+  isReattempted: Boolean
+  isNeftEnabled: Boolean
+  imageUrl: String
+}
+
+type orderDetails {
+  id: ID
+  delivery_status: OrderStatus
+  products_ordered_value: Float
+  total_payable_value: Float
+  total_order_value: Float
+  pay_type: PaymentModeTypes
+  credit_percentage: Float
+  trip_id: Int
+  otp: String
+  customer_details: customerDetails
+  isLinkedOrderDelivered: Boolean
+  isCashBackApplied: Boolean
+  sku_details: [skuDetails]
+  limitedShelfOtp: Int
+  isLimitedShelfLifeEnable: Boolean
+  wallet: Float
+  advance: Float
+  products_shipped_value: Float
+  other_charges: Float
+  cash: Int
+  neft: Int
+  upi: Int
+  online: Int
+  qrCode: String
+  remark: String
+}
+
+type OrderReconciliationDataRes {
+  orderId: Int
+  tripId: String
+  deliveryPerson: String
+  warehouseName: String
+  deliveryDate: String
+  cashAmount: Float
+  neftAmount: Float
+  upiAmount: Float
+  upiUtrNumber: String
+  erpOrderStatus: String
+  erpOutstandingAmount: Float
+  netDeliveredQty: Int
+  digitalAmount: Float
+}
+
+type OrderResult {
+  result: Boolean!
+  code: Int
+  data: [orderDetails]
+  message: String
+  token: String
+}
+
+type PaymentsData {
+  tripId: ID
+  orderId: ID
+  paymentReference: String
+  paymentType: DeliveryPaymentType
+  amount: Float
+  driverId: ID
+  message: String
+}
+
+type pettyCash {
+  category: String
+  amount: Float
+}
+
+type RazorpaySettlementDetailsObjectOutput {
+  orderId: Int!
+  type: String
+  amount: Float!
+
+  # Format - Unix Timestamp
+  receivedAt: String!
+  entityId: String!
+  fees: Float
+  taxes: Float
+}
+
+type RazorpaySettlementDetailsOutput {
+  amountReceived: [RazorpaySettlementDetailsObjectOutput]
+  razorpaySettlementAmount: [RazorpaySettlementDetailsObjectOutput]
+  onlineErpAmount: [RazorpaySettlementDetailsObjectOutput]
+}
+
+type RazorpaySettlementTransactionsOutput {
+  orderId: Int!
+  amountReceived: Float
+  razorpaySettlementAmount: Float
+  onlineErpAmount: Float
+
+  # Format - dd-mm-yyyy
+  date: String
+  details: RazorpaySettlementDetailsOutput
+  total: Int
+}
+
+type RazorpaySettlementOutput {
+  total: Int
+  transactions: [RazorpaySettlementTransactionsOutput]
+}
+
+type Report {
+  id: Int
+  reportName: String
+  status: String
+  createdAt: String
+  completedAt: String
+  downloadLink: String
+  remarks: String
+  canDownload: Boolean
+}
+
+type ReturnedSku {
+  sku_id: String
+  expected_returned: Int
+  returned: Int
+}
+
+type RTOBinData {
+  data: [RTOBin]
+  message: String
+}
+
+type skuDetails {
+  sku_id: String
+  name: String
+  qty: Int
+  remark: String
+  price: Float
+  image: String
+  free_sku: DeliveryFreeSkuDetails
+  isLimitedShelfLife: Boolean
+  limitedShelfQty: Int
+  cashback: Float
+}
+
+type DeliveryFreeSkuDetails {
+  sku_id: String
+  name: String
+  qty: Int
+  remark: String
+  price: Float
+  image: String
+}
+
+type SummaryDailyBalance {
+  warehouseId: Int
+  warehouse: String
+  fromDate: String
+  toDate: String
+  totalCashDifference: Float
+}
+
+type TransactionCycle {
+  cycleId: Int!
+  transactions: [CmsTransactionType!]
+  cancelledTransactions: [CmsTransactionType]
+  comments: [TxnCycleComment]
+  cashFlow: [CashFlow]
+  openTrips: [Trips]
+  cashReported: Float
+  openingBalance: Float
+  closingBalance: Float
+  denominations: JSON
+  transactionCycleDate: String
+  allowCashReporting: Boolean
+}
+
+type TripData {
+  id: ID
+  status: TripStatus
+  completedAt: String
+  driver: DriverData
+  cashCollected: Float
+  tripCashCollected: Float
+  isStockCollected: Boolean
+  isCashCollected: Boolean
+  tripItems: [ItemsData]
+  orders: [OrderData]
+  message: String
+  deliveredOrders: Int
+  deliveredGmv: Float
+  rtoOrders: Int
+  rtoGmv: Float
+  upiVerifiedAmountCollected: Float
+  upiNonVerifiedAmountCollected: Float
+  neftAmountCollected: Float
+  onlineAmountCollected: Float
+  paymentLinkAmountCollected: Float
+  isReturnApproved: Boolean
+  isTripDetailsClosed: Boolean
+  createdAt: String
+  allowTripClose: Boolean
+  noUnaaprovedOrders: Boolean
+  digitalAmount: Float
+}
+
+type TripDetails {
+  id: ID
+  num_of_order: Int
+  completed_orders: Int
+  orders_pending: Int
+  assigned_time: String
+  trip_value: Float
+  trip_status: TripStatus
+  message: String
+}
+
+type TripReconciliationDataRes {
+  tripId: String
+  deliveryPerson: String
+  warehouseName: String
+  deliveryDate: String
+  cashAmount: Float
+  upiAmountVerified: Float
+  upiAmountNotVerified: Float
+  neftAmount: Float
+  creditAmount: Float
+  paymentLinkAmount: Float
+  digitalAmount: Float
+}
+
+type TxnCycleComment {
+  cycleId: Int
+  comment: String
+  user: String
+  createdAt: String
+}
+
+type TypeReturnedStocks {
+  productName: String
+  productSku: String
+  orderedQty: Int
+  packedQty: Int
+  deliveredQty: Int
+  returnedQty: Int
+}
+
+type getDmsReturnedStocksResponse {
+  warehouseId: Int
+  driver: String
+  tripId: Int
+  tripStartDate: String
+  tripEndDate: String
+  items: [TypeReturnedStocks]
+}
+
+type GtmUserData {
+  id: Int
+  name: String
+  email: String
+  active: Boolean
+  role: String
+  modules: [String]
+  warehouseIds: [Int]
+}
+
+type UserDetails {
+  name: String
+  city: String
+  warehouseId: Int
+  digitalDiscount: Float
+  cash_collected: Float
+  trips: [TripDetails]
+}
+
+type UserLoginType {
+  result: Boolean!
+  code: Int
+  message: String
+  token: String
+}
+
+type validateBatchConverterDetailsOutput {
+  result: Boolean!
+  code: Int!
+  message: String!
+  alerts: [BatchConverterDetails]
+}
+
+type VmsTripLevelReportRes {
+  tripId: Int
+  warehouse: String
+  tripStartedDate: String
+  status: String
+  vendorName: String
+  vehicleNumber: String
+  vehicleType: String
+  fixedCost: Float
+  perKmCost: Float
+  requirementType: String
+  openingKms: Int
+  closingKms: Int
+  totalDistance: Int
+  vehicleInTime: String
+  vehicleOutTime: String
+  totalTime: String
+  deliveredOrders: Int
+  rtoOrders: Int
+  notAttemptedOrders: Int
+  reAttemptedOrders: Int
+  outForDeliveryOrders: Int
+  noOfOrders: Int
+  deliveredGmv: Float
+  notAttemptedGmv: Float
+  rtoGmv: Float
+  reAttemptedGmv: Float
+  outForDeliveryGmv: Float
+  shippedGmv: Float
+  vehicleBrokeDown: Boolean
+  additionalVehicleCharges: Float
+  tollTax: Float
+  parkingCharges: Float
+  otherCharges: Float
+  routeName: String
+}
+
+type bifrostWarehouse {
+  id: Int!
+  name: String!
+}
+
+type warehouseCmsStatus {
+  txnCycle: String
+  denominations: JSON
+  balance: Int
+  lastCashReported: Float
+  cashReportedDate: String
+}
+
+type WarehouseDailyBalance {
+  id: Int!
+  warehouseId: Int
+  warehouseName: String
+  date: String
+  cashAmount: Float
+  bifrostBalance: Float
+  difference: Float
+}
+
+type WarehouseReconciliationDataRes {
+  trips: Int
+  deliveryPerson: String
+  warehouseName: String
+  deliveryDate: String
+  cashAmount: Float
+  upiAmountVerified: Float
+  upiAmountNotVerified: Float
+  neftAmount: Float
+  creditAmount: Float
+  digitalAmount: Float
+}
+
+type OrderResultV2 {
+  result: Boolean!
+  code: Int
+  data: [orderDetailsV2]
+  message: String
+  token: String
+}
+
+type orderDetailsV2 {
+  id: ID
+  delivery_status: OrderStatus
+  products_ordered_value: Float
+  total_payable_value: Float
+  total_order_value: Float
+  pay_type: PaymentModeTypes
+  credit_percentage: Float
+  trip_id: Int
+  otp: String
+  customer_details: DeliveryCustomerDetails
+  isLinkedOrderDelivered: Boolean
+  isLinkedOrder: Boolean
+  isCashBackApplied: Boolean
+  sku_details: [skuDetails]
+  limitedShelfOtp: Int
+  isLimitedShelfLifeEnable: Boolean
+  wallet: Float
+  advance: Float
+  products_shipped_value: Float
+  other_charges: Float
+  cash: Int
+  neft: Int
+  upi: Int
+  online: Int
+  platformFee: Float
+  qrCode: String
+  remark: String
+}
+
+type DeliveryCustomerDetails {
+  customerId: Int
+  customer_name: String
+  business_name: String
+  delivery_address: String
+  contact_no: String
+  pincode: Int
+  city: String
+  state: String
+  latlong: Latlong
+  isNeftEnabled: Boolean
+  creditInfo: creditInfo
+}
+
+type creditInfo {
+  lenderAccountStatus: String
+  limit: Float
+  balance: Float
+}
+
+# SS: Super Stockist
+# DB: Distributer
+# RT: Retailer
+enum DSOCustomerType {
+  SS
+  DB
+  RT
+}
+
+enum DSOAttendanceStatus {
+  CLOCKED_IN
+  CLOCKED_OUT
+}
+
+enum DSOTaskAction {
+  CheckIn
+  CheckOut
+  CompleteTask
+}
+
+input DSOCustomerDetails {
+  name: String!
+  shopName: String!
+  phoneNumber: String!
+  city: String!
+  address: String!
+  pincode: String!
+  state: String!
+  customersServed: Int
+  brandPartnerships: Int
+  primaryId: ID!
+  isInterested: Boolean!
+  reason: String!
+}
+
+input DSOCustomerFilters {
+  phoneNumber: String
+  inventoryType: DSOInventoryType
+}
+
+input DSOLatLongInput {
+  latitude: String
+  longitude: String
+}
+
+input CompleteDSOTaskInput {
+  id: ID!
+  action: DSOTaskAction!
+  latlong: DSOLatLongInput
+  image: String
+}
+
+input InventoryCaptureDSOInput {
+  userId: ID!
+  updates: [InventoryUpdateDSOInput!]!
+}
+
+input InventoryUpdateDSOInput {
+  productId: ID!
+  changedQty: Int!
+}
+
+input DSOCartItemInput {
+  userId: Int
+  productId: Int
+  varId: Int
+  quantity: Int!
+}
+
+input DSOVariantPrice {
+  sku_id: String!
+  type: DSOCustomerType!
+  price: Float!
+  warehouse_id: Int!
+}
+
+input UpdateDSOUserInput {
+  phone_no: String
+  password: String
+  emp_id: String
+  name: String
+  active: Boolean
+}
+
+input DSOInventoryFilter {
+  name: String
+}
+
+type DSOCustomer {
+  id: ID
+  customerId: ID
+  customerType: DSOCustomerType
+  name: String
+  shopName: String
+  phoneNumber: String
+  city: String
+  address: String
+  pincode: String
+  state: String
+  shippingAddressId: ID
+  KYCStatus: String
+  primaryId: ID
+  inventoryType: DSOInventoryType
+  primaryName: String
+  primaryShopName: String
+}
+
+type DSOCustomerResponse {
+  result: OpResult!
+  customerId: ID
+  inventoryType: DSOInventoryType
+  KYCStatus: String
+}
+
+type DSOTask {
+  id: ID
+  type: String
+  status: String
+  partner: String
+  contact_no: String
+  user_type: String
+  inventoryType: DSOInventoryType
+  customerId: Int
+  dsoUserId: Int
+  priority: String
+  visitDate: String
+  address: String
+  latLong: DSOLatLong
+  photoUrl: String
+  checkinTime: String
+  checkoutTime: String
+  inventoryCaptured: Boolean
+  allowPlaceOrder: Boolean
+  kycStatus: String
+}
+
+type DSOLatLong {
+  latitude: String
+  longitude: String
+}
+
+type DSOTaskList {
+  taskList: [DSOTask!]!
+}
+
+type GetDSOTasksResponse {
+  allDSOCustomersCount: Int
+  taskList: [DSOTask!]!
+}
+
+type DSOProduct {
+  product_id: Int
+  name: String
+  mrp: Float
+  price: Float
+  image: String
+  weight: String
+  mother_hub_qty: Int
+  child_hub_qty: Int
+  qty_casepack: Int
+  mother_hub_var_id: Int
+  child_hub_var_id: Int
+  secondaryQty: Int
+}
+
+type DSOInventoryResponse {
+  source: DSOInventoryType
+  productList: [DSOProduct!]!
+}
+
+type DSOCartItem {
+  id: Int
+  productId: ID!
+  productName: String
+  quantity: Int
+  dsoBasketId: Int
+  price: Int
+  mrp: Int
+  variant_id: Int
+  availableQty: Int
+}
+
+type DSOCartType {
+  id: Int
+  dsoCustomerId: Int
+  orderType: DSOInventoryType
+  source: Int
+  status: String
+  totalPrice: Float
+  totalMrp: Float
+  wallet: Float
+  kycStatus: String
+  count: Int
+  products: [DSOCartItem]
+  joiningDiscount: Float
+  platformFee: Float
+}
+
+type DSOCartResponse {
+  productId: ID!
+  productName: String
+  quantity: Int
+}
+
+type DSOUser {
+  id: ID!
+  phone_no: String
+  password: String
+  emp_id: String
+  name: String
+  active: Boolean
+  created_at: String
+  updated_at: String
+}
+
+type DSOHomeDashboard {
+  todayTotalVisits: Int
+  visited: Int
+  todaysPrimaryGMV: Float
+  monthlyPrimaryGMV: Float
+  todaysSecondaryGMV: Float
+  monthlySecondaryGMV: Float
+  onboardingCount: DSOOnboardingCount
+  targetMetrics: DSOTargetMetrics
+  phoneNo: String
+  name: String
+}
+
+type DSOOnboardingCount {
+  SS: Int
+  DB: Int
+  RT: Int
+}
+
+type DSOTargetMetrics {
+  daily: DSOTargetMetric
+  weekly: DSOTargetMetric
+  activeDaily: DSOTargetMetric
+  activeWeekly: DSOTargetMetric
+}
+
+type DSOTargetMetric {
+  target: Float
+  achieved: Float
+  achievedPercent: Float
+  active: Boolean
+}
+
+type DSOMappedUser {
+  id: ID!
+  name: String!
+  achievedValue: Float!
+}
+
+type DSOSchemeResponse {
+  schemes: [String!]!
+  mappedUsers: [DSOMappedUser!]!
+}
+
+enum DSOInventoryType {
+  PRIMARY
+  SECONDARY
+}
+
+type CreateDSOVisitRes {
+  response: OpResult
+  task: DSOTask
+}
+
+enum WalletTransactionType {
+  CREDIT
+  DEBIT
+}
+
+input MetaData {
+  remark: String
+  application: String
+  internal_remarks: String
+  booking_id: String
+  reverse_transaction_id: String
+}
+
+input RefundTxnInput {
+  orderId: ID!
+  amount: Float!
+  walletAccount: String!
+  debitAccount: String
+  createdBy: String
+}
+
+input WalletTransactionDetails {
+  customer_id: Int
+  account: String
+  credit: Float
+  debit: Float
+  remarks: String
+  expiry_at: String
+}
+
+type WalletCashbackResponse {
+  cashbackId: ID
+  debitAccount: String
+  walletAccount: WalletTypes
+  createdAt: String
+  createdBy: String
+}
+
+type CashbackTransaction {
+  cashbackId: ID
+  customerId: ID
+  amount: Float
+  cashbackType: String
+  balance: Float
+  id: ID
+}
+
+type WalletTransaction {
+  amount: Float
+  orderId: ID
+  createdAt: String
+  remarks: String
+  id: ID
+  transactionType: WalletTransactionType
+}
+
+type WalletInfoResponse {
+  type: WalletTypes
+  balance: Float
+  title: String
+  transactions(page: PageDefinitionInput): [WalletTransaction]
+}
+
+input InvoiceIn {
+  customerId: Int
+  thirdPartyCustomerId: String
+  orderId: Int
+  invoiceId: String
+  invoiceNumber: String
+  status: String
+  balance: Float
+  invoiceDate: String
+}
+
+input ZohoCustomer {
+  customerId: Int
+  zohoCustomerId: String
+}
+
+type Invoice {
+  customerId: Int
+  thirdPartyCustomerId: String
+  orderId: Int
+  invoiceId: String
+  invoiceNumber: String
+  status: String
+  balance: Float
+  invoiceDate: String
+}
+
+enum ActionType {
+  ADD
+  DELETE
+}
+
+enum AttendanceType {
+  PRESENT
+  ABSENT
+  WEEKLY_OFF
+  CLOCKED_OUT
+  CLOCKED_IN
+  NOT_MARKED
+}
+
+enum CLStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum DisputeStatus {
+  APPROVED
+  REJECTED
+  PENDING
+}
+
+enum FosOnboardingLeadStatus {
+  ASSIGNED
+  COMPLETED
+  DELETED
+}
+
+enum MonthlyTargetListEnum {
+  RANGE
+}
+
+enum ObjectiveType {
+  STRUCTURED
+  ADHOC
+}
+
+enum QuestionType {
+  RADIO_BUTTON
+  CHECKBOX
+  INPUT_BOX
+  DROPDOWN
+}
+
+enum SurveyTypes {
+  LEAD
+  TASK
+}
+
+enum TaskFilter {
+  VISITED
+  NOT_VISITED
+  NOT_VISITED_30_DAYS
+  ALL_BEST_NON_TXN_CX
+  TODAYS_BEST_NON_TXN_CX
+  ALL
+}
+
+input CLUserInput {
+  email: String!
+  warehouseIds: [ID]
+  status: CLStatus!
+  password: String
+  lastActionedBy: String!
+}
+
+input CompleteTask {
+  id: ID
+  customerId: ID!
+  isCreditUserNotAvailable: Boolean
+  creditLinkSent: Boolean
+  isCreditUserNotInterested: Boolean
+  latitude: String!
+  longitude: String!
+  accuracy: String!
+  selfieImage: String!
+  visitType: String
+  isDisputed: Boolean
+  distance: Int
+}
+
+input DisputeFilters {
+  startDate: String
+  endDate: String
+  phoneNumber: String
+  warehouseName: String
+  disputeStatus: DisputeStatus
+}
+
+input FosCustomerMappingInput {
+  customerId: Int!
+  fosUserId: Int!
+}
+
+input FOSLocation {
+  longitude: String!
+  latitude: String!
+}
+
+input FOSUserInput {
+  id: Int
+  phone_no: String!
+  password: String
+  warehouse_id: Int
+  emp_id: String
+  type: String
+  name: String
+  status: String!
+  keka_enabled: Boolean
+}
+
+input GenerateFOSReferral {
+  phone_no: String!
+}
+
+input MTDFilterInput {
+  minOrderCount: Int
+  maxOrderCount: Int
+}
+
+input ObjectCustomerInput {
+  objective_id: Int!
+  customer_id: Int!
+  cta_url: String
+}
+
+input ObjectiveFilterInput {
+  objectiveId: Int
+  subobjectiveId: [Int]
+}
+
+input ObjectiveSubobjectiveMappingInput {
+  objectiveId: Int!
+  subObjectiveId: Int!
+  order: Int
+}
+
+input ObjectWarehouseInput {
+  objectiveId: Int!
+  warehouseId: Int!
+  priority: Int
+}
+
+input Priority {
+  name: String!
+  priority: Int!
+  colour: String!
+  created_by: String!
+}
+
+input QuestionsList {
+  id: Int
+  question: String
+  status: String
+  options: [String]
+  type: QuestionType
+  shopProperty: String
+  answer: [String]
+}
+
+input SubmitAdhocTaskInput {
+  questionId: ID!
+  answer: [String!]
+}
+
+input SubmitLeadInput {
+  leadId: Int!
+  leadStoreImage: String!
+  latitude: String!
+  longitude: String!
+  accuracy: String!
+  questionsList: [QuestionsList!]
+}
+
+input UploadSelfieInput {
+  taskId: Int
+  customerId: Int!
+  selfieImage: String!
+}
+
+type AdhocObjectiveDetails {
+  objectiveName: String
+  description: String
+  urlLink: String
+  ctaName: String
+}
+
+type AdhocQuestionsType {
+  id: ID!
+  question: String!
+  options: [String]
+  type: String!
+  required: Boolean!
+}
+
+type AdhocSurveyQuestionsType {
+  questions: [AdhocQuestionsType]
+}
+
+type CLUser {
+  id: ID
+  email: String
+  warehouseIds: [ID]
+  status: CLStatus
+  createdAt: String
+  updatedAt: String
+}
+
+type CustomersCreditDetailsResult {
+  customerId: ID
+  balance: Int
+  limit: Int
+  status: String
+}
+
+type DisputeData {
+  id: ID!
+  phoneNumber: String!
+  distance: String!
+  visitDate: String!
+  disputeStatus: DisputeStatus!
+  warehouseName: String!
+  imageURL: String!
+  checkOnMapURL: String!
+  customerId: ID
+  customerPhoneNumber: String!
+  customerName: String
+}
+
+type FosOnboardingLeadType {
+  id: Int
+  lead_phone_no: String
+  fos_user_id: Int
+  shop_name: String
+  latitude: String
+  longitude: String
+  pincode: String
+  address: String
+  status: FosOnboardingLeadStatus
+  visit_date: String
+  created_at: String
+  updated_at: String
+}
+
+type FOSUser {
+  id: Int
+  phone_no: String!
+  password: String
+  warehouse_id: Int
+  emp_id: String
+  name: String
+  status: String!
+  created_at: String
+  updated_at: String
+  referral_code: String
+}
+
+type FOSUserDetails {
+  questionsList: [QuestionData]
+  storeFrontImage: String
+  storeInsideImage: String
+}
+
+type FOSUserPageObjectives {
+  columnNamesForStructured: [String]
+  structuredObjective: [StructureObjectiveDetails]
+  adhocObjective: [AdhocObjectiveDetails]
+  globalObjective: [AdhocObjectiveDetails]
+}
+
+type GetFOSCustomerLocation {
+  result: Boolean!
+  code: Int
+  data: [Location]
+  message: String
+}
+
+type Location {
+  latitude: String
+  longitude: String
+  customerId: Int
+}
+
+type Incentives {
+  slab: String
+  incentive: Float
+  status: Boolean
+}
+
+type monthlyIncentive {
+  score: Float
+  value: Int
+  list: [monthlyIncentiveList]
+}
+
+type monthlyIncentiveList {
+  section: String
+  targetValue: Int
+  achievedValue: Int
+  pendingTarget: Int
+  achievedPercentage: Float
+}
+
+type dynamicIncentive {
+  name: String
+  score: Float
+  value: Int
+  list: [dynamicIncentiveList]
+}
+
+type dynamicIncentiveList {
+  section: String
+  achievement: dynamicIncentiveRow
+  rows: [dynamicIncentiveRow]
+}
+
+type dynamicIncentiveRow {
+  key: String
+  value: String
+}
+
+type MonthlyTarget {
+  title: String
+  list: [MonthlyTargetList]
+}
+
+type MonthlyTargetList {
+  title: String
+  subTitle: String
+  target: Float
+  achieved: Float
+  type: MonthlyTargetListEnum
+  colour: String
+  priority: Int
+  arrow: Int
+  achievedType: String
+}
+
+type Objective {
+  id: Int!
+  name: String!
+  subobjective: [SubObjectiveDetails]
+}
+
+type ObjectiveDurationFosUserPageDetails {
+  type: String
+  value: Float
+}
+
+type ObjectiveFosUserPageDetails {
+  duration: String
+  userDetails: [ObjectiveDurationFosUserPageDetails]
+}
+
+type OnboardingLeadsResult {
+  visitedCount: Int
+  notVisitedCount: Int
+  leadList: [FosOnboardingLeadType]
+}
+
+type PlannedVisits {
+  target: Int
+  achieved: Int
+}
+
+type QuestionData {
+  id: Int
+  question: String
+  status: String
+  options: [String]
+  type: QuestionType
+  shopProperty: String
+  answer: [String]
+}
+
+type Reports {
+  userData: UserData
+  incentiveEarned: [Incentives]
+  monthlyTargetList: MonthlyTarget
+  today: TodaysAchievement
+  topFOSList(limit: Int): [TopFOS]
+  monthlyIncentive: monthlyIncentive
+  dynamicIncentive: [dynamicIncentive]
+}
+
+type StructureObjectiveDetails {
+  objectiveName: String
+  lastOrder: Int
+  details: [ObjectiveFosUserPageDetails]
+}
+
+type SubObjectiveDetails {
+  id: Int!
+  name: String!
+}
+
+type TaskPriority {
+  tag: String
+  colour: String
+}
+
+type Tasks {
+  id: ID
+  shopName: String
+  priority: [TaskPriority]
+  isCreditApproved: Boolean
+  isCreditActivated: Boolean
+  showUserDetails: Boolean
+  address: String
+  contactNo: String
+  customerId: ID
+  visited: Boolean
+  marker: String
+  currentGmv: Float
+  orderCount: Int
+  lastFosVisitedDate: Int
+}
+
+type TaskResult {
+  visitedCount: Int
+  notVisitedCount: Int
+  taskList: [Tasks]
+}
+
+type TasksResultV2 {
+  visitedCount: Int
+  notVisitedCount: Int
+  allFosCustomersCount: Int
+  notVisited30DaysCount: Int
+  taskList: [TasksV2]
+}
+
+type TasksV2 {
+  id: ID
+  shopName: String
+  priority: [TaskPriority]
+  markers: [String]
+  isCreditApproved: Boolean
+  isCreditActivated: Boolean
+  showUserDetails: Boolean
+  address: String
+  addressId: ID
+  contactNo: String
+  customerId: ID
+  visited: Boolean
+  currentGmv: Float
+  orderCount: Int
+  lastFosVisitedDate: Int
+  creditLimit: Int
+  distance: Int
+  latitude: Float
+  longitude: Float
+  lastOrderDate: String
+}
+
+type TodaysAchievement {
+  uniqueShopVisit: Int
+  visited: Int
+  plannedVisits: PlannedVisits
+  unplannedVisits: Int
+  successfulVisit: Int
+  skuSoldPerUser: Float
+}
+
+type TopFOS {
+  rank: Int
+  name: String
+  warehouseName: String
+}
+
+type UserData {
+  name: String
+  warehouseName: String
+}
+
+type UserShopDetails {
+  customerName: String!
+  shopName: String!
+  contactNo: String!
+  warehouseName: String!
+  appInstalledAt: String
+  creditBalance: Float!
+  monthlyTarget: Float!
+  targetAchieved: Float!
+  isVerified: Boolean!
+  isNewBuyer: Boolean!
+  lastDeliveryAddress: String
+  daysAfterLastOrder: String!
+  lastOrderValue: Float!
+  rtoLast30Days: Float!
+  inProcessGmv: Float!
+  isCreditUserInterested: Boolean!
+  creditLimit: Float
+  currentWalletBalance: Float
+  objectives: FOSUserPageObjectives
+  earnedVouchers: Int
+}
+
+input CreateOrUpdateSectionInput {
+  id: ID
+  order: Int!
+  img_url: String!
+  title: String!
+  status: Boolean!
+  updated_by: String!
+}
+
+input CreatePostInput {
+  id: ID
+  url: String!
+  section_id: [ID]!
+  warehouse_id: [ID]!
+  brand_id: [ID]!
+  priority: Int!
+  updated_by: String!
+  title: String!
+}
+
+input GetPostsInput {
+  sectionId: ID
+  postId: ID
+  lastId: ID
+  pageSize: Int
+}
+
+input UpdatePostInput {
+  id: ID
+  url: String
+  section_id: [ID]
+  warehouse_id: [ID]
+  brand_id: [ID]
+  priority: Int
+  status: Boolean
+  updated_by: String
+  title: String
+}
+
+type ContentBrand {
+  brand_id: ID
+  name: String
+  img_url: String
+}
+
+type ContentSection {
+  id: ID!
+  title: String!
+  img_url: String!
+  order: Int
+  status: String
+  updated_by: String
+  created_at: Int
+  updated_at: Int
+}
+
+type CreateOrUpdateSectionResult {
+  result: Boolean!
+  code: Int
+  message: String
+  id: ID
+  order: Int
+  img_url: String
+  title: String
+  updated_by: String
+  status: Boolean
+  created_at: Int
+  updated_at: Int
+}
+
+type CreatePostResultRecord {
+  id: ID!
+  url: String!
+  section_id: [ID]!
+  warehouse_id: [ID]!
+  brand_id: [ID]!
+  priority: Int!
+  updated_by: String!
+  title: String!
+}
+
+type CreatePostResult {
+  result: Boolean!
+  message: String
+  code: Int
+  data: [CreatePostResultRecord]
+}
+
+type GetContentSectionResult {
+  result: Boolean!
+  message: String
+  code: Int
+  sections: [ContentSection]
+}
+
+type GetPostResult {
+  result: Boolean!
+  message: String
+  code: Int
+  posts: [Post]
+}
+
+type Post {
+  id: ID!
+  title: String!
+  asset_url: String
+  asset_image: String
+  brands: [ContentBrand]
+  priority: Int
+  section_id: ID
+  warehouse_id: ID
+  created_at: Int
+  updated_at: Int
+}
+
+enum CartScreenSectionLayoutType {
+  SINGLE
+  HORIZONTAL
+  VERTICAL
+  GRID
+  LIST
+  HORIZONTAL_COMPRESSED
+}
+
+enum CartScreenSectionStatus {
+  ENABLED
+  DISABLED
+}
+
+enum CartScreenSectionWidgetType {
+  SPECIAL
+  CIRCULAR
+  RECTANGULAR
+  GRID
+}
+
+input updateBasketArgs {
+  addressId: Int!
+  items: [updateBasketItem!]
+  couponIds: [Int]
+  dsoOrder: Boolean
+}
+
+input updateBasketItem {
+  productId: Int!
+  variantId: Int!
+  qty: Int!
+  akPrice: Float!
+}
+
+type CartScreen {
+  id: ID!
+  seqId: ID!
+  code: ID!
+  title: String
+  views(view: [ID!]): [CartScreenView!]
+  updated_at: Int!
+}
+
+type CartScreenSection {
+  id: ID!
+  seqId: ID!
+  code: ID
+  title: String
+  description: String
+  status: CartScreenSectionStatus!
+  appearance: CartScreenSectionAppearance!
+  content: CartScreenSectionContent
+  updated_at: Int!
+}
+
+type CartScreenSectionAppearance {
+  showOnEmpty: Boolean!
+  widgetType: CartScreenSectionWidgetType
+  layoutType: CartScreenSectionLayoutType
+  scrollable: Boolean!
+  expanding: ScreenLink
+  isHidden: Boolean!
+}
+
+union CartScreenSectionContent =
+    OpResult
+  | SlabOffers
+  | SummaryCartInfo
+  | CartSectionList
+  | CartType
+  | CartItems
+  | PaymentSummary
+  | PaymentMethod
+  | SlabAppliedWidget
+  | CartCoupons
+
+type CartScreenView {
+  id: ID!
+  seqId: ID
+  title: String
+  description: String
+  sections(id: [ID!], code: [ID!]): [CartScreenSection!]
+  updated_at: Int!
+}
+
+type CartSectionList {
+  items(
+    id: [ID!]
+    extraId: ID
+    page: PageDefinitionInput
+  ): [CartSectionListItem!]
+}
+
+type CartSectionListItem {
+  seqId: ID!
+  appearance: CartSectionAppearance!
+  sections: [CartScreenSection!]
+}
+
+type CartSectionAppearance {
+  widgetType: String
+  layoutType: String
+}
+
+type UpdateBasketCouponOutput {
+  applicable: Boolean
+  message: String
+  discount: Float
+}
+
+type UpdateMyBasketOutput {
+  result: OpResult!
+  couponResult: [UpdateBasketCouponOutput]
+}
+
+enum OrderStatusInfo {
+  PLACED
+  CONFIRMED
+  DELIVERED
+  CANCELLED
+}
+
+enum ReorderProductStatus {
+  AVAILABLE
+  PRICE_CHANGED
+  OUT_OF_STOCK
+}
+
+enum ShipmentStatus {
+  IN
+  PROCESSING
+  CANCELLED
+}
+
+enum TokenApplicability {
+  CUSTOMER
+  WAREHOUSE
+  PINCODE
+}
+
+enum TokenType {
+  FLAT
+  PERCENTAGE
+}
+
+input CreateOrderArgs {
+  addressId: Int!
+  cartUpdatedAt: Int!
+  paymentMethod: PaymentMethodInput!
+  dsoOrder: Boolean
+}
+
+input PaymentMethodInput {
+  isWallet: Boolean!
+  isOnline: Boolean!
+  isCod: Boolean!
+  isCredit: Boolean!
+  walletsUsed: [WalletTypes]
+}
+
+input FixOrderArgs {
+  orderIds: [String!]
+}
+
+input PriceChangeInputArgs {
+  isRemoveAll: Boolean
+  toContinue: Boolean
+  page: PageDefinitionInput
+  itemIds: [PriceChangeItemArgs]
+}
+
+input PriceChangeItemArgs {
+  id: ID!
+  isRemoved: Boolean
+}
+
+input ReorderInputArgs {
+  isGTMSelected: Boolean!
+  isRegularSelected: Boolean!
+  itemIds: [ReorderItemArgs!]
+}
+
+input ReorderItemArgs {
+  id: ID!
+  isSelected: Boolean
+}
+
+type Basket {
+  id: ID!
+  products: [BasketProduct!]
+}
+
+type BasketProduct {
+  id: ID!
+  name: String!
+  noOfUnits: Int!
+  quantity: Int
+}
+
+type CreateOrderResult {
+  orderId: String!
+  bookingId: String!
+  isSelfPickup: Boolean
+  message: String!
+  errors: [CreateOrderErrors!]
+  eligibleVoucherCount: Int
+}
+
+type CreateOrderErrors {
+  code: Int!
+  message: String!
+}
+
+type CreateTokenResult {
+  code: Int
+  result: Boolean
+  message: String
+}
+
+type getDsoOrderDetailsOutput {
+  id: ID
+  orderId: Int
+  linkedOrderId: Int
+  customerId: Int
+  shippingAddrId: Int
+  useWallet: Boolean
+  status: String
+  error: String
+  createdBy: String
+  createdAt: String
+  updatedAt: String
+  totalOrderValue: Float
+  gtmTotalOrderValue: Float
+  gtmWalletValue: Float
+  gtmPromotionalWalletUsed: Float
+  gtmPayableAmount: Float
+  ak2TotalOrderValue: Float
+  ak2WalletValue: Float
+  ak2PromotionalWalletUsed: Float
+  ak2PayableAmount: Float
+}
+
+type LoadCartOrderResult {
+  code: Int
+  result: Boolean
+  message: String
+  priceChange: ReorderProductList
+}
+
+type MarkTokenInactiveResult {
+  code: Int
+  result: Boolean
+  message: String
+}
+
+type Order {
+  id: ID!
+  isLinkedOrder: Boolean!
+  linkedOrder: LinkedOrder
+  customer: OrderCustomer
+  canReorder: CanReorder
+  showPayment: Boolean
+  status: OrderStatusInfo!
+  createdAt: Int!
+  updatedAt: Int!
+  payment: OrderPayment
+}
+
+type LinkedOrder {
+  id: ID!
+}
+
+type CanReorder {
+  status: String
+  orderWh: OrderWarehouseInfo
+  customerWh: OrderWarehouseInfo
+}
+
+type OrderPayment {
+  method: String!
+  info: OrderPaymentInfo!
+}
+
+type OrderPaymentInfo {
+  total: OrderPaymentInfoItem
+  paid: OrderPaymentInfoItem
+  due: OrderPaymentInfoItem
+  wallet: OrderPaymentInfoItem
+  cancel: OrderPaymentInfoItem
+}
+
+type OrderPaymentInfoItem {
+  title: String!
+  value: Float!
+  link: OrderDetailPaymentInfoLink
+}
+
+type OrderDetailPaymentInfoLink {
+  displayText: String
+  url: String
+  status: String
+}
+
+type OrderCustomer {
+  id: ID!
+  name: String!
+  email: String
+  address: CustomerAddressInfo
+  contactNo: String!
+}
+
+type CustomerAddressInfo {
+  id: ID!
+  line: String
+  cityTown: String
+  state: String
+  pincode: String
+}
+
+type OrderInvoiceGenerationOutput {
+  result: Boolean
+  message: String
+  code: Int
+  url: String
+  status: String
+  text: String
+}
+
+type OrderListItem {
+  order: Order!
+  paymentDetails: PaymentDetails!
+  tokenDetails: TokenDetails!
+  basket: Basket!
+  shipments: [Shipment!]
+  orderItems: [OrderDetailItems!]
+  summary: OrderPaymentSummary
+  refund: OrderRefund
+  invoice: OrderInvoice
+  isSelfPickup: Boolean
+}
+
+type OrderInvoice {
+  show: Boolean!
+  text: String!
+  url: String
+}
+
+type OrderDetailItems {
+  type: String!
+  title: String!
+  isCancellationAllowed: Boolean!
+  status: String!
+  deliveryDate: String
+  delivery: OrderDelivery
+  payment: OrderPaymentInfoItem
+  items: [OrderDetailItem]
+}
+
+type OrderDelivery {
+  title: String!
+  timeline: [OrderDeliveryTimeline]
+}
+
+type OrderDeliveryTimeline {
+  text: String!
+  status: Boolean!
+}
+
+type OrderDetailItem {
+  id: Int!
+  name: String!
+  images: [ItemImage]
+  freebieProductInfo: [FreebieProducts!]
+  variant: OrderDetailItemVariant
+  qty: [OrderDetailQty]
+  payment: OrderDetailPayment
+  exception: ProductExceptionMarker
+}
+
+type OrderDetailItemVariant {
+  id: Int!
+  name: String!
+  noOfUnits: Int!
+  akPrice: Float!
+  mrp: Float!
+  couponDiscount: Float!
+  testerBanner: VariantBanner
+}
+
+type VariantBanner {
+  color: String
+  text: String
+}
+
+type OrderDetailQty {
+  title: String!
+  value: Float!
+}
+
+type OrderDetailPayment {
+  title: String!
+  value: Float!
+}
+
+type OrderPaymentSummary {
+  title: Title!
+  items: [OrderPaymentSummaryItems!]
+}
+
+type OrderPaymentSummaryItems {
+  id: String!
+  title: Title!
+  subTitle: Title!
+  type: PaymentItemType!
+  value: Float!
+  tooltip: String
+}
+
+type OrderRefund {
+  title: String!
+  expandTitle: String!
+  total: Float!
+  list: [OrderRefundItem]
+}
+
+type OrderRefundItem {
+  title: String
+  total: Float
+  refundByType: [OrderRefundTypeItem]
+}
+
+type OrderRefundTypeItem {
+  amount: Float
+  status: String
+  statusColor: String
+  type: String
+  details: OrderRefundTypeDetails
+}
+
+type OrderRefundTypeDetails {
+  ARNnumber: String
+  note: String
+  timeline: [OrderRefundTimelineItem]
+}
+
+type OrderRefundTimelineItem {
+  color: String
+  date: String
+  title: String
+}
+
+type OrderProductDetails {
+  id: ID!
+  name: String
+  isHotDeal: Boolean!
+  images: [OrderProductImage!]
+}
+
+type OrderProductImage {
+  id: ID!
+  link: String!
+  imagekitLink: String
+}
+
+type OrderProductPrice {
+  akPrice: Float
+  mrp: Float
+}
+
+type OrderTimeline {
+  id: String!
+  items: [OrderTimelineItem]
+}
+
+type OrderTimelineItem {
+  status: String
+  list: [OrderTimelineStatusItem]
+}
+
+type OrderTimelineStatusItem {
+  date: String
+  text: String
+}
+
+type OrderWarehouseInfo {
+  id: ID
+  name: String
+}
+
+type PaymentDetails {
+  text: String!
+  amt: Float!
+}
+
+type ReorderProduct {
+  id: ID!
+  status: ReorderProductStatus!
+  product: OrderProductDetails
+  variant: ReorderProductVariant
+}
+
+type ReorderProductList {
+  items: [ReorderProduct!]
+}
+
+type ReorderProductVariant {
+  id: ID
+  name: String
+  type: String
+  numberOfUnits: Int
+  orderedQty: Int
+  price: OrderProductPrice
+}
+
+type Shipment {
+  id: ID!
+  status: String!
+  count: Int!
+  isGtm: Boolean!
+}
+
+type TokenDetails {
+  hasToken: Boolean!
+  tokenText: String!
+  tokenAmt: Float!
+  pendingText: String!
+  pendingAmt: Float!
+}
+
+input CohortPricing {
+  row: Int!
+  warehouse_id: Int!
+  cohort_id: Int!
+  sku_id: String!
+  variant_type: variantTypeEnum!
+  variant_size: variantSizeEnum!
+  percentage_change: Float!
+}
+
+type CohortPricingType {
+  id: Int
+  warehouse_id: Int
+  cohort_id: Int
+  variant_rule_segment_id: Int
+  upload_id: String
+  sku_id: String
+  product_name: String
+  product_id: Int
+  variant_type: variantTypeEnum
+  variant_size: variantSizeEnum
+  percentage_change: Float
+  variant_rule_segment_name: String
+  updated_by: String
+  created_at: String
+}
+
+type CohortPricingTypeRes {
+  count: Int
+  data(limit: Int!, offset: Int!): [CohortPricingType]
+}
+
+enum ActiveStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AlertsAction {
+  IgnoreAlert
+  ForceCreateVariant
+}
+
+enum RuleSegmentType {
+  User
+  Product
+  Brand
+  Category
+}
+
+enum RuleType {
+  Warehouse
+  User
+  SKU
+}
+
+enum SegmentUpdateType {
+  Add
+  Delete
+}
+
+enum VariantSize {
+  RETAIL
+  WHOLESALE
+  MEGA
+  BULK
+}
+
+enum VariantType {
+  GTM
+  AK2
+}
+
+type CouponExceptionSKURes {
+  count: Int
+  data(limit: Int!, offset: Int!): [CouponExceptionSKU]
+}
+
+type CouponExceptionSKU {
+  id: ID
+  product_id: Int
+  sku: String
+  sku_type: ExceptionSkuType
+  warehouse_id: Int
+  created_by: String
+  updated_by: String
+  created_at: BifrostISOTime
+  updated_at: BifrostISOTime
+}
+
+input AddCouponExceptionInput {
+  sku: String!
+  warehouse_id: Int!
+  sku_type: ExceptionSkuType!
+}
+
+enum ExceptionSkuType {
+  P
+  C
+}
+
+input DeleteCouponExceptionInput {
+  sku: String!
+  warehouse_id: Int!
+  sku_type: ExceptionSkuType!
+}
+
+type getProductQtyWithWholesalePriceOutput {
+  sku: String
+  name: String
+  productLive: Boolean
+  threshold: Float
+  warehouseId: Int
+  motherhubWarehouseId: Int
+  gtmQty: Int
+  gtmWholesalePrice: Float
+  ak2Qty: Int
+  ak2RetailPrice: Float
+}
+
+input BulkAlertsData {
+  variantAlertId: Int
+  variantId: Int
+  makeLive: Boolean!
+}
+
+input DeleteGlobalVariantInput {
+  rowNumber: ID!
+  skuId: String!
+  whClassificationType: WhClassificationType!
+  variantSize: VariantSize!
+  variantType: VariantType!
+}
+
+input DeleteVariantSlabQtyInput {
+  rowNumber: ID!
+  warehouseId: Int!
+  skuId: String!
+  variantType: VariantType!
+  variantSize: VariantSize!
+}
+
+input GlobalVariantData {
+  rowNumber: ID
+  skuId: ID!
+  retailSlab: VariantSize
+  retailSlabQty: Int
+  retailSlabPrice: Float
+  wholesaleSlab: VariantSize
+  wholesaleSlabQty: Int
+  wholesaleSlabPrice: Float
+  megaSlab: VariantSize
+  megaSlabQty: Int
+  megaSlabPrice: Float
+  bulkSlab: VariantSize
+  bulkSlabQty: Int
+  bulkSlabPrice: Float
+  variantType: VariantType!
+  mrp: Float!
+  whClassificationType: WhClassificationType!
+}
+
+input MarginComparisonFilter {
+  warehouseIds: [Int]!
+}
+
+input MarginComparisonInput {
+  warehouseId: Int!
+  upperBound: Float!
+  lowerBound: Float!
+}
+
+input MinimumMarginFilter {
+  warehouseIds: [Int!]!
+  skus: [String]!
+  variantSizes: [VariantSize]!
+}
+
+input MinimumMarginInput {
+  warehouseId: Int!
+  sku: String!
+  variantSize: VariantSize
+  threshold: Float!
+}
+
+input RuleSegmentInput {
+  segmentName: String!
+  description: String!
+  segmentType: RuleSegmentType!
+  cohortId: ID
+  segmentIds: [String!]!
+}
+
+input SegmentUpdateDetails {
+  segmentId: ID!
+  skuId: ID!
+}
+
+input UpdateRulesData {
+  ruleId: ID!
+  percentageChange: Float!
+  isInactiveForSlabUpgrade: Boolean!
+  isHiddenByPriceRules: Boolean!
+}
+
+input UpdateVariantWhClassificationData {
+  id: Int!
+  whClassificationType: WhClassificationType!
+}
+
+input VariantSlabQtyData {
+  rowNumber: ID!
+  warehouseId: Int!
+  skuId: String!
+  retailQty: Int
+  wholesaleQty: Int
+  megaQty: Int
+  bulkQty: Int
+  startDate: String!
+  endDate: String!
+  variantType: VariantType!
+}
+
+input VariantWhClassificationData {
+  rowNumber: ID!
+  warehouseId: Int!
+  whClassificationType: WhClassificationType!
+}
+
+input WACFilter {
+  warehouseLocations: [String]
+  productIds: [Int]
+}
+
+type GetAlertsResult {
+  id: ID!
+  variantId: ID
+  warehouseName: String
+  warehouseId: Int
+  childWarehouseId: Int
+  childWarehouseName: String
+  segmentId: ID
+  segmentName: String
+  skuId: ID
+  name: String
+  packSize: Int
+  variantSize: String!
+  variantType: String!
+  message: String
+  createdAt: String
+  createdBy: String
+  updatedBy: String
+}
+
+type GetGlobalVariantResult {
+  id: ID!
+  name: String!
+  skuId: ID!
+  productId: ID!
+  mrp: Float!
+  slabType: String!
+  slabQty: Int!
+  slabPrice: Float!
+  variantType: String!
+  whClassificationType: String
+}
+
+type getInventoryViewDetailsOutput {
+  sku: String
+  name: String
+  productId: Int
+  productLive: Boolean
+  mrp: Float
+  variantId: Int
+  slabName: String
+  slabQty: Int
+  variantType: String
+  variantSize: String
+  variantLive: Boolean
+  hiddenAt: String
+  warehouseId: Int
+  childWarehouseId: Int
+  variantCreated: Boolean
+  variantCreatedWithVariantRedesign: Boolean
+  variantCreationDate: String
+  variantUpdationDate: String
+  segmentId: Int
+  slabPrice: Float
+  activeForSlabUpgrade: Boolean
+  activeByVariantPricingRules: Boolean
+  activeByVariantMarginRules: Boolean
+  variantVisibleOnApp: Boolean
+  erpWac: Float
+  variantStatus: String
+  thresholdMargin: Float
+  currentMargin: Float
+  totalInventory: Int
+  committedAndReserved: Int
+  availableInventory: Int
+  inventoryUpdateTime: String
+  snapshotCreatedAt: String
+  indexStartedAt: String
+  indexCompletedAt: String
+  cohortReserve: Int
+}
+
+type GetRulesResult {
+  id: ID
+  warehouseName: String
+  warehouseId: Int
+  segmentId: Int
+  segmentName: String
+  variantSize: String
+  variantType: String
+  percentageChange: Float
+  isInactiveForSlabUpgrade: Boolean
+  isHiddenByPriceRules: Boolean
+  ruleStatus: String
+  cohortId: Int
+}
+
+type getVariantSlabQtyResult {
+  data: [GetVariantSlabQtyDetails]
+  count: Int
+}
+
+type GetVariantSlabQtyDetails {
+  id: Int
+  name: String
+  skuId: ID
+  retailQty: Int
+  wholesaleQty: Int
+  megaQty: Int
+  bulkQty: Int
+  variantType: VariantType
+  warehouseId: Int
+  warehouseName: String
+  startDate: String
+  endDate: String
+  updatedBy: String
+}
+
+type getVariantWhClassificationResult {
+  id: ID
+  warehouseId: Int
+  warehouseName: String
+  whClassificationType: String
+  updatedBy: String
+}
+
+type GlobalVariantResult {
+  result: Boolean!
+  message: String!
+  code: Int!
+  alerts: [UploadAlert]
+}
+
+type UploadAlert {
+  rowNumber: ID
+  errorMessage: [String]
+}
+
+type MarginComparison {
+  id: ID
+  warehouse: Warehouse
+  upperBound: Float
+  lowerBound: Float
+}
+
+type MinimumMarginCount {
+  warehouse: Warehouse
+  totalCount: Int
+  activeCount: Int
+}
+
+type MinimumMargin {
+  id: ID
+  warehouseRule: WarehouseRule
+  product: Product
+  warehouse: Warehouse
+  variants: [Variant]
+  variantSize: VariantSize
+  threshold: Float!
+  status: ActiveStatus
+}
+
+type Response {
+  success: Boolean
+  message: String
+}
+
+input RulesData {
+  variantSize: VariantSize!
+  percentageChange: Float!
+  isInactiveForSlabUpgrade: Boolean!
+  isHiddenByPriceRules: Boolean!
+  variantType: VariantType!
+}
+
+type RuleSegment {
+  id: ID
+  segmentName: String
+  description: String
+  segmentType: RuleSegmentType
+  isBulkUploadSegment: Boolean
+}
+
+type RuleSegmentDetailsResult {
+  ruleSegment: RuleSegment
+  ruleSegmentDetails: [RuleSegmentDetails]
+}
+
+type RuleSegmentDetails {
+  id: ID
+  customerId: Int
+  skuId: String
+  categoryId: Int
+  brandId: Int
+  cohortId: Int
+}
+
+type Variant {
+  id: ID
+  name: String
+  mrp: Float
+  variantSize: VariantSize
+  variantType: VariantType
+}
+
+type WarehouseRule {
+  id: ID
+  status: ActiveStatus
+  ruleType: String
+}
+
+type WarehouseWAC {
+  product: Product
+  warehouse: Warehouse
+  wac: Float
+}
+
+enum CampaignCohortTypes {
+  CUSTOMER
+  FOS
+  DELIVERY
+}
+
+enum CampaignStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum LogicConditions {
+  EQUALS
+  NOTEQUALS
+  LESSTHAN
+  GREATERTHAN
+  LESSTHANEQUALS
+  GREATERTHANEQUALS
+}
+
+enum LogicGroupTypes {
+  OR
+  AND
+}
+
+enum SurveyQuestionType {
+  RADIO
+  SELECT
+  RATING
+  THANKYOU
+}
+
+input AKCampaignDateFilter {
+  from: String
+  to: String
+}
+
+input AKCampaignFilters {
+  name: String
+  id: ID
+  status: CampaignStatus
+  date: AKCampaignDateFilter
+}
+
+input AKSurveyQuestionsOptionsSubmissionInput {
+  option: String!
+  id: ID!
+}
+
+input AKSurveyQuestionsSubmissionInput {
+  id: ID!
+  selectedOption: [AKSurveyQuestionsOptionsSubmissionInput!]
+}
+
+input AKSurveySubmissionInput {
+  id: ID!
+  questions: [AKSurveyQuestionsSubmissionInput!]
+}
+
+input SurveyCohortUsersInput {
+  userId: Int!
+}
+
+input CampaignCreationInput {
+  name: String!
+  startDate: String
+  endDate: String
+  trigger_id: Int!
+  warehouse: [Int]
+  users: [SurveyCohortUsersInput]
+  questions: [SurveyQuestionsInput!]!
+}
+
+input SurveyIdentifiers {
+  name: String!
+  value: String!
+}
+
+input GenerateSurveyInput {
+  event: String!
+  userId: ID!
+  identifier: SurveyIdentifiers!
+}
+
+input AKCampaignPagination {
+  limit: Int
+  offset: Int
+}
+
+input GetCampaignInput {
+  filters: AKCampaignFilters
+  pagination: AKCampaignPagination
+}
+
+input GetSurveysInput {
+  id: ID
+}
+
+input SurveyCohortCreationInput {
+  name: String!
+  users: [SurveyCohortUsersInput!]!
+}
+
+input SurveyOptionsInput {
+  srNo: Int!
+  option: String!
+}
+
+input LogicConditionsInput {
+  value: Int!
+  condition: LogicConditions!
+}
+
+input SurveyLogicGroupInput {
+  groupType: LogicGroupTypes!
+  logicConditions: [LogicConditionsInput!]
+}
+
+input SurveyLogicInput {
+  targetQuestionSrNo: Int!
+  logicGroups: [SurveyLogicGroupInput!]
+}
+
+input SurveyQuestionsInput {
+  srNo: Int!
+  question: String!
+  description: String
+  type: SurveyQuestionType!
+  options: [SurveyOptionsInput]
+  logic: [SurveyLogicInput]
+}
+
+input ToggleCampaignInput {
+  id: ID!
+}
+
+type CampaignCohortUsers {
+  id: ID
+  userId: ID!
+  cohortId: ID
+  createdAt: String
+}
+
+type GetCampaignCohortListOutput {
+  id: ID
+  name: String!
+  kind: CampaignCohortTypes!
+  createdAt: String
+  users: [CampaignCohortUsers!]
+}
+
+type GetCampaignsListOutput {
+  id: ID!
+  name: String!
+  status: CampaignStatus!
+  trigger: String!
+  startDate: String
+  createdAt: String
+  endDate: String
+  cohortId: Int
+  questions: [SurveyQuestions!]
+}
+
+type GetCampaignsOutput {
+  responseResult: OpResult!
+  campaigns: [GetCampaignsListOutput!]
+}
+
+type GetSurveysOutput {
+  id: ID!
+  campaignId: ID
+  nextSurveyId: ID
+  expiryDate: String
+  questions: [SurveyQuestions!]
+  responseResult: OpResult
+}
+
+type LogicConditionsType {
+  id: ID
+  logicGroupId: ID
+  value: String!
+  condition: LogicConditions!
+}
+
+type SurveyLogicGroupType {
+  id: ID
+  logicId: ID
+  groupType: LogicGroupTypes
+  logicConditions: [LogicConditionsType!]
+}
+
+type SurveyLogicType {
+  id: ID
+  targetQuestionSrNo: Int!
+  logicGroups: [SurveyLogicGroupType!]
+}
+
+type SurveyOptionsType {
+  id: ID
+  srNo: Int
+  option: String
+}
+
+type SurveyQuestions {
+  id: ID!
+  srNo: Int!
+  question: String!
+  description: String
+  type: SurveyQuestionType!
+  required: Boolean
+  createdAt: String
+  options: [SurveyOptionsType]
+  logic: [SurveyLogicType]
+}
+
+type TriggerListOutput {
+  id: ID
+  name: String!
+  kind: String
+  createdAt: String
+}
+
+type SurveyTriggersOutput {
+  triggers: [TriggerListOutput]
+  responseResult: OpResult
+}
+
+enum paymentStatus {
+  NOT_INITIATED
+  AUTH_APPROVED
+  AUTH_PENDING
+  CREDIT_REQUEST_FAILED
+}
+
+input CustomerData {
+  customerId: String!
+  contact: String!
+  firstOrderDate: String!
+  gmvData: [GmvData]!
+}
+
+input GmvData {
+  totalValue: Float!
+  orderedAt: String!
+}
+
+input PageInfo {
+  limit: Int
+  offset: Int
+}
+
+type AccountStatementV2 {
+  lenderCustomerId: String
+  customerId: String
+  lenderAccountStatus: LenderAccountStatus
+  balance: Amount
+  limit: Amount
+  dueAmount: Amount
+  dueDate: String
+  daysOverdue: Int
+  totalDueAmount: Amount
+  lenderTransactionsUrl: String
+  lenderRepaymentUrl: String
+  lenderTransactions: Redirect
+  lenderRepayment: Redirect
+  lenderType: String
+  encdata: String
+  mcode: String
+  checksum: String
+  repaymentRedirectUrl: String
+  lenderDetails: LenderDetails
+  message: String
+}
+
+type AccountStatement {
+  lenderCustomerId: String
+  customerId: String
+  lenderAccountStatus: LenderAccountStatus
+  balance: Amount
+  limit: Amount
+  dueAmount: Amount
+  dueDate: String
+  daysOverdue: Int
+  totalDueAmount: Amount
+  lenderTransactionsUrl: String
+  lenderRepaymentUrl: String
+  lenderTransactions: Redirect
+  lenderRepayment: Redirect
+  lenderType: String
+  encdata: String
+  mcode: String
+  checksum: String
+  repaymentRedirectUrl: String
+  lenderDetails: LenderDetails
+  message: String
+}
+
+type Capture {
+  lenderCaptureId: String
+  captureId: String
+  amount: Amount
+  captureDate: String
+  lenderLoanId: String
+  orderId: String
+}
+
+type CreditCustomerData {
+  customerId: String
+  contactNumber: String
+  akCustomerId: String
+  akContactNumber: String
+  lenderService: String
+  bnplRepaymentPeriod: Int
+  bnplInterestRate: Float
+  onboardingStatus: String
+  onboardingUrl: String
+  activated: Boolean
+  balance: Float
+  limit: Float
+  preapprovedLimit: Float
+  createdAt: String
+  updatedAt: String
+}
+
+type CreditEligibility {
+  customerId: String
+  onboardingStatus: String
+  isEligibile: Boolean
+  currentCreditLimit: Float
+  onboardingUrl: String
+  remark: String
+}
+
+type CustomerCreditInfo {
+  availableLenders: [String]
+  customerActiveLenders: [LendersInfo]
+}
+
+type CustomerCreditPaymentInfo {
+  isCreditPaymentMarked: Boolean
+  customerLenderInfo: [CustomerLenderInfo]
+}
+
+type CustomerLenderInfo {
+  currentPaymentStatus: paymentStatus
+  lenderService: String
+  lenderIcon: String
+}
+
+type CreditCustomer {
+  customerId: String
+  activated: Boolean
+  lenderService: String
+  bnplInterestRate: Float
+  bnplRepaymentPeriod: Int
+  onboardingUrl: String
+  onboardingStatus: String
+  remark: String
+}
+
+type Document {
+  merchantDocRefId: String
+  docType: String
+  data: String
+  docFormat: String
+  url: String
+}
+
+type LenderAccountCreditSummary {
+  lenderAccountStatus: LenderAccountStatus
+  balance: Amount
+  limit: Amount
+  dueAmount: Amount
+  dueDate: String
+  daysOverdue: Int
+  totalDueAmount: Amount
+  lenderDetails: LenderDetails
+}
+
+type LendersInfo {
+  lenderService: String
+  bnplInterestRate: String
+  bnplRepaymentPeriod: String
+}
+
+type Loan {
+  lenderLoanId: String
+  customerId: String
+  lenderCustomerId: String
+  orderId: String
+  amount: Amount
+  loanDate: String
+  remarks: String
+  redirectConfirmUrl: String
+  redirectCancelUrl: String
+  callbackUrl: String
+  loanAuthUrl: String
+  loanAuth: Redirect
+  loanAuthUrlExpiry: String
+  status: String
+  uncapturedAmount: Amount
+  captures: [Capture]
+  voids: [Void]
+  refunds: [Refund]
+  documents: [Document]
+  interestRate: Float
+  repaymentPeriod: Int
+  redirectType: RedirectType
+  mcode: String
+  encdata: String
+  checksum: String
+  lenderType: String
+}
+
+type Refund {
+  refundId: String
+  merchantRefundRefId: String
+  amount: Amount
+  refundDate: String
+  paymentId: String
+  merchantPaymentRefId: String
+  captureId: String
+  merchantCaptureRefId: String
+}
+
+type SettledEntity {
+  settlementId: String
+  merchantRefId: String
+  refId: String
+  refType: String
+  amount: Amount
+  settlementType: String
+  utr: String
+  settlementTime: String
+}
+
+type Settlement {
+  id: String
+  amount: Amount
+  utr: String
+  status: String
+  settlementDate: String
+}
+
+type Void {
+  lenderVoidId: String
+  voidId: String
+  amount: Amount
+  voidDate: String
+  lenderLoanId: String
+  orderId: String
+}
+
+enum SearchSyncCollection {
+  DEFAULT
+  NOTIFYME
+  TOOFANI
+}
+
+enum SearchSyncCommand {
+  START
+  STOP
+  FORCE
+}
+
+enum TranslationEntityType {
+  PRODUCT
+  BRAND
+  CATEGORY
+}
+
+enum TranslationSyncCommand {
+  START
+  STOP
+}
+
+input SearchSyncCommandParams {
+  warehouseId: ID
+  collection: SearchSyncCollection
+}
+
+input TranslationSyncCommandParams {
+  type: TranslationEntityType!
+  ids: [ID!]
+}
+
+type TranslationBatch {
+  id: ID!
+  status: ID
+  input_file_id: ID!
+  output_file_id: ID
+  error_file_id: ID
+  created_at: Int
+  in_progress_at: Int
+  expires_at: Int
+  finalizing_at: Int
+  completed_at: Int
+}
+
+enum CustomerDocumentType {
+  LOGIN
+  ADDRESS
+  BASKET
+  ORDER
+}
+
+enum CustomerPhoneCallType {
+  DIRECT
+  VIRTUAL
+}
+
+type CustomerPhoneCall {
+  prefix: String!
+  number: String!
+  type: CustomerPhoneCallType!
+}
+
+type CustomerPhoneCallError {
+  code: Int!
+  message: String!
+}
+
+union CallToCustomerResult = CustomerPhoneCall | CustomerPhoneCallError

@@ -1,0 +1,111 @@
+# Web HTTP Client Capability
+# This demonstrates HTTP client operations for web requests
+
+metadata:
+  name: "HTTP Client Tools"
+  description: "Tools for making HTTP requests and web API interactions"
+  version: "1.5.0"
+  author: "Web Team"
+  tags: ["http", "web", "api", "client", "requests"]
+
+tools:
+  - name: "http_get"
+    description: "Make an HTTP GET request"
+    inputSchema:
+      type: "object"
+      properties:
+        url:
+          type: "string"
+          description: "URL to make the GET request to"
+          format: "uri"
+        headers:
+          type: "object"
+          description: "HTTP headers to include"
+          additionalProperties:
+            type: "string"
+        timeout:
+          type: "integer"
+          description: "Request timeout in seconds"
+          default: 30
+          minimum: 1
+          maximum: 300
+        follow_redirects:
+          type: "boolean"
+          description: "Follow HTTP redirects"
+          default: true
+      required: ["url"]
+    routing:
+      type: "http"
+      config:
+        method: "GET"
+        url: "{url}"
+        headers: "{headers}"
+        timeout: "{timeout}"
+        follow_redirects: "{follow_redirects}"
+    hidden: true
+
+  - name: "http_post"
+    description: "Make an HTTP POST request"
+    inputSchema:
+      type: "object"
+      properties:
+        url:
+          type: "string"
+          description: "URL to make the POST request to"
+          format: "uri"
+        body:
+          type: "string"
+          description: "Request body content"
+        headers:
+          type: "object"
+          description: "HTTP headers to include"
+          additionalProperties:
+            type: "string"
+        content_type:
+          type: "string"
+          description: "Content-Type header"
+          default: "application/json"
+        timeout:
+          type: "integer"
+          description: "Request timeout in seconds"
+          default: 30
+      required: ["url", "body"]
+    routing:
+      type: "http"
+      config:
+        method: "POST"
+        url: "{url}"
+        body: "{body}"
+        headers: "{headers}"
+        content_type: "{content_type}"
+        timeout: "{timeout}"
+    hidden: true
+
+  - name: "download_file"
+    description: "Download a file from a URL"
+    inputSchema:
+      type: "object"
+      properties:
+        url:
+          type: "string"
+          description: "URL of the file to download"
+          format: "uri"
+        output_path:
+          type: "string"
+          description: "Local path to save the downloaded file"
+        overwrite:
+          type: "boolean"
+          description: "Overwrite existing file"
+          default: false
+        max_size:
+          type: "integer"
+          description: "Maximum file size in bytes"
+          default: 104857600  # 100MB
+      required: ["url", "output_path"]
+    routing:
+      type: "subprocess"
+      config:
+        command: "curl"
+        args: ["-L", "-o", "{output_path}", "{url}"]
+        timeout: 300
+    hidden: true

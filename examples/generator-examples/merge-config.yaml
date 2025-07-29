@@ -1,0 +1,75 @@
+# Merge Configuration Example (YAML Format)
+# This file demonstrates how to configure the capability merger
+# to combine multiple capability files into a single unified file.
+#
+# Usage:
+# 1. Generate individual capability files first
+# 2. Run: mcp-generator merge --input file1.yaml,file2.yaml,file3.yaml --output merged.yaml --strategy rename
+#
+# Note: This example assumes you've already generated capability files
+# from different sources (GraphQL, gRPC, OpenAPI) and want to combine them.
+
+# Global settings
+global:
+  # Base directory for merged output files
+  output_dir: "./capabilities/merged"
+
+# Output file settings
+output:
+  # Use YAML format for the merged capability file
+  format: "yaml"
+  # Enable pretty-printing for better readability
+  pretty: true
+  # Directory for the merged output file
+  directory: "./capabilities/merged"
+  # Naming pattern for the merged file
+  # Will generate: merged-capabilities.yaml
+  file_pattern: "merged-capabilities.{ext}"
+
+# Merge configuration
+merge:
+  # Input files to merge (relative to the current directory)
+  # These are the capability files generated from different sources
+  input_files:
+    # GitHub GraphQL API capabilities
+    - "./capabilities/graphql/github-capabilities.yaml"
+    # User service gRPC capabilities
+    - "./capabilities/grpc/user-service-capabilities.yaml"
+    # Petstore OpenAPI capabilities
+    - "./capabilities/openapi/petstore-capabilities.yaml"
+
+  # Output file for the merged capabilities
+  # This will contain all tools from the input files
+  output_file: "./capabilities/merged/all-capabilities.yaml"
+
+  # Merge strategy for handling duplicate tool names
+  # Options:
+  # - keep-first: Keep the first occurrence of each tool name
+  # - keep-last: Keep the last occurrence of each tool name
+  # - rename: Keep all tools but rename duplicates (recommended)
+  # - error: Fail if duplicate tool names are found
+  strategy: "rename"
+
+  # Prefix format for renamed tools (when strategy = "rename")
+  # This determines how duplicate tools will be renamed
+  # {source} will be replaced with the corresponding source name
+  # {name} will be replaced with the original tool name
+  prefix_format: "{source}_{name}"
+
+  # Source mapping for renamed tools
+  # This maps input file names to shorter, cleaner source names
+  source_mapping:
+    github-capabilities: "github"
+    user-service-capabilities: "users"
+    petstore-capabilities: "petstore"
+
+# Example command to run this merge operation:
+# mcp-generator merge \
+#   --input ./capabilities/graphql/github-capabilities.yaml,./capabilities/grpc/user-service-capabilities.yaml,./capabilities/openapi/petstore-capabilities.yaml \
+#   --output ./capabilities/merged/all-capabilities.yaml \
+#   --strategy rename
+#
+# The resulting file will contain all tools from the input files,
+# with any duplicate tool names renamed according to the prefix_format.
+# For example, if both GitHub and Petstore have a tool named "getUser",
+# they would become "github_getUser" and "petstore_getUser" in the merged file.

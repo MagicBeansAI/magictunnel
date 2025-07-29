@@ -1,0 +1,181 @@
+# External MCP Servers Configuration Template
+# This file uses Claude Desktop's exact configuration format for maximum compatibility.
+# Copy this to external-mcp-servers.yaml and customize for your needs.
+#
+# IMPORTANT: External MCP servers do NOT support 'enabled' or 'hidden' flags.
+# To enable/disable a server: include/exclude it from this configuration file.
+# The 'enabled' and 'hidden' flags only apply to individual tools in capability files.
+
+# =============================================================================
+# MCP SERVERS CONFIGURATION (Claude Desktop Format)
+# =============================================================================
+# This section defines MCP servers that Magic Tunnel will spawn and manage.
+# Each server entry follows Claude Desktop's exact configuration format.
+#
+# Format:
+# mcpServers:
+#   server-name:
+#     command: "command-to-run"           # Required: Command to execute
+#     args: ["arg1", "arg2", ...]         # Required: Arguments array
+#     env:                                # Optional: Environment variables
+#       VAR_NAME: "value"
+#     cwd: "/working/directory"           # Optional: Working directory
+#
+# =============================================================================
+
+mcpServers:
+  # ==========================================================================
+  # FILESYSTEM OPERATIONS
+  # ==========================================================================
+  
+  # Filesystem server - File and directory operations
+  # Provides: read_file, write_file, create_directory, list_directory, etc.
+  filesystem:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp", "/Users"]
+    env:
+      PATH: "${PATH}"
+  
+  # ==========================================================================
+  # VERSION CONTROL
+  # ==========================================================================
+  
+  # Git server - Git repository operations
+  # Provides: git_status, git_commit, git_push, git_log, etc.
+  git:
+    command: "uv"
+    args: ["run", "mcp-server-git", "--repository", "."]
+    env:
+      PATH: "${PATH}"
+  
+  # ==========================================================================
+  # DATABASE OPERATIONS
+  # ==========================================================================
+  
+  # SQLite server - SQLite database operations
+  # Provides: query, execute, create_table, etc.
+  sqlite:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "./data.db"]
+    env:
+      PATH: "${PATH}"
+  
+  # PostgreSQL server (containerized)
+  # Provides: query, execute, schema operations, etc.
+  postgres:
+    command: "docker"
+    args: ["run", "--rm", "-i", "--network", "host", "mcp-server-postgres:latest"]
+    env:
+      DATABASE_URL: "postgresql://user:password@localhost:5432/dbname"
+  
+  # ==========================================================================
+  # WEB SERVICES & APIs
+  # ==========================================================================
+  
+  # Brave Search server - Web search capabilities
+  # Provides: web_search, news_search, etc.
+  # Requires: BRAVE_API_KEY environment variable
+  brave-search:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-brave-search"]
+    env:
+      PATH: "${PATH}"
+      BRAVE_API_KEY: "your-brave-api-key-here"  # Replace with actual API key
+  
+  # GitHub server - GitHub repository and issue operations
+  # Provides: create_issue, list_repos, get_file, etc.
+  # Requires: GITHUB_PERSONAL_ACCESS_TOKEN environment variable
+  github:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      PATH: "${PATH}"
+      GITHUB_PERSONAL_ACCESS_TOKEN: "your-github-token-here"  # Replace with actual token
+  
+  # ==========================================================================
+  # COMMUNICATION & COLLABORATION
+  # ==========================================================================
+  
+  # Slack server - Slack workspace operations
+  # Provides: send_message, list_channels, get_user_info, etc.
+  # Requires: SLACK_BOT_TOKEN environment variable
+  slack:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-slack"]
+    env:
+      PATH: "${PATH}"
+      SLACK_BOT_TOKEN: "your-slack-bot-token-here"  # Replace with actual token
+  
+  # ==========================================================================
+  # CLOUD STORAGE
+  # ==========================================================================
+  
+  # Google Drive server - Google Drive file operations
+  # Provides: list_files, download_file, upload_file, etc.
+  # Requires: GOOGLE_APPLICATION_CREDENTIALS environment variable
+  gdrive:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-gdrive"]
+    env:
+      PATH: "${PATH}"
+      GOOGLE_APPLICATION_CREDENTIALS: "/path/to/credentials.json"  # Replace with actual path
+  
+  # ==========================================================================
+  # CUSTOM SERVERS
+  # ==========================================================================
+  
+  # Custom Python MCP server example
+  # Replace with your own custom server implementation
+  custom-python:
+    command: "uv"
+    args: ["run", "python", "-m", "my_custom_mcp_server"]
+    cwd: "/path/to/custom/server"  # Replace with actual path
+    env:
+      PATH: "${PATH}"
+      PYTHONPATH: "/path/to/custom/server"
+      # Add any custom environment variables your server needs
+  
+  # Custom Node.js MCP server example
+  # Replace with your own custom server implementation
+  custom-node:
+    command: "node"
+    args: ["dist/index.js"]
+    cwd: "/path/to/custom/node/server"  # Replace with actual path
+    env:
+      PATH: "${PATH}"
+      NODE_ENV: "production"
+      # Add any custom environment variables your server needs
+
+# =============================================================================
+# CONFIGURATION NOTES
+# =============================================================================
+#
+# 1. INSTALLATION REQUIREMENTS:
+#    - Node.js and npm/npx for @modelcontextprotocol/server-* packages
+#    - Python and uv for Python-based MCP servers
+#    - Docker for containerized servers
+#
+# 2. ENVIRONMENT VARIABLES:
+#    - Replace placeholder values (your-api-key-here, etc.) with actual credentials
+#    - Use ${VAR_NAME} syntax to reference system environment variables
+#    - Store sensitive credentials in your system environment, not in this file
+#
+# 3. PATHS:
+#    - Use absolute paths for reliability
+#    - Adjust paths to match your system configuration
+#    - Ensure working directories (cwd) exist and are accessible
+#
+# 4. MAGIC TUNNEL BEHAVIOR:
+#    - Automatically spawns configured server processes
+#    - Performs MCP handshake with each server
+#    - Discovers available tools, resources, and prompts
+#    - Generates capability files in ./capabilities/external-mcp/
+#    - Supports hot-reload when servers are added/removed/modified
+#
+# 5. TROUBLESHOOTING:
+#    - Check Magic Tunnel logs for connection errors
+#    - Verify commands can be run manually from command line
+#    - Ensure all required dependencies are installed
+#    - Validate environment variables are set correctly
+#
+# =============================================================================

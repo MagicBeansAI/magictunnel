@@ -1,0 +1,627 @@
+# Comprehensive GraphQL Test Schema
+# This file contains all schema elements needed by the GraphQL generator tests
+
+# Custom Scalars
+scalar DateTime
+scalar URL @specifiedBy(url: "https://tools.ietf.org/html/rfc3986")
+scalar JSON
+
+# Custom Directives
+"Custom directive for authentication"
+directive @auth(
+    requires: Role = USER
+) repeatable on FIELD_DEFINITION | OBJECT
+
+directive @rateLimit(
+    max: Int!
+    window: Int! = 60
+) on FIELD_DEFINITION
+
+directive @cache(
+    ttl: Int! = 300
+) on FIELD_DEFINITION
+
+directive @validate(
+    pattern: String!
+    message: String = "Invalid input"
+) on ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION
+
+# Root Types
+type Query {
+    # Basic operations
+    getUser(id: ID!, role: UserRole = ADMIN): User
+    getUsers(status: UserStatus, role: UserRole, limit: Int = 10, offset: Int = 0): [User!]!
+    getUserByEmail(email: String!): User
+    
+    # Character operations for enum tests
+    getCharacter(id: ID!, episode: Episode): Character
+    
+    # Search operations
+    search(query: String!, type: SearchType, includeInactive: Boolean = false): [SearchResult!]!
+    searchUsers(names: [String!], ages: [Int!], tags: [String!], filters: [String!]): [User!]!
+    
+    # Post operations
+    getPost(id: ID!): Post
+    getPosts(tags: [String!], authors: [ID!], limit: Int = 20): [Post]
+    getTrendingPosts(timeframe: Timeframe = WEEK): [Post!]!
+    getFeaturedPosts: [Post!]!
+    
+    # Comment operations
+    getComment(id: ID!): Comment
+    
+    # Category operations
+    getCategories: [Category!]!
+    getCategoryBySlug(slug: String!): Category
+    
+    # Event operations
+    getEvent(id: ID!): Event
+    getUpcomingEvents(limit: Int = 10): [Event!]!
+    
+    # Notification operations
+    getNotifications(unreadOnly: Boolean = false): [Notification!]!
+    getUnreadNotificationCount: Int!
+    
+    # Stats and analytics
+    getSiteStats: SiteStats!
+    
+    # User-specific operations
+    me: User
+    getReadingHistory: [Post!]!
+
+    # Deprecated operations for testing
+    getOldUser(id: ID!): User @deprecated(reason: "Use getUser instead")
+    ping: String @deprecated
+    oldQuery: String @deprecated(reason: "This query will be removed in v2.0")
+    
+    # Matrix operation for complex list types
+    getMatrix(data: [[Int!]!]!): [[String]]
+    
+    # Operations with default values for testing
+    getUsersByStatus(status: UserStatus = ACTIVE): [User!]!
+
+    # Operations with directive usage (for directive testing)
+    getSecretData: String @auth(requires: ADMIN)
+    getPopularContent: [String!]! @rateLimit(max: 10, window: 60)
+    getStaticContent: String @cache(ttl: 3600)
+}
+
+type Mutation {
+    # User mutations
+    createUser(input: CreateUserInput!): User!
+    updateUser(id: ID!, input: UpdateUserInput!): User!
+    updateProfile(input: ProfileInput!): User!
+    followUser(userId: ID!): Boolean!
+    unfollowUser(userId: ID!): Boolean!
+    updateUserStatus(userId: ID!, status: UserStatus!): User!
+    
+    # Post mutations
+    createPost(input: CreatePostInput!): Post!
+    updatePost(id: ID!, input: UpdatePostInput!): Post!
+    deletePost(id: ID!): Boolean!
+    publishPost(id: ID!): Post!
+    likePost(postId: ID!): Boolean!
+    unlikePost(postId: ID!): Boolean!
+    
+    # Comment mutations
+    addComment(postId: ID!, content: String!): Comment!
+    updateComment(id: ID!, content: String!): Comment!
+    deleteComment(id: ID!): Boolean!
+    likeComment(commentId: ID!): Boolean!
+    unlikeComment(commentId: ID!): Boolean!
+    
+    # Event mutations
+    createEvent(input: CreateEventInput!): Event!
+    rsvpToEvent(eventId: ID!): Boolean!
+    cancelRsvp(eventId: ID!): Boolean!
+
+    # Mutation with validation directives (for directive testing)
+    createUserWithValidation(name: String!, email: String!): User @auth(requires: ADMIN)
+
+    # Deprecated mutation (for directive testing)
+    oldCreateUser(name: String!): User @deprecated(reason: "Use createUser instead")
+    
+    # Notification mutations
+    markNotificationAsRead(id: ID!): Boolean!
+    markAllNotificationsAsRead: Boolean!
+    
+    # Admin mutations
+    createAnnouncement(input: AnnouncementInput!): Announcement!
+    
+    # Reading tracking
+    markPostAsRead(postId: ID!): Boolean!
+    
+    # Reporting
+    reportContent(input: ReportInput!): Boolean!
+}
+
+type Subscription {
+    # Real-time updates
+    newPostFromFollowing: Post!
+    newCommentOnPost(postId: ID!): Comment!
+    newCommentOnMyPosts: Comment!
+    newLikeOnMyContent: LikeNotification!
+    newFollower: User!
+    newNotification: Notification!
+    userOnlineStatusChanged(userId: ID!): User!
+    newEvent: Event!
+    eventUpdated(eventId: ID!): Event!
+    newAnnouncement: Announcement!
+    typingIndicator(postId: ID!): TypingIndicator!
+
+    # Enhanced subscription operations for comprehensive testing
+    # Multi-argument subscriptions
+    chatMessageAdded(channelId: ID!, includeMetadata: Boolean = false): ChatMessage!
+    userPresenceChanged(userId: ID!, trackLocation: Boolean = false, includeDeviceInfo: Boolean = true): UserPresence!
+
+    # List return types
+    bulkNotifications(userId: ID!, types: [NotificationType!]): [Notification!]!
+    liveUserList(channelId: ID!): [User!]!
+
+    # Optional return types
+    optionalTypingIndicator(channelId: ID!): TypingIndicator
+    maybeSystemStatus: SystemStatus
+
+    # Complex input objects
+    customEventStream(filter: EventFilter!): CustomEvent!
+    advancedNotifications(config: NotificationConfig!): AdvancedNotification!
+}
+
+# Object Types
+"""A user in the system"""
+type User implements Node @auth(requires: USER) {
+    id: ID!
+    """The user's display name"""
+    name: String! @rateLimit(max: 100)
+    email: String! @auth(requires: USER) @rateLimit(max: 50)
+    role: UserRole!
+    status: UserStatus!
+    avatar: URL
+    bio: String
+    createdAt: DateTime!
+    updatedAt: DateTime!
+    posts: [Post!]!
+    followers: [User!]!
+    following: [User!]!
+    preferences: UserPreferences
+
+    # Deprecated fields for testing
+    oldField: String @deprecated(reason: "Use newField instead")
+    newField: String!
+    username: String @deprecated(reason: "Use name field instead")
+}
+
+"""A character from the story"""
+type Character implements Node {
+    id: ID!
+    name: String!
+    episode: Episode!
+    description: String
+}
+
+"""A blog post"""
+type Post implements Node & Content {
+    id: ID!
+    title: String!
+    content: String!
+    author: User!
+    category: Category
+    tags: [String!]!
+    publishedAt: DateTime
+    createdAt: DateTime!
+    updatedAt: DateTime!
+    likes: Int!
+    comments: [Comment!]!
+    isPublished: Boolean!
+}
+
+"""A comment on a post"""
+type Comment implements Node & Content {
+    id: ID!
+    content: String!
+    author: User!
+    post: Post!
+    createdAt: DateTime!
+    updatedAt: DateTime!
+    likes: Int!
+}
+
+"""A category for organizing posts"""
+type Category implements Node {
+    id: ID!
+    name: String!
+    slug: String!
+    description: String
+    posts: [Post!]!
+}
+
+"""An event in the system"""
+type Event implements Node {
+    id: ID!
+    title: String!
+    description: String
+    startTime: DateTime!
+    endTime: DateTime
+    location: String
+    attendees: [User!]!
+    maxAttendees: Int
+}
+
+"""A notification for users"""
+type Notification implements Node {
+    id: ID!
+    type: NotificationType!
+    message: String!
+    user: User!
+    isRead: Boolean!
+    createdAt: DateTime!
+    relatedContent: Content
+}
+
+"""An announcement from administrators"""
+type Announcement implements Node {
+    id: ID!
+    title: String!
+    content: String!
+    author: User!
+    createdAt: DateTime!
+    isActive: Boolean!
+}
+
+"""Site-wide statistics"""
+type SiteStats {
+    totalUsers: Int!
+    totalPosts: Int!
+    totalComments: Int!
+    activeUsers: Int!
+}
+
+"""User preferences"""
+type UserPreferences {
+    theme: String!
+    notifications: Boolean!
+    language: String!
+}
+
+"""Like notification details"""
+type LikeNotification {
+    user: User!
+    content: Content!
+    createdAt: DateTime!
+}
+
+"""Typing indicator for real-time features"""
+type TypingIndicator {
+    user: User!
+    postId: ID!
+    isTyping: Boolean!
+}
+
+# Interface Types
+"""Base interface for all entities with an ID"""
+interface Node {
+    id: ID!
+}
+
+"""Interface for content that can be liked and commented on"""
+interface Content {
+    id: ID!
+    createdAt: DateTime!
+    updatedAt: DateTime!
+}
+
+# Union Types
+"""Search results can be various types"""
+union SearchResult = User | Post | Comment | Event
+
+# Enum Types
+"""User roles in the system"""
+enum UserRole {
+    ADMIN
+    MODERATOR
+    USER
+    GUEST
+}
+
+"""User account status"""
+enum UserStatus {
+    ACTIVE
+    INACTIVE
+    PENDING
+    SUSPENDED
+    OLD_STATUS @deprecated(reason: "This status is no longer supported")
+}
+
+"""Episodes for character references"""
+enum Episode {
+    NEWHOPE
+    EMPIRE
+    JEDI
+}
+
+"""Search types for filtering"""
+enum SearchType {
+    ALL
+    USERS
+    POSTS
+    COMMENTS
+    EVENTS
+}
+
+"""Timeframe for trending content"""
+enum Timeframe {
+    DAY
+    WEEK
+    MONTH
+    YEAR
+}
+
+"""Types of notifications"""
+enum NotificationType {
+    LIKE
+    COMMENT
+    FOLLOW
+    MENTION
+    ANNOUNCEMENT
+    EVENT_REMINDER
+}
+
+# Input Types
+"""Input for creating a new user"""
+input CreateUserInput {
+    name: String!
+    email: String!
+    password: String!
+    role: UserRole = USER
+    bio: String
+}
+
+"""Input for updating user information"""
+input UpdateUserInput {
+    name: String
+    email: String
+    bio: String
+    avatar: URL
+}
+
+"""Input for updating user profile"""
+input ProfileInput {
+    name: String
+    bio: String
+    preferences: UserPreferencesInput
+}
+
+"""Input for user preferences"""
+input UserPreferencesInput {
+    theme: String
+    notifications: Boolean
+    language: String
+}
+
+"""Input for filtering users"""
+input UserFilter {
+    name: String
+    email: String
+    isActive: Boolean
+    preferences: UserPreferencesInput
+}
+
+"""Input for creating a new post"""
+input CreatePostInput {
+    title: String!
+    content: String!
+    categoryId: ID
+    tags: [String!]
+    publishImmediately: Boolean = false
+}
+
+"""Input for updating a post"""
+input UpdatePostInput {
+    title: String
+    content: String
+    categoryId: ID
+    tags: [String!]
+}
+
+"""Input for creating an event"""
+input CreateEventInput {
+    title: String!
+    description: String
+    startTime: DateTime!
+    endTime: DateTime
+    location: String
+    maxAttendees: Int
+}
+
+"""Input for creating announcements"""
+input AnnouncementInput {
+    title: String!
+    content: String!
+    isActive: Boolean = true
+}
+
+"""Input for reporting content"""
+input ReportInput {
+    contentId: ID!
+    contentType: String!
+    reason: String!
+    description: String
+}
+
+"""Input for pagination"""
+input PaginationInput {
+    limit: Int = 10
+    offset: Int = 0
+}
+
+# Schema Extensions (for schema extension testing)
+# Simplified extensions to avoid parsing conflicts
+
+# Basic type extension
+extend type User {
+    lastLoginAt: String
+    isVerified: Boolean!
+}
+
+# Basic query extension
+extend type Query {
+    searchUsersByEmail(email: String!): [User]
+}
+
+# Basic mutation extension
+extend type Mutation {
+    verifyUser(userId: ID!): User!
+}
+
+# Basic input extension
+extend input CreateUserInput {
+    isVerified: Boolean = false
+}
+
+# New type for extensions
+type ActivityLog {
+    id: ID!
+    userId: ID!
+    action: String!
+    timestamp: String!
+}
+
+# Enhanced subscription types
+type ChatMessage {
+    id: ID!
+    content: String!
+    author: User!
+    channelId: ID!
+    timestamp: String!
+    metadata: MessageMetadata
+}
+
+type MessageMetadata {
+    edited: Boolean!
+    editedAt: String
+    reactions: [Reaction!]!
+}
+
+type Reaction {
+    emoji: String!
+    count: Int!
+    users: [User!]!
+}
+
+type UserPresence {
+    user: User!
+    status: PresenceStatus!
+    lastSeen: String!
+    location: Location
+    deviceInfo: DeviceInfo
+}
+
+type Location {
+    country: String
+    city: String
+    timezone: String
+}
+
+type DeviceInfo {
+    type: DeviceType!
+    os: String
+    browser: String
+}
+
+type SystemStatus {
+    healthy: Boolean!
+    version: String!
+    uptime: Int!
+    activeUsers: Int!
+}
+
+type CustomEvent {
+    id: ID!
+    type: String!
+    data: String!
+    timestamp: String!
+    source: String!
+}
+
+type AdvancedNotification {
+    id: ID!
+    title: String!
+    body: String!
+    priority: NotificationPriority!
+    channels: [NotificationChannel!]!
+    metadata: NotificationMetadata!
+}
+
+type NotificationMetadata {
+    tags: [String!]!
+    category: String!
+    actionUrl: String
+}
+
+# Enhanced subscription enums and inputs
+enum PresenceStatus {
+    ONLINE
+    AWAY
+    BUSY
+    OFFLINE
+}
+
+enum DeviceType {
+    DESKTOP
+    MOBILE
+    TABLET
+    WEB
+}
+
+enum NotificationType {
+    MESSAGE
+    MENTION
+    LIKE
+    COMMENT
+    FOLLOW
+    SYSTEM
+}
+
+enum NotificationPriority {
+    LOW
+    NORMAL
+    HIGH
+    URGENT
+}
+
+enum NotificationChannel {
+    EMAIL
+    PUSH
+    SMS
+    IN_APP
+}
+
+enum EventPriority {
+    LOW
+    NORMAL
+    HIGH
+    CRITICAL
+}
+
+input EventFilter {
+    types: [String!]!
+    sources: [String!] = []
+    priority: EventPriority = NORMAL
+    includeMetadata: Boolean = true
+}
+
+input NotificationConfig {
+    channels: [NotificationChannel!]!
+    priority: NotificationPriority = NORMAL
+    batchSize: Int = 10
+    throttleMs: Int = 1000
+}
+
+# Extend enum types (testing enum extension validation fix)
+extend enum UserStatus {
+    ARCHIVED
+    PENDING_VERIFICATION
+}
+
+extend enum UserRole {
+    SUPER_ADMIN @deprecated(reason: "Use ADMIN with elevated permissions instead")
+}

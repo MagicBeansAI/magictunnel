@@ -1,0 +1,163 @@
+# OAuth 2.0 Authentication Configuration Examples for MCP Proxy
+
+# Example 1: GitHub OAuth Configuration
+server:
+  host: "127.0.0.1"
+  port: 8080
+
+registry:
+  directories:
+    - "data/capabilities"
+  watch: true
+
+auth:
+  enabled: true
+  type: "oauth"
+  oauth:
+    provider: "github"
+    client_id: "your_github_client_id_here"
+    client_secret: "your_github_client_secret_here"
+    auth_url: "https://github.com/login/oauth/authorize"
+    token_url: "https://github.com/login/oauth/access_token"
+
+logging:
+  level: "info"
+  format: "json"
+
+---
+
+# Example 2: Google OAuth Configuration
+server:
+  host: "127.0.0.1"
+  port: 8080
+
+registry:
+  directories:
+    - "data/capabilities"
+  watch: true
+
+auth:
+  enabled: true
+  type: "oauth"
+  oauth:
+    provider: "google"
+    client_id: "your_google_client_id.apps.googleusercontent.com"
+    client_secret: "your_google_client_secret"
+    auth_url: "https://accounts.google.com/o/oauth2/auth"
+    token_url: "https://oauth2.googleapis.com/token"
+
+logging:
+  level: "info"
+  format: "json"
+
+---
+
+# Example 3: Microsoft Azure AD OAuth Configuration
+server:
+  host: "127.0.0.1"
+  port: 8080
+
+registry:
+  directories:
+    - "data/capabilities"
+  watch: true
+
+auth:
+  enabled: true
+  type: "oauth"
+  oauth:
+    provider: "microsoft"
+    client_id: "your_azure_application_id"
+    client_secret: "your_azure_client_secret"
+    auth_url: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+    token_url: "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+
+logging:
+  level: "info"
+  format: "json"
+
+---
+
+# Example 4: Custom OAuth Provider Configuration
+server:
+  host: "127.0.0.1"
+  port: 8080
+
+registry:
+  directories:
+    - "data/capabilities"
+  watch: true
+
+auth:
+  enabled: true
+  type: "oauth"
+  oauth:
+    provider: "custom"
+    client_id: "your_custom_client_id"
+    client_secret: "your_custom_client_secret"
+    auth_url: "https://your-oauth-provider.com/oauth/authorize"
+    token_url: "https://your-oauth-provider.com/oauth/token"
+
+logging:
+  level: "info"
+  format: "json"
+
+---
+
+# OAuth 2.0 Setup Instructions:
+
+# 1. GitHub OAuth Setup:
+#    - Go to GitHub Settings > Developer settings > OAuth Apps
+#    - Create a new OAuth App
+#    - Set Authorization callback URL to: http://localhost:8080/auth/oauth/callback
+#    - Copy Client ID and Client Secret to the configuration above
+
+# 2. Google OAuth Setup:
+#    - Go to Google Cloud Console > APIs & Services > Credentials
+#    - Create OAuth 2.0 Client ID
+#    - Set Authorized redirect URI to: http://localhost:8080/auth/oauth/callback
+#    - Copy Client ID and Client Secret to the configuration above
+
+# 3. Microsoft Azure AD Setup:
+#    - Go to Azure Portal > Azure Active Directory > App registrations
+#    - Create a new registration
+#    - Set Redirect URI to: http://localhost:8080/auth/oauth/callback
+#    - Copy Application (client) ID and create a client secret
+
+# OAuth Flow Usage:
+
+# 1. Start Authorization:
+#    GET http://localhost:8080/auth/oauth/authorize?redirect_uri=http://localhost:8080/auth/oauth/callback&state=random_state
+
+# 2. User will be redirected to OAuth provider for authentication
+
+# 3. After successful authentication, user will be redirected back to:
+#    http://localhost:8080/auth/oauth/callback?code=authorization_code&state=random_state
+
+# 4. Exchange code for access token (handled automatically by callback endpoint)
+
+# 5. Use the access token in subsequent requests:
+#    Authorization: Bearer your_access_token_here
+
+# Testing OAuth Authentication:
+
+# Test token validation:
+# curl -X POST http://localhost:8080/auth/oauth/token \
+#      -H "Authorization: Bearer your_access_token_here"
+
+# Test protected endpoints:
+# curl -H "Authorization: Bearer your_access_token_here" \
+#      http://localhost:8080/mcp/tools
+
+# curl -X POST http://localhost:8080/mcp/call \
+#      -H "Authorization: Bearer your_access_token_here" \
+#      -H "Content-Type: application/json" \
+#      -d '{"name": "example_tool", "arguments": {}}'
+
+# Security Notes:
+# - Always use HTTPS in production
+# - Keep client secrets secure and never commit them to version control
+# - Use environment variables for sensitive configuration:
+#   client_secret: "${OAUTH_CLIENT_SECRET}"
+# - Implement proper token refresh logic for long-running applications
+# - Consider token expiration and implement proper error handling

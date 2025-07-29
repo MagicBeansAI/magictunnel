@@ -1,0 +1,105 @@
+# Database Tools Capability
+# This demonstrates database operations and data management
+
+metadata:
+  name: "Database Tools"
+  description: "Tools for database operations and data management"
+  version: "1.2.0"
+  author: "Data Team"
+  tags: ["database", "sql", "data", "query", "management"]
+
+tools:
+  - name: "execute_query"
+    description: "Execute a SQL query against a database"
+    inputSchema:
+      type: "object"
+      properties:
+        query:
+          type: "string"
+          description: "SQL query to execute"
+        database:
+          type: "string"
+          description: "Database connection identifier"
+          default: "default"
+        parameters:
+          type: "object"
+          description: "Query parameters for prepared statements"
+          additionalProperties: true
+        timeout:
+          type: "integer"
+          description: "Query timeout in seconds"
+          default: 60
+          minimum: 1
+          maximum: 300
+        read_only:
+          type: "boolean"
+          description: "Execute as read-only query"
+          default: false
+      required: ["query"]
+    routing:
+      type: "subprocess"
+      config:
+        command: "psql"
+        args: ["-d", "{database}", "-c", "{query}"]
+        timeout: "{timeout}"
+        environment:
+          PGPASSWORD: "${DB_PASSWORD}"
+    hidden: true
+
+  - name: "backup_table"
+    description: "Create a backup of a database table"
+    inputSchema:
+      type: "object"
+      properties:
+        table_name:
+          type: "string"
+          description: "Name of the table to backup"
+        database:
+          type: "string"
+          description: "Database connection identifier"
+          default: "default"
+        output_file:
+          type: "string"
+          description: "Output file path for the backup"
+        format:
+          type: "string"
+          description: "Backup format"
+          enum: ["sql", "csv", "json"]
+          default: "sql"
+        compress:
+          type: "boolean"
+          description: "Compress the backup file"
+          default: true
+      required: ["table_name", "output_file"]
+    routing:
+      type: "subprocess"
+      config:
+        command: "pg_dump"
+        args: ["-d", "{database}", "-t", "{table_name}", "-f", "{output_file}"]
+        timeout: 300
+    hidden: true
+
+  - name: "validate_schema"
+    description: "Validate database schema against expected structure"
+    inputSchema:
+      type: "object"
+      properties:
+        schema_file:
+          type: "string"
+          description: "Path to schema definition file"
+        database:
+          type: "string"
+          description: "Database connection identifier"
+          default: "default"
+        strict:
+          type: "boolean"
+          description: "Strict validation mode"
+          default: false
+      required: ["schema_file"]
+    routing:
+      type: "subprocess"
+      config:
+        command: "python"
+        args: ["scripts/validate_schema.py", "{schema_file}", "{database}"]
+        timeout: 120
+    hidden: true
