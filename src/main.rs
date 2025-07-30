@@ -10,6 +10,7 @@ mod discovery;
 mod error;
 mod grpc;
 mod mcp;
+mod metrics;
 mod openai;
 mod registry;
 mod routing;

@@ -444,8 +444,156 @@ pub struct McpServerConfig {
 pub struct ExternalMcpServersConfig {
     /// MCP servers configuration (matches Claude Desktop format exactly)
     #[serde(rename = "mcpServers")]
-    pub mcp_servers: std::collections::HashMap<String, McpServerConfig>,
+    pub mcp_servers: Option<std::collections::HashMap<String, McpServerConfig>>,
+    /// HTTP MCP services configuration
+    #[serde(rename = "httpServices")]
+    pub http_services: Option<std::collections::HashMap<String, HttpServiceConfig>>,
+    /// SSE MCP services configuration
+    #[serde(rename = "sseServices")]
+    pub sse_services: Option<std::collections::HashMap<String, SseServiceConfig>>,
+    /// WebSocket MCP services configuration (future)
+    #[serde(rename = "websocketServices")]
+    pub websocket_services: Option<std::collections::HashMap<String, WebSocketServiceConfig>>,
 }
+
+/// HTTP MCP Service Configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HttpServiceConfig {
+    /// Whether this service is enabled
+    pub enabled: bool,
+    /// Base URL for the HTTP MCP service
+    pub base_url: String,
+    /// Authentication configuration
+    pub auth: HttpAuthType,
+    /// Request timeout in seconds
+    #[serde(default = "default_timeout")]
+    pub timeout: u64,
+    /// Maximum retry attempts
+    #[serde(default = "default_retry_attempts")]
+    pub retry_attempts: u32,
+    /// Retry delay in milliseconds
+    #[serde(default = "default_retry_delay")]
+    pub retry_delay_ms: u64,
+    /// Connection pool max idle connections
+    pub max_idle_connections: Option<usize>,
+    /// Connection pool idle timeout in seconds
+    pub idle_timeout: Option<u64>,
+}
+
+/// SSE MCP Service Configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SseServiceConfig {
+    /// Whether this service is enabled
+    pub enabled: bool,
+    /// Base URL for the SSE MCP service
+    pub base_url: String,
+    /// Authentication configuration
+    pub auth: SseAuthType,
+    /// Whether this service supports only single session
+    #[serde(default = "default_single_session")]
+    pub single_session: bool,
+    /// Connection timeout in seconds
+    #[serde(default = "default_timeout")]
+    pub connection_timeout: u64,
+    /// Request timeout in seconds
+    #[serde(default = "default_request_timeout")]
+    pub request_timeout: u64,
+    /// Maximum queue size for single-session services
+    #[serde(default = "default_max_queue_size")]
+    pub max_queue_size: usize,
+    /// Heartbeat interval in seconds (0 to disable)
+    #[serde(default = "default_heartbeat_interval")]
+    pub heartbeat_interval: u64,
+    /// Enable automatic reconnection
+    #[serde(default = "default_reconnect")]
+    pub reconnect: bool,
+    /// Maximum reconnection attempts (0 for unlimited)
+    #[serde(default = "default_max_reconnect_attempts")]
+    pub max_reconnect_attempts: u32,
+    /// Reconnection delay in milliseconds
+    #[serde(default = "default_reconnect_delay")]
+    pub reconnect_delay_ms: u64,
+    /// Maximum reconnection delay in milliseconds
+    #[serde(default = "default_max_reconnect_delay")]
+    pub max_reconnect_delay_ms: u64,
+}
+
+/// WebSocket MCP Service Configuration (future)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebSocketServiceConfig {
+    /// Whether this service is enabled
+    pub enabled: bool,
+    /// Base URL for the WebSocket MCP service
+    pub base_url: String,
+    /// Authentication configuration
+    pub auth: WebSocketAuthType,
+    /// Ping interval in seconds
+    #[serde(default = "default_timeout")]
+    pub ping_interval: u64,
+    /// Pong timeout in seconds
+    #[serde(default = "default_pong_timeout")]
+    pub pong_timeout: u64,
+    /// Enable automatic reconnection
+    #[serde(default = "default_reconnect")]
+    pub reconnect: bool,
+    /// Maximum reconnection attempts
+    #[serde(default = "default_max_reconnect_attempts")]
+    pub max_reconnect_attempts: u32,
+}
+
+/// HTTP Authentication Type
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum HttpAuthType {
+    #[serde(rename = "none")]
+    None,
+    #[serde(rename = "bearer")]
+    Bearer { token: String },
+    #[serde(rename = "api_key")]
+    ApiKey { header: String, key: String },
+    #[serde(rename = "basic")]
+    Basic { username: String, password: String },
+}
+
+/// SSE Authentication Type
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum SseAuthType {
+    #[serde(rename = "none")]
+    None,
+    #[serde(rename = "bearer")]
+    Bearer { token: String },
+    #[serde(rename = "api_key")]
+    ApiKey { header: String, key: String },
+    #[serde(rename = "query_param")]
+    QueryParam { param: String, value: String },
+}
+
+/// WebSocket Authentication Type (future)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum WebSocketAuthType {
+    #[serde(rename = "none")]
+    None,
+    #[serde(rename = "bearer")]
+    Bearer { token: String },
+    #[serde(rename = "api_key")]
+    ApiKey { header: String, key: String },
+}
+
+// Default value functions
+fn default_timeout() -> u64 { 30 }
+fn default_retry_attempts() -> u32 { 3 }
+fn default_retry_delay() -> u64 { 1000 }
+fn default_single_session() -> bool { true }
+fn default_request_timeout() -> u64 { 60 }
+fn default_max_queue_size() -> usize { 100 }
+fn default_heartbeat_interval() -> u64 { 30 }
+fn default_reconnect() -> bool { true }
+fn default_max_reconnect_attempts() -> u32 { 10 }
+fn default_reconnect_delay() -> u64 { 1000 }
+fn default_max_reconnect_delay() -> u64 { 30000 }
+fn default_pong_timeout() -> u64 { 10 }
 
 
 impl Default for ExternalMcpConfig {
@@ -456,6 +604,85 @@ impl Default for ExternalMcpConfig {
             capabilities_output_dir: "./capabilities/external-mcp".to_string(),
             refresh_interval_minutes: 60,
             containers: Some(ContainerConfig::default()),
+        }
+    }
+}
+
+impl Default for ExternalMcpServersConfig {
+    fn default() -> Self {
+        Self {
+            mcp_servers: None,
+            http_services: None,
+            sse_services: None,
+            websocket_services: None,
+        }
+    }
+}
+
+// Conversion implementations for HTTP services
+impl From<&HttpServiceConfig> for crate::mcp::clients::HttpClientConfig {
+    fn from(config: &HttpServiceConfig) -> Self {
+        Self {
+            base_url: config.base_url.clone(),
+            auth: (&config.auth).into(),
+            timeout: config.timeout,
+            retry_attempts: config.retry_attempts,
+            retry_delay_ms: config.retry_delay_ms,
+            max_idle_connections: config.max_idle_connections,
+            idle_timeout: config.idle_timeout,
+        }
+    }
+}
+
+impl From<&HttpAuthType> for crate::mcp::clients::HttpAuthConfig {
+    fn from(auth: &HttpAuthType) -> Self {
+        match auth {
+            HttpAuthType::None => Self::None,
+            HttpAuthType::Bearer { token } => Self::Bearer { token: token.clone() },
+            HttpAuthType::ApiKey { header, key } => Self::ApiKey { 
+                header: header.clone(), 
+                key: key.clone() 
+            },
+            HttpAuthType::Basic { username, password } => Self::Basic { 
+                username: username.clone(), 
+                password: password.clone() 
+            },
+        }
+    }
+}
+
+// Conversion implementations for SSE services
+impl From<&SseServiceConfig> for crate::mcp::clients::SseClientConfig {
+    fn from(config: &SseServiceConfig) -> Self {
+        Self {
+            base_url: config.base_url.clone(),
+            auth: (&config.auth).into(),
+            single_session: config.single_session,
+            connection_timeout: config.connection_timeout,
+            request_timeout: config.request_timeout,
+            max_queue_size: config.max_queue_size,
+            heartbeat_interval: config.heartbeat_interval,
+            reconnect: config.reconnect,
+            max_reconnect_attempts: config.max_reconnect_attempts,
+            reconnect_delay_ms: config.reconnect_delay_ms,
+            max_reconnect_delay_ms: config.max_reconnect_delay_ms,
+        }
+    }
+}
+
+impl From<&SseAuthType> for crate::mcp::clients::SseAuthConfig {
+    fn from(auth: &SseAuthType) -> Self {
+        match auth {
+            SseAuthType::None => Self::None,
+            SseAuthType::Bearer { token } => Self::Bearer { token: token.clone() },
+            SseAuthType::ApiKey { header, key } => Self::ApiKey { 
+                header: header.clone(), 
+                key: key.clone() 
+            },
+            SseAuthType::QueryParam { param, value } => Self::QueryParam { 
+                param: param.clone(), 
+                value: value.clone() 
+            },
         }
     }
 }

@@ -5,6 +5,39 @@ All notable changes to the MagicTunnel project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.49]
+### Added - Major Platform Enhancements
+- **🌐 Network MCP Services & Protocol Gateway**
+  - **HTTP MCP Client**: HTTP-over-MCP protocol support with connection pooling, authentication (Bearer, API Key, Basic Auth), and comprehensive error handling
+  - **SSE MCP Client**: Server-Sent Events streaming protocol with connection lifecycle management, single-session request queuing, and automatic reconnection
+  - **NetworkMcpServiceManager**: Unified service management for all network-based MCP services with health monitoring and capability discovery
+  - **Protocol Translation**: Universal MCP protocol gateway supporting HTTP, SSE, and stdio protocols with seamless translation
+  - **Configuration Integration**: Enhanced configuration schema supporting network services alongside process-based MCP servers
+
+- **📊 Enhanced Monitoring & Observability**
+  - **Real-time Web Dashboard**: Complete web-based management interface with live system monitoring, tool management, and configuration editing
+  - **Live Log Viewer**: Professional real-time log streaming with filtering, search, pagination, and CSV export capabilities
+  - **Performance Metrics**: System health monitoring with uptime tracking, performance metrics, and service status indicators
+  - **MCP Testing Interface**: Interactive JSON-RPC 2.0 command testing with parameter validation and response analysis
+  - **Service Management**: External MCP service monitoring with health checks, process control, and tool integration
+
+### Enhanced - Documentation & Developer Experience
+- **📋 Modular Documentation**: Restructuring with dedicated guides for Web Dashboard, Supervisor, and Frontend development
+- **🌐 Protocol Compatibility Guide**: Comprehensive documentation for network MCP protocol translation with examples and troubleshooting
+- **⚡ Quick Start Optimization**: Featured the recommended developer workflow: `make build-release-semantic && make pregenerate-embeddings-ollama MAGICTUNNEL_ENV=development`
+- **🖥️ Web Dashboard Guide**: Complete web interface documentation with architecture diagrams, API references, and troubleshooting
+- **🔧 Supervisor Guide**: Detailed process management documentation with configuration examples and production deployment guidance
+
+### Fixed - User Experience & Architecture
+- **🌐 Correct Port Configuration**: Fixed documentation to show correct dashboard URL (`http://localhost:5173/dashboard`) instead of incorrect port references
+- **📁 Documentation Organization**: Moved `frontend_todo.md` to `docs/` folder and created proper documentation hierarchy
+
+### Technical - Infrastructure Improvements
+- **Architecture Clarity**: Updated all documentation to reflect the three-tier architecture: Frontend (5173) → MagicTunnel API (3001) → Supervisor TCP (8081)
+- **Protocol Gateway**: Implementation of universal MCP protocol translation supporting multiple transport protocols
+- **Service Integration**: Unified service management for both process-based and network-based MCP services
+- **Development Workflow**: Optimized developer experience with recommended quick-start commands and proper environment setup
+
 ## [0.2.48]
 ### Added
 - OpenAPI3.1 spec for making MCP tools available for OpenAI custom GPT

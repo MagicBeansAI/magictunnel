@@ -301,7 +301,7 @@ async fn test_hybrid_search_strategy() {
     discovery_config.semantic_search = semantic_config;
     discovery_config.semantic_search.enabled = true;
     
-    let discovery_service = SmartDiscoveryService::new(registry, discovery_config);
+    let discovery_service = SmartDiscoveryService::new(registry, discovery_config).await;
     assert!(discovery_service.is_ok(), "Discovery service creation failed");
     
     let discovery_service = discovery_service.unwrap();
@@ -355,7 +355,7 @@ async fn test_search_mode_selection() {
         discovery_config.semantic_search = semantic_config.clone();
         discovery_config.semantic_search.enabled = mode != "rule_based";
         
-        let discovery_service = SmartDiscoveryService::new(Arc::clone(&registry), discovery_config);
+        let discovery_service = SmartDiscoveryService::new(Arc::clone(&registry), discovery_config).await;
         assert!(discovery_service.is_ok(), "Discovery service creation failed for mode: {}", mode);
         
         let discovery_service = discovery_service.unwrap();

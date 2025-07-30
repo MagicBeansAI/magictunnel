@@ -10,6 +10,7 @@ pub mod discovery;
 pub mod error;
 pub mod grpc;
 pub mod mcp;
+pub mod metrics;
 pub mod openai;
 pub mod registry;
 pub mod routing;
@@ -17,7 +18,7 @@ pub mod supervisor;
 pub mod tls;
 pub mod web;
 
-pub use config::Config;
+pub use config::{Config, ExternalMcpServersConfig, HttpServiceConfig, SseServiceConfig, HttpAuthType, SseAuthType};
 pub use error::{ProxyError, Result};
 
 /// Version information

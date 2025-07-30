@@ -114,7 +114,7 @@ smart_discovery:
     // Initialize components
     let registry = Arc::new(RegistryService::new(config.registry.clone()).await.unwrap());
     let smart_discovery_config = config.smart_discovery.clone().unwrap_or_default();
-    let smart_discovery = SmartDiscoveryService::new(registry.clone(), smart_discovery_config).unwrap();
+    let smart_discovery = SmartDiscoveryService::new(registry.clone(), smart_discovery_config).await.unwrap();
     let _agent_router = DefaultAgentRouter::new();
     
     // Test 1: File operations discovery and execution
@@ -318,7 +318,7 @@ async fn test_smart_discovery_error_handling_integration() {
         ..SmartDiscoveryConfig::default()
     };
     
-    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).unwrap();
+    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).await.unwrap();
     
     // Test 1: Completely unknown request
     let unknown_request = SmartDiscoveryRequest {
@@ -374,7 +374,7 @@ async fn test_smart_discovery_concurrent_load() {
     let config = Config::default();
     let registry = Arc::new(RegistryService::new(config.registry.clone()).await.unwrap());
     let smart_discovery_config = SmartDiscoveryConfig::default();
-    let smart_discovery = Arc::new(SmartDiscoveryService::new(registry, smart_discovery_config).unwrap());
+    let smart_discovery = Arc::new(SmartDiscoveryService::new(registry, smart_discovery_config).await.unwrap());
     
     // Create multiple concurrent requests
     let mut handles = Vec::new();
@@ -430,7 +430,7 @@ async fn test_smart_discovery_with_capability_categories() {
     let config = Config::default();
     let registry = Arc::new(RegistryService::new(config.registry.clone()).await.unwrap());
     let smart_discovery_config = SmartDiscoveryConfig::default();
-    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).unwrap();
+    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).await.unwrap();
     
     // Test different categories of requests
     let test_cases = vec![
@@ -502,7 +502,7 @@ async fn test_smart_discovery_configuration_variations() {
     ];
     
     for (config_name, discovery_config) in configs {
-        let smart_discovery = SmartDiscoveryService::new(registry.clone(), discovery_config).unwrap();
+        let smart_discovery = SmartDiscoveryService::new(registry.clone(), discovery_config).await.unwrap();
         
         let request = SmartDiscoveryRequest {
             request: "test configuration variation".to_string(),
@@ -575,7 +575,7 @@ tools:
     
     let registry = Arc::new(RegistryService::new(registry_config).await.unwrap());
     let smart_discovery_config = SmartDiscoveryConfig::default();
-    let smart_discovery = SmartDiscoveryService::new(registry.clone(), smart_discovery_config).unwrap();
+    let smart_discovery = SmartDiscoveryService::new(registry.clone(), smart_discovery_config).await.unwrap();
     
     // Test with initial capability
     let request = SmartDiscoveryRequest {
@@ -603,7 +603,7 @@ async fn test_smart_discovery_statistics_monitoring() {
     let config = Config::default();
     let registry = Arc::new(RegistryService::new(config.registry.clone()).await.unwrap());
     let smart_discovery_config = SmartDiscoveryConfig::default();
-    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).unwrap();
+    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).await.unwrap();
     
     // Make several requests to generate statistics
     let requests = vec![
@@ -668,7 +668,7 @@ async fn test_smart_discovery_tool_accuracy() {
     let config = Config::default();
     let registry = Arc::new(RegistryService::new(config.registry.clone()).await.unwrap());
     let smart_discovery_config = SmartDiscoveryConfig::default();
-    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).unwrap();
+    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).await.unwrap();
     
     // Test cases for different tool categories with expected confidence levels
     let test_cases = vec![
@@ -721,7 +721,7 @@ async fn test_smart_discovery_realistic_workflows() {
     let config = Config::default();
     let registry = Arc::new(RegistryService::new(config.registry.clone()).await.unwrap());
     let smart_discovery_config = SmartDiscoveryConfig::default();
-    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).unwrap();
+    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).await.unwrap();
     
     // Workflow 1: Configuration Management
     let config_workflow = vec![
@@ -815,7 +815,7 @@ async fn test_smart_discovery_error_recovery() {
         cache: DiscoveryCacheConfig::default(),
         ..SmartDiscoveryConfig::default()
     };
-    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).unwrap();
+    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).await.unwrap();
     
     // Test error scenarios and recovery
     let long_request = "a".repeat(10000);
@@ -883,7 +883,7 @@ async fn test_smart_discovery_large_registry_simulation() {
         },
         ..SmartDiscoveryConfig::default()
     };
-    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).unwrap();
+    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).await.unwrap();
     
     // Generate varied requests to test discovery across different tool categories
     let diverse_requests = vec![

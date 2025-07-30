@@ -376,7 +376,7 @@ async fn test_smart_discovery_large_registry_performance() {
         ..SmartDiscoveryConfig::default()
     };
     
-    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).unwrap();
+    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).await.unwrap();
     
     // Generate many diverse requests to simulate large registry load
     let test_requests = vec![
@@ -510,7 +510,7 @@ async fn test_smart_discovery_concurrent_large_registry_performance() {
         ..SmartDiscoveryConfig::default()
     };
     
-    let smart_discovery = Arc::new(SmartDiscoveryService::new(registry, smart_discovery_config).unwrap());
+    let smart_discovery = Arc::new(SmartDiscoveryService::new(registry, smart_discovery_config).await.unwrap());
     
     // Generate concurrent requests
     let concurrent_requests = 50;
@@ -630,7 +630,7 @@ async fn test_smart_discovery_memory_stability() {
     let config = Config::default();
     let registry = Arc::new(RegistryService::new(config.registry.clone()).await.unwrap());
     let smart_discovery_config = SmartDiscoveryConfig::default();
-    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).unwrap();
+    let smart_discovery = SmartDiscoveryService::new(registry, smart_discovery_config).await.unwrap();
     
     // Perform many requests to test memory stability
     let num_requests = 200;

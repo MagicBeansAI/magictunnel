@@ -9,6 +9,41 @@ Get MagicTunnel running in under 5 minutes!
 - **Rust** (1.70+): [Install Rust](https://rustup.rs/)
 - **Git**: For cloning the repository
 
+### Optional Dependencies
+
+#### For Local Semantic Search (Smart Discovery)
+- **Ollama** (recommended for local development):
+  ```bash
+  # Install Ollama
+  curl -fsSL https://ollama.ai/install.sh | sh
+  
+  # Pull embedding model
+  ollama pull nomic-embed-text
+  ```
+
+#### For External MCP Servers
+- **Python 3.8+** (for Python-based MCP servers):
+  ```bash
+  # Option 1: Using pip
+  pip install mcp-filesystem mcp-git mcp-sqlite
+  
+  # Option 2: Using uv (recommended - faster)
+  uv pip install mcp-filesystem mcp-git mcp-sqlite
+  
+  # Option 3: Using uvx (for isolated tool execution)
+  uvx --from mcp-filesystem mcp-server-filesystem
+  uvx --from mcp-git mcp-server-git
+  uvx --from mcp-sqlite mcp-server-sqlite
+  ```
+
+- **Node.js 18+** (for Node.js-based MCP servers):
+  ```bash
+  # Install Node.js MCP servers
+  npm install -g @modelcontextprotocol/server-filesystem
+  npm install -g @modelcontextprotocol/server-git
+  npm install -g @modelcontextprotocol/server-sqlite
+  ```
+
 ## 1. Clone & Build
 
 ```bash
@@ -133,6 +168,21 @@ For the best experience and fastest startup, use Smart Discovery with pre-genera
 
 ### Quick Setup
 
+#### **Recommended Quick Start (Ollama + Development Mode)**
+For the fastest development setup with full smart discovery:
+
+```bash
+# One-line setup for development with Ollama embeddings
+make build-release-semantic && make pregenerate-embeddings-ollama MAGICTUNNEL_ENV=development
+
+# Then start with supervisor (includes web dashboard)
+./target/release/magictunnel-supervisor
+
+# Access dashboard at http://localhost:5173/dashboard
+```
+
+#### **Alternative Setup Options**
+
 Choose your preferred embedding model:
 
 ```bash
@@ -141,22 +191,20 @@ make build-release-semantic
 
 # Option A: Ollama - RECOMMENDED FOR LOCAL DEVELOPMENT (real embeddings)
 ollama pull nomic-embed-text          # First time setup
-make pregenerate-embeddings-ollama    # Generate real semantic embeddings
-
-# Option A2: Fallback models (WARNING: hash-based fallbacks, very limited functionality)
-make pregenerate-embeddings-local    # all-MiniLM-L6-v2 hash fallback
-make pregenerate-embeddings-hq       # all-mpnet-base-v2 hash fallback
+make pregenerate-embeddings-ollama MAGICTUNNEL_ENV=development
 
 # Option B: OpenAI models (requires API key) - RECOMMENDED FOR PRODUCTION  
-make pregenerate-embeddings-openai OPENAI_API_KEY=your-openai-key
+make pregenerate-embeddings-openai OPENAI_API_KEY=your-openai-key MAGICTUNNEL_ENV=production
 
-# Option C: Ollama (local LLM server)
-ollama pull nomic-embed-text         # First time setup
-make pregenerate-embeddings-ollama
+# Option C: Fallback models (WARNING: hash-based fallbacks, very limited functionality)
+make pregenerate-embeddings-local    # all-MiniLM-L6-v2 hash fallback
+make pregenerate-embeddings-hq       # all-mpnet-base-v2 hash fallback
 
 # Run with smart discovery and fast startup
 make run-release-semantic OPENAI_API_KEY=your-openai-key  # Only if using OpenAI
 # OR (for local models)
+./target/release/magictunnel-supervisor  # Recommended with web dashboard
+# OR (standalone)
 cargo run --bin magictunnel --release -- --config magictunnel-config.yaml
 ```
 
@@ -193,8 +241,8 @@ MAGICTUNNEL_DISABLE_SEMANTIC=false
 
 | Use Case | Recommended Model | Command | Status |
 |----------|-------------------|---------|--------|
-| **🏆 Local Development** | `ollama:nomic-embed-text` | `make pregenerate-embeddings-ollama` | ✅ **Real embeddings** |
-| **🏆 Production** | `openai:text-embedding-3-small` | `make pregenerate-embeddings-openai` | ✅ **Real embeddings** |
+| **🏆 Local Development** | `ollama:nomic-embed-text` | `make pregenerate-embeddings-ollama MAGICTUNNEL_ENV=development` | ✅ **Real embeddings** |
+| **🏆 Production** | `openai:text-embedding-3-small` | `make pregenerate-embeddings-openai MAGICTUNNEL_ENV=production` | ✅ **Real embeddings** |
 | **Custom API** | `external:api` | `make pregenerate-embeddings-external` | ✅ **Real embeddings** |
 | **Testing Only** | `all-MiniLM-L6-v2` | `make pregenerate-embeddings-local` | ⚠️ **Hash fallback** |
 | **Testing Only** | `all-mpnet-base-v2` | `make pregenerate-embeddings-hq` | ⚠️ **Hash fallback** |
@@ -229,10 +277,50 @@ Instead of discovering individual tools, use natural language:
 }
 ```
 
-## 5. Run MagicTunnel (Standard Method)
+## 5. Run MagicTunnel
+
+MagicTunnel provides two deployment options:
+
+### Option A: Full Stack with Web Dashboard & Supervisor (Recommended)
+
+For the complete experience with web-based management and monitoring:
 
 ```bash
-# Start MagicTunnel
+# Start the MagicTunnel Supervisor (manages the main server)
+cargo run --release --bin magictunnel-supervisor
+
+# Or run the binary directly
+./target/release/magictunnel-supervisor
+```
+
+You should see:
+```
+[INFO] MagicTunnel Supervisor starting on 0.0.0.0:8081
+[INFO] Starting main MagicTunnel server...
+[INFO] MagicTunnel starting on 0.0.0.0:3000
+[INFO] gRPC server starting on 0.0.0.0:4000
+[INFO] Web dashboard available at http://localhost:3000/dashboard
+[INFO] Loaded 5 capabilities from registry
+[INFO] MCP server ready for connections
+```
+
+**🎯 Access the Web Dashboard**: Open http://localhost:5173/dashboard in your browser
+
+**Dashboard Features:**
+- 📊 **Real-time Monitoring**: Live system status, performance metrics, and uptime tracking
+- 🔧 **Tool Management**: Browse, test, and manage all available MCP tools
+- 📈 **Tool Analytics**: Track tool usage patterns, execution metrics, and discovery rankings
+- 📋 **Configuration Management**: Edit configuration files with validation and backup
+- 📝 **Live Logs**: Real-time log viewer with filtering, search, and export
+- 🔍 **MCP Testing**: Interactive MCP command testing interface
+- ⚙️ **Service Control**: Start, stop, and restart services via web interface
+
+### Option B: Standalone Server (Development/Testing)
+
+For lightweight usage without the web dashboard:
+
+```bash
+# Start MagicTunnel directly
 cargo run --release --bin magictunnel
 
 # Or run the binary directly
@@ -302,6 +390,10 @@ Restart Cursor and your MCP tools will be available in the chat interface.
 
 MagicTunnel can spawn and manage external MCP servers using the same configuration format as Claude Desktop. This allows you to combine tools from multiple MCP servers seamlessly:
 
+### Protocol Compatibility
+
+MagicTunnel also supports connecting to network-based MCP services (HTTP, SSE, WebSocket) that can be configured alongside process-based servers. For detailed information about protocol translation and compatibility, see the [Protocol Compatibility Guide](PROTOCOL_COMPATIBILITY.md).
+
 ### Configure External MCP Servers
 
 Create an external MCP server configuration file:
@@ -311,15 +403,31 @@ Create an external MCP server configuration file:
 cat > external-mcp-servers.yaml << 'EOF'
 # External MCP Servers Configuration (Claude Desktop Compatible)
 mcpServers:
+  # Node.js MCP server
   filesystem:
     command: npx
     args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
     env:
       NODE_ENV: production
 
-  git:
+  # Python MCP server using uv
+  git-uv:
     command: uv
     args: ["run", "mcp-server-git", "--repository", "/path/to/your/repo"]
+    env:
+      PYTHONPATH: "/usr/local/lib/python3.11/site-packages"
+
+  # Python MCP server using uvx (isolated execution)
+  git-uvx:
+    command: uvx
+    args: ["--from", "mcp-git", "mcp-server-git", "--repository", "/path/to/your/repo"]
+    env:
+      PYTHONPATH: "/usr/local/lib/python3.11/site-packages"
+
+  # Python MCP server using traditional pip install
+  sqlite:
+    command: python
+    args: ["-m", "mcp_sqlite", "/path/to/database.db"]
     env:
       PYTHONPATH: "/usr/local/lib/python3.11/site-packages"
 
@@ -409,7 +517,7 @@ cargo run --bin mcp-generator grpc \
   --output "capabilities/grpc.yaml"
 ```
 
-For more advanced usage, including configuration files and merging capabilities, see the [Unified Generator CLI Documentation](docs/unified_generator_cli.md).
+For more advanced usage, including configuration files and merging capabilities, see the [Unified Generator CLI Documentation](unified_generator_cli.md).
 
 ### CLI Tools Overview
 
@@ -417,36 +525,23 @@ MagicTunnel provides several CLI tools for different purposes:
 
 | Tool | Purpose | Example Usage |
 |------|---------|---------------|
-| `magictunnel` | Main MCP server | `cargo run --bin magictunnel` |
+| `magictunnel-supervisor` | **Supervisor with web dashboard** | `cargo run --bin magictunnel-supervisor` |
+| `magictunnel` | Main MCP server (standalone) | `cargo run --bin magictunnel` |
 | `magictunnel-visibility` | Tool visibility management | `cargo run --bin magictunnel-visibility -- status` |
 | `mcp-generator` | Unified capability generator | `cargo run --bin mcp-generator -- openapi --spec url` |
 | `openapi_generator` | OpenAPI/Swagger generator | `cargo run --bin openapi_generator -- --spec url` |
 | `graphql_generator` | GraphQL schema generator | `cargo run --bin graphql_generator -- --schema file` |
 
-### Using Individual Generators (Legacy)
-
-You can also use the individual generator CLIs if preferred:
-
-```bash
-# Generate tools from a REST API (OpenAPI 3.0 & Swagger 2.0 support)
-cargo run --bin openapi_generator -- \
-  --spec "https://petstore.swagger.io/v2/swagger.json" \
-  --base-url "https://petstore.swagger.io/v2" \
-  --prefix "petstore" \
-  --output "capabilities/petstore.yaml"
-
-# Generate tools from GraphQL API
-cargo run --bin graphql_generator -- \
-  --schema "schema.graphql" \
-  --endpoint "https://api.github.com/graphql" \
-  --prefix "github" \
-  --auth-type "bearer" \
-  --auth-token "your_token_here" \
-  --output "capabilities/github.yaml"
-```
-
 ## 10. Verify Everything Works
 
+### Via Web Dashboard (Recommended)
+Open http://localhost:5173/dashboard in your browser and:
+- Check the **System Status** page for overall health
+- Browse **Tools** to see all available capabilities  
+- Use **MCP Testing** to test tool execution
+- View **Logs** for real-time system activity
+
+### Via API Endpoints
 ```bash
 # Check MagicTunnel health
 curl http://localhost:3000/health
@@ -456,6 +551,9 @@ curl http://localhost:3000/mcp/tools
 
 # Check external MCP server status (if configured)
 curl http://localhost:3000/mcp/external/status
+
+# Access web dashboard API
+curl http://localhost:3000/dashboard/api/system/info
 ```
 
 ## 11. Smart Tool Discovery & Visibility Management
@@ -531,13 +629,61 @@ visibility:
 7. **Easy Management**: CLI-based visibility control
 8. **Scalable**: Works with any number of tools
 
-## Next Steps
+## Configuration Options
 
-- 📖 **[Full Documentation](README.md)** - Complete setup and configuration guide
-- 🏗️ **[Architecture Guide](README.md#-detailed-architecture)** - Understanding how MagicTunnel works
-- 📚 **[Unified Generator CLI](docs/unified_generator_cli.md)** - Comprehensive guide to the unified generator CLI
-- 🤝 **[Contributing](CONTRIBUTING.md)** - Help improve the project
-- 💬 **[Discussions](https://github.com/MagicBeansAI/magictunnel/discussions)** - Ask questions and share ideas
+### Disable Smart Discovery
+If you don't want smart discovery and prefer to see individual tools, add this to your `config.yaml`:
+
+```yaml
+smart_discovery:
+  enabled: false
+
+visibility:
+  hide_individual_tools: false
+  expose_smart_discovery_only: false
+```
+
+### Configure OpenAI for Semantic Search
+To use OpenAI embeddings instead of local Ollama:
+
+```yaml
+smart_discovery:
+  enabled: true
+  semantic_search:
+    enabled: true
+    model_name: "openai:text-embedding-3-small"
+
+# Set environment variable
+export OPENAI_API_KEY="your-openai-api-key"
+```
+
+### Configure External MCP Integration
+To integrate with external MCP servers, create `external-mcp-servers.yaml`:
+
+```yaml
+mcpServers:
+  # Node.js MCP server
+  filesystem:
+    command: "npx"
+    args: ["@modelcontextprotocol/server-filesystem", "/path/to/allowed/directory"]
+  
+  # Python MCP server using uvx (recommended for isolation)
+  git-uvx:
+    command: "uvx"
+    args: ["--from", "mcp-git", "mcp-server-git", "--repository", "/path/to/repo"]
+  
+  # Python MCP server using uv
+  git-uv:
+    command: "uv" 
+    args: ["run", "mcp-server-git", "--repository", "/path/to/repo"]
+```
+
+Then enable in your main config:
+```yaml
+external_mcp:
+  enabled: true
+  config_file: "external-mcp-servers.yaml"
+```
 
 ## Common Issues
 
@@ -557,10 +703,12 @@ visibility:
 - Verify MagicTunnel is accessible from Claude Desktop
 
 ### External MCP server connection issues
-- Verify the MCP server command is available (e.g., `npx`, `uv`, `docker`)
+- Verify the MCP server command is available (e.g., `npx`, `uv`, `uvx`, `docker`)
 - Check that the MCP server process can be spawned
 - Ensure the MCP server supports the MCP protocol version
 - Check environment variables and working directory settings
+- For `uvx`: Ensure the package is available on PyPI and the tool name is correct
+- For `uv`: Ensure the virtual environment or project has the required dependencies
 
 ### Tool visibility issues
 - **Tools not appearing**: Check if tools are hidden with `cargo run --bin magictunnel-visibility -- status`
@@ -575,6 +723,18 @@ visibility:
 - **Data Access**: Query databases, search services, file systems
 - **Notifications**: Send messages via Slack, email, webhooks
 - **Development Tools**: Git operations, CI/CD triggers, deployment
+
+## Next Steps
+
+- [🖥️ Web Dashboard Guide](web-dashboard.md) - Complete web interface documentation
+- [🔧 Supervisor Guide](supervisor.md) - Process management and monitoring system
+- [🔧 Configuration Guide](config.md) - Configure MagicTunnel for your needs
+- [🛠️ Adding Tools](tools.md) - Learn all the ways to add tools
+- [🧠 Smart Discovery](smart-discovery.md) - Learn about intelligent tool discovery
+- [🌐 Protocol Compatibility](PROTOCOL_COMPATIBILITY.md) - Network MCP protocol translation
+- [📋 Frontend Development](frontend_todo.md) - Frontend implementation status and roadmap
+- [🔢 Version Management](VERSION_MANAGEMENT.md) - Development workflow and versioning
+- [🚀 Deployment](deploy.md) - Deploy to production
 
 ---
 

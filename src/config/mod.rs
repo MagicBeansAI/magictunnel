@@ -15,5 +15,8 @@ pub use config::{
     // MCP Client types
     McpClientConfig,
     // External MCP types (unified local/remote)
-    ExternalMcpConfig, ContainerConfig, McpServerConfig, ExternalMcpServersConfig
+    ExternalMcpConfig, ContainerConfig, McpServerConfig, ExternalMcpServersConfig,
+    // Network MCP service types
+    HttpServiceConfig, SseServiceConfig, WebSocketServiceConfig,
+    HttpAuthType, SseAuthType, WebSocketAuthType
 };

@@ -7,11 +7,14 @@ use crate::config::{ExternalMcpConfig, ExternalMcpServersConfig, ContainerConfig
 use crate::error::{ProxyError, Result};
 use crate::mcp::external_process::ExternalMcpProcess;
 use crate::mcp::types::{Tool, McpRequest, McpResponse};
+use crate::mcp::metrics::{McpMetricsCollector, McpHealthThresholds, HealthStatus};
+use crate::mcp::health_checker::{McpHealthChecker, HealthCheckConfig};
 use crate::registry::types::{CapabilityFile, ToolDefinition, RoutingConfig};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::RwLock;
 use tokio::time::{interval, Duration};
 use tracing::{debug, error, info, warn};
@@ -28,6 +31,10 @@ pub struct ExternalMcpManager {
     processes: Arc<RwLock<HashMap<String, ExternalMcpProcess>>>,
     /// Discovered capabilities from all servers
     capabilities: Arc<RwLock<HashMap<String, Vec<Tool>>>>,
+    /// Metrics collector for observability
+    metrics_collector: Arc<McpMetricsCollector>,
+    /// Health checker for active monitoring
+    health_checker: Arc<McpHealthChecker>,
 }
 
 impl ExternalMcpManager {
@@ -35,12 +42,20 @@ impl ExternalMcpManager {
     pub fn new(config: ExternalMcpConfig, client_config: McpClientConfig) -> Self {
         let container_config = config.containers.clone();
 
+        // Initialize metrics collector with default thresholds
+        let metrics_collector = Arc::new(McpMetricsCollector::new(McpHealthThresholds::default()));
+        
+        // Initialize health checker with default configuration
+        let health_checker = Arc::new(McpHealthChecker::new(HealthCheckConfig::default()));
+
         Self {
             config,
             client_config,
             container_config,
             processes: Arc::new(RwLock::new(HashMap::new())),
             capabilities: Arc::new(RwLock::new(HashMap::new())),
+            metrics_collector,
+            health_checker,
         }
     }
 
@@ -57,17 +72,19 @@ impl ExternalMcpManager {
         
         // Track successfully started servers
         let mut started_servers = 0;
-        let total_servers = servers_config.mcp_servers.len();
+        let total_servers = servers_config.mcp_servers.as_ref().map(|s| s.len()).unwrap_or(0);
         
         // Start all configured servers
-        for (server_name, server_config) in servers_config.mcp_servers {
-            match self.start_server(server_name.clone(), server_config).await {
-                Ok(_) => {
-                    info!("Successfully started External MCP server: {}", server_name);
-                    started_servers += 1;
-                }
-                Err(e) => {
-                    error!("Failed to start External MCP server '{}': {}", server_name, e);
+        if let Some(mcp_servers) = servers_config.mcp_servers {
+            for (server_name, server_config) in mcp_servers {
+                match self.start_server(server_name.clone(), server_config).await {
+                    Ok(_) => {
+                        info!("Successfully started External MCP server: {}", server_name);
+                        started_servers += 1;
+                    }
+                    Err(e) => {
+                        error!("Failed to start External MCP server '{}': {}", server_name, e);
+                    }
                 }
             }
         }
@@ -84,8 +101,11 @@ impl ExternalMcpManager {
 
         info!("Started {}/{} External MCP servers successfully", started_servers, total_servers);
 
-        // Start periodic capability discovery
-        self.start_capability_discovery().await;
+        // Initialize metrics for all servers
+        self.initialize_server_metrics().await;
+
+        // Start periodic capability discovery and health monitoring
+        self.start_periodic_monitoring().await;
 
         // Perform initial capability discovery
         self.discover_all_capabilities().await?;
@@ -125,7 +145,10 @@ impl ExternalMcpManager {
                 if std::env::current_dir().map(|d| d == Path::new("/")).unwrap_or(false) {
                     warn!("Running in root directory with read-only filesystem, skipping example config creation");
                     return Ok(ExternalMcpServersConfig {
-                        mcp_servers: HashMap::new(),
+                        mcp_servers: Some(HashMap::new()),
+                        http_services: None,
+                        sse_services: None,
+                        websocket_services: None,
                     });
                 }
                 
@@ -137,7 +160,10 @@ impl ExternalMcpManager {
                 info!("Creating example config file at: {:?}", writable_path);
                 self.create_example_config(&writable_path).await?;
                 return Ok(ExternalMcpServersConfig {
-                    mcp_servers: HashMap::new(),
+                    mcp_servers: Some(HashMap::new()),
+                    http_services: None,
+                    sse_services: None,
+                    websocket_services: None,
                 });
             }
         };
@@ -150,9 +176,11 @@ impl ExternalMcpManager {
         let servers_config: ExternalMcpServersConfig = serde_yaml::from_str(&content)
             .map_err(|e| ProxyError::config(format!("Failed to parse config file '{}': {}", config_path, e)))?;
 
-        info!("Loaded {} External MCP servers from config", servers_config.mcp_servers.len());
-        for (name, _) in &servers_config.mcp_servers {
-            debug!("Found server configuration: {}", name);
+        info!("Loaded {} External MCP servers from config", servers_config.mcp_servers.as_ref().map(|s| s.len()).unwrap_or(0));
+        if let Some(ref mcp_servers) = servers_config.mcp_servers {
+            for (name, _) in mcp_servers {
+                debug!("Found server configuration: {}", name);
+            }
         }
         Ok(servers_config)
     }
@@ -351,33 +379,94 @@ mcpServers:
         Ok(result)
     }
 
-    /// Start periodic capability discovery
-    async fn start_capability_discovery(&self) {
+    /// Initialize metrics tracking for all configured servers
+    async fn initialize_server_metrics(&self) {
+        let processes = self.processes.read().await;
+        for server_name in processes.keys() {
+            self.metrics_collector.initialize_service(server_name).await;
+            info!("📊 [METRICS] Initialized metrics for server: {}", server_name);
+        }
+    }
+
+    /// Start periodic monitoring including capability discovery and health checking
+    async fn start_periodic_monitoring(&self) {
         let processes = Arc::clone(&self.processes);
         let capabilities = Arc::clone(&self.capabilities);
+        let metrics_collector = Arc::clone(&self.metrics_collector);
+        let health_checker = Arc::clone(&self.health_checker);
         let config = self.config.clone();
 
         tokio::spawn(async move {
-            let mut interval = interval(Duration::from_secs(config.refresh_interval_minutes * 60));
+            // Capability discovery interval (longer)
+            let mut discovery_interval = interval(Duration::from_secs(config.refresh_interval_minutes * 60));
             
-            loop {
-                interval.tick().await;
-                
-                info!("Starting periodic capability discovery for External MCP servers");
-                
-                let process_names: Vec<String> = {
-                    let processes_guard = processes.read().await;
-                    processes_guard.keys().cloned().collect()
-                };
+            // Health check interval (shorter)
+            let mut health_interval = interval(Duration::from_secs(30)); // Every 30 seconds
 
-                for server_name in process_names {
-                    if let Err(e) = Self::discover_server_capabilities_static(
-                        &processes,
-                        &capabilities,
-                        &server_name,
-                        &config,
-                    ).await {
-                        error!("Failed to discover capabilities for server '{}': {}", server_name, e);
+            loop {
+                tokio::select! {
+                    _ = discovery_interval.tick() => {
+                        info!("🔍 [MONITOR] Starting periodic capability discovery for External MCP servers");
+                        
+                        let process_names: Vec<String> = {
+                            let processes_guard = processes.read().await;
+                            processes_guard.keys().cloned().collect()
+                        };
+
+                        for server_name in process_names {
+                            if let Err(e) = Self::discover_server_capabilities_static(
+                                &processes,
+                                &capabilities,
+                                &server_name,
+                                &config,
+                            ).await {
+                                error!("Failed to discover capabilities for server '{}': {}", server_name, e);
+                                
+                                // Record discovery failure in metrics
+                                metrics_collector.record_request_error(&server_name, "capability_discovery_failed", "tools/list").await;
+                            }
+                        }
+                    }
+                    
+                    _ = health_interval.tick() => {
+                        debug!("🏥 [MONITOR] Starting periodic health checks for External MCP servers");
+                        
+                        let process_names: Vec<String> = {
+                            let processes_guard = processes.read().await;
+                            processes_guard.keys().cloned().collect()
+                        };
+
+                        for server_name in process_names {
+                            // Perform health check in parallel
+                            let processes_clone = Arc::clone(&processes);
+                            let metrics_clone = Arc::clone(&metrics_collector);
+                            let health_clone = Arc::clone(&health_checker);
+                            let name_clone = server_name.clone();
+                            
+                            tokio::spawn(async move {
+                                let health_result = {
+                                    let processes_guard = processes_clone.read().await;
+                                    if let Some(process) = processes_guard.get(&name_clone) {
+                                        health_clone.perform_ping_check(process).await
+                                    } else {
+                                        return;
+                                    }
+                                };
+                                
+                                // Update metrics with health check result
+                                metrics_clone.update_health_status(
+                                    &name_clone,
+                                    health_result.status,
+                                    health_result.response_time_ms,
+                                ).await;
+                                
+                                if matches!(health_result.status, HealthStatus::Unhealthy | HealthStatus::Down) {
+                                    if let Some(error) = health_result.error_details {
+                                        warn!("🚨 [MONITOR] Health check failed for '{}': {}", name_clone, error);
+                                    }
+                                }
+                            });
+                        }
                     }
                 }
             }
@@ -660,7 +749,8 @@ fn tools_are_equivalent(existing: &[ToolDefinition], new: &[ToolDefinition]) -> 
 impl ExternalMcpManager {
     /// Execute a tool on a specific External MCP server
     pub async fn execute_tool(&self, server_name: &str, tool_name: &str, arguments: Value) -> Result<Value> {
-        debug!("Executing tool '{}' on External MCP server '{}'", tool_name, server_name);
+        debug!("🔧 [EXECUTE] Executing tool '{}' on External MCP server '{}'", tool_name, server_name);
+        let start_time = Instant::now();
 
         // Check if process exists and is running, then execute tool
         let processes = self.processes.read().await;
@@ -668,12 +758,16 @@ impl ExternalMcpManager {
         let process = match processes.get(server_name) {
             Some(p) => p,
             None => {
-                return Err(ProxyError::mcp(format!("External MCP server '{}' not found", server_name)));
+                let error = format!("External MCP server '{}' not found", server_name);
+                self.metrics_collector.record_request_error(server_name, "server_not_found", "tools/call").await;
+                return Err(ProxyError::mcp(error));
             }
         };
 
         if !process.is_running().await {
-            return Err(ProxyError::connection(format!("External MCP server '{}' is not running", server_name)));
+            let error = format!("External MCP server '{}' is not running", server_name);
+            self.metrics_collector.record_request_error(server_name, "server_not_running", "tools/call").await;
+            return Err(ProxyError::connection(error));
         }
 
         let params = json!({
@@ -681,15 +775,59 @@ impl ExternalMcpManager {
             "arguments": arguments
         });
 
-        let response = process.send_request("tools/call", Some(params)).await?;
+        match process.send_request("tools/call", Some(params)).await {
+            Ok(response) => {
+                let elapsed_ms = start_time.elapsed().as_millis() as f64;
+                
+                if let Some(error) = response.error {
+                    // Record error in metrics
+                    self.metrics_collector.record_request_error(server_name, "tool_execution_error", "tools/call").await;
+                    
+                    error!("❌ [EXECUTE] Tool '{}' execution failed on server '{}': {} ({}ms)", 
+                           tool_name, server_name, error.message, elapsed_ms);
+                    
+                    return Err(ProxyError::tool_execution(
+                        tool_name.to_string(), 
+                        format!("Tool execution failed: {}", error.message)
+                    ));
+                }
 
-        if let Some(error) = response.error {
-            return Err(ProxyError::tool_execution(tool_name.to_string(), format!("Tool execution failed: {}", error.message)));
+                match response.result {
+                    Some(result) => {
+                        // Record successful execution in metrics
+                        self.metrics_collector.record_request_success(server_name, elapsed_ms, "tools/call").await;
+                        
+                        info!("✅ [EXECUTE] Tool '{}' executed successfully on server '{}' ({}ms)", 
+                              tool_name, server_name, elapsed_ms);
+                        
+                        Ok(result)
+                    }
+                    None => {
+                        // Record error - no result returned
+                        self.metrics_collector.record_request_error(server_name, "no_result_returned", "tools/call").await;
+                        
+                        error!("❌ [EXECUTE] Tool '{}' returned no result on server '{}' ({}ms)", 
+                               tool_name, server_name, elapsed_ms);
+                        
+                        Err(ProxyError::tool_execution(
+                            tool_name.to_string(), 
+                            "No result returned from tool execution".to_string()
+                        ))
+                    }
+                }
+            }
+            Err(e) => {
+                let elapsed_ms = start_time.elapsed().as_millis() as f64;
+                
+                // Record request failure in metrics
+                self.metrics_collector.record_request_error(server_name, "request_failed", "tools/call").await;
+                
+                error!("❌ [EXECUTE] Tool '{}' request failed on server '{}': {} ({}ms)", 
+                       tool_name, server_name, e, elapsed_ms);
+                
+                Err(e)
+            }
         }
-
-        response.result.ok_or_else(|| {
-            ProxyError::tool_execution(tool_name.to_string(), "No result returned from tool execution".to_string())
-        })
     }
 
     /// Get all available tools from all servers
@@ -723,6 +861,30 @@ impl ExternalMcpManager {
         }
 
         active_servers
+    }
+
+    /// Get health status of all external MCP services
+    pub async fn get_health_status(&self) -> HashMap<String, crate::mcp::metrics::HealthStatus> {
+        let processes = self.processes.read().await;
+        let mut health_status = HashMap::new();
+
+        for (server_name, process) in processes.iter() {
+            let status = if process.is_running().await {
+                // Check if the server has tools loaded (indicates healthy)
+                let tools = self.get_server_tools(server_name).await.unwrap_or_default();
+                if tools.is_empty() {
+                    crate::mcp::metrics::HealthStatus::Degraded
+                } else {
+                    crate::mcp::metrics::HealthStatus::Healthy
+                }
+            } else {
+                crate::mcp::metrics::HealthStatus::Down
+            };
+            
+            health_status.insert(server_name.clone(), status);
+        }
+
+        health_status
     }
 
     /// Get process information for a specific server
@@ -803,7 +965,7 @@ impl ExternalMcpManager {
 
         // Reload configuration and restart
         let servers_config = self.load_servers_config().await?;
-        if let Some(server_config) = servers_config.mcp_servers.get(server_name) {
+        if let Some(server_config) = servers_config.mcp_servers.as_ref().and_then(|servers| servers.get(server_name)) {
             self.start_server(server_name.to_string(), server_config.clone()).await?;
             self.discover_server_capabilities(server_name).await?;
         } else {
@@ -845,5 +1007,15 @@ impl ExternalMcpManager {
         }
         
         settings
+    }
+
+    /// Get metrics collector for external access
+    pub fn metrics_collector(&self) -> Arc<McpMetricsCollector> {
+        Arc::clone(&self.metrics_collector)
+    }
+
+    /// Get health checker for external access
+    pub fn health_checker(&self) -> Arc<McpHealthChecker> {
+        Arc::clone(&self.health_checker)
     }
 }

@@ -94,7 +94,7 @@ make dev-check
 Before contributing, please read:
 
 - **[Complete Guide](README.md)** - Comprehensive overview with detailed architecture
-- **[Quick Start](QUICK_START.md)** - Getting the project running
+- **[How to Run](how_to_run.md)** - Getting the project running
 - **[TODO.md](TODO.md)** - Current roadmap and priorities
 
 ### Key Components
@@ -143,7 +143,7 @@ We use **Test-Driven Development (TDD)** for capability generators:
 
 ### User Documentation
 
-- **Update QUICK_START.md** for setup changes
+- **Update how_to_run.md** for setup changes
 - **Add examples** to demonstrate new features
 - **Update configuration documentation**
 - **Include troubleshooting guides**

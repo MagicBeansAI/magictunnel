@@ -14,10 +14,13 @@ use crate::registry::service::RegistryService;
 use crate::registry::types::ToolDefinition;
 use crate::routing::Router;
 use crate::mcp::types::{ToolCall, ToolResult};
+use crate::metrics::tool_metrics::{ToolMetricsCollector, ToolExecutionRecord, ToolExecutionResult, DiscoveryRanking};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
+use chrono::Utc;
+use uuid::Uuid;
 
 /// Helper function for serde default value of true
 fn default_true() -> bool {
@@ -117,6 +120,9 @@ pub struct SmartDiscoveryConfig {
     /// Whether to enable sequential mode for multi-step workflows
     #[serde(default = "default_true")]
     pub enable_sequential_mode: bool,
+    
+    /// Whether to enable tool metrics collection
+    pub tool_metrics_enabled: Option<bool>,
 }
 
 impl Default for SmartDiscoveryConfig {
@@ -135,6 +141,7 @@ impl Default for SmartDiscoveryConfig {
             fallback: FallbackConfig::default(),
             semantic_search: SemanticSearchConfig::default(),
             enable_sequential_mode: true,
+            tool_metrics_enabled: Some(true),
         }
     }
 }
@@ -164,16 +171,19 @@ pub struct SmartDiscoveryService {
     
     /// Embedding manager for dynamic lifecycle management
     embedding_manager: Option<Arc<EmbeddingManager>>,
+    
+    /// Tool metrics collector for tracking usage and performance
+    tool_metrics: Option<Arc<ToolMetricsCollector>>,
 }
 
 impl SmartDiscoveryService {
     /// Create a new Smart Discovery Service
-    pub fn new(registry: Arc<RegistryService>, config: SmartDiscoveryConfig) -> Result<Self> {
-        Self::new_with_router(registry, config, None)
+    pub async fn new(registry: Arc<RegistryService>, config: SmartDiscoveryConfig) -> Result<Self> {
+        Self::new_with_router(registry, config, None).await
     }
     
     /// Create a new Smart Discovery Service with an optional router for tool execution
-    pub fn new_with_router(registry: Arc<RegistryService>, config: SmartDiscoveryConfig, router: Option<Arc<Router>>) -> Result<Self> {
+    pub async fn new_with_router(registry: Arc<RegistryService>, config: SmartDiscoveryConfig, router: Option<Arc<Router>>) -> Result<Self> {
         let llm_mapper = LlmParameterMapper::new(config.llm_mapper.clone())?;
         let cache = DiscoveryCache::new(config.cache.clone());
         let fallback_manager = std::sync::Mutex::new(FallbackManager::new(config.fallback.clone()));
@@ -199,6 +209,20 @@ impl SmartDiscoveryService {
             None
         };
         
+        // Initialize tool metrics collector if enabled in config
+        let tool_metrics = if config.tool_metrics_enabled.unwrap_or(true) {
+            let storage_path = "data/tool_metrics.json";
+            match ToolMetricsCollector::new_with_storage(10000, storage_path).await {
+                Ok(collector) => Some(Arc::new(collector)),
+                Err(e) => {
+                    warn!("Failed to create persistent tool metrics collector: {}. Using in-memory only.", e);
+                    Some(Arc::new(ToolMetricsCollector::new(10000)))
+                }
+            }
+        } else {
+            None
+        };
+        
         Ok(Self { 
             registry, 
             config, 
@@ -208,6 +232,7 @@ impl SmartDiscoveryService {
             semantic_search,
             embedding_manager,
             router: Arc::new(tokio::sync::RwLock::new(router)),
+            tool_metrics,
         })
     }
 
@@ -218,8 +243,8 @@ impl SmartDiscoveryService {
     }
     
     /// Create a new Smart Discovery Service with default configuration
-    pub fn new_with_defaults(registry: Arc<RegistryService>) -> Result<Self> {
-        Self::new(registry, SmartDiscoveryConfig::default())
+    pub async fn new_with_defaults(registry: Arc<RegistryService>) -> Result<Self> {
+        Self::new(registry, SmartDiscoveryConfig::default()).await
     }
     
     /// Initialize the smart discovery service (call after construction)
@@ -235,6 +260,11 @@ impl SmartDiscoveryService {
             }
         }
         Ok(())
+    }
+    
+    /// Get the tool metrics collector (if enabled)
+    pub fn tool_metrics(&self) -> Option<Arc<ToolMetricsCollector>> {
+        self.tool_metrics.clone()
     }
 
     /// Process a smart discovery request
@@ -389,6 +419,23 @@ impl SmartDiscoveryService {
         }).collect();
         metadata.tool_candidates = Some(tool_candidates);
         
+        // Record discovery rankings for tool metrics
+        if let Some(ref metrics_collector) = self.tool_metrics {
+            for (position, tool_match) in tool_matches.iter().enumerate() {
+                if position < 30 { // Only track top 30 tools
+                    let ranking = DiscoveryRanking {
+                        position: (position + 1) as u32, // 1-based position
+                        confidence_score: tool_match.confidence_score,
+                        discovery_method: self.config.tool_selection_mode.clone(),
+                        query: effective_request.request.clone(),
+                        timestamp: Utc::now(),
+                    };
+                    
+                    metrics_collector.record_discovery_ranking(&tool_match.tool_name, ranking).await;
+                }
+            }
+        }
+        
         info!("🎬 FINAL RESULT - Tool: '{}', Status: {:?}, Success: {}", 
               best_match.tool_name, 
               parameter_extraction.status,
@@ -412,10 +459,52 @@ impl SmartDiscoveryService {
                 arguments: serde_json::Value::Object(parameter_extraction.parameters.clone().into_iter().collect()),
             };
             
+            // Record execution start time for metrics
+            let execution_start = Utc::now();
+            let execution_start_instant = std::time::Instant::now();
+            
             // Execute the tool using the router
             match router_opt.as_ref().unwrap().route(&tool_call, &tool_def).await {
                 Ok(agent_result) => {
-                    info!("✅ TOOL EXECUTION SUCCESS - Tool: '{}' executed successfully", best_match.tool_name);
+                    let duration_ms = execution_start_instant.elapsed().as_millis() as u64;
+                    info!("✅ TOOL EXECUTION SUCCESS - Tool: '{}' executed successfully in {}ms", best_match.tool_name, duration_ms);
+                    
+                    // Record successful execution in metrics
+                    if let Some(ref metrics_collector) = self.tool_metrics {
+                        let discovery_context = Some(DiscoveryRanking {
+                            position: 1, // This was the selected tool
+                            confidence_score: best_match.confidence_score,
+                            discovery_method: self.config.tool_selection_mode.clone(),
+                            query: effective_request.request.clone(),
+                            timestamp: execution_start,
+                        });
+                        
+                        let output_size = match &agent_result.data {
+                            Some(data) => data.to_string().len(),
+                            None => 0,
+                        };
+                        
+                        let execution_record = ToolExecutionRecord {
+                            execution_id: Uuid::new_v4().to_string(),
+                            tool_name: best_match.tool_name.clone(),
+                            start_time: execution_start,
+                            duration_ms,
+                            result: ToolExecutionResult::Success {
+                                output_size,
+                                output_type: "json".to_string(), // Could be determined from agent_result
+                            },
+                            input_hash: format!("{:x}", md5::compute(serde_json::to_string(&parameter_extraction.parameters).unwrap_or_default())),
+                            discovery_context,
+                            execution_source: "smart_discovery".to_string(),
+                            service_source: agent_result.metadata
+                                .as_ref()
+                                .and_then(|m| m.get("service_name"))
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string()),
+                        };
+                        
+                        metrics_collector.record_execution(execution_record).await;
+                    }
                     
                     // Convert AgentResult to the format expected by smart discovery
                     let execution_data = serde_json::json!({
@@ -434,7 +523,47 @@ impl SmartDiscoveryService {
                     (Some(execution_data), None, true)
                 }
                 Err(e) => {
-                    error!("❌ TOOL EXECUTION FAILED - Tool: '{}', Error: {}", best_match.tool_name, e);
+                    let duration_ms = execution_start_instant.elapsed().as_millis() as u64;
+                    error!("❌ TOOL EXECUTION FAILED - Tool: '{}', Error: {} ({}ms)", best_match.tool_name, e, duration_ms);
+                    
+                    // Record failed execution in metrics
+                    if let Some(ref metrics_collector) = self.tool_metrics {
+                        let discovery_context = Some(DiscoveryRanking {
+                            position: 1, // This was the selected tool
+                            confidence_score: best_match.confidence_score,
+                            discovery_method: self.config.tool_selection_mode.clone(),
+                            query: effective_request.request.clone(),
+                            timestamp: execution_start,
+                        });
+                        
+                        let error_type = if e.to_string().contains("timeout") {
+                            "timeout"
+                        } else if e.to_string().contains("network") || e.to_string().contains("connection") {
+                            "network_error"
+                        } else if e.to_string().contains("parameter") || e.to_string().contains("argument") {
+                            "parameter_error"
+                        } else {
+                            "execution_error"
+                        };
+                        
+                        let execution_record = ToolExecutionRecord {
+                            execution_id: Uuid::new_v4().to_string(),
+                            tool_name: best_match.tool_name.clone(),
+                            start_time: execution_start,
+                            duration_ms,
+                            result: ToolExecutionResult::Error {
+                                error_type: error_type.to_string(),
+                                error_message: e.to_string(),
+                                is_timeout: error_type == "timeout",
+                            },
+                            input_hash: format!("{:x}", md5::compute(serde_json::to_string(&parameter_extraction.parameters).unwrap_or_default())),
+                            discovery_context,
+                            execution_source: "smart_discovery".to_string(),
+                            service_source: None,
+                        };
+                        
+                        metrics_collector.record_execution(execution_record).await;
+                    }
                     
                     // Return discovery data with execution error
                     let discovery_data = serde_json::json!({
@@ -2840,6 +2969,7 @@ Respond in JSON format:
             fallback: FallbackConfig::default(),
             semantic_search: SemanticSearchConfig::default(),
             enable_sequential_mode: true,
+            tool_metrics_enabled: Some(true),
         }
     }
 }

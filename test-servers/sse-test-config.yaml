@@ -1,0 +1,71 @@
+# MagicTunnel Configuration for SSE MCP Server Testing
+# This configuration is specifically for testing the SSE client implementation
+
+server:
+  host: "127.0.0.1"
+  port: 8080
+
+# External MCP Server Configuration
+external_mcp_servers:
+  # Process-based servers (can coexist with SSE servers)
+  mcp_servers:
+    # Commented out to focus on SSE testing
+    # filesystem_server:
+    #   command: ["uvx", "--from", "mcp-server-filesystem", "mcp-server-filesystem"]
+    #   args: ["/tmp"]
+    #   cwd: "/tmp"
+    #   env:
+    #     LOG_LEVEL: "INFO"
+
+  # SSE-based servers (Network MCP Services)
+  sse_services:
+    simple_test_server:
+      enabled: true
+      base_url: "http://127.0.0.1:8000"
+      sse_endpoint: "/sse"
+      auth: none
+      
+      # Connection settings
+      heartbeat_interval: 30     # Send heartbeat every 30 seconds
+      pong_timeout: 10          # Wait 10 seconds for pong response
+      reconnect: true           # Enable automatic reconnection
+      max_reconnect_attempts: 5 # Try reconnecting up to 5 times
+      reconnect_delay_ms: 1000  # Start with 1 second delay
+      max_reconnect_delay_ms: 30000  # Max delay of 30 seconds (exponential backoff)
+
+    # Example of another SSE server (disabled for testing)
+    fastapi_sse_server:
+      enabled: false
+      base_url: "http://127.0.0.1:3000"
+      sse_endpoint: "/sse"
+      auth: none
+
+  # HTTP-based servers (can also coexist)
+  http_services:
+    # Example HTTP MCP server (disabled for SSE testing)
+    http_test_server:
+      enabled: false
+      base_url: "http://127.0.0.1:9000"
+      auth: none
+
+# Smart Discovery Configuration
+smart_discovery:
+  enabled: true
+  tool_selection_mode: "rule_based"  # Use rule-based for fast testing
+  confidence_threshold: 0.6
+  max_concurrent_requests: 10
+  request_timeout_ms: 30000
+  cache_ttl_seconds: 300
+
+# Registry Configuration
+registry:
+  paths: ["./capabilities"]
+  
+# Logging Configuration (helpful for debugging SSE connections)
+# Note: This is a conceptual configuration - actual logging is controlled by RUST_LOG
+logging:
+  level: "info"
+  # Enable debug logging for SSE components
+  modules:
+    - "magictunnel::mcp::clients::sse_client"
+    - "magictunnel::mcp::network_service_manager"

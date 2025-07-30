@@ -39,7 +39,7 @@ async fn test_service_creation_and_basic_properties() {
         ..SmartDiscoveryConfig::default()
     };
     
-    let service = SmartDiscoveryService::new(registry, discovery_config).unwrap();
+    let service = SmartDiscoveryService::new(registry, discovery_config).await.unwrap();
     
     // Test basic properties
     assert!(service.is_enabled());
@@ -83,7 +83,7 @@ async fn test_basic_discovery_requests() {
         ..SmartDiscoveryConfig::default()
     };
     
-    let service = SmartDiscoveryService::new(registry, discovery_config).unwrap();
+    let service = SmartDiscoveryService::new(registry, discovery_config).await.unwrap();
     
     // Test different types of requests
     let requests = vec![
@@ -159,7 +159,7 @@ async fn test_llm_parameter_mapping_comprehensive() {
         ..SmartDiscoveryConfig::default()
     };
     
-    let service = SmartDiscoveryService::new(registry, discovery_config).unwrap();
+    let service = SmartDiscoveryService::new(registry, discovery_config).await.unwrap();
     
     // Test various parameter mapping scenarios
     let test_cases = vec![
@@ -223,7 +223,7 @@ async fn test_fallback_strategies_comprehensive() {
         ..SmartDiscoveryConfig::default()
     };
     
-    let service = SmartDiscoveryService::new(registry, discovery_config).unwrap();
+    let service = SmartDiscoveryService::new(registry, discovery_config).await.unwrap();
     
     // Test various fallback scenarios
     let fallback_cases = vec![
@@ -290,7 +290,7 @@ async fn test_caching_comprehensive() {
         ..SmartDiscoveryConfig::default()
     };
     
-    let service = SmartDiscoveryService::new(registry, discovery_config).unwrap();
+    let service = SmartDiscoveryService::new(registry, discovery_config).await.unwrap();
     
     // Test cache hit/miss patterns
     let cache_requests = vec![
@@ -379,7 +379,7 @@ async fn test_performance_and_concurrency() {
         ..SmartDiscoveryConfig::default()
     };
     
-    let service = Arc::new(SmartDiscoveryService::new(registry, discovery_config).unwrap());
+    let service = Arc::new(SmartDiscoveryService::new(registry, discovery_config).await.unwrap());
     
     // Test concurrent requests
     let mut handles = Vec::new();
@@ -452,7 +452,7 @@ async fn test_error_handling_comprehensive() {
         ..SmartDiscoveryConfig::default()
     };
     
-    let service = SmartDiscoveryService::new(registry, discovery_config).unwrap();
+    let service = SmartDiscoveryService::new(registry, discovery_config).await.unwrap();
     
     // Test edge cases
     let long_request = "a".repeat(10000);
@@ -531,7 +531,7 @@ async fn test_preferred_tools_comprehensive() {
         ..SmartDiscoveryConfig::default()
     };
     
-    let service = SmartDiscoveryService::new(registry, discovery_config).unwrap();
+    let service = SmartDiscoveryService::new(registry, discovery_config).await.unwrap();
     
     // Test preferred tools with various configurations
     let preference_tests = vec![
@@ -589,7 +589,7 @@ async fn test_context_usage_comprehensive() {
         ..SmartDiscoveryConfig::default()
     };
     
-    let service = SmartDiscoveryService::new(registry, discovery_config).unwrap();
+    let service = SmartDiscoveryService::new(registry, discovery_config).await.unwrap();
     
     // Test various context scenarios
     let long_context = "Context information ".repeat(100);
@@ -637,7 +637,7 @@ async fn test_configuration_validation() {
     assert!(default_config.use_fuzzy_matching);
     
     // Test service creation with default config
-    let service = SmartDiscoveryService::new(registry.clone(), default_config).unwrap();
+    let service = SmartDiscoveryService::new(registry.clone(), default_config).await.unwrap();
     assert!(service.is_enabled());
     
     // Test service with custom config
@@ -669,7 +669,7 @@ async fn test_configuration_validation() {
         ..SmartDiscoveryConfig::default()
     };
     
-    let service2 = SmartDiscoveryService::new(registry, custom_config).unwrap();
+    let service2 = SmartDiscoveryService::new(registry, custom_config).await.unwrap();
     assert!(service2.is_enabled());
 }
 
@@ -680,7 +680,7 @@ async fn test_service_monitoring_comprehensive() {
     let registry = Arc::new(RegistryService::new(config.registry.clone()).await.unwrap());
     
     let discovery_config = SmartDiscoveryConfig::default();
-    let service = SmartDiscoveryService::new(registry, discovery_config).unwrap();
+    let service = SmartDiscoveryService::new(registry, discovery_config).await.unwrap();
     
     // Make various requests to generate statistics
     let monitoring_requests = vec![
@@ -770,7 +770,7 @@ async fn test_disabled_service_comprehensive() {
         ..SmartDiscoveryConfig::default()
     };
     
-    let service = SmartDiscoveryService::new(registry, discovery_config).unwrap();
+    let service = SmartDiscoveryService::new(registry, discovery_config).await.unwrap();
     
     // Service should be disabled
     assert!(!service.is_enabled());

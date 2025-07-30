@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, type ServiceStatus, type ServiceInfo } from '$lib/api';
+  import { api, type ServiceStatus, type ServiceInfo, type ServiceDetailedMetrics } from '$lib/api';
 
   let serviceStatus: ServiceStatus | null = null;
   let loading = true;
@@ -22,7 +22,9 @@
   function getStatusColor(status: string): string {
     switch (status.toLowerCase()) {
       case 'healthy': return 'text-green-600 bg-green-100';
+      case 'degraded': return 'text-orange-600 bg-orange-100';
       case 'unhealthy': return 'text-red-600 bg-red-100';
+      case 'down': return 'text-gray-600 bg-gray-100';
       case 'unknown': return 'text-yellow-600 bg-yellow-100';
       case 'starting': return 'text-blue-600 bg-blue-100';
       default: return 'text-gray-600 bg-gray-100';
@@ -32,7 +34,9 @@
   function getStatusIcon(status: string): string {
     switch (status.toLowerCase()) {
       case 'healthy': return '✅';
+      case 'degraded': return '⚠️';
       case 'unhealthy': return '❌';
+      case 'down': return '🔴';
       case 'unknown': return '❓';
       case 'starting': return '🔄';
       default: return '⚫';
@@ -144,6 +148,43 @@
     }
   }
 
+  async function handleViewDetailedMetrics(serviceName: string) {
+    try {
+      const detailedMetrics = await api.getServiceMetrics(serviceName);
+      
+      // Create detailed metrics modal content
+      const metricsInfo = `
+        📊 Detailed Metrics for "${serviceName}"
+        
+        Current Status: ${detailedMetrics.current_metrics.status}
+        Average Response Time: ${detailedMetrics.current_metrics.avg_response_time_ms.toFixed(2)}ms
+        Success Rate: ${(detailedMetrics.current_metrics.success_rate * 100).toFixed(2)}%
+        Error Rate: ${(detailedMetrics.current_metrics.error_rate * 100).toFixed(2)}%
+        Total Requests: ${detailedMetrics.current_metrics.total_requests}
+        Total Errors: ${detailedMetrics.current_metrics.total_errors}
+        Uptime: ${detailedMetrics.current_metrics.uptime_percentage.toFixed(2)}%
+        Consecutive Failures: ${detailedMetrics.current_metrics.consecutive_failures}
+        
+        Last Successful Request: ${detailedMetrics.current_metrics.last_successful_request || 'Never'}
+        Service Start Time: ${detailedMetrics.current_metrics.service_start_time || 'Unknown'}
+        
+        Request Types: ${Object.entries(detailedMetrics.request_distribution)
+          .map(([type, count]) => `${type}: ${count}`).join(', ') || 'None'}
+        
+        Error Types: ${Object.entries(detailedMetrics.error_distribution)
+          .map(([type, count]) => `${type}: ${count}`).join(', ') || 'None'}
+        
+        Recent Latencies: ${detailedMetrics.recent_latencies.slice(-10).map(l => `${l.toFixed(0)}ms`).join(', ')}
+        
+        Last Updated: ${formatTimestamp(detailedMetrics.last_updated)}
+      `;
+      
+      alert(metricsInfo);
+    } catch (error) {
+      alert(`Failed to load detailed metrics for "${serviceName}": ${error}`);
+    }
+  }
+
 
   onMount(() => {
     loadServicesData();
@@ -212,7 +253,7 @@
 
 
     <!-- Services Overview Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
       <div class="card">
         <h3 class="text-lg font-semibold text-gray-700 mb-2">Total Services</h3>
         <div class="text-2xl font-bold text-primary-600">
@@ -234,9 +275,19 @@
       </div>
 
       <div class="card">
-        <h3 class="text-lg font-semibold text-gray-700 mb-2">Unhealthy</h3>
+        <h3 class="text-lg font-semibold text-gray-700 mb-2">Degraded</h3>
+        <div class="text-2xl font-bold text-orange-600">
+          {serviceStatus?.degraded ?? '--'}
+        </div>
+        <p class="text-sm text-gray-500">
+          Services with issues
+        </p>
+      </div>
+
+      <div class="card">
+        <h3 class="text-lg font-semibold text-gray-700 mb-2">Down</h3>
         <div class="text-2xl font-bold text-red-600">
-          {serviceStatus?.unhealthy ?? '--'}
+          {(serviceStatus?.unhealthy ?? 0) + (serviceStatus?.down ?? 0)}
         </div>
         <p class="text-sm text-gray-500">
           Services not responding
@@ -358,6 +409,43 @@
                     </div>
                   </div>
 
+                  <!-- Enhanced Metrics Section -->
+                  {#if service.metrics.has_metrics}
+                  <div class="mt-4 pt-4 border-t border-gray-200">
+                    <h5 class="text-sm font-medium text-gray-700 mb-3">📊 Performance Metrics</h5>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div class="bg-gray-50 p-3 rounded-lg">
+                        <div class="text-xs text-gray-500 mb-1">Avg Response Time</div>
+                        <div class="text-sm font-semibold text-gray-800">
+                          {service.metrics.response_time_ms ? `${service.metrics.response_time_ms.toFixed(0)}ms` : 'N/A'}
+                        </div>
+                      </div>
+                      <div class="bg-gray-50 p-3 rounded-lg">
+                        <div class="text-xs text-gray-500 mb-1">Success Rate</div>
+                        <div class="text-sm font-semibold {service.metrics.success_rate ? (service.metrics.success_rate >= 0.95 ? 'text-green-600' : service.metrics.success_rate >= 0.90 ? 'text-orange-600' : 'text-red-600') : 'text-gray-800'}">
+                          {service.metrics.success_rate ? `${(service.metrics.success_rate * 100).toFixed(1)}%` : 'N/A'}
+                        </div>
+                      </div>
+                      <div class="bg-gray-50 p-3 rounded-lg">
+                        <div class="text-xs text-gray-500 mb-1">Total Requests</div>
+                        <div class="text-sm font-semibold text-gray-800">
+                          {service.metrics.total_requests ?? 'N/A'}
+                        </div>
+                      </div>
+                      <div class="bg-gray-50 p-3 rounded-lg">
+                        <div class="text-xs text-gray-500 mb-1">Uptime</div>
+                        <div class="text-sm font-semibold {service.metrics.uptime_percentage ? (service.metrics.uptime_percentage >= 99 ? 'text-green-600' : service.metrics.uptime_percentage >= 95 ? 'text-orange-600' : 'text-red-600') : 'text-gray-800'}">
+                          {service.metrics.uptime_percentage ? `${service.metrics.uptime_percentage.toFixed(1)}%` : 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {:else}
+                  <div class="mt-4 pt-4 border-t border-gray-200">
+                    <div class="text-sm text-gray-500 italic">📊 No metrics data available yet</div>
+                  </div>
+                  {/if}
+
                   <!-- Service Actions -->
                   <div class="mt-4 pt-4 border-t border-gray-200">
                     <div class="flex space-x-3">
@@ -384,6 +472,14 @@
                         on:click={() => handleViewLogs(service.name)}
                       >
                         📝 View Logs
+                      </button>
+                      <button 
+                        class="btn-primary text-sm" 
+                        on:click={() => handleViewDetailedMetrics(service.name)}
+                        disabled={!service.metrics.has_metrics}
+                        title={service.metrics.has_metrics ? 'View detailed metrics' : 'No metrics available'}
+                      >
+                        📊 Detailed Metrics
                       </button>
                     </div>
                     <div class="text-xs text-gray-500 mt-2">
@@ -422,8 +518,10 @@
         <div>
           <h4 class="font-medium text-gray-700 mb-2">Service Status</h4>
           <div class="space-y-1 text-gray-600">
-            <div>• <span class="text-green-600">✅ Healthy</span> - Service is running and responding</div>
-            <div>• <span class="text-red-600">❌ Unhealthy</span> - Service is not responding or has errors</div>
+            <div>• <span class="text-green-600">✅ Healthy</span> - Service is running and responding normally</div>
+            <div>• <span class="text-orange-600">⚠️ Degraded</span> - Service has some issues but is functional</div>
+            <div>• <span class="text-red-600">❌ Unhealthy</span> - Service has significant issues</div>
+            <div>• <span class="text-gray-600">🔴 Down</span> - Service is not responding or crashed</div>
             <div>• <span class="text-yellow-600">❓ Unknown</span> - Service status cannot be determined</div>
             <div>• <span class="text-blue-600">🔄 Starting</span> - Service is starting up</div>
           </div>

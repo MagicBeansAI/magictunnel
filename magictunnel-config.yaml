@@ -116,7 +116,7 @@ mcp_client:
   auto_reconnect: true          # Enable automatic reconnection
   protocol_version: "2025-03-26" # MCP protocol version to use
   client_name: "magictunnel"    # Client name for MCP handshake (defaults to package name)
-  client_version: "0.2.48"      # Client version for MCP handshake (defaults to package version)
+  client_version: "0.2.49"      # Client version for MCP handshake (defaults to package version)
 
 # =============================================================================
 # EXTERNAL MCP CONFIGURATION (Claude Desktop Format)
@@ -275,6 +275,7 @@ smart_discovery:
       embedding_cache_size: 1000          # In-memory cache size for embeddings
       parallel_processing: true           # Enable parallel embedding generation
       worker_threads: 4                   # Number of worker threads for parallel processing
+
 
 # =============================================================================
 # LOGGING CONFIGURATION

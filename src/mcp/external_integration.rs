@@ -152,6 +152,51 @@ impl ExternalMcpIntegration {
         }
     }
 
+    /// Get the external manager reference for monitoring purposes
+    pub fn get_manager(&self) -> Option<&Arc<ExternalMcpManager>> {
+        self.manager.as_ref()
+    }
+
+    /// Get the network service manager reference (placeholder - not implemented yet)
+    pub fn get_network_manager(&self) -> Option<&Arc<crate::mcp::network_service_manager::NetworkMcpServiceManager>> {
+        // This would be implemented when network service manager is integrated
+        None
+    }
+
+    /// Check if the integration is running
+    pub fn is_running(&self) -> bool {
+        self.manager.is_some()
+    }
+
+    /// Get status information for the integration
+    pub async fn get_status(&self) -> HashMap<String, serde_json::Value> {
+        let mut status = HashMap::new();
+        
+        status.insert("running".to_string(), serde_json::json!(self.is_running()));
+        
+        if let Some(manager) = &self.manager {
+            let active_servers = manager.get_active_servers().await;
+            let health_status = manager.get_health_status().await;
+            
+            status.insert("active_servers".to_string(), serde_json::json!(active_servers));
+            status.insert("health_status".to_string(), serde_json::json!(health_status));
+        }
+        
+        status
+    }
+
+    /// Get the manager (temporary method to fix compilation)
+    pub async fn get_server_tools_fallback(&self, server_name: &str) -> Result<Option<Vec<crate::mcp::types::Tool>>> {
+        match &self.manager {
+            Some(manager) => {
+                Ok(manager.get_server_tools(server_name).await)
+            }
+            None => {
+                Ok(None)
+            }
+        }
+    }
+
     /// Get list of active External MCP servers
     pub async fn get_active_servers(&self) -> Result<Vec<String>> {
         match &self.manager {
@@ -201,7 +246,7 @@ impl ExternalMcpIntegration {
     }
 
     /// Check if External MCP is enabled and running
-    pub fn is_running(&self) -> bool {
+    pub fn is_enabled(&self) -> bool {
         self.manager.is_some()
     }
 
@@ -218,6 +263,11 @@ impl ExternalMcpIntegration {
             }
             None => None
         }
+    }
+
+    /// Get metrics collector for accessing MCP service metrics
+    pub fn metrics_collector(&self) -> Option<std::sync::Arc<crate::mcp::metrics::McpMetricsCollector>> {
+        self.manager.as_ref().map(|manager| manager.metrics_collector())
     }
 }
 

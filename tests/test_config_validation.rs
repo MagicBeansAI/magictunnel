@@ -430,7 +430,7 @@ fn test_mcp_client_config_validation() {
         auto_reconnect: true,
         protocol_version: "2024-11-05".to_string(),
         client_name: "magictunnel".to_string(),
-        client_version: "0.2.48".to_string(),
+        client_version: "0.2.49".to_string(),
     };
     assert!(valid_config.validate().is_ok());
 
@@ -443,7 +443,7 @@ fn test_mcp_client_config_validation() {
         auto_reconnect: true,
         protocol_version: "2024-11-05".to_string(),
         client_name: "magictunnel".to_string(),
-        client_version: "0.2.48".to_string(),
+        client_version: "0.2.49".to_string(),
     };
     assert!(invalid_config.validate().is_err());
 
@@ -456,7 +456,7 @@ fn test_mcp_client_config_validation() {
         auto_reconnect: true,
         protocol_version: "2024-11-05".to_string(),
         client_name: "magictunnel".to_string(),
-        client_version: "0.2.48".to_string(),
+        client_version: "0.2.49".to_string(),
     };
     assert!(invalid_config.validate().is_err());
 
@@ -469,7 +469,7 @@ fn test_mcp_client_config_validation() {
         auto_reconnect: true,
         protocol_version: "2024-11-05".to_string(),
         client_name: "magictunnel".to_string(),
-        client_version: "0.2.48".to_string(),
+        client_version: "0.2.49".to_string(),
     };
     assert!(invalid_config.validate().is_err());
 
@@ -482,7 +482,7 @@ fn test_mcp_client_config_validation() {
         auto_reconnect: true,
         protocol_version: "2024-11-05".to_string(),
         client_name: "magictunnel".to_string(),
-        client_version: "0.2.48".to_string(),
+        client_version: "0.2.49".to_string(),
     };
     assert!(invalid_config.validate().is_err());
 
@@ -495,7 +495,7 @@ fn test_mcp_client_config_validation() {
         auto_reconnect: true,
         protocol_version: "2024-11-05".to_string(),
         client_name: "magictunnel".to_string(),
-        client_version: "0.2.48".to_string(),
+        client_version: "0.2.49".to_string(),
     };
     assert!(invalid_config.validate().is_err());
 }

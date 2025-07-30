@@ -21,7 +21,7 @@ mod tests {
             auto_reconnect: true,
             protocol_version: "2025-03-26".to_string(),
             client_name: "magictunnel-test".to_string(),
-            client_version: "0.2.48".to_string(),
+            client_version: "0.2.49".to_string(),
         }
     }
 

@@ -1,14 +1,23 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, type SystemStatus, type ToolsResponse, type Tool, type MakefileCommandsResponse, type MakefileCommand, type MakefileExecuteResponse, type CustomCommandSpec, type CustomRestartRequest, type ExecuteCommandRequest, type McpExecuteResponse } from '$lib/api';
+  import { api, type SystemStatus, type ToolsResponse, type Tool, type MakefileCommandsResponse, type MakefileCommand, type MakefileExecuteResponse, type CustomCommandSpec, type CustomRestartRequest, type ExecuteCommandRequest, type McpExecuteResponse, type MonitoringSystemMetrics, type MonitoringHealthStatus, type MonitoringSystemAlerts } from '$lib/api';
   import ToolExecutionModal from '$lib/components/ToolExecutionModal.svelte';
   import SmartDiscoveryVisualizer from '$lib/components/SmartDiscoveryVisualizer.svelte';
+  import SystemMetricsCard from '$lib/components/SystemMetricsCard.svelte';
+  import HealthStatusCard from '$lib/components/HealthStatusCard.svelte';
+  import ToolMetricsCompact from '$lib/components/ToolMetricsCompact.svelte';
 
   let systemStatus: SystemStatus | null = null;
   let toolsData: ToolsResponse | null = null;
   let loading = true;
   let error = '';
   let nextRefreshIn = 30;
+  
+  // Monitoring data
+  let monitoringMetrics: MonitoringSystemMetrics | null = null;
+  let healthStatus: MonitoringHealthStatus | null = null;
+  let systemAlerts: MonitoringSystemAlerts | null = null;
+  let monitoringLoading = false;
   
   // Modal state
   let isModalOpen = false;
@@ -117,6 +126,28 @@
     } finally {
       loading = false;
       nextRefreshIn = 30; // Reset countdown
+    }
+  }
+
+  async function loadMonitoringData() {
+    monitoringLoading = true;
+    
+    try {
+      // Load monitoring data in parallel
+      const [metrics, health, alerts] = await Promise.all([
+        api.getSystemMetrics().catch(() => null),
+        api.getHealthStatus().catch(() => null),
+        api.getSystemAlerts().catch(() => null)
+      ]);
+      
+      monitoringMetrics = metrics;
+      healthStatus = health;
+      systemAlerts = alerts;
+    } catch (err) {
+      console.error('Failed to load monitoring data:', err);
+      // Don't set error as this is secondary data
+    } finally {
+      monitoringLoading = false;
     }
   }
 
@@ -557,6 +588,7 @@
   onMount(() => {
     loadDashboardData();
     loadMakefileCommands();
+    loadMonitoringData(); // Load monitoring data
     
     // Countdown timer - updates every second
     const countdownInterval = setInterval(() => {
@@ -564,7 +596,10 @@
     }, 1000);
     
     // Refresh data every 30 seconds
-    const refreshInterval = setInterval(loadDashboardData, 30000);
+    const refreshInterval = setInterval(() => {
+      loadDashboardData();
+      loadMonitoringData(); // Refresh monitoring data too
+    }, 30000);
     
     return () => {
       clearInterval(countdownInterval);
@@ -710,10 +745,92 @@
       </div>
     </div>
 
+    <!-- Monitoring Overview -->
+    <div class="card mb-8">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-xl font-semibold text-gray-700">📊 System Monitoring</h3>
+        <div class="flex items-center gap-3">
+          {#if systemAlerts && systemAlerts.total_alerts > 0}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+              {systemAlerts.critical_count > 0 ? 'bg-red-100 text-red-800' :
+               systemAlerts.error_count > 0 ? 'bg-orange-100 text-orange-800' :
+               'bg-yellow-100 text-yellow-800'}">
+              {systemAlerts.total_alerts} {systemAlerts.total_alerts === 1 ? 'alert' : 'alerts'}
+            </span>
+          {:else if systemAlerts}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+              All Clear
+            </span>
+          {/if}
+          <a 
+            href="/monitoring" 
+            class="text-sm text-blue-600 hover:text-blue-800 underline"
+          >
+            View Full Dashboard →
+          </a>
+        </div>
+      </div>
+      
+      <!-- Compact Monitoring Cards -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- System Metrics -->
+        <SystemMetricsCard 
+          metrics={monitoringMetrics} 
+          loading={monitoringLoading}
+          uptime={monitoringMetrics ? `${Math.floor(monitoringMetrics.uptime_seconds / 3600)}h ${Math.floor((monitoringMetrics.uptime_seconds % 3600) / 60)}m` : null}
+        />
+        
+        <!-- Health Status -->
+        <HealthStatusCard 
+          healthStatus={healthStatus}
+          loading={monitoringLoading}
+        />
+        
+        <!-- Tool Metrics -->
+        <ToolMetricsCompact />
+      </div>
+
+      <!-- Quick Alerts Summary -->
+      {#if systemAlerts && systemAlerts.total_alerts > 0}
+        <div class="mt-6 pt-4 border-t border-gray-100">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-lg font-medium text-gray-700">Recent Alerts</h4>
+            <a href="/monitoring" class="text-sm text-blue-600 hover:text-blue-800 underline">
+              View All
+            </a>
+          </div>
+          <div class="space-y-2">
+            {#each systemAlerts.alerts.slice(0, 3) as alert}
+              <div class="flex items-center p-3 bg-gray-50 rounded-lg">
+                <span class="mr-3 text-lg">
+                  {alert.severity === 'critical' ? '🚨' : 
+                   alert.severity === 'error' ? '❌' : '⚠️'}
+                </span>
+                <div class="flex-1">
+                  <div class="text-sm font-medium text-gray-900">{alert.title}</div>
+                  <div class="text-xs text-gray-500">{alert.description}</div>
+                </div>
+                <span class="text-xs text-gray-400">
+                  {new Date(alert.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
+            {/each}
+            {#if systemAlerts.alerts.length > 3}
+              <div class="text-center pt-2">
+                <a href="/monitoring" class="text-sm text-blue-600 hover:text-blue-800 underline">
+                  +{systemAlerts.alerts.length - 3} more alerts
+                </a>
+              </div>
+            {/if}
+          </div>
+        </div>
+      {/if}
+    </div>
+
     <!-- Quick Actions -->
     <div class="card mb-8">
       <h3 class="text-xl font-semibold text-gray-700 mb-4">Quick Actions</h3>
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <button class="btn-secondary" on:click={() => showSmartDiscovery = !showSmartDiscovery}>
           {#if showSmartDiscovery}
             🧠 Hide Smart Discovery
@@ -733,8 +850,14 @@
         <a href="/config" class="btn-secondary text-center">
           ⚙️ Configuration
         </a>
+        <a href="/monitoring" class="btn-secondary text-center">
+          📊 Monitoring
+        </a>
+        <a href="/tool-metrics" class="btn-secondary text-center">
+          🔧 Tool Metrics
+        </a>
         <button class="btn-secondary" on:click={handleViewLogs}>
-          📊 Logs
+          📋 Logs
         </button>
       </div>
       

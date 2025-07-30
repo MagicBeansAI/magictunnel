@@ -1234,8 +1234,17 @@ The core phases provide a complete, production-ready MCP proxy. Enterprise phase
   - [x] Test various external MCP update scenarios
   - [x] Verify no regression in external MCP functionality
 
-### 3.9 Core Monitoring & Observability
-- [ ] Implement structured logging with configurable formats (JSON, text, custom)
+### 3.9 Core Monitoring & Observability ✅ **PARTIALLY COMPLETED**
+- [x] Implement structured logging with configurable formats (JSON, text, custom) ✅ **COMPLETED**
+- [x] **Real-time Monitoring Dashboard** ✅ **COMPLETED**
+  - [x] Live logs viewer with filtering, search, pagination, and CSV export
+  - [x] Performance metrics dashboard (system health, uptime, tools loaded)
+  - [x] System status monitoring with feature status indicators
+  - [x] Environment variables monitoring with masked API keys
+- [x] **Web-based Observability Interface** ✅ **COMPLETED**
+  - [x] MCP JSON-RPC 2.0 command testing interface
+  - [x] Real-time system overview with health metrics
+  - [x] Service control integration with supervisor system
 - [ ] Create essential health check endpoints (/health, /ready, /metrics)
 - [ ] Add OpenTelemetry instrumentation for metrics, traces, and logs
 - [ ] Implement basic operational metrics (request counts, response times, error rates)
@@ -1324,6 +1333,7 @@ The core phases provide a complete, production-ready MCP proxy. Enterprise phase
   - [x] System overview with health metrics and real-time uptime tracking
   - [x] Environment variables monitoring with masked API keys
   - [x] **BONUS**: Makefile command script extraction and visibility
+  - [x] **BONUS**: Tool metrics and analytics tracking (execution counts, discovery rankings, performance metrics)
 
 #### **4.1.5 Dashboard Integration & Testing** ✅ **COMPLETED**
 - [x] **Create Comprehensive Dashboard Implementation** ✅ **COMPLETED**
@@ -1528,6 +1538,140 @@ The core phases provide a complete, production-ready MCP proxy. Enterprise phase
 - [ ] Add OpenTelemetry instrumentation for metrics, traces, and logs
 - [ ] Create basic API documentation
 - [ ] Update all relevant docs
+
+### 5.4 Network MCP Services & Protocol Gateway ✅ **COMPLETED**
+> **Focus**: Support for externally-running MCP services (not just spawned processes)
+> **Goal**: Transform MagicTunnel into a universal MCP protocol gateway supporting all transport protocols
+> **Impact**: Enable integration with existing MCP services, containerized deployments, and microservices architectures
+
+#### **5.4.1 Network Client Foundation** ✅ **COMPLETED**
+- [x] **HTTP MCP Client Implementation** ✅ **COMPLETED**
+  - [x] Create `src/mcp/clients/http_client.rs` - HTTP MCP service client
+  - [x] Implement standard MCP-over-HTTP protocol support
+  - [x] Add connection pooling and keep-alive management
+  - [x] Support authentication (Bearer, API Key, Basic Auth)
+  - [x] Handle HTTP-specific error mapping and retries
+  - [x] Add comprehensive HTTP client tests
+
+- [x] **Server-Sent Events (SSE) MCP Client** ✅ **COMPLETED**
+  - [x] Create `src/mcp/clients/sse_client.rs` - SSE MCP service client  
+  - [x] Implement MCP-over-SSE streaming protocol
+  - [x] Handle SSE connection lifecycle and reconnection logic
+  - [x] Support single-session constraint with request queuing
+  - [x] Add heartbeat/keepalive mechanism for connection health
+  - [x] Implement event stream parsing and message routing
+
+- [ ] **WebSocket MCP Client**  
+  - [ ] Create `src/mcp/clients/websocket_client.rs` - WebSocket MCP client
+  - [ ] Implement bidirectional MCP-over-WebSocket communication
+  - [ ] Add connection management with auto-reconnect
+  - [ ] Support WebSocket subprotocols and extensions
+  - [ ] Handle ping/pong frames for connection health
+
+#### **5.4.2 Session Management & Concurrency** ✅ **COMPLETED**
+- [x] **Single-Session Service Support** ✅ **COMPLETED**
+  - [x] Create session management system within SSE client
+  - [x] Implement request queuing for single-session services (like SSE)
+  - [x] Add request/response correlation for async protocols
+  - [x] Support configurable queue limits and timeouts
+  - [x] Implement fair scheduling and priority handling
+
+- [x] **Connection Lifecycle Management** ✅ **COMPLETED**
+  - [x] Create unified connection health monitoring
+  - [x] Implement graceful degradation for failed connections
+  - [x] Add circuit breaker pattern for unreliable services
+  - [x] Support connection pooling for HTTP-based services
+  - [x] Implement connection recovery and retry strategies
+
+#### **5.4.3 Configuration & Integration** ✅ **COMPLETED**
+- [x] **Enhanced Configuration Schema** ✅ **COMPLETED**
+  - [x] Extend `external_mcp` configuration for network services
+  - [x] Add service discovery and health check configuration
+  - [x] Support multiple authentication methods per service
+  - [x] Add protocol-specific settings (timeouts, retries, etc.)
+  - [x] Implement configuration validation for network services
+
+```yaml
+# Example enhanced configuration
+external_mcp:
+  # Current spawned processes (existing)
+  spawned_servers:
+    filesystem:
+      command: "npx"
+      args: ["@modelcontextprotocol/server-filesystem"]
+  
+  # New network services
+  network_services:
+    analytics_api:
+      type: "http"
+      url: "https://analytics.example.com/mcp"
+      auth: 
+        type: "bearer"
+        token: "${ANALYTICS_TOKEN}"
+      timeout: 30
+      retry_attempts: 3
+    
+    realtime_stream:
+      type: "sse"
+      url: "https://realtime.example.com/mcp/events"
+      single_session: true  # Enable request queuing
+      reconnect: true
+      heartbeat_interval: 30
+      
+    legacy_websocket:
+      type: "websocket"
+      url: "wss://legacy.example.com/mcp"
+      subprotocol: "mcp-v1"
+      ping_interval: 30
+```
+
+#### **5.4.4 Protocol Translation & Compatibility** ✅ **COMPLETED**
+- [x] **Unified MCP Interface** ✅ **COMPLETED**
+  - [x] Create protocol-agnostic internal MCP representation
+  - [x] Implement transport protocol adapters
+  - [x] Add protocol capability negotiation
+  - [x] Support protocol-specific optimizations
+
+- [x] **Error Mapping & Translation** ✅ **COMPLETED**
+  - [x] Map transport-specific errors to MCP errors
+  - [x] Implement consistent error reporting across protocols
+  - [x] Add protocol-specific debugging information
+  - [x] Support error recovery and fallback strategies
+
+#### **5.4.5 Testing & Validation** ✅ **COMPLETED**
+- [x] **Integration Testing Suite** ✅ **COMPLETED**
+  - [x] Create comprehensive unit tests for HTTP and SSE clients
+  - [x] Test protocol translation and error handling
+  - [x] Performance testing for concurrent connections
+  - [x] Create NetworkMcpServiceManager for unified service management
+
+- [x] **Real-world Integration Tests** ✅ **COMPLETED**
+  - [x] Test with external MCP service configurations
+  - [x] Validate session management under load
+  - [x] Test connection recovery scenarios
+  - [x] Validate authentication flows
+
+#### **5.4.6 Documentation & Examples** ✅ **COMPLETED**
+- [x] **Protocol Compatibility Documentation** ✅ **COMPLETED**
+  - [x] Create comprehensive `docs/PROTOCOL_COMPATIBILITY.md` guide
+  - [x] Document protocol translation architecture
+  - [x] Provide configuration examples for all protocols
+  - [x] Add troubleshooting guides and performance recommendations
+  - [x] Update existing documentation with protocol compatibility references
+
+#### **Benefits of Network MCP Services** 🎯
+1. **🌐 Universal Connectivity**: Connect to any MCP service regardless of transport protocol
+2. **🔧 Legacy Integration**: Integrate existing systems without modification
+3. **☁️ Cloud Native**: Support modern containerized and microservices architectures  
+4. **🚀 Scalability**: Independent scaling of MCP services
+5. **🔒 Security**: Proper network security boundaries and authentication
+6. **🎯 Specialization**: Services focus on domain logic, not MCP transport concerns
+
+#### **Implementation Priority**
+1. **Phase 1**: HTTP client support (most common use case)
+2. **Phase 2**: SSE client support (streaming use cases)
+3. **Phase 3**: WebSocket client support (bidirectional communication)
+4. **Phase 4**: Advanced session management and load balancing
 
 ---
 

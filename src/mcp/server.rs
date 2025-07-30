@@ -373,7 +373,7 @@ impl McpServer {
                     }
                 }
                 
-                match crate::discovery::SmartDiscoveryService::new(registry.clone(), config_with_api_key) {
+                match crate::discovery::SmartDiscoveryService::new(registry.clone(), config_with_api_key).await {
                     Ok(service) => {
                         info!("Smart discovery service created successfully (router will be set later)");
                         let service_arc = Arc::new(service);
@@ -563,7 +563,8 @@ impl McpServer {
                     let external_mcp = mcp_server.external_integration.clone();
                     let resource_manager = mcp_server.resource_manager.clone();
                     let prompt_manager = mcp_server.prompt_manager.clone();
-                    move |cfg| configure_dashboard_api(cfg, registry, mcp_server, external_mcp, resource_manager, prompt_manager)
+                    let discovery = mcp_server.smart_discovery.clone();
+                    move |cfg| configure_dashboard_api(cfg, registry, mcp_server, external_mcp, resource_manager, prompt_manager, discovery)
                 })
 
                 // TODO: Add gRPC endpoints (will need separate gRPC server)
@@ -994,7 +995,7 @@ impl McpServer {
             },
             "serverInfo": {
                 "name": "magictunnel",
-                "version": "0.2.48"
+                "version": "0.2.49"
             },
             "instructions": "MagicTunnel server providing access to GraphQL, REST, and gRPC endpoints as MCP tools"
         })

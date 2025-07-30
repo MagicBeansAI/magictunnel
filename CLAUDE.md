@@ -4,7 +4,7 @@
 
 MagicTunnel is an intelligent bridge between MCP (Model Context Protocol) clients and diverse agents/endpoints. It provides a single, smart tool discovery interface that can find the right tool for any request, map parameters, and proxy the call automatically.
 
-**Current Version**: 0.2.48 - **OpenAPI 3.1 Custom GPT Integration Complete** ✅
+**Current Version**: 0.2.49 - **OpenAPI 3.1 Custom GPT Integration Complete** ✅
 
 ## Quick Start
 
@@ -118,9 +118,9 @@ The system provides **one intelligent tool** (`smart_tool_discovery`) that:
 
 ### Documentation
 - `docs/ROUTING_ARCHITECTURE.md` - Detailed architecture documentation with Phase 4 completion status
-- `CHANGELOG.md` - Version history and changes (current: 0.2.48)
+- `CHANGELOG.md` - Version history and changes (current: 0.2.49)
 - `README.md` - Comprehensive project overview with current status
-- `QUICK_START.md` - Quick setup guide with examples
+- `how_to_run.md` - Quick setup guide with examples
 
 ## Common Development Patterns
 
@@ -169,7 +169,7 @@ curl -X POST http://localhost:3001/mcp/call \
 
 ## Recent Major Changes
 
-### Version 0.2.48 (Current)
+### Version 0.2.49 (Current)
 - **OpenAPI 3.1 Custom GPT Integration**: Complete integration support
 - **Claude Desktop Compatibility**: Fixed Claude not working issues
 - **Sequential Mode**: Fixed sequential mode functionality

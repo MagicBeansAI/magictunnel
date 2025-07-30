@@ -9,8 +9,6 @@ magictunnel
 target/release/magictunnel
 target/debug/magictunnel
 
-external-mcp-servers.yaml
-
 # Cargo
 Cargo.lock
 Cargo.toml.bak
