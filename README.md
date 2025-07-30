@@ -2,7 +2,7 @@
 
 **Smart MCP Proxy** - One intelligent tool that discovers the right tool for any request.
 
-[![MagicTunnel](docs/images/magictunnel-1.png)]
+![MagicTunnel](docs/images/magictunnel-1.png)
 
 ## The Problem
 MCP clients get overwhelmed with 50+ tools. Users can't find the right tool for their task.
