@@ -286,6 +286,13 @@ impl From<ProxyError> for McpError {
                     serde_json::json!({ "category": "connection" })
                 )
             }
+            ProxyError::Security { message } => {
+                McpError::with_data(
+                    McpErrorCode::AuthenticationFailed,
+                    format!("Security error: {}", message),
+                    serde_json::json!({ "category": "security" })
+                )
+            }
         }
     }
 }

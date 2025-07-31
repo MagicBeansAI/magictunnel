@@ -1,0 +1,421 @@
+# MagicTunnel Secure Configuration Example
+# This example shows how to configure MagicTunnel with comprehensive security features
+# similar to MCP Manager's enterprise security capabilities.
+
+# =============================================================================
+# SERVER CONFIGURATION
+# =============================================================================
+server:
+  host: "0.0.0.0"
+  port: 3001
+  websocket: true
+  timeout: 30
+  
+  # TLS Configuration (Production Ready)
+  tls:
+    mode: "application"
+    cert_file: "/etc/ssl/certs/magictunnel.crt"
+    key_file: "/etc/ssl/private/magictunnel.key"
+    ca_file: "/etc/ssl/certs/ca.crt"
+    min_tls_version: "1.3"
+    hsts_enabled: true
+    hsts_max_age: 31536000
+    hsts_include_subdomains: true
+
+# =============================================================================
+# AUTHENTICATION & AUTHORIZATION
+# =============================================================================
+auth:
+  enabled: true
+  type: "jwt"  # Use JWT for stateless authentication
+  jwt:
+    secret: "your_super_secure_jwt_secret_at_least_32_characters_long_for_production"
+    algorithm: "HS256"
+    expiration: 3600
+    issuer: "magictunnel-secure"
+    audience: "mcp-clients"
+
+# =============================================================================
+# COMPREHENSIVE SECURITY CONFIGURATION
+# =============================================================================
+security:
+  # Tool Allowlisting - Explicit control over tool access
+  allowlist:
+    enabled: true
+    default_action: "deny"  # Deny by default, require explicit allowlist
+    
+    # Tool-specific rules
+    tools:
+      # Allow filesystem operations only for admin users
+      "filesystem_*":
+        action: "allow"
+        required_permissions: ["admin"]
+        allowed_roles: ["admin", "operator"]
+        parameter_rules:
+          blocked: ["rm", "delete", "remove"]
+          blocked_value_patterns:
+            - ".*\\.exe$"
+            - ".*\\.bat$"
+            - "/etc/.*"
+        rate_limit:
+          max_requests: 10
+          window_seconds: 60
+          action: "block"
+      
+      # Allow network tools with restrictions
+      "ping|traceroute|nslookup":
+        action: "allow"
+        required_permissions: ["read", "network"]
+        parameter_rules:
+          blocked_value_patterns:
+            - "192\\.168\\..*"  # Block internal IPs
+            - "10\\..*"
+            - "172\\.16\\..*"
+      
+      # Allow database operations with approval
+      "database_*":
+        action: "require_approval"
+        required_permissions: ["write", "database"]
+        allowed_roles: ["dba", "admin"]
+    
+    # Resource access rules
+    resources:
+      "file://*":
+        action: "allow"
+        required_permissions: ["read"]
+        allowed_roles: ["user", "operator", "admin"]
+      
+      "database://*":
+        action: "allow"
+        required_permissions: ["database"]
+        allowed_roles: ["dba", "admin"]
+    
+    # Global rules (applied first, by priority)
+    global_rules:
+      - name: "block_dangerous_tools"
+        pattern:
+          type: "wildcard"
+          pattern: "*delete*|*remove*|*destroy*"
+        action: "block"
+        priority: 100
+      
+      - name: "admin_bypass"
+        pattern:
+          type: "user"
+          user_id: "*"
+          roles: ["admin"]
+        action: "allow"
+        priority: 90
+
+  # Request Sanitization - Content filtering and sensitive data protection
+  sanitization:
+    enabled: true
+    log_actions: true
+    default_action:
+      type: "log_and_allow"
+      level: "warn"
+    
+    policies:
+      # Block requests containing secrets
+      - name: "secret_detection"
+        triggers:
+          - type: "secret_detection"
+            secret_types:
+              - "api_key"
+              - "aws_credentials"
+              - "database_url"
+              - "private_key"
+              - "jwt_token"
+              - "credit_card"
+              - "ssn"
+        action:
+          type: "block"
+          message: "Request contains sensitive data"
+        priority: 100
+        enabled: true
+      
+      # Sanitize email addresses and phone numbers
+      - name: "pii_sanitization"
+        triggers:
+          - type: "secret_detection"
+            secret_types:
+              - "email"
+              - "phone_number"
+        action:
+          type: "sanitize"
+          method:
+            type: "mask"
+            mask_char: "*"
+            preserve_structure: true
+        priority: 80
+        enabled: true
+      
+      # Block large payloads
+      - name: "size_limit"
+        triggers:
+          - type: "size_limit"
+            max_size: 1048576  # 1MB
+        action:
+          type: "block"
+          message: "Request too large"
+        priority: 70
+        enabled: true
+
+  # Role-Based Access Control (RBAC)
+  rbac:
+    enabled: true
+    inherit_permissions: true
+    
+    # Define roles with hierarchical permissions
+    roles:
+      admin:
+        name: "admin"
+        description: "Full administrative access"
+        permissions:
+          - "*"  # All permissions
+        parent_roles: []
+        active: true
+      
+      operator:
+        name: "operator"
+        description: "Tool execution and monitoring"
+        permissions:
+          - "read"
+          - "write"
+          - "tool:*"
+          - "resource:read"
+          - "prompt:read"
+          - "network"
+        parent_roles: ["user"]
+        active: true
+      
+      dba:
+        name: "dba"
+        description: "Database administration"
+        permissions:
+          - "read"
+          - "write"
+          - "database"
+          - "tool:database_*"
+          - "resource:database:*"
+        parent_roles: ["user"]
+        active: true
+      
+      user:
+        name: "user"
+        description: "Standard user access"
+        permissions:
+          - "read"
+          - "tool:read"
+          - "resource:read"
+          - "prompt:read"
+        parent_roles: []
+        active: true
+      
+      readonly:
+        name: "readonly"
+        description: "Read-only access"
+        permissions:
+          - "read"
+        parent_roles: []
+        active: true
+    
+    # User role assignments (in production, this would come from your identity provider)
+    user_roles:
+      "admin@company.com": ["admin"]
+      "operator@company.com": ["operator"]
+      "dba@company.com": ["dba"]
+      "user@company.com": ["user"]
+    
+    # API key role assignments
+    api_key_roles:
+      "admin_key": ["admin"]
+      "monitoring_key": ["readonly"]
+      "automation_key": ["operator"]
+    
+    # Default role for new users
+    default_roles: ["readonly"]
+
+  # Organization-wide Security Policies
+  policies:
+    enabled: true
+    log_decisions: true
+    default_action:
+      type: "allow"
+      message: "No policy matched, allowing by default"
+    
+    policies:
+      # Block access during maintenance windows
+      - name: "maintenance_window"
+        description: "Block non-admin access during maintenance"
+        conditions:
+          - type: "time_window"
+            windows:
+              - start_time: "02:00"
+                end_time: "04:00"
+                days_of_week: [0, 6]  # Sunday and Saturday
+          - type: "user"
+            role_patterns: ["user", "operator"]
+            match_mode: "any"
+        action:
+          type: "block"
+          message: "System maintenance in progress"
+          status_code: 503
+        priority: 100
+        enabled: true
+      
+      # Rate limiting by user
+      - name: "user_rate_limit"
+        description: "Limit requests per user"
+        conditions:
+          - type: "rate_limit"
+            max_requests: 100
+            window_seconds: 3600
+            scope: "user"
+        action:
+          type: "block"
+          message: "Rate limit exceeded"
+          status_code: 429
+        priority: 90
+        enabled: true
+      
+      # Block dangerous tool combinations
+      - name: "dangerous_tool_combo"
+        description: "Block dangerous tool combinations"
+        conditions:
+          - type: "tool"
+            patterns: ["*delete*", "*remove*", "*destroy*"]
+            match_mode: "any"
+          - type: "content"
+            patterns: ["production", "prod", "live"]
+            is_regex: false
+            case_sensitive: false
+            target_fields: ["parameters"]
+        action:
+          type: "require_approval"
+          workflow: "high_risk_operations"
+          timeout: 1800
+        priority: 80
+        enabled: true
+      
+      # Geographic restrictions
+      - name: "geo_blocking"
+        description: "Block requests from certain regions"
+        conditions:
+          - type: "custom"
+            name: "geo_check"
+            parameters:
+              blocked_countries: ["CN", "RU", "KP"]
+              blocked_asns: ["AS13335"]  # Example ASN
+        action:
+          type: "block"
+          message: "Access denied from this location"
+        priority: 70
+        enabled: false  # Disabled by default
+
+  # Comprehensive Audit Logging
+  audit:
+    enabled: true
+    events:
+      - "authentication"
+      - "authorization"
+      - "tool_execution"
+      - "resource_access"
+      - "security_violation"
+      - "error"
+    
+    # Store audit logs in multiple locations
+    storage:
+      type: "file"
+      directory: "/var/log/magictunnel/audit"
+      rotation:
+        max_file_size: 104857600  # 100MB
+        max_files: 10
+        compress: true
+    
+    # Audit configuration
+    retention_days: 90
+    include_bodies: false  # Don't log request/response bodies for privacy
+    max_body_size: 1024
+    mask_sensitive_data: true
+
+# =============================================================================
+# REGISTRY CONFIGURATION
+# =============================================================================
+registry:
+  type: "file"
+  paths:
+    - "./capabilities"
+  hot_reload: true
+  validation:
+    strict: true
+    allow_unknown_fields: false
+  
+  # Default tool visibility (secure by default)
+  default_hidden: true  # Hide all tools by default, use smart discovery
+
+# =============================================================================
+# SMART DISCOVERY CONFIGURATION
+# =============================================================================
+smart_discovery:
+  enabled: true
+  tool_selection_mode: "hybrid"
+  default_confidence_threshold: 0.8  # Higher threshold for security
+  max_tools_to_consider: 5  # Limit exposure
+  
+  # LLM configuration for tool selection
+  llm_tool_selection:
+    enabled: true
+    provider: "openai"
+    model: "gpt-4o-mini"
+    api_key_env: "OPENAI_API_KEY"
+    timeout: 30
+  
+  # Semantic search configuration
+  semantic_search:
+    enabled: true
+    model_name: "openai:text-embedding-3-small"
+    similarity_threshold: 0.6
+
+# =============================================================================
+# EXTERNAL MCP CONFIGURATION
+# =============================================================================
+external_mcp:
+  enabled: true
+  config_file: "./external-mcp-servers.yaml"
+  capabilities_output_dir: "./capabilities/external-mcp"
+  refresh_interval_minutes: 60
+
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
+logging:
+  level: "info"
+  format: "json"  # Structured logging for security monitoring
+  file: "/var/log/magictunnel/app.log"
+
+# =============================================================================
+# EXAMPLE DEPLOYMENT NOTES
+# =============================================================================
+# 
+# This configuration provides enterprise-grade security features:
+#
+# 1. **Authentication**: JWT-based stateless authentication
+# 2. **Tool Allowlisting**: Explicit control over tool access with role-based permissions
+# 3. **Request Sanitization**: Automatic detection and blocking of sensitive data
+# 4. **RBAC**: Hierarchical role-based access control with fine-grained permissions  
+# 5. **Security Policies**: Organization-wide policies for compliance and risk management
+# 6. **Audit Logging**: Comprehensive logging of all security events
+# 7. **TLS**: Production-ready TLS configuration with modern security standards
+#
+# Production Deployment Checklist:
+# - [ ] Generate strong JWT secret (min 32 chars)
+# - [ ] Configure proper TLS certificates
+# - [ ] Set up log aggregation (ELK, Splunk, etc.)
+# - [ ] Configure external approval workflows
+# - [ ] Set up monitoring and alerting
+# - [ ] Regular security audits and policy reviews
+# - [ ] Backup and disaster recovery procedures
+# - [ ] Identity provider integration (SAML, OIDC)
+# - [ ] Network security (firewalls, VPNs)
+# - [ ] Regular penetration testing

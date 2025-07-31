@@ -101,6 +101,9 @@ arc-swap = "1.6"
 
 # Parameter substitution
 regex = "1.10"
+sha2 = "0.10"
+blake3 = "1.0"
+ipnetwork = "0.20"
 
 # JWT authentication
 jsonwebtoken = "9.2"

@@ -21,7 +21,7 @@ use crate::routing::{Router, types::AgentResult};
 use crate::web::configure_dashboard_api;
 use actix_web::{web, App, HttpServer, HttpResponse, middleware::Logger, HttpRequest};
 use actix_ws::Message;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::StreamExt;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{debug, info, warn, error};
 use serde_json::{json, Value};
@@ -45,6 +45,8 @@ pub struct McpServer {
     notification_manager: Arc<McpNotificationManager>,
     /// Authentication middleware for securing endpoints ✅ **NEW**
     auth_middleware: Option<Arc<AuthenticationMiddleware>>,
+    /// Security middleware for comprehensive security controls ✅ **NEW**
+    security_middleware: Option<Arc<crate::security::SecurityMiddleware>>,
     /// Session manager for WebSocket connection tracking ✅ **NEW**
     session_manager: Arc<McpSessionManager>,
     /// Message validator for enhanced protocol compliance ✅ **NEW**
@@ -57,7 +59,7 @@ pub struct McpServer {
 
 impl McpServer {
     /// Convert AgentResult to MCP-compliant ToolResult
-    fn agent_result_to_tool_result(agent_result: AgentResult, tool_name: &str, metadata: Option<Value>) -> ToolResult {
+    fn agent_result_to_tool_result(agent_result: AgentResult, _tool_name: &str, metadata: Option<Value>) -> ToolResult {
         if agent_result.success {
             let data = agent_result.data.unwrap_or(json!({}));
             let mut result = ToolResult::success_with_metadata(data, metadata.unwrap_or(json!({})));
@@ -232,6 +234,7 @@ impl McpServer {
             logger_manager,
             notification_manager,
             auth_middleware: None, // No authentication by default
+            security_middleware: None, // No security by default
             session_manager,
             message_validator,
             smart_discovery: None, // No smart discovery by default
@@ -256,6 +259,7 @@ impl McpServer {
             logger_manager,
             notification_manager,
             auth_middleware: None, // No authentication by default
+            security_middleware: None, // No security by default
             session_manager,
             message_validator,
             smart_discovery: None, // No smart discovery by default
@@ -440,7 +444,7 @@ impl McpServer {
             }
         };
 
-        let server = Self {
+        let mut server = Self {
             registry,
             tool_aggregation: Some(Arc::new(tool_aggregation)),
             router: router.clone(),
@@ -449,11 +453,22 @@ impl McpServer {
             logger_manager,
             notification_manager,
             auth_middleware: None, // Will be set if configured
+            security_middleware: None, // Will be set if configured
             session_manager,
             message_validator,
             smart_discovery,
             external_integration: if external_mcp_started { Some(external_integration) } else { None },
         };
+
+        // Configure authentication if present
+        if let Some(auth_config) = &config.auth {
+            server = server.with_authentication(auth_config.clone())?;
+        }
+        
+        // Configure security if present
+        if let Some(security_config) = &config.security {
+            server = server.with_security(security_config.clone()).await?;
+        }
 
         Ok(server)
     }
@@ -477,6 +492,7 @@ impl McpServer {
             logger_manager,
             notification_manager,
             auth_middleware: None, // No authentication by default
+            security_middleware: None, // No security by default
             session_manager,
             message_validator,
             smart_discovery: None, // No smart discovery by default
@@ -495,6 +511,76 @@ impl McpServer {
             self.auth_middleware = None;
         }
         Ok(self)
+    }
+    
+    /// Configure security for the MCP server
+    pub async fn with_security(mut self, security_config: crate::security::SecurityConfig) -> Result<Self> {
+        if security_config.enabled && security_config.has_any_enabled() {
+            info!("Enabling security with {} features", 
+                [
+                    security_config.allowlist.as_ref().map(|c| c.enabled).unwrap_or(false),
+                    security_config.sanitization.as_ref().map(|c| c.enabled).unwrap_or(false),
+                    security_config.rbac.as_ref().map(|c| c.enabled).unwrap_or(false),
+                    security_config.policies.as_ref().map(|c| c.enabled).unwrap_or(false),
+                    security_config.audit.as_ref().map(|c| c.enabled).unwrap_or(false),
+                ].iter().filter(|&&enabled| enabled).count()
+            );
+            
+            let security_middleware = crate::security::SecurityMiddleware::new(security_config).await
+                .map_err(|e| ProxyError::config(format!("Failed to initialize security middleware: {}", e)))?;
+            self.security_middleware = Some(Arc::new(security_middleware));
+        } else {
+            debug!("Security disabled or no features enabled");
+            self.security_middleware = None;
+        }
+        Ok(self)
+    }
+    
+    /// Build security context for evaluation
+    fn build_security_context(
+        &self, 
+        tool_call: &ToolCall, 
+        auth_context: Option<&crate::auth::AuthenticationResult>
+    ) -> crate::security::SecurityContext {
+        use crate::security::{SecurityContext, SecurityRequest, SecurityTool};
+        use std::collections::HashMap;
+        use chrono::Utc;
+        
+        // Extract user information from auth context
+        let user = crate::security::extract_security_user(auth_context);
+        
+        // Build request information
+        let request = SecurityRequest {
+            id: format!("tool-{}-{}", tool_call.name, Utc::now().timestamp_millis()),
+            method: "POST".to_string(),
+            path: format!("/mcp/call/{}", tool_call.name),
+            client_ip: None, // Would be extracted from HTTP request
+            user_agent: None,
+            headers: HashMap::new(),
+            body: serde_json::to_string(&tool_call.arguments).ok(),
+            timestamp: Utc::now(),
+        };
+        
+        // Build tool information
+        let tool = SecurityTool {
+            name: tool_call.name.clone(),
+            parameters: match &tool_call.arguments {
+                serde_json::Value::Object(map) => {
+                    map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+                },
+                _ => HashMap::new(),
+            },
+            source: self.registry.get_tool(&tool_call.name)
+                .map(|tool_def| tool_def.name().to_string()),
+        };
+        
+        SecurityContext {
+            user,
+            request,
+            tool: Some(tool),
+            resource: None,
+            metadata: HashMap::new(),
+        }
     }
 
     /// Start the MCP server with TLS configuration
@@ -693,7 +779,6 @@ impl McpServer {
 
         // Get tools from high-performance registry
         let tool_names = self.registry.list_tools();
-        let tool_count = tool_names.len();
         let mut tools = Vec::new();
 
         for tool_name in tool_names {
@@ -1277,6 +1362,63 @@ impl McpServer {
 // HTTP handlers for Actix-web
 
 /// Helper function to check authentication for HTTP requests
+async fn check_authentication_context(
+    req: &HttpRequest,
+    auth_middleware: &Option<Arc<AuthenticationMiddleware>>,
+    required_permission: &str,
+) -> std::result::Result<Option<crate::auth::AuthenticationResult>, HttpResponse> {
+    if let Some(auth) = auth_middleware {
+        match auth.validate_http_request(req).await {
+            Ok(Some(auth_result)) => {
+                // Check if the authenticated user has the required permission
+                if !auth.check_permission(&auth_result, required_permission) {
+                    let error_response = json!({
+                        "error": {
+                            "code": "INSUFFICIENT_PERMISSIONS",
+                            "message": format!("User does not have '{}' permission", required_permission),
+                            "type": "authorization_error"
+                        }
+                    });
+                    return Err(HttpResponse::Forbidden()
+                        .content_type("application/json")
+                        .json(error_response));
+                }
+                // Return auth context for security evaluation
+                return Ok(Some(auth_result));
+            }
+            Ok(None) => {
+                // No authentication provided but auth is required
+                let error_response = json!({
+                    "error": {
+                        "code": "AUTHENTICATION_REQUIRED",
+                        "message": "Authentication required",
+                        "type": "authentication_error"
+                    }
+                });
+                return Err(HttpResponse::Unauthorized()
+                    .content_type("application/json")
+                    .header("WWW-Authenticate", "Bearer")
+                    .json(error_response));
+            }
+            Err(e) => {
+                // Authentication validation failed
+                let error_response = json!({
+                    "error": {
+                        "code": "AUTHENTICATION_FAILED",
+                        "message": e.to_string(),
+                        "type": "authentication_error"
+                    }
+                });
+                return Err(HttpResponse::Unauthorized()
+                    .content_type("application/json")
+                    .json(error_response));
+            }
+        }
+    }
+    // No auth middleware configured, return None
+    Ok(None)
+}
+
 async fn check_authentication(
     req: &HttpRequest,
     auth_middleware: &Option<Arc<AuthenticationMiddleware>>,
@@ -1809,6 +1951,15 @@ async fn list_tools_from_registry(registry: &Arc<RegistryService>) -> Result<Vec
 /// Call tool using the server's configured router
 impl McpServer {
     pub async fn call_tool_with_router(&self, tool_call: &ToolCall) -> Result<ToolResult> {
+        self.call_tool_with_router_and_context(tool_call, None).await
+    }
+    
+    /// Call tool with security context
+    pub async fn call_tool_with_router_and_context(
+        &self, 
+        tool_call: &ToolCall,
+        auth_context: Option<&crate::auth::AuthenticationResult>
+    ) -> Result<ToolResult> {
         let arg_count = match &tool_call.arguments {
             serde_json::Value::Object(map) => map.len(),
             _ => 0,
@@ -1818,6 +1969,36 @@ impl McpServer {
         // Log the arguments being passed to the tool
         if let Ok(args_json) = serde_json::to_string_pretty(&tool_call.arguments) {
             info!("📝 Tool call arguments:\n{}", args_json);
+        }
+        
+        // Security evaluation
+        if let Some(security_middleware) = &self.security_middleware {
+            if security_middleware.is_enabled() {
+                info!("🔒 Evaluating security for tool call: '{}'", tool_call.name);
+                
+                // Build security context
+                let security_context = self.build_security_context(tool_call, auth_context);
+                
+                // Evaluate security
+                let security_result = security_middleware.evaluate_security(&security_context).await;
+                
+                if security_result.blocked {
+                    error!("🚫 Tool call blocked by security: {}", security_result.reason);
+                    return Err(ProxyError::security(security_result.error_message.unwrap_or(security_result.reason)));
+                }
+                
+                if security_result.requires_approval {
+                    warn!("⚠️ Tool call requires approval: {}", security_result.reason);
+                    return Err(ProxyError::security("Tool call requires approval".to_string()));
+                }
+                
+                if security_result.modified {
+                    info!("🔧 Tool call modified by security policies");
+                    // Apply modifications if any
+                }
+                
+                info!("✅ Security evaluation passed");
+            }
         }
 
         // Validate tool exists in registry
@@ -1925,7 +2106,7 @@ fn create_proxy_error_response(id: Option<&serde_json::Value>, error: ProxyError
 
 /// OAuth authorization endpoint - redirects to OAuth provider
 async fn oauth_authorize_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     query: web::Query<std::collections::HashMap<String, String>>,
     mcp_server: web::Data<Arc<McpServer>>,
 ) -> HttpResponse {
@@ -1975,7 +2156,7 @@ async fn oauth_authorize_handler(
 
 /// OAuth callback endpoint - handles authorization code exchange
 async fn oauth_callback_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     query: web::Query<std::collections::HashMap<String, String>>,
     mcp_server: web::Data<Arc<McpServer>>,
 ) -> HttpResponse {

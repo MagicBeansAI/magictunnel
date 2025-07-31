@@ -64,6 +64,8 @@ pub struct Config {
     pub visibility: Option<VisibilityConfig>,
     /// Smart Discovery configuration
     pub smart_discovery: Option<crate::discovery::SmartDiscoveryConfig>,
+    /// Security configuration
+    pub security: Option<crate::security::SecurityConfig>,
 }
 
 /// Server configuration
@@ -720,6 +722,7 @@ impl Default for Config {
             conflict_resolution: None,
             visibility: None,
             smart_discovery: None,
+            security: None,
         }
     }
 }

@@ -14,6 +14,7 @@ mod metrics;
 mod openai;
 mod registry;
 mod routing;
+mod security;
 mod supervisor;
 mod tls;
 mod web;

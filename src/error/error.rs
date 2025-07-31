@@ -33,6 +33,10 @@ pub enum ProxyError {
     #[error("Authentication error: {message}")]
     Auth { message: String },
 
+    /// Security errors
+    #[error("Security error: {message}")]
+    Security { message: String },
+
     /// Validation errors
     #[error("Validation error: {message}")]
     Validation { message: String },
@@ -110,6 +114,13 @@ impl ProxyError {
         }
     }
 
+    /// Create a security error
+    pub fn security<S: Into<String>>(message: S) -> Self {
+        Self::Security {
+            message: message.into(),
+        }
+    }
+
     /// Create a timeout error (using connection error type)
     pub fn timeout<S: Into<String>>(message: S) -> Self {
         Self::Connection {
@@ -148,6 +159,7 @@ impl ProxyError {
             ProxyError::Routing { .. } => "routing",
             ProxyError::ToolExecution { .. } => "tool_execution",
             ProxyError::Auth { .. } => "auth",
+            ProxyError::Security { .. } => "security",
             ProxyError::Validation { .. } => "validation",
             ProxyError::Connection { .. } => "connection",
             ProxyError::Io(_) => "io",
@@ -174,6 +186,7 @@ impl Clone for ProxyError {
             ProxyError::Auth { message } => ProxyError::Auth { message: message.clone() },
             ProxyError::Validation { message } => ProxyError::Validation { message: message.clone() },
             ProxyError::Connection { message } => ProxyError::Connection { message: message.clone() },
+            ProxyError::Security { message } => ProxyError::Security { message: message.clone() },
 
             // For non-cloneable types, convert to string representation
             ProxyError::Io(e) => ProxyError::routing(format!("IO error: {}", e)),
