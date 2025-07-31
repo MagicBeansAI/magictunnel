@@ -124,6 +124,8 @@ open http://localhost:5173/dashboard
 
 ## Add Your Tools
 
+### Manual Tool Creation
+
 Create `capabilities/my-tools.yaml`:
 ```yaml
 tools:
@@ -140,6 +142,36 @@ tools:
       command: "ping"
       args: ["-c", "4", "{host}"]
 ```
+
+### Generate Tools from APIs
+
+Automatically generate tools from your existing APIs:
+
+```bash
+# Generate from OpenAPI/Swagger
+./target/release/openapi-generator \
+  --spec https://api.example.com/openapi.json \
+  --output capabilities/api-tools.yaml \
+  --base-url https://api.example.com \
+  --auth-type bearer --auth-token $API_TOKEN
+
+# Generate from gRPC services  
+./target/release/grpc-generator \
+  --proto service.proto \
+  --output capabilities/grpc-tools.yaml \
+  --endpoint localhost:50051
+
+# Generate from GraphQL schemas
+./target/release/graphql-generator \
+  --schema schema.graphql \
+  --endpoint https://api.example.com/graphql \
+  --output capabilities/graphql-tools.yaml
+
+# Unified CLI for all formats
+./target/release/magictunnel-cli openapi --spec openapi.json --base-url https://api.example.com --output tools.yaml
+```
+
+📖 **[Complete API Generation Guide](docs/tools.md#generating-tools-from-apis)** - Detailed CLI documentation with all options and examples
 
 ## Features
 
