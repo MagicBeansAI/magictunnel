@@ -25,6 +25,8 @@ fn create_valid_capability() -> CapabilityFile {
     CapabilityFile {
         metadata: Some(metadata),
         tools: vec![tool1, tool2],
+        enhanced_metadata: None,
+        enhanced_tools: None,
     }
 }
 
@@ -51,6 +53,8 @@ fn create_valid_tool(name: &str, description: &str) -> ToolDefinition {
         annotations: None,
         hidden: false, // Test tools are visible by default
         enabled: true, // Test tools are enabled by default
+        prompt_refs: Vec::new(),
+        resource_refs: Vec::new(),
     }
 }
 
@@ -72,6 +76,8 @@ fn create_invalid_tool() -> ToolDefinition {
         annotations: None,
         hidden: false, // Test tools are visible by default
         enabled: true, // Test tools are enabled by default
+        prompt_refs: Vec::new(),
+        resource_refs: Vec::new(),
     }
 }
 
@@ -100,6 +106,8 @@ fn test_validate_invalid_capability_missing_metadata() -> Result<()> {
     let capability = CapabilityFile {
         metadata: None,
         tools: vec![tool],
+        enhanced_metadata: None,
+        enhanced_tools: None,
     };
     
     // Create validator
@@ -130,6 +138,8 @@ fn test_validate_invalid_capability_empty_tools() -> Result<()> {
     let capability = CapabilityFile {
         metadata: Some(metadata),
         tools: vec![],
+        enhanced_metadata: None,
+        enhanced_tools: None,
     };
     
     // Create validator
@@ -163,6 +173,8 @@ fn test_validate_invalid_tool_definition() -> Result<()> {
     let capability = CapabilityFile {
         metadata: Some(metadata),
         tools: vec![valid_tool, invalid_tool],
+        enhanced_metadata: None,
+        enhanced_tools: None,
     };
     
     // Create validator with normal validation level
@@ -191,6 +203,8 @@ fn test_validate_with_different_levels() -> Result<()> {
     let capability = CapabilityFile {
         metadata: Some(metadata),
         tools: vec![tool],
+        enhanced_metadata: None,
+        enhanced_tools: None,
     };
     
     // Test validation
@@ -225,6 +239,8 @@ fn test_validate_duplicate_tool_names() -> Result<()> {
     let capability = CapabilityFile {
         metadata: Some(metadata),
         tools: vec![tool1, tool2],
+        enhanced_metadata: None,
+        enhanced_tools: None,
     };
     
     // Create validator with normal validation level
@@ -254,6 +270,8 @@ fn test_validate_empty_description() -> Result<()> {
     let capability = CapabilityFile {
         metadata: Some(metadata),
         tools: vec![tool],
+        enhanced_metadata: None,
+        enhanced_tools: None,
     };
     
     // Test validation

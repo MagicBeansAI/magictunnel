@@ -10,8 +10,8 @@ use tracing::{info, error, warn};
 use magictunnel::config::Config;
 use magictunnel::security::{
     SecurityConfig, AllowlistConfig, SanitizationConfig, RbacConfig, PolicyConfig, AuditConfig,
-    SecurityMiddleware, AllowlistService, SanitizationService, RbacService, PolicyEngine, AuditService,
-    SecurityContext, SecurityUser, SecurityRequest, SecurityTool
+    AllowlistService, RbacService, AuditService,
+    AllowlistContext, PermissionContext, AuditQueryFilters, AuditEventType, AuditOutcome
 };
 use serde_json;
 use std::collections::HashMap;
@@ -248,81 +248,71 @@ async fn test_security(
     let security_config = config.security.as_ref()
         .ok_or_else(|| anyhow::anyhow!("Security not configured"))?;
     
-    // Initialize security middleware
-    let security_middleware = SecurityMiddleware::new(security_config.clone()).await?;
+    // Test individual security components
+    println!("Testing individual security components...\n");
     
-    // Build test context
-    let user = user_id.map(|id| SecurityUser {
-        id: Some(id.to_string()),
-        roles: roles.unwrap_or("user").split(',').map(|s| s.trim().to_string()).collect(),
-        permissions: vec!["read".to_string(), "write".to_string()], // Default permissions
-        api_key_name: None,
-        auth_method: "test".to_string(),
-    });
-    
-    let request = SecurityRequest {
-        id: "test-request".to_string(),
-        method: "POST".to_string(),
-        path: format!("/mcp/call/{}", tool_name),
-        client_ip: Some("127.0.0.1".to_string()),
-        user_agent: Some("magictunnel-security-cli".to_string()),
-        headers: HashMap::new(),
-        body: parameters.map(|p| p.to_string()),
-        timestamp: Utc::now(),
-    };
-    
-    let tool_params: HashMap<String, serde_json::Value> = if let Some(params) = parameters {
-        serde_json::from_str(params).unwrap_or_default()
-    } else {
-        HashMap::new()
-    };
-    
-    let tool = SecurityTool {
-        name: tool_name.to_string(),
-        parameters: tool_params,
-        source: Some("test".to_string()),
-    };
-    
-    let context = SecurityContext {
-        user,
-        request,
-        tool: Some(tool),
-        resource: None,
-        metadata: HashMap::new(),
-    };
-    
-    // Evaluate security
-    let result = security_middleware.evaluate_security(&context).await;
-    
-    println!("Security Evaluation Result:");
-    println!("  - Allowed: {}", if result.allowed { "✅ YES" } else { "❌ NO" });
-    println!("  - Blocked: {}", if result.blocked { "🚫 YES" } else { "✅ NO" });
-    println!("  - Requires Approval: {}", if result.requires_approval { "⚠️ YES" } else { "✅ NO" });
-    println!("  - Modified: {}", if result.modified { "🔧 YES" } else { "✅ NO" });
-    println!("  - Reason: {}", result.reason);
-    
-    if !result.events.is_empty() {
-        println!("\nSecurity Events:");
-        for (i, event) in result.events.iter().enumerate() {
-            println!("  {}. [{}] {}: {}", i + 1, event.source, 
-                match event.severity {
-                    magictunnel::security::SecuritySeverity::Info => "ℹ️",
-                    magictunnel::security::SecuritySeverity::Warning => "⚠️",
-                    magictunnel::security::SecuritySeverity::Error => "❌",
-                    magictunnel::security::SecuritySeverity::Critical => "🚨",
-                }, event.message);
+    // Test allowlist if configured
+    if let Some(allowlist_config) = &security_config.allowlist {
+        if allowlist_config.enabled {
+            println!("🔍 Testing Tool Allowlist:");
+            let allowlist_service = AllowlistService::new(allowlist_config.clone())
+                .map_err(|e| anyhow::anyhow!("Failed to create allowlist service: {}", e))?;
+            
+            let tool_params: HashMap<String, serde_json::Value> = if let Some(params) = parameters {
+                serde_json::from_str(params).unwrap_or_default()
+            } else {
+                HashMap::new()
+            };
+            
+            let context = AllowlistContext {
+                user_id: user_id.map(|s| s.to_string()),
+                user_roles: roles.unwrap_or("user").split(',').map(|s| s.trim().to_string()).collect(),
+                api_key_name: None,
+                permissions: vec!["read".to_string(), "write".to_string()],
+                source: Some("test".to_string()),
+                client_ip: Some("127.0.0.1".to_string()),
+            };
+            
+            let result = allowlist_service.check_tool_access(tool_name, &tool_params, &context);
+            println!("  - Allowed: {}", if result.allowed { "✅ YES" } else { "❌ NO" });
+            println!("  - Action: {:?}", result.action);
+            println!("  - Reason: {}", result.reason);
+            if let Some(rule) = result.matched_rule {
+                println!("  - Matched Rule: {}", rule);
+            }
+            println!();
         }
     }
     
-    if result.blocked {
-        if let Some(status_code) = result.status_code {
-            println!("  - HTTP Status: {}", status_code);
-        }
-        if let Some(error_msg) = result.error_message {
-            println!("  - Error: {}", error_msg);
+    // Test RBAC if configured
+    if let Some(rbac_config) = &security_config.rbac {
+        if rbac_config.enabled {
+            println!("🔍 Testing RBAC:");
+            let rbac_service = RbacService::new(rbac_config.clone())
+                .map_err(|e| anyhow::anyhow!("Failed to create RBAC service: {}", e))?;
+            
+            let context = PermissionContext {
+                user_id: user_id.map(|s| s.to_string()),
+                user_roles: roles.unwrap_or("user").split(',').map(|s| s.trim().to_string()).collect(),
+                api_key_name: None,
+                resource: Some(format!("tool:{}", tool_name)),
+                action: Some("execute".to_string()),
+                client_ip: Some("127.0.0.1".to_string()),
+                timestamp: Utc::now(),
+                metadata: HashMap::new(),
+            };
+            
+            let result = rbac_service.check_permission("tool:execute", &context);
+            println!("  - Permission Granted: {}", if result.granted { "✅ YES" } else { "❌ NO" });
+            println!("  - Reason: {}", result.reason);
+            if !result.granting_roles.is_empty() {
+                println!("  - Granting Roles: {:?}", result.granting_roles);
+            }
+            println!();
         }
     }
     
+    println!("✅ Security test completed");
     Ok(())
 }
 
@@ -333,7 +323,8 @@ async fn handle_rbac(config: &Config, action: RbacCommands) -> Result<()> {
     let rbac_config = security_config.rbac.as_ref()
         .ok_or_else(|| anyhow::anyhow!("RBAC not configured"))?;
     
-    let rbac_service = RbacService::new(rbac_config.clone())?;
+    let rbac_service = RbacService::new(rbac_config.clone())
+        .map_err(|e| anyhow::anyhow!("Failed to create RBAC service: {}", e))?;
     
     match action {
         RbacCommands::ListRoles => {
@@ -368,7 +359,7 @@ async fn handle_rbac(config: &Config, action: RbacCommands) -> Result<()> {
             }
         }
         RbacCommands::CheckUser { user, permission } => {
-            let context = magictunnel::security::PermissionContext {
+            let context = PermissionContext {
                 user_id: Some(user.clone()),
                 user_roles: rbac_service.get_user_roles(&user),
                 api_key_name: None,
@@ -405,14 +396,15 @@ async fn handle_audit(config: &Config, action: AuditCommands) -> Result<()> {
     let audit_config = security_config.audit.as_ref()
         .ok_or_else(|| anyhow::anyhow!("Audit logging not configured"))?;
     
-    let audit_service = AuditService::new(audit_config.clone()).await?;
+    let audit_service = AuditService::new(audit_config.clone()).await
+        .map_err(|e| anyhow::anyhow!("Failed to create audit service: {}", e))?;
     
     match action {
         AuditCommands::Recent { count } => {
             println!("📋 Recent Audit Entries ({})", count);
             println!("========================");
             
-            let filters = magictunnel::security::AuditQueryFilters {
+            let filters = AuditQueryFilters {
                 start_time: None,
                 end_time: None,
                 event_types: None,
@@ -423,7 +415,8 @@ async fn handle_audit(config: &Config, action: AuditCommands) -> Result<()> {
                 offset: None,
             };
             
-            let entries = audit_service.query(&filters).await?;
+            let entries = audit_service.query(&filters).await
+                .map_err(|e| anyhow::anyhow!("Failed to query audit entries: {}", e))?;
             
             for (i, entry) in entries.iter().enumerate() {
                 println!("{}. {} - {} - {}", 
@@ -446,7 +439,7 @@ async fn handle_audit(config: &Config, action: AuditCommands) -> Result<()> {
             
             let start_time = Utc::now() - chrono::Duration::hours(hours as i64);
             
-            let filters = magictunnel::security::AuditQueryFilters {
+            let filters = AuditQueryFilters {
                 start_time: Some(start_time),
                 end_time: None,
                 event_types: None,
@@ -457,7 +450,8 @@ async fn handle_audit(config: &Config, action: AuditCommands) -> Result<()> {
                 offset: None,
             };
             
-            let entries = audit_service.query(&filters).await?;
+            let entries = audit_service.query(&filters).await
+                .map_err(|e| anyhow::anyhow!("Failed to search audit entries: {}", e))?;
             
             println!("Found {} entries", entries.len());
             
@@ -476,18 +470,19 @@ async fn handle_audit(config: &Config, action: AuditCommands) -> Result<()> {
             
             let start_time = Utc::now() - chrono::Duration::hours(hours as i64);
             
-            let filters = magictunnel::security::AuditQueryFilters {
+            let filters = AuditQueryFilters {
                 start_time: Some(start_time),
                 end_time: None,
-                event_types: Some(vec![magictunnel::security::AuditEventType::SecurityViolation]),
+                event_types: Some(vec![AuditEventType::SecurityViolation]),
                 user_id: None,
                 tool_name: None,
-                outcome: Some(magictunnel::security::AuditOutcome::Blocked),
+                outcome: Some(AuditOutcome::Blocked),
                 limit: Some(100),
                 offset: None,
             };
             
-            let entries = audit_service.query(&filters).await?;
+            let entries = audit_service.query(&filters).await
+                .map_err(|e| anyhow::anyhow!("Failed to query security violations: {}", e))?;
             
             println!("Found {} violations", entries.len());
             
@@ -523,16 +518,17 @@ async fn init_security_config(output: &PathBuf, level: &str) -> Result<()> {
                 default_action: magictunnel::security::AllowlistAction::Allow,
                 ..Default::default()
             }),
-            sanitization: Some(SanitizationConfig {
-                enabled: true,
-                ..Default::default()
-            }),
+            sanitization: Some(SanitizationConfig::default()),
             rbac: Some(RbacConfig {
                 enabled: true,
                 ..Default::default()
             }),
             policies: None,
             audit: Some(AuditConfig {
+                enabled: true,
+                ..Default::default()
+            }),
+            mcp_2025_security: Some(magictunnel::security::Mcp2025SecurityConfig {
                 enabled: true,
                 ..Default::default()
             }),
@@ -545,19 +541,17 @@ async fn init_security_config(output: &PathBuf, level: &str) -> Result<()> {
                 default_action: magictunnel::security::AllowlistAction::Deny,
                 ..Default::default()
             }),
-            sanitization: Some(SanitizationConfig {
-                enabled: true,
-                ..Default::default()
-            }),
+            sanitization: Some(SanitizationConfig::default()),
             rbac: Some(RbacConfig {
                 enabled: true,
                 ..Default::default()
             }),
-            policies: Some(PolicyConfig {
+            policies: Some(PolicyConfig::default()),
+            audit: Some(AuditConfig {
                 enabled: true,
                 ..Default::default()
             }),
-            audit: Some(AuditConfig {
+            mcp_2025_security: Some(magictunnel::security::Mcp2025SecurityConfig {
                 enabled: true,
                 ..Default::default()
             }),

@@ -1,4 +1,5 @@
-use crate::registry::types::{CapabilityFile, ToolDefinition, RoutingConfig, FileMetadata};
+use crate::registry::types::{CapabilityFile, ToolDefinition, RoutingConfig, FileMetadata, EnhancedToolDefinition, EnhancedFileMetadata, EnhancedRoutingConfig, AiEnhancedDiscovery, CoreDefinition, ExecutionConfig, DiscoveryEnhancement, MonitoringConfig, AccessConfig, SandboxConfig, PerformanceConfig, WorkflowIntegration, SemanticContext, ClassificationMetadata, DiscoveryMetadata, McpCapabilities, ProgressTrackingConfig, CancellationConfig, MetricsConfig};
+use crate::mcp::tool_validation::SecurityClassification;
 use crate::error::ProxyError;
 use serde_json::{Value, Map};
 use std::collections::HashMap;
@@ -376,6 +377,7 @@ impl GraphQLCapabilityGenerator {
         self.validate_introspection = false;
         self
     }
+
 
     /// Generate capability file from GraphQL SDL schema
     pub fn generate_from_sdl(&mut self, schema_sdl: &str) -> Result<CapabilityFile, ProxyError> {
@@ -6502,6 +6504,7 @@ impl GraphQLCapabilityGenerator {
         directives.iter().find(|d| d.name == name)
     }
 
+
     /// Create annotations from directives for tool metadata
     fn create_annotations_from_directives(&self, directives: &[GraphQLDirective]) -> Result<Option<std::collections::HashMap<String, String>>, ProxyError> {
         if directives.is_empty() {
@@ -6638,14 +6641,19 @@ impl GraphQLCapabilityGenerator {
         false
     }
 
-    /// Generate capability file from parsed operations
+    /// Generate capability file from parsed operations (always enhanced format)
     fn generate_capability_file(&self, operations: Vec<GraphQLOperation>) -> Result<CapabilityFile, ProxyError> {
-        let mut tools = Vec::new();
+        self.generate_enhanced_capability_file(operations)
+    }
+
+    /// Generate enhanced MCP 2025-06-18 capability file
+    fn generate_enhanced_capability_file(&self, operations: Vec<GraphQLOperation>) -> Result<CapabilityFile, ProxyError> {
+        let mut enhanced_tools = Vec::new();
         let mut seen_names = std::collections::HashSet::new();
 
         for operation in operations {
-            // Try to convert operation to tool, but handle directive-based skipping
-            match self.operation_to_tool_definition(operation) {
+            // Try to convert operation to enhanced tool, but handle directive-based skipping
+            match self.operation_to_enhanced_tool_definition(operation) {
                 Ok(tool) => {
                     // Skip duplicate tool names
                     if seen_names.contains(&tool.name) {
@@ -6653,7 +6661,7 @@ impl GraphQLCapabilityGenerator {
                     }
 
                     seen_names.insert(tool.name.clone());
-                    tools.push(tool);
+                    enhanced_tools.push(tool);
                 },
                 Err(ProxyError::Config { message }) if message.contains("skipped") => {
                     // Operation was skipped due to directive, continue with next operation
@@ -6665,16 +6673,224 @@ impl GraphQLCapabilityGenerator {
                 }
             }
         }
-        
-        let metadata = FileMetadata {
-            name: Some("GraphQL API".to_string()),
-            description: Some(format!("Auto-generated GraphQL API tools for {}", self.endpoint_url)),
-            version: Some("1.0.0".to_string()),
-            author: Some("GraphQL Schema Generator".to_string()),
-            tags: Some(vec!["graphql".to_string(), "auto-generated".to_string()]),
+
+        let enhanced_metadata = EnhancedFileMetadata {
+            name: "Enhanced GraphQL API".to_string(),
+            description: format!("Auto-generated GraphQL API tools for {} - MCP 2025-06-18 compliant with AI enhancement", self.endpoint_url),
+            version: "3.0.0".to_string(),
+            author: "GraphQL Schema Generator v3.0".to_string(),
+            classification: Some(crate::registry::types::ClassificationMetadata {
+                security_level: "standard".to_string(),
+                complexity_level: "moderate".to_string(),
+                domain: "graphql".to_string(),
+                use_cases: vec![
+                    "GraphQL API interaction".to_string(),
+                    "Data fetching and manipulation".to_string(),
+                    "Schema-based operations".to_string(),
+                ],
+            }),
+            discovery_metadata: Some(crate::registry::types::DiscoveryMetadata {
+                primary_keywords: vec![
+                    "graphql".to_string(),
+                    "query".to_string(),
+                    "mutation".to_string(),
+                    "subscription".to_string(),
+                    "schema".to_string(),
+                ],
+                semantic_embeddings: true,
+                llm_enhanced: true,
+                workflow_enabled: true,
+            }),
+            mcp_capabilities: Some(crate::registry::types::McpCapabilities {
+                version: "2025-06-18".to_string(),
+                supports_cancellation: true,
+                supports_progress: true,
+                supports_sampling: true,
+                supports_validation: true,
+                supports_elicitation: true,
+            }),
         };
 
-        CapabilityFile::with_metadata(metadata, tools)
+        CapabilityFile::new_enhanced(enhanced_metadata, enhanced_tools)
+    }
+
+
+    /// Convert GraphQL operation to enhanced MCP tool definition  
+    fn operation_to_enhanced_tool_definition(&self, operation: GraphQLOperation) -> Result<EnhancedToolDefinition, ProxyError> {
+        // Use the legacy tool as base, then enhance it
+        let legacy_tool = self.operation_to_tool_definition(operation.clone())?;
+        
+        let tool_name = format!("enhanced_{}", legacy_tool.name);
+        
+        let core = CoreDefinition {
+            description: format!("AI-enhanced {} with MCP 2025-06-18 compliance", legacy_tool.description),
+            input_schema: legacy_tool.input_schema,
+        };
+
+        let execution = ExecutionConfig {
+            routing: EnhancedRoutingConfig {
+                r#type: "enhanced_graphql".to_string(),
+                primary: Some(legacy_tool.routing.config),
+                fallback: None,
+                config: Some(serde_json::json!({
+                    "enhanced": true,
+                    "graphql_endpoint": self.endpoint_url
+                })),
+            },
+            security: crate::registry::types::SecurityConfig {
+                classification: match operation.operation_type {
+                    OperationType::Query => "safe".to_string(),
+                    OperationType::Mutation => "restricted".to_string(),
+                    OperationType::Subscription => "restricted".to_string(),
+                },
+                sandbox: Some(crate::registry::types::SandboxConfig {
+                    resources: Some(crate::registry::types::ResourceLimits {
+                        max_memory_mb: Some(256),
+                        max_cpu_percent: Some(30),
+                        max_execution_seconds: Some(match operation.operation_type {
+                            OperationType::Query => 60,
+                            OperationType::Mutation => 120,
+                            OperationType::Subscription => 300,
+                        }),
+                        max_file_descriptors: Some(100),
+                    }),
+                    filesystem: None,
+                    network: Some(crate::registry::types::NetworkRestrictions {
+                        allowed: true,
+                        allowed_domains: Some(vec![self.endpoint_url.clone()]),
+                        denied_domains: None,
+                    }),
+                    environment: Some(crate::registry::types::EnvironmentRestrictions {
+                        readonly_system: Some(true),
+                        env_vars: Some(serde_json::json!({
+                            "allowed": [],
+                            "blocked": ["PATH", "HOME"]
+                        })),
+                    }),
+                }),
+                requires_approval: Some(false),
+                approval_workflow: None,
+            },
+            performance: PerformanceConfig {
+                estimated_duration: Some(serde_json::json!({
+                    "query_operation": match operation.operation_type {
+                        OperationType::Query => 5,
+                        OperationType::Mutation => 15,
+                        OperationType::Subscription => 30,
+                    }
+                })),
+                complexity: Some(match operation.arguments.len() {
+                    0..=2 => "simple".to_string(),
+                    3..=5 => "moderate".to_string(),
+                    _ => "complex".to_string(),
+                }),
+                supports_cancellation: Some(true),
+                supports_progress: Some(matches!(operation.operation_type, OperationType::Subscription)),
+                cache_results: Some(matches!(operation.operation_type, OperationType::Query)),
+                cache_ttl_seconds: if matches!(operation.operation_type, OperationType::Query) { Some(300) } else { Some(0) },
+                adaptive_optimization: Some(true),
+            },
+        };
+
+        let discovery = DiscoveryEnhancement {
+            ai_enhanced: Some(AiEnhancedDiscovery {
+                description: Some(format!("AI-enhanced GraphQL {} operation with intelligent parameter handling", 
+                    match operation.operation_type {
+                        OperationType::Query => "query",
+                        OperationType::Mutation => "mutation", 
+                        OperationType::Subscription => "subscription",
+                    })),
+                usage_patterns: Some(vec![
+                    format!("Execute GraphQL {} queries", match operation.operation_type {
+                        OperationType::Query => "query",
+                        OperationType::Mutation => "mutation",
+                        OperationType::Subscription => "subscription",
+                    }),
+                    "GraphQL API interaction".to_string(),
+                ]),
+                semantic_context: Some(SemanticContext {
+                    primary_intent: Some("graphql_operation".to_string()),
+                    data_types: Some(vec!["graphql".to_string(), operation.name.clone()]),
+                    operations: Some(vec![match operation.operation_type {
+                        OperationType::Query => "query".to_string(),
+                        OperationType::Mutation => "mutation".to_string(),
+                        OperationType::Subscription => "subscription".to_string(),
+                    }]),
+                    security_features: Some(vec!["authenticated_access".to_string()]),
+                }),
+                ai_capabilities: Some(serde_json::json!({
+                    "parameter_intelligence": true,
+                    "response_analysis": true,
+                    "error_interpretation": true,
+                    "query_optimization": true
+                })),
+                workflow_integration: Some(WorkflowIntegration {
+                    typically_follows: Some(vec!["authentication".to_string()]),
+                    typically_precedes: Some(vec!["data_processing".to_string()]),
+                    chain_compatibility: Some(vec!["data_processing".to_string(), "response_handling".to_string()]),
+                }),
+            }),
+            parameter_intelligence: Some(serde_json::json!({
+                "smart_defaults": true,
+                "validation_hints": true,
+                "auto_completion": true,
+                "context_suggestions": true,
+                "graphql_type_mapping": operation.arguments.iter().map(|arg| {
+                    serde_json::json!({
+                        "name": arg.name,
+                        "type": arg.arg_type,
+                        "required": arg.required,
+                        "has_default": arg.default_value.is_some() 
+                    })
+                }).collect::<Vec<_>>()
+            })),
+        };
+
+        let monitoring = MonitoringConfig {
+            progress_tracking: Some(ProgressTrackingConfig {
+                enabled: matches!(operation.operation_type, OperationType::Subscription),
+                granularity: Some("operation_level".to_string()),
+                sub_operations: None,
+            }),
+            cancellation: Some(CancellationConfig {
+                enabled: true,
+                graceful_timeout_seconds: Some(30),
+                cleanup_required: Some(false),
+                cleanup_operations: None,
+            }),
+            metrics: Some(MetricsConfig {
+                track_execution_time: Some(true),
+                track_success_rate: Some(true),
+                custom_metrics: Some(vec![
+                    format!("operation_type_{}", match operation.operation_type {
+                        OperationType::Query => "query",
+                        OperationType::Mutation => "mutation",
+                        OperationType::Subscription => "subscription",
+                    }),
+                    "graphql_endpoint_calls".to_string(),
+                    "usage_analytics".to_string(),
+                    "error_monitoring".to_string()
+                ]),
+            }),
+        };
+
+        let access = AccessConfig {
+            hidden: false,
+            enabled: true,
+            requires_permissions: Some(vec!["graphql:execute".to_string()]),
+            user_groups: Some(vec!["graphql_users".to_string()]),
+            approval_required: Some(false),
+            usage_analytics: Some(true),
+        };
+
+        Ok(EnhancedToolDefinition {
+            name: tool_name,
+            core,
+            execution,
+            discovery,
+            monitoring,
+            access,
+        })
     }
 
     /// Convert GraphQL operation to MCP tool definition
@@ -6745,6 +6961,8 @@ impl GraphQLCapabilityGenerator {
             annotations,
             hidden: false, // GraphQL tools are visible by default
             enabled: true, // GraphQL tools are enabled by default
+            prompt_refs: Vec::new(),
+            resource_refs: Vec::new(),
         })
     }
 

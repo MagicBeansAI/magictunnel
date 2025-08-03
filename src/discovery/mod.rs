@@ -6,6 +6,8 @@
 
 pub mod cache;
 pub mod embedding_manager;
+pub mod enhancement;
+pub mod enhancement_storage;
 pub mod fallback;
 pub mod llm_mapper;
 pub mod performance;
@@ -15,6 +17,8 @@ pub mod types;
 
 pub use cache::*;
 pub use embedding_manager::*;
+pub use enhancement::*;
+pub use enhancement_storage::*;
 pub use fallback::*;
 pub use llm_mapper::*;
 pub use performance::*;

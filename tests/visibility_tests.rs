@@ -79,6 +79,8 @@ async fn test_capability_file_visibility_methods() {
     let mut capability_file = CapabilityFile {
         metadata: None,
         tools: vec![visible_tool, hidden_tool],
+        enhanced_metadata: None,
+        enhanced_tools: None,
     };
 
     // Test visibility counting methods

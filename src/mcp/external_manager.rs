@@ -18,6 +18,53 @@ use std::time::Instant;
 use tokio::sync::RwLock;
 use tokio::time::{interval, Duration};
 use tracing::{debug, error, info, warn};
+use tokio::fs;
+
+/// Server version and capability information
+#[derive(Debug, Clone, Default)]
+struct ServerVersionInfo {
+    /// MCP protocol version (e.g., "2024-11-05", "2025-06-18")
+    protocol_version: Option<String>,
+    /// Server version from the server itself
+    server_version: Option<String>,
+    /// Server name/info string
+    server_info: Option<String>,
+    /// Supports MCP 2025-06-18 sampling capabilities
+    supports_sampling: bool,
+    /// Supports MCP 2025-06-18 elicitation capabilities
+    supports_elicitation: bool,
+    /// Supports basic tools
+    supports_tools: bool,
+    /// Supports resources
+    supports_resources: bool,
+    /// Supports prompts
+    supports_prompts: bool,
+    /// Supports roots
+    supports_roots: bool,
+    /// Raw initialization response for debugging
+    raw_init_response: Option<serde_json::Value>,
+}
+
+/// Configuration for capability file versioning
+#[derive(Debug, Clone)]
+struct VersioningConfig {
+    /// Maximum number of versions to keep (default: 10)
+    max_versions: usize,
+    /// Whether to enable versioning (default: true)
+    enabled: bool,
+    /// Whether to compress old versions (default: false)
+    compress_versions: bool,
+}
+
+impl Default for VersioningConfig {
+    fn default() -> Self {
+        Self {
+            max_versions: 10,
+            enabled: true,
+            compress_versions: false,
+        }
+    }
+}
 
 /// Manages multiple External MCP server processes
 pub struct ExternalMcpManager {
@@ -491,7 +538,7 @@ mcpServers:
         Ok(())
     }
 
-    /// Discover capabilities from a specific server
+    /// Discover capabilities from a specific server (including 2025-06-18 sampling/elicitation)
     async fn discover_server_capabilities(&self, server_name: &str) -> Result<()> {
         Self::discover_server_capabilities_static(
             &self.processes,
@@ -530,9 +577,9 @@ mcpServers:
                     return Ok(());
                 }
 
-                // Discover tools
+                // Step 1: Discover basic tools
                 info!("Sending tools/list request to server '{}' with params: {}", server_name, json!({}));
-                match process.send_request("tools/list", Some(json!({}))).await {
+                let mut tools = match process.send_request("tools/list", Some(json!({}))).await {
             Ok(response) => {
                 info!("Received tools/list response from server '{}': {:?}", server_name, response);
                 if let Some(error) = response.error {
@@ -563,10 +610,27 @@ mcpServers:
                         error!("Failed to list tools from server '{}': {}", server_name, e);
                         return Err(e);
                     }
-                }
+                };
+
+                // Step 2: Query for MCP 2025-06-18 enhanced capabilities (sampling/elicitation)
+                info!("Querying MCP 2025-06-18 enhanced capabilities for server '{}'", server_name);
+                Self::enhance_tools_with_2025_capabilities(process, server_name, &mut tools).await;
+                
+                // Return the enhanced tools
+                tools
             } else {
                 warn!("External MCP server '{}' not found", server_name);
                 return Ok(());
+            }
+        };
+
+        // Detect server version and capabilities
+        let server_version_info = {
+            let processes_guard = processes.read().await;
+            if let Some(process) = processes_guard.get(server_name) {
+                Self::detect_server_version_info(process, server_name).await
+            } else {
+                ServerVersionInfo::default()
             }
         };
 
@@ -576,15 +640,137 @@ mcpServers:
             capabilities_guard.insert(server_name.to_string(), tools.clone());
         }
 
-        // Generate capability file
-        Self::generate_capability_file(server_name, &tools, config).await?;
+        // Generate capability file with enhanced metadata
+        Self::generate_capability_file(server_name, &tools, &server_version_info, config).await?;
 
         info!("Successfully discovered and generated capabilities for External MCP server: {}", server_name);
         Ok(())
     }
 
-    /// Generate capability file for a server
-    async fn generate_capability_file(server_name: &str, tools: &[Tool], config: &ExternalMcpConfig) -> Result<()> {
+    /// Enhance tools with MCP 2025-06-18 capabilities (sampling/elicitation)
+    async fn enhance_tools_with_2025_capabilities(
+        process: &ExternalMcpProcess,
+        server_name: &str,
+        tools: &mut Vec<Tool>,
+    ) {
+        debug!("Querying MCP 2025-06-18 enhanced capabilities for {} tools", tools.len());
+        
+        for tool in tools.iter_mut() {
+            // Query for sampling capabilities
+            if let Err(e) = Self::query_tool_sampling_capability(process, server_name, tool).await {
+                debug!("Failed to query sampling capability for tool '{}' on server '{}': {}", tool.name, server_name, e);
+            }
+            
+            // Query for elicitation capabilities  
+            if let Err(e) = Self::query_tool_elicitation_capability(process, server_name, tool).await {
+                debug!("Failed to query elicitation capability for tool '{}' on server '{}': {}", tool.name, server_name, e);
+            }
+        }
+        
+        info!("Enhanced {} tools with MCP 2025-06-18 capabilities for server '{}'", tools.len(), server_name);
+    }
+    
+    /// Query a specific tool's sampling capability from external MCP server
+    async fn query_tool_sampling_capability(
+        process: &ExternalMcpProcess,
+        server_name: &str,
+        tool: &mut Tool,
+    ) -> Result<()> {
+        // Create sampling capability query request
+        let params = json!({
+            "tool_name": tool.name,
+            "capability_type": "sampling",
+            "request_enhanced_description": true
+        });
+        
+        debug!("Querying sampling capability for tool '{}' on server '{}'", tool.name, server_name);
+        
+        match process.send_request("capabilities/sampling/query", Some(params)).await {
+            Ok(response) => {
+                if let Some(error) = response.error {
+                    debug!("Sampling capability query failed for tool '{}': {}", tool.name, error.message);
+                    return Ok(()); // Not an error - server may not support this capability
+                }
+                
+                if let Some(result) = response.result {
+                    if let Ok(sampling_capability) = serde_json::from_value::<crate::mcp::types::SamplingCapability>(result) {
+                        // Store sampling capability in tool annotations
+                        if tool.annotations.is_none() {
+                            tool.annotations = Some(crate::mcp::types::ToolAnnotations::default());
+                        }
+                        
+                        if let Some(ref mut annotations) = tool.annotations {
+                            annotations.sampling = Some(sampling_capability);
+                            debug!("✅ Stored sampling capability for tool '{}' from server '{}'", tool.name, server_name);
+                        }
+                    } else {
+                        debug!("Failed to parse sampling capability response for tool '{}'", tool.name);
+                    }
+                }
+            }
+            Err(_) => {
+                // Server doesn't support sampling capability query - this is fine
+                debug!("Server '{}' doesn't support sampling capability queries", server_name);
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Query a specific tool's elicitation capability from external MCP server
+    async fn query_tool_elicitation_capability(
+        process: &ExternalMcpProcess,
+        server_name: &str,
+        tool: &mut Tool,
+    ) -> Result<()> {
+        // Create elicitation capability query request
+        let params = json!({
+            "tool_name": tool.name,
+            "capability_type": "elicitation",
+            "request_enhanced_metadata": true
+        });
+        
+        debug!("Querying elicitation capability for tool '{}' on server '{}'", tool.name, server_name);
+        
+        match process.send_request("capabilities/elicitation/query", Some(params)).await {
+            Ok(response) => {
+                if let Some(error) = response.error {
+                    debug!("Elicitation capability query failed for tool '{}': {}", tool.name, error.message);
+                    return Ok(()); // Not an error - server may not support this capability
+                }
+                
+                if let Some(result) = response.result {
+                    if let Ok(elicitation_capability) = serde_json::from_value::<crate::mcp::types::ElicitationCapability>(result) {
+                        // Store elicitation capability in tool annotations
+                        if tool.annotations.is_none() {
+                            tool.annotations = Some(crate::mcp::types::ToolAnnotations::default());
+                        }
+                        
+                        if let Some(ref mut annotations) = tool.annotations {
+                            annotations.elicitation = Some(elicitation_capability);
+                            debug!("✅ Stored elicitation capability for tool '{}' from server '{}'", tool.name, server_name);
+                        }
+                    } else {
+                        debug!("Failed to parse elicitation capability response for tool '{}'", tool.name);
+                    }
+                }
+            }
+            Err(_) => {
+                // Server doesn't support elicitation capability query - this is fine
+                debug!("Server '{}' doesn't support elicitation capability queries", server_name);
+            }
+        }
+        
+        Ok(())
+    }
+
+    /// Generate capability file for a server with version information
+    async fn generate_capability_file(
+        server_name: &str, 
+        tools: &[Tool], 
+        version_info: &ServerVersionInfo, 
+        config: &ExternalMcpConfig
+    ) -> Result<()> {
         debug!("Generating capability file for External MCP server: {}", server_name);
 
         // Create output directory if it doesn't exist
@@ -598,7 +784,7 @@ mcpServers:
         let file_path = output_dir.join(format!("{}.yaml", server_name));
         let existing_settings = Self::load_existing_tool_settings(&file_path).await;
 
-        // Convert tools to capability format
+        // Convert tools to capability format with enhanced 2025-06-18 metadata
         let tool_definitions: Vec<ToolDefinition> = tools.iter().map(|tool| {
             let tool_full_name = format!("{}_{}", tool.name, server_name);
             
@@ -606,6 +792,27 @@ mcpServers:
             let (enabled, hidden) = existing_settings.get(&tool_full_name)
                 .map(|(e, h)| (*e, *h))
                 .unwrap_or((true, true)); // Default: enabled=true, hidden=true for new tools
+            
+            // Create enhanced annotations including MCP 2025-06-18 capabilities
+            let mut annotations = std::collections::HashMap::new();
+            annotations.insert("source".to_string(), "external_mcp".to_string());
+            annotations.insert("server".to_string(), server_name.to_string());
+            annotations.insert("original_name".to_string(), tool.name.clone());
+            
+            // Add sampling/elicitation capability indicators if present
+            if let Some(ref tool_annotations) = tool.annotations {
+                if tool_annotations.sampling.is_some() {
+                    annotations.insert("has_sampling_capability".to_string(), "true".to_string());
+                }
+                if tool_annotations.elicitation.is_some() {
+                    annotations.insert("has_elicitation_capability".to_string(), "true".to_string());
+                }
+                
+                // Store MCP 2025-06-18 capability metadata as JSON
+                if let Ok(capability_json) = serde_json::to_string(tool_annotations) {
+                    annotations.insert("mcp_2025_06_18_capabilities".to_string(), capability_json);
+                }
+            }
             
             ToolDefinition {
                 name: tool_full_name,
@@ -622,15 +829,11 @@ mcpServers:
                         "retry_count": 2
                     }),
                 },
-                annotations: Some({
-                    let mut annotations = std::collections::HashMap::new();
-                    annotations.insert("source".to_string(), "external_mcp".to_string());
-                    annotations.insert("server".to_string(), server_name.to_string());
-                    annotations.insert("original_name".to_string(), tool.name.clone());
-                    annotations
-                }),
+                annotations: Some(annotations),
                 hidden, // Preserve user setting or use default
                 enabled, // Preserve user setting or use default
+                prompt_refs: Vec::new(),
+                resource_refs: Vec::new(),
             }
         }).collect();
 
@@ -649,6 +852,8 @@ mcpServers:
                 ]),
             }),
             tools: tool_definitions,
+            enhanced_metadata: None,
+            enhanced_tools: None,
         };
 
         // Write capability file only if content has changed
@@ -705,12 +910,351 @@ mcpServers:
         };
 
         if should_write {
+            // Save previous version if file exists and versioning is enabled
+            Self::save_previous_version(&file_path, server_name).await?;
+            
+            // Write new version
             tokio::fs::write(&file_path, yaml_content).await
                 .map_err(|e| ProxyError::config(format!("Failed to write capability file '{}': {}", file_path.display(), e)))?;
             info!("Generated capability file for External MCP server '{}': {}", server_name, file_path.display());
+            
+            // Clean up old versions if needed
+            Self::cleanup_old_versions(&file_path, server_name).await?;
         } else {
             debug!("Skipped writing unchanged capability file for External MCP server '{}'", server_name);
         }
+        Ok(())
+    }
+    
+    
+    /// Detect server version and capability information
+    async fn detect_server_version_info(
+        process: &ExternalMcpProcess,
+        server_name: &str,
+    ) -> ServerVersionInfo {
+        debug!("Detecting version information for External MCP server: {}", server_name);
+        
+        let mut version_info = ServerVersionInfo::default();
+        
+        // Try to get server information from ping or status endpoint
+        match process.send_request("ping", Some(json!({}))).await {
+            Ok(response) => {
+                if let Some(result) = response.result {
+                    if let Ok(server_info_str) = serde_json::from_value::<String>(result) {
+                        version_info.server_info = Some(server_info_str);
+                        debug!("Got server info from ping: {}", version_info.server_info.as_ref().unwrap());
+                    }
+                }
+            }
+            Err(_) => {
+                debug!("Server '{}' doesn't support ping endpoint", server_name);
+            }
+        }
+        
+        // Try to detect protocol version by testing for specific endpoints
+        // Test for 2025-06-18 sampling support
+        match process.send_request("capabilities/sampling/list", Some(json!({}))).await {
+            Ok(response) => {
+                if response.error.is_none() {
+                    version_info.supports_sampling = true;
+                    version_info.protocol_version = Some("2025-06-18".to_string());
+                    debug!("Server '{}' supports MCP 2025-06-18 sampling", server_name);
+                }
+            }
+            Err(_) => {
+                debug!("Server '{}' doesn't support 2025-06-18 sampling capabilities", server_name);
+            }
+        }
+        
+        // Test for 2025-06-18 elicitation support
+        match process.send_request("capabilities/elicitation/list", Some(json!({}))).await {
+            Ok(response) => {
+                if response.error.is_none() {
+                    version_info.supports_elicitation = true;
+                    if version_info.protocol_version.is_none() {
+                        version_info.protocol_version = Some("2025-06-18".to_string());
+                    }
+                    debug!("Server '{}' supports MCP 2025-06-18 elicitation", server_name);
+                }
+            }
+            Err(_) => {
+                debug!("Server '{}' doesn't support 2025-06-18 elicitation capabilities", server_name);
+            }
+        }
+        
+        // Test for basic MCP capabilities
+        match process.send_request("tools/list", Some(json!({}))).await {
+            Ok(response) => {
+                if response.error.is_none() {
+                    version_info.supports_tools = true;
+                    if version_info.protocol_version.is_none() {
+                        version_info.protocol_version = Some("2024-11-05".to_string()); // Base MCP version
+                    }
+                }
+            }
+            Err(_) => {}
+        }
+        
+        match process.send_request("resources/list", Some(json!({}))).await {
+            Ok(response) => {
+                if response.error.is_none() {
+                    version_info.supports_resources = true;
+                }
+            }
+            Err(_) => {}
+        }
+        
+        match process.send_request("prompts/list", Some(json!({}))).await {
+            Ok(response) => {
+                if response.error.is_none() {
+                    version_info.supports_prompts = true;
+                }
+            }
+            Err(_) => {}
+        }
+        
+        match process.send_request("roots/list", Some(json!({}))).await {
+            Ok(response) => {
+                if response.error.is_none() {
+                    version_info.supports_roots = true;
+                }
+            }
+            Err(_) => {}
+        }
+        
+        info!("Detected External MCP server '{}' capabilities: Protocol={}, Sampling={}, Elicitation={}, Tools={}, Resources={}, Prompts={}, Roots={}",
+              server_name,
+              version_info.protocol_version.as_deref().unwrap_or("unknown"),
+              version_info.supports_sampling,
+              version_info.supports_elicitation,
+              version_info.supports_tools,
+              version_info.supports_resources,
+              version_info.supports_prompts,
+              version_info.supports_roots
+        );
+        
+        version_info
+    }
+    
+    /// Save the previous version of a capability file before overwriting
+    async fn save_previous_version(file_path: &PathBuf, server_name: &str) -> Result<()> {
+        let versioning_config = VersioningConfig::default();
+        
+        if !versioning_config.enabled {
+            debug!("Versioning disabled for server '{}', skipping version save", server_name);
+            return Ok(());
+        }
+        
+        // Check if current file exists
+        if !file_path.exists() {
+            debug!("No existing file to version for server '{}'", server_name);
+            return Ok(());
+        }
+        
+        // Create versions directory
+        let versions_dir = file_path.parent().unwrap().join("versions").join(server_name);
+        if !versions_dir.exists() {
+            fs::create_dir_all(&versions_dir).await
+                .map_err(|e| ProxyError::config(format!("Failed to create versions directory '{}': {}", versions_dir.display(), e)))?;
+        }
+        
+        // Get current file metadata
+        let metadata = fs::metadata(file_path).await
+            .map_err(|e| ProxyError::config(format!("Failed to get file metadata for '{}': {}", file_path.display(), e)))?;
+        
+        let modified_time = metadata.modified()
+            .map_err(|e| ProxyError::config(format!("Failed to get modification time for '{}': {}", file_path.display(), e)))?;
+        
+        // Create version filename with timestamp
+        let timestamp = chrono::DateTime::<chrono::Utc>::from(modified_time)
+            .format("%Y%m%d_%H%M%S")
+            .to_string();
+        
+        let version_filename = format!("{}.{}.yaml", server_name, timestamp);
+        let version_path = versions_dir.join(&version_filename);
+        
+        // Copy current file to version
+        fs::copy(file_path, &version_path).await
+            .map_err(|e| ProxyError::config(format!("Failed to copy file to version '{}': {}", version_path.display(), e)))?;
+        
+        info!("Saved previous version of capability file for server '{}': {}", server_name, version_path.display());
+        
+        // Add version metadata to the versioned file
+        Self::add_version_metadata(&version_path, server_name, &timestamp).await?;
+        
+        Ok(())
+    }
+    
+    /// Add version metadata to a versioned capability file
+    async fn add_version_metadata(version_path: &PathBuf, server_name: &str, timestamp: &str) -> Result<()> {
+        // Read the existing file
+        let content = fs::read_to_string(version_path).await
+            .map_err(|e| ProxyError::config(format!("Failed to read version file '{}': {}", version_path.display(), e)))?;
+        
+        // Parse as YAML
+        let mut capability_file: CapabilityFile = serde_yaml::from_str(&content)
+            .map_err(|e| ProxyError::config(format!("Failed to parse version file '{}': {}", version_path.display(), e)))?;
+        
+        // Add version metadata to file metadata
+        if let Some(ref mut file_metadata) = capability_file.metadata {
+            // Add versioning tags
+            if let Some(ref mut tags) = file_metadata.tags {
+                tags.push(format!("archived-{}", timestamp));
+                tags.push("version-archive".to_string());
+            } else {
+                file_metadata.tags = Some(vec![
+                    format!("archived-{}", timestamp),
+                    "version-archive".to_string(),
+                ]);
+            }
+        }
+        
+        // Update the file metadata version info
+        if let Some(ref mut file_metadata) = capability_file.metadata {
+            let current_version = file_metadata.version.clone().unwrap_or_else(|| "1.0.0".to_string());
+            file_metadata.description = Some(format!(
+                "[ARCHIVED {}] {}", 
+                timestamp,
+                file_metadata.description.as_deref().unwrap_or("External MCP server capabilities")
+            ));
+            // Keep the original version but add archive marker
+            file_metadata.version = Some(format!("{}-archived-{}", current_version, timestamp));
+        }
+        
+        // Write back the enhanced version file
+        let enhanced_content = serde_yaml::to_string(&capability_file)
+            .map_err(|e| ProxyError::config(format!("Failed to serialize enhanced version file: {}", e)))?;
+        
+        fs::write(version_path, enhanced_content).await
+            .map_err(|e| ProxyError::config(format!("Failed to write enhanced version file '{}': {}", version_path.display(), e)))?;
+        
+        debug!("Added version metadata to archived file: {}", version_path.display());
+        Ok(())
+    }
+    
+    /// Clean up old versions based on versioning configuration
+    async fn cleanup_old_versions(file_path: &PathBuf, server_name: &str) -> Result<()> {
+        let versioning_config = VersioningConfig::default();
+        
+        if !versioning_config.enabled {
+            return Ok(());
+        }
+        
+        let versions_dir = file_path.parent().unwrap().join("versions").join(server_name);
+        if !versions_dir.exists() {
+            return Ok(());
+        }
+        
+        // Get all version files for this server
+        let mut version_files = Vec::new();
+        let mut entries = fs::read_dir(&versions_dir).await
+            .map_err(|e| ProxyError::config(format!("Failed to read versions directory '{}': {}", versions_dir.display(), e)))?;
+        
+        while let Some(entry) = entries.next_entry().await
+            .map_err(|e| ProxyError::config(format!("Failed to read directory entry: {}", e)))? {
+            
+            let path = entry.path();
+            if path.is_file() && path.extension().map_or(false, |ext| ext == "yaml") {
+                if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                    if file_name.starts_with(&format!("{}." ,server_name)) {
+                        if let Ok(metadata) = fs::metadata(&path).await {
+                            if let Ok(modified) = metadata.modified() {
+                                version_files.push((path, modified));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Sort by modification time (newest first)
+        version_files.sort_by(|a, b| b.1.cmp(&a.1));
+        
+        // Remove excess versions
+        if version_files.len() > versioning_config.max_versions {
+            let files_to_remove = &version_files[versioning_config.max_versions..];
+            
+            for (file_path, _) in files_to_remove {
+                if let Err(e) = fs::remove_file(file_path).await {
+                    warn!("Failed to remove old version file '{}': {}", file_path.display(), e);
+                } else {
+                    debug!("Removed old version file: {}", file_path.display());
+                }
+            }
+            
+            info!("Cleaned up {} old version files for server '{}'", files_to_remove.len(), server_name);
+        }
+        
+        Ok(())
+    }
+    
+    /// Get available versions for a server
+    pub async fn get_server_versions(server_name: &str, capabilities_output_dir: &str) -> Result<Vec<String>> {
+        let versions_dir = Path::new(capabilities_output_dir).join("versions").join(server_name);
+        
+        if !versions_dir.exists() {
+            return Ok(Vec::new());
+        }
+        
+        let mut versions = Vec::new();
+        let mut entries = fs::read_dir(&versions_dir).await
+            .map_err(|e| ProxyError::config(format!("Failed to read versions directory '{}': {}", versions_dir.display(), e)))?;
+        
+        while let Some(entry) = entries.next_entry().await
+            .map_err(|e| ProxyError::config(format!("Failed to read directory entry: {}", e)))? {
+            
+            let path = entry.path();
+            if path.is_file() && path.extension().map_or(false, |ext| ext == "yaml") {
+                if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                    if file_name.starts_with(&format!("{}." ,server_name)) {
+                        versions.push(file_name.to_string());
+                    }
+                }
+            }
+        }
+        
+        // Sort versions by timestamp (newest first)
+        versions.sort_by(|a, b| {
+            // Extract timestamp from filename like "server.20241101_143022.yaml"
+            let extract_timestamp = |filename: &str| -> String {
+                let prefix = format!("{}.", server_name);
+                filename.strip_prefix(&prefix)
+                    .and_then(|s| s.strip_suffix(".yaml"))
+                    .and_then(|s| s.split('.').next())
+                    .unwrap_or("")
+                    .to_string()
+            };
+            
+            let time_a = extract_timestamp(a);
+            let time_b = extract_timestamp(b);
+            time_b.cmp(&time_a)
+        });
+        
+        Ok(versions)
+    }
+    
+    /// Restore a specific version of a capability file
+    pub async fn restore_version(server_name: &str, version_timestamp: &str, capabilities_output_dir: &str) -> Result<()> {
+        let versions_dir = Path::new(capabilities_output_dir).join("versions").join(server_name);
+        let version_filename = format!("{}.{}.yaml", server_name, version_timestamp);
+        let version_path = versions_dir.join(&version_filename);
+        
+        if !version_path.exists() {
+            return Err(ProxyError::config(format!("Version file not found: {}", version_path.display())));
+        }
+        
+        let current_file = Path::new(capabilities_output_dir).join(format!("{}.yaml", server_name));
+        
+        // First, save the current version before restoring
+        if current_file.exists() {
+            Self::save_previous_version(&current_file.to_path_buf(), server_name).await?;
+        }
+        
+        // Copy the version file to current
+        fs::copy(&version_path, &current_file).await
+            .map_err(|e| ProxyError::config(format!("Failed to restore version '{}': {}", version_path.display(), e)))?;
+        
+        info!("Restored version {} for server '{}'", version_timestamp, server_name);
         Ok(())
     }
 }
@@ -1017,5 +1561,16 @@ impl ExternalMcpManager {
     /// Get health checker for external access
     pub fn health_checker(&self) -> Arc<McpHealthChecker> {
         Arc::clone(&self.health_checker)
+    }
+
+    /// Send a request to a specific external MCP server
+    pub async fn send_request_to_server(&self, server_name: &str, method: &str, params: Option<serde_json::Value>) -> Result<McpResponse> {
+        let processes = self.processes.read().await;
+        
+        if let Some(process) = processes.get(server_name) {
+            process.send_request(method, params).await
+        } else {
+            Err(ProxyError::connection(format!("External MCP server '{}' not found", server_name)))
+        }
     }
 }

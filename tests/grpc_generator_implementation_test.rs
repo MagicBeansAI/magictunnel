@@ -28,6 +28,7 @@ fn test_generator_creation() {
         bidirectional_streaming_strategy: StreamingStrategy::Polling,
         include_method_options: false,
         separate_streaming_tools: false,
+        use_enhanced_format: false,
     };
     
     let generator = GrpcCapabilityGenerator::new(config);
@@ -49,6 +50,7 @@ fn test_proto_file_generation() {
         bidirectional_streaming_strategy: StreamingStrategy::Polling,
         include_method_options: false,
         separate_streaming_tools: false,
+        use_enhanced_format: false,
     };
     
     let generator = GrpcCapabilityGenerator::new(config);
@@ -75,6 +77,7 @@ fn test_proto_content_generation() {
         bidirectional_streaming_strategy: StreamingStrategy::Polling,
         include_method_options: false,
         separate_streaming_tools: false,
+        use_enhanced_format: false,
     };
     
     let generator = GrpcCapabilityGenerator::new(config);
@@ -136,6 +139,7 @@ fn test_tool_name_generation() {
         bidirectional_streaming_strategy: StreamingStrategy::Polling,
         include_method_options: false,
         separate_streaming_tools: false,
+        use_enhanced_format: false,
     };
     
     let generator = GrpcCapabilityGenerator::new(config);
@@ -177,6 +181,7 @@ fn test_tool_name_generation() {
         bidirectional_streaming_strategy: StreamingStrategy::Polling,
         include_method_options: false,
         separate_streaming_tools: false,
+        use_enhanced_format: false,
     };
     
     let generator = GrpcCapabilityGenerator::new(config);
@@ -217,6 +222,7 @@ fn test_input_schema_generation() {
         bidirectional_streaming_strategy: StreamingStrategy::Polling,
         include_method_options: false,
         separate_streaming_tools: false,
+        use_enhanced_format: false,
     };
     
     let generator = GrpcCapabilityGenerator::new(config);
@@ -299,6 +305,7 @@ fn test_authentication_configuration() {
             bidirectional_streaming_strategy: StreamingStrategy::Polling,
             include_method_options: false,
             separate_streaming_tools: false,
+            use_enhanced_format: false,
         };
         
         let generator = GrpcCapabilityGenerator::new(config);
@@ -378,6 +385,7 @@ fn test_streaming_strategy_configuration() {
             bidirectional_streaming_strategy: strategy.clone(),
             include_method_options: false,
             separate_streaming_tools: false,
+            use_enhanced_format: false,
         };
         
         let generator = GrpcCapabilityGenerator::new(config);
@@ -418,6 +426,7 @@ fn test_comprehensive_proto_parsing() {
         bidirectional_streaming_strategy: StreamingStrategy::Polling,
         include_method_options: true,
         separate_streaming_tools: false,
+        use_enhanced_format: false,
     };
     
     let generator = GrpcCapabilityGenerator::new(config);
@@ -444,6 +453,7 @@ fn test_streaming_proto_parsing() {
         bidirectional_streaming_strategy: StreamingStrategy::Polling,
         include_method_options: true,
         separate_streaming_tools: true,
+        use_enhanced_format: false,
     };
     
     let generator = GrpcCapabilityGenerator::new(config);
@@ -479,6 +489,7 @@ fn test_auth_proto_parsing() {
         bidirectional_streaming_strategy: StreamingStrategy::Polling,
         include_method_options: true,
         separate_streaming_tools: false,
+        use_enhanced_format: false,
     };
     
     let generator = GrpcCapabilityGenerator::new(config);
@@ -505,6 +516,7 @@ fn test_service_filtering() {
         bidirectional_streaming_strategy: StreamingStrategy::Polling,
         include_method_options: false,
         separate_streaming_tools: false,
+        use_enhanced_format: false,
     };
     
     let generator = GrpcCapabilityGenerator::new(config);
@@ -532,6 +544,7 @@ fn test_method_filtering() {
         bidirectional_streaming_strategy: StreamingStrategy::Polling,
         include_method_options: false,
         separate_streaming_tools: false,
+        use_enhanced_format: false,
     };
     
     let generator = GrpcCapabilityGenerator::new(config);

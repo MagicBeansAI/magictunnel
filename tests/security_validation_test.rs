@@ -227,6 +227,15 @@ mod security_tests {
             conflict_resolution: None,
             visibility: None,
             smart_discovery: None,
+            security: None,
+            streamable_http: None,
+            sampling: None,
+            elicitation: None,
+            prompt_generation: None,
+            resource_generation: None,
+            content_storage: None,
+            external_content: None,
+            enhancement_storage: None,
         };
 
         let result = config.validate();

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
-use tracing::{info, error};
+use tracing::{info, error, warn};
 use serde_json::json;
 
 mod auth;
@@ -391,15 +391,15 @@ async fn handle_single_mcp_request(server: &McpServer, message: &str) -> Result<
 
 /// Pre-generate embeddings for all enabled capabilities and exit
 async fn pregenerate_embeddings_and_exit(config: Config) -> Result<()> {
-    info!("Starting embedding pre-generation process");
+    info!("Starting enhanced embedding pre-generation process");
     
     // Initialize the registry to discover all capabilities
     let registry = Arc::new(registry::RegistryService::new(config.registry.clone()).await?);
     info!("Registry initialized with {} tools", registry.get_all_tools().len());
     
     // Check if smart discovery is configured
-    let smart_discovery_config = match config.smart_discovery {
-        Some(discovery_config) if discovery_config.semantic_search.enabled => discovery_config,
+    let smart_discovery_config = match &config.smart_discovery {
+        Some(discovery_config) if discovery_config.semantic_search.enabled => discovery_config.clone(),
         Some(_) => {
             info!("⚠️  Semantic search is disabled in configuration - skipping embedding generation");
             return Ok(());
@@ -412,19 +412,197 @@ async fn pregenerate_embeddings_and_exit(config: Config) -> Result<()> {
     
     info!("🧠 Using embedding model: {}", smart_discovery_config.semantic_search.model_name);
     
+    // Initialize sampling and elicitation services if enabled
+    let sampling_service = if config.sampling.as_ref().map(|s| s.enabled).unwrap_or(false) ||
+                             smart_discovery_config.enable_sampling.unwrap_or(false) {
+        info!("🎯 Initializing sampling service for enhanced descriptions");
+        match mcp::sampling::SamplingService::from_config(&config) {
+            Ok(service) => Some(Arc::new(service)),
+            Err(e) => {
+                warn!("Failed to initialize sampling service: {}. Using base descriptions.", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+    
+    let elicitation_service = if config.elicitation.as_ref().map(|e| e.enabled).unwrap_or(false) ||
+                                smart_discovery_config.enable_elicitation.unwrap_or(false) {
+        info!("🎯 Initializing elicitation service for enhanced metadata");
+        match mcp::elicitation::ElicitationService::from_config(&config) {
+            Ok(service) => Some(Arc::new(service)),
+            Err(e) => {
+                warn!("Failed to initialize elicitation service: {}. Using base metadata.", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+    
+    // Initialize external MCP integration if configured
+    let external_mcp_manager = if let Some(external_config) = &config.external_mcp {
+        info!("🔗 Initializing external MCP manager for embedding generation");
+        let client_config = config::McpClientConfig::default(); // Use default client config for embedding generation
+        let manager = Arc::new(mcp::ExternalMcpManager::new(external_config.clone(), client_config));
+        Some(manager)
+    } else {
+        None
+    };
+    
+    // Initialize content storage service
+    let content_storage = if let Some(content_config) = &config.content_storage {
+        info!("📦 Initializing content storage service");
+        match mcp::ContentStorageService::new(content_config.clone()) {
+            Ok(service) => {
+                let service = Arc::new(service);
+                if let Err(e) = service.initialize().await {
+                    error!("Failed to initialize content storage service: {}", e);
+                    return Err(e.into());
+                }
+                Some(service)
+            }
+            Err(e) => {
+                warn!("Failed to create content storage service: {}. Content storage disabled.", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+    
+    // Initialize prompt generation service
+    let prompt_generator = if let Some(prompt_config) = &config.prompt_generation {
+        info!("📝 Initializing prompt generation service");
+        match mcp::PromptGeneratorService::new(
+            prompt_config.clone(),
+            external_mcp_manager.clone(),
+            content_storage.clone(),
+        ) {
+            Ok(service) => Some(Arc::new(service)),
+            Err(e) => {
+                warn!("Failed to initialize prompt generation service: {}. Prompt generation disabled.", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+    
+    // Initialize resource generation service
+    let resource_generator = if let Some(resource_config) = &config.resource_generation {
+        info!("📋 Initializing resource generation service");
+        match mcp::ResourceGeneratorService::new(
+            resource_config.clone(),
+            external_mcp_manager.clone(),
+        ) {
+            Ok(service) => Some(Arc::new(service)),
+            Err(e) => {
+                warn!("Failed to initialize resource generation service: {}. Resource generation disabled.", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+    
+    // Initialize external content manager
+    let external_content_manager = if let Some(external_config) = &config.external_content {
+        info!("🔗 Initializing external content manager");
+        let manager = mcp::ExternalContentManager::new(
+            external_config.clone(),
+            external_mcp_manager.clone(),
+            content_storage.clone().unwrap_or_else(|| {
+                Arc::new(mcp::ContentStorageService::new(mcp::ContentStorageConfig::default()).unwrap())
+            }),
+        );
+        Some(Arc::new(manager))
+    } else {
+        None
+    };
+    
+    // Initialize enhancement storage service
+    let enhancement_storage = if let Some(storage_config) = &config.enhancement_storage {
+        info!("💾 Initializing enhancement storage service");
+        match discovery::EnhancementStorageService::new(storage_config.clone()) {
+            Ok(service) => {
+                let service = Arc::new(service);
+                if let Err(e) = service.initialize().await {
+                    error!("Failed to initialize enhancement storage service: {}", e);
+                    return Err(e.into());
+                }
+                Some(service)
+            }
+            Err(e) => {
+                warn!("Failed to create enhancement storage service: {}. Enhancement storage disabled.", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+    
+    // Initialize tool enhancement service if sampling/elicitation enabled
+    let enhancement_service = if sampling_service.is_some() || elicitation_service.is_some() {
+        info!("🚀 Initializing tool enhancement pipeline for embedding generation");
+        let enhancement_config = discovery::ToolEnhancementConfig {
+            enable_sampling_enhancement: sampling_service.is_some(),
+            enable_elicitation_enhancement: elicitation_service.is_some(),
+            require_approval: false, // No approval needed for embedding generation
+            cache_enhancements: true,
+            enhancement_timeout_seconds: 60, // Longer timeout for batch processing
+            batch_size: 20, // Larger batch for embedding generation
+            graceful_degradation: true,
+        };
+        
+        let enhancement_service = Arc::new(discovery::ToolEnhancementService::new_with_storage(
+            enhancement_config,
+            Arc::clone(&registry),
+            sampling_service,
+            elicitation_service,
+            enhancement_storage,
+        ));
+        
+        // Register enhancement service with registry for tool change notifications
+        registry.set_enhancement_callback(Arc::clone(&enhancement_service) as Arc<dyn registry::service::EnhancementCallback>);
+        info!("🔔 Enhancement service registered for tool change notifications");
+        
+        // Initialize enhancement service (generate missing enhancements at startup)
+        if let Err(e) = enhancement_service.initialize().await {
+            error!("Failed to initialize enhancement service: {}", e);
+            return Err(e.into());
+        }
+        
+        Some(enhancement_service)
+    } else {
+        info!("🔧 No enhancement services available - using base descriptions");
+        None
+    };
+    
     // Initialize semantic search service
     let semantic_service = Arc::new(discovery::SemanticSearchService::new(
         smart_discovery_config.semantic_search.clone()
     ));
     semantic_service.initialize().await?;
     
-    // Initialize embedding manager
+    // Initialize enhanced embedding manager
     let embedding_manager_config = discovery::EmbeddingManagerConfig::default();
-    let embedding_manager = discovery::EmbeddingManager::new(
-        registry,
-        semantic_service.clone(),
-        embedding_manager_config,
-    );
+    let embedding_manager = if let Some(enhancement_service) = enhancement_service {
+        info!("🌟 Creating enhanced embedding manager with sampling/elicitation pipeline");
+        discovery::EmbeddingManager::new_with_enhancement(
+            registry,
+            semantic_service.clone(),
+            embedding_manager_config,
+            enhancement_service,
+        )
+    } else {
+        discovery::EmbeddingManager::new(
+            registry,
+            semantic_service.clone(),
+            embedding_manager_config,
+        )
+    };
     embedding_manager.initialize().await?;
     
     // Force sync to generate all embeddings

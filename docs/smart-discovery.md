@@ -19,27 +19,37 @@ MagicTunnel features an advanced **Smart Tool Discovery System** that provides a
 - Main orchestration layer
 - Handles tool selection and parameter mapping
 - Manages caching and performance optimization
+- **MCP 2025-06-18 Integration**: Uses enhanced tool descriptions from sampling service
 
 ### 2. Multi-Strategy Search Engine
-- **Rule-based Search**: Keyword/fuzzy matching
-- **Semantic Search**: Vector similarity using embeddings
-- **LLM-based Search**: AI-powered tool selection
-- **Hybrid Search**: Intelligent combination of all three
+- **Rule-based Search**: Keyword/fuzzy matching with elicitation metadata
+- **Semantic Search**: Vector similarity using enhanced descriptions and embeddings
+- **LLM-based Search**: AI-powered tool selection with sampling enhancements
+- **Hybrid Search**: Intelligent combination of all three strategies
 
 ### 3. LLM Parameter Mapper (LlmParameterMapper)
 - Extracts parameters from natural language
 - Maps to tool schema requirements
 - Provides parameter validation and suggestions
+- **Enhanced with MCP Elicitation**: Uses elicitation service for parameter validation
 
-### 4. Discovery Cache (DiscoveryCache)
+### 4. Tool Enhancement Pipeline
+- **Sampling Service Integration**: Uses AI-enhanced tool descriptions for better discovery
+- **Elicitation Service Integration**: Leverages extracted metadata for improved matching
+- **Enhancement Storage**: Caches enhanced descriptions to avoid regeneration
+- **Graceful Degradation**: Falls back to base descriptions when enhancement fails
+
+### 5. Discovery Cache (DiscoveryCache)
 - Caches tool matches and LLM responses
 - Optimizes performance for repeated queries
 - Reduces API costs
+- **Enhanced Caching**: Separates base and enhanced description caches
 
-### 5. Fallback Manager (FallbackManager)
+### 6. Fallback Manager (FallbackManager)
 - Handles failures gracefully
 - Provides alternative suggestions
 - Learns from past interactions
+- **MCP Compliance**: Maintains tool discovery even when MCP 2025-06-18 services fail
 
 ## Search Strategies
 

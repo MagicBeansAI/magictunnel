@@ -7,6 +7,7 @@
 //! - Preventing overwrites of user-configured settings
 
 use crate::discovery::semantic::{SemanticSearchService, ToolMetadata};
+use crate::discovery::enhancement::ToolEnhancementService;
 use crate::error::{ProxyError, Result};
 use crate::registry::service::RegistryService;
 use std::collections::{HashMap, HashSet};
@@ -117,6 +118,9 @@ pub struct EmbeddingManager {
     
     /// File watcher handle for hot-reload
     _file_watcher: Arc<RwLock<Option<Box<dyn Watcher + Send + Sync>>>>,
+    
+    /// Tool enhancement service for sampling/elicitation pipeline
+    enhancement_service: Option<Arc<ToolEnhancementService>>,
 }
 
 impl EmbeddingManager {
@@ -134,6 +138,26 @@ impl EmbeddingManager {
             user_disabled_tools: Arc::new(RwLock::new(HashSet::new())),
             background_task_handle: Arc::new(RwLock::new(None)),
             _file_watcher: Arc::new(RwLock::new(None)),
+            enhancement_service: None,
+        }
+    }
+    
+    /// Create a new embedding manager with enhancement service
+    pub fn new_with_enhancement(
+        registry: Arc<RegistryService>,
+        semantic_search: Arc<SemanticSearchService>,
+        config: EmbeddingManagerConfig,
+        enhancement_service: Arc<ToolEnhancementService>,
+    ) -> Self {
+        Self {
+            registry,
+            semantic_search,
+            config,
+            last_known_state: Arc::new(RwLock::new(HashMap::new())),
+            user_disabled_tools: Arc::new(RwLock::new(HashSet::new())),
+            background_task_handle: Arc::new(RwLock::new(None)),
+            _file_watcher: Arc::new(RwLock::new(None)),
+            enhancement_service: Some(enhancement_service),
         }
     }
     
@@ -186,6 +210,7 @@ impl EmbeddingManager {
                     user_disabled_tools: Arc::clone(&user_disabled_tools),
                     background_task_handle: Arc::new(RwLock::new(None)), // Avoid circular reference
                     _file_watcher: Arc::new(RwLock::new(None)),
+                    enhancement_service: None, // No enhancement service in background task
                 };
                 
                 match manager.sync_embeddings().await {
@@ -295,6 +320,7 @@ impl EmbeddingManager {
                             user_disabled_tools: Arc::clone(&user_disabled_tools),
                             background_task_handle: Arc::new(RwLock::new(None)),
                             _file_watcher: Arc::new(RwLock::new(None)),
+                            enhancement_service: None, // No enhancement service in file watcher task
                         };
                         
                         if let Err(e) = manager.sync_embeddings().await {
@@ -434,14 +460,39 @@ impl EmbeddingManager {
         Ok(summary)
     }
     
-    /// Get current tool state from registry
+    /// Get current tool state from registry (using enhanced tools if available)
     async fn get_current_tool_state(&self) -> HashMap<String, (String, bool, bool)> {
         let mut tool_state = HashMap::new();
         
-        // Get all enabled tools (the ones we want to create embeddings for)
-        let enabled_tools = self.registry.get_enabled_tools();
+        // Get enhanced tools if enhancement service is available, otherwise base tools
+        let tools = if let Some(enhancement_service) = &self.enhancement_service {
+            info!("🔄 Getting enhanced tools for embedding state calculation");
+            match enhancement_service.get_enhanced_tools().await {
+                Ok(enhanced_tools) => {
+                    let mut tools = Vec::new();
+                    for (name, enhanced_tool) in enhanced_tools {
+                        let mut tool_def = enhanced_tool.base.clone();
+                        
+                        // Use enhanced description if available
+                        if let Some(enhanced_desc) = &enhanced_tool.sampling_enhanced_description {
+                            tool_def.description = enhanced_desc.clone();
+                        }
+                        
+                        tools.push((name, tool_def));
+                    }
+                    tools
+                }
+                Err(e) => {
+                    warn!("Failed to get enhanced tools for embedding state: {}. Using base tools.", e);
+                    self.registry.get_enabled_tools().into_iter().collect()
+                }
+            }
+        } else {
+            debug!("🔧 Using base tools for embedding state (no enhancement service)");
+            self.registry.get_enabled_tools().into_iter().collect()
+        };
         
-        for (tool_name, tool_def) in enabled_tools {
+        for (tool_name, tool_def) in tools {
             // Skip smart_discovery_tool itself to avoid recursion
             if tool_name == "smart_discovery_tool" || tool_name == "smart_tool_discovery" {
                 continue;
@@ -454,7 +505,7 @@ impl EmbeddingManager {
         tool_state
     }
     
-    /// Handle embedding operation for a specific tool
+    /// Handle embedding operation for a specific tool (using enhanced tools if available)
     async fn handle_tool_embedding(
         &self,
         tool_name: &str,
@@ -462,9 +513,42 @@ impl EmbeddingManager {
         enabled: bool,
         hidden: bool,
     ) -> Result<()> {
-        // Get the tool definition
-        let tool_def = self.registry.get_tool(tool_name)
-            .ok_or_else(|| ProxyError::validation(format!("Tool '{}' not found", tool_name)))?;
+        // Get the tool definition (potentially enhanced)
+        let tool_def = if let Some(enhancement_service) = &self.enhancement_service {
+            // Try to get enhanced tool first
+            match enhancement_service.get_enhanced_tools().await {
+                Ok(enhanced_tools) => {
+                    if let Some(enhanced_tool) = enhanced_tools.get(tool_name) {
+                        debug!("✨ Using enhanced tool definition for embedding: {}", tool_name);
+                        let mut tool_def = enhanced_tool.base.clone();
+                        
+                        // Use enhanced description if available
+                        if let Some(enhanced_desc) = &enhanced_tool.sampling_enhanced_description {
+                            info!("🎯 Using sampling-enhanced description for embedding: {}", tool_name);
+                            tool_def.description = enhanced_desc.clone();
+                        }
+                        
+                        tool_def
+                    } else {
+                        // Fallback to base tool
+                        let arc_tool = self.registry.get_tool(tool_name)
+                            .ok_or_else(|| ProxyError::validation(format!("Tool '{}' not found", tool_name)))?;
+                        (*arc_tool).clone()
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to get enhanced tools for embedding: {}. Using base tool.", e);
+                    let arc_tool = self.registry.get_tool(tool_name)
+                        .ok_or_else(|| ProxyError::validation(format!("Tool '{}' not found", tool_name)))?;
+                    (*arc_tool).clone()
+                }
+            }
+        } else {
+            // Use base tool
+            let arc_tool = self.registry.get_tool(tool_name)
+                .ok_or_else(|| ProxyError::validation(format!("Tool '{}' not found", tool_name)))?;
+            (*arc_tool).clone()
+        };
         
         // Check if this is an external MCP tool that user has disabled
         if self.config.preserve_user_settings {

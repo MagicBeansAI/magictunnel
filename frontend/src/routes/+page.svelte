@@ -864,7 +864,7 @@
       <!-- MCP Protocol Management -->
       <div class="mt-6">
         <h4 class="text-lg font-medium text-gray-700 mb-3">MCP Protocol Management</h4>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <a href="/resources" class="btn-secondary text-center">
             📁 MCP Resources
           </a>
@@ -876,6 +876,9 @@
           </a>
           <a href="/tools" class="btn-secondary text-center">
             🛠️ MCP Tools
+          </a>
+          <a href="/llm-services" class="btn-secondary text-center">
+            🧠 LLM Services
           </a>
         </div>
       </div>

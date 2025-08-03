@@ -147,6 +147,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         generator = generator.include_deprecated();
     }
 
+    // Always use enhanced MCP 2025-06-18 format
+    println!("Using enhanced MCP 2025-06-18 format");
+
     // Set up authentication
     let auth_type = matches.get_one::<String>("auth-type").unwrap();
     let auth_config = match auth_type.as_str() {
@@ -195,7 +198,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let capability_file = generator.generate_from_spec(&spec_content)
         .map_err(|e| format!("Failed to generate capability file from OpenAPI/Swagger spec: {:?}", e))?;
 
-    println!("Generated {} tools from OpenAPI specification", capability_file.tools.len());
+    let tools_count = capability_file.enhanced_tools.as_ref().map(|t| t.len()).unwrap_or(0);
+    
+    println!("Generated {} enhanced tools from OpenAPI specification", tools_count);
 
     // Convert to YAML
     let yaml_content = serde_yaml::to_string(&capability_file)
@@ -209,8 +214,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Print summary
     println!("\nGenerated tools:");
-    for tool in &capability_file.tools {
-        println!("  - {}: {}", tool.name, tool.description);
+    if let Some(enhanced_tools) = &capability_file.enhanced_tools {
+        for tool in enhanced_tools {
+            println!("  - {}: {}", tool.name, tool.core.description);
+        }
     }
 
     Ok(())

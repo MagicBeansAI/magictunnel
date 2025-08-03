@@ -43,7 +43,7 @@ impl Protocol {
 
 // Default functions for serde
 fn default_protocol_version() -> String {
-    "2025-03-26".to_string()
+    "2025-06-18".to_string()
 }
 
 fn default_client_name() -> String {
@@ -192,7 +192,7 @@ impl Default for ClientConfig {
             max_reconnect_attempts: 5,
             reconnect_delay_secs: 5,
             auto_reconnect: true,
-            protocol_version: "2025-03-26".to_string(),
+            protocol_version: "2025-06-18".to_string(),
             client_name: env!("CARGO_PKG_NAME").to_string(),
             client_version: env!("CARGO_PKG_VERSION").to_string(),
         }

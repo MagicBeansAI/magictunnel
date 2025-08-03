@@ -977,6 +977,7 @@ fn generate_from_config(config_file: &str, generator_type: &str) -> Result<()> {
                     bidirectional_streaming_strategy: parse_streaming_strategy(&grpc_config.bidirectional_streaming_strategy)?,
                     include_method_options: grpc_config.include_method_options,
                     separate_streaming_tools: grpc_config.separate_streaming_tools,
+                    use_enhanced_format: true, // Always use enhanced format
                 };
                 
                 // Apply tool prefix
@@ -1153,6 +1154,11 @@ fn generate_graphql_from_args(matches: &clap::ArgMatches) -> Result<()> {
     let schema_content = fs::read_to_string(schema_file)
         .map_err(|e| ProxyError::config(format!("Failed to read schema file '{}': {}", schema_file, e)))?;
     
+    // Handle format selection (enhanced is default)
+    let use_enhanced = true; // Always use enhanced format
+    let format_msg = if use_enhanced { "enhanced MCP 2025-06-18" } else { "legacy" };
+    println!("Using {} format", format_msg);
+
     // Create generator adapter
     let mut adapter = GraphQLGeneratorAdapter::new(endpoint.clone());
     
@@ -1209,7 +1215,11 @@ fn generate_graphql_from_args(matches: &clap::ArgMatches) -> Result<()> {
     let capability_file = adapter.generate_from_content(&schema_content)
         .map_err(|e| ProxyError::config(format!("Failed to generate capability file from GraphQL schema: {:?}", e)))?;
     
-    println!("Generated {} tools from GraphQL schema", capability_file.tools.len());
+    let tools_count = capability_file.enhanced_tools.as_ref().map(|t| t.len()).unwrap_or(0);
+    
+    println!("Generated {} {} tools from GraphQL schema", 
+        tools_count, 
+"enhanced");
     
     // Write output file
     write_capability_file(&capability_file, output_file)?;
@@ -1232,7 +1242,8 @@ fn generate_graphql_from_args(matches: &clap::ArgMatches) -> Result<()> {
         println!("  Tool prefix: {}", prefix);
     }
     println!("  Auth type: {}", auth_type);
-    println!("  Tools generated: {}", capability_file.tools.len());
+    println!("  Format: {}", format_msg);
+    println!("  Tools generated: {}", tools_count);
     
     Ok(())
 }
@@ -1266,6 +1277,11 @@ fn generate_grpc_from_args(matches: &clap::ArgMatches) -> Result<()> {
     let proto_content = fs::read_to_string(proto_file)
         .map_err(|e| ProxyError::config(format!("Failed to read proto file '{}': {}", proto_file, e)))?;
     
+    // Handle format selection (enhanced is default)
+    let use_enhanced = true; // Always use enhanced format
+    let format_msg = if use_enhanced { "enhanced MCP 2025-06-18" } else { "legacy" };
+    println!("Using {} format", format_msg);
+
     // Create generator adapter
     let mut adapter = GrpcGeneratorAdapter::new(endpoint.clone());
     
@@ -1395,7 +1411,11 @@ fn generate_grpc_from_args(matches: &clap::ArgMatches) -> Result<()> {
     let capability_file = adapter.generate_from_content(&proto_content)
         .map_err(|e| ProxyError::config(format!("Failed to generate capability file from protobuf: {:?}", e)))?;
     
-    println!("Generated {} tools from protobuf service definitions", capability_file.tools.len());
+    let tools_count = capability_file.enhanced_tools.as_ref().map(|t| t.len()).unwrap_or(0);
+    
+    println!("Generated {} {} tools from protobuf service definitions", 
+        tools_count, 
+"enhanced");
     
     // Write output file
     write_capability_file(&capability_file, output_file)?;
@@ -1404,8 +1424,10 @@ fn generate_grpc_from_args(matches: &clap::ArgMatches) -> Result<()> {
     
     // Print summary
     println!("\nGenerated tools:");
-    for tool in &capability_file.tools {
-        println!("  - {}: {}", tool.name, tool.description);
+    if let Some(enhanced_tools) = &capability_file.enhanced_tools {
+        for tool in enhanced_tools {
+            println!("  - {}: {}", tool.name, tool.core.description);
+        }
     }
     
     Ok(())
@@ -1441,6 +1463,11 @@ fn generate_openapi_from_args(matches: &clap::ArgMatches) -> Result<()> {
     
     println!("Parsing OpenAPI specification from '{}'...", spec_file);
     
+    // Handle format selection (enhanced is default)
+    let use_enhanced = true; // Always use enhanced format
+    let format_msg = if use_enhanced { "enhanced MCP 2025-06-18" } else { "legacy" };
+    println!("Using {} format", format_msg);
+
     // Create generator adapter
     let mut adapter = OpenAPIGeneratorAdapter::new(base_url.clone());
     
@@ -1538,7 +1565,11 @@ fn generate_openapi_from_args(matches: &clap::ArgMatches) -> Result<()> {
     let capability_file = adapter.generate_from_content(&spec_content)
         .map_err(|e| ProxyError::config(format!("Failed to generate capability file from OpenAPI spec: {:?}", e)))?;
     
-    println!("Generated {} tools from OpenAPI specification", capability_file.tools.len());
+    let tools_count = capability_file.enhanced_tools.as_ref().map(|t| t.len()).unwrap_or(0);
+    
+    println!("Generated {} {} tools from OpenAPI specification", 
+        tools_count, 
+"enhanced");
     
     // Write output file
     write_capability_file(&capability_file, output_file)?;
@@ -1547,8 +1578,10 @@ fn generate_openapi_from_args(matches: &clap::ArgMatches) -> Result<()> {
     
     // Print summary
     println!("\nGenerated tools:");
-    for tool in &capability_file.tools {
-        println!("  - {}: {}", tool.name, tool.description);
+    if let Some(enhanced_tools) = &capability_file.enhanced_tools {
+        for tool in enhanced_tools {
+            println!("  - {}: {}", tool.name, tool.core.description);
+        }
     }
     
     Ok(())
@@ -1577,6 +1610,11 @@ fn merge_capability_files(matches: &clap::ArgMatches) -> Result<()> {
     let input_files_str = matches.get_one::<String>("input").unwrap();
     let output_file = matches.get_one::<String>("output").unwrap();
     let strategy_str = matches.get_one::<String>("strategy").unwrap();
+    
+    // Handle format selection (enhanced is default)
+    let use_enhanced = true; // Always use enhanced format
+    let format_msg = if use_enhanced { "enhanced MCP 2025-06-18" } else { "legacy" };
+    println!("Output format: {}", format_msg);
     
     // Parse merge strategy
     let strategy = match strategy_str.to_lowercase().as_str() {
@@ -1619,8 +1657,11 @@ fn merge_capability_files(matches: &clap::ArgMatches) -> Result<()> {
     let merger = CapabilityMerger::new();
     let merged_file = merger.merge(capability_files, strategy)?;
     
-    println!("Successfully merged {} tools from {} files",
-             merged_file.tools.len(),
+    let tools_count = merged_file.enhanced_tools.as_ref().map(|t| t.len()).unwrap_or(0);
+    
+    println!("Successfully merged {} {} tools from {} files",
+             tools_count,
+             "enhanced",
              input_files.len());
     
     // Write output file
@@ -1633,7 +1674,8 @@ fn merge_capability_files(matches: &clap::ArgMatches) -> Result<()> {
     println!("  Input files: {}", input_files_str);
     println!("  Output file: {}", output_file);
     println!("  Merge strategy: {}", strategy_str);
-    println!("  Total tools: {}", merged_file.tools.len());
+    println!("  Output format: {}", format_msg);
+    println!("  Total tools: {}", tools_count);
     
     Ok(())
 }

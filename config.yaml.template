@@ -53,6 +53,14 @@ registry:
   validation:
     strict: true           # Strict validation mode
     allow_unknown_fields: false
+  
+  # MCP 2025-06-18 Enhanced Format (Default and Only Format)
+  # All tools use the Enhanced MCP 2025-06-18 format featuring:
+  # - AI-Enhanced Discovery with semantic intelligence
+  # - Security sandboxing (safe/restricted/privileged/dangerous/blocked)
+  # - Performance monitoring and analytics
+  # - Parameter intelligence with smart defaults
+  # - Granular progress tracking and cancellation support
 
 
 
@@ -114,9 +122,9 @@ mcp_client:
   max_reconnect_attempts: 5     # Maximum reconnection attempts
   reconnect_delay_secs: 5       # Delay between reconnection attempts
   auto_reconnect: true          # Enable automatic reconnection
-  protocol_version: "2025-03-26" # MCP protocol version to use
+  protocol_version: "2025-06-18" # MCP protocol version to use
   client_name: "magictunnel"    # Client name for MCP handshake (defaults to package name)
-  client_version: "0.2.49"      # Client version for MCP handshake (defaults to package version)
+  client_version: "0.3.0"       # Client version for MCP handshake (defaults to package version)
 
 # =============================================================================
 # EXTERNAL MCP CONFIGURATION (Claude Desktop Format)
@@ -255,6 +263,49 @@ smart_discovery:
       embedding_cache_size: 1000          # In-memory cache size for embeddings
       parallel_processing: true           # Enable parallel embedding generation
       worker_threads: 4                   # Number of worker threads for parallel processing
+
+# =============================================================================
+# MCP 2025-06-18 ENHANCED FORMAT CONFIGURATION
+# =============================================================================
+# Configuration for Enhanced MCP 2025-06-18 format features including
+# AI-enhanced discovery, security sandboxing, and enterprise monitoring
+
+mcp_2025:
+  enabled: true                   # Enable MCP 2025-06-18 enhanced features (env: MCP_2025_ENABLED)
+  
+  # Enhanced Cancellation Support
+  cancellation:
+    enabled: true                 # Enable granular cancellation support (env: MCP_2025_CANCELLATION_ENABLED)
+    timeout_handling: "graceful"  # Timeout handling: graceful|immediate (env: MCP_2025_TIMEOUT_HANDLING)
+    progress_updates: true        # Send progress updates during long operations (env: MCP_2025_PROGRESS_UPDATES)
+    
+  # Runtime Tool Description Validation
+  validation:
+    enabled: true                 # Enable runtime validation (env: MCP_2025_VALIDATION_ENABLED)
+    startup_validation: true      # Validate all tools at startup (env: MCP_2025_STARTUP_VALIDATION)
+    on_demand_validation: true    # Enable on-demand validation via API (env: MCP_2025_ON_DEMAND_VALIDATION)
+    schema_enforcement: "strict"  # Schema enforcement: strict|loose (env: MCP_2025_SCHEMA_ENFORCEMENT)
+    
+  # Security Sandboxing
+  security:
+    enabled: true                 # Enable security sandboxing (env: MCP_2025_SECURITY_ENABLED)
+    default_level: "safe"         # Default security level: safe|restricted|privileged|dangerous|blocked
+    enterprise_mode: false       # Enable enterprise security features (env: MCP_2025_ENTERPRISE_MODE)
+    audit_logging: true           # Enable security audit logging (env: MCP_2025_AUDIT_LOGGING)
+    
+    # Security level definitions:
+    # - safe: Low-risk operations (read-only, info gathering)
+    # - restricted: Medium-risk operations (limited writes, API calls)  
+    # - privileged: High-risk operations (system changes, file operations)
+    # - dangerous: Very high-risk operations (requires explicit approval)
+    # - blocked: Completely blocked operations
+    
+  # Performance Monitoring
+  monitoring:
+    enabled: true                 # Enable performance monitoring (env: MCP_2025_MONITORING_ENABLED)
+    execution_tracking: true      # Track tool execution metrics (env: MCP_2025_EXECUTION_TRACKING)
+    performance_analytics: true   # Collect performance analytics (env: MCP_2025_PERFORMANCE_ANALYTICS)
+    health_checks: true           # Enable health check endpoints (env: MCP_2025_HEALTH_CHECKS)
 
 # =============================================================================
 # TOOL VISIBILITY CONFIGURATION (Smart Tool Discovery)
@@ -489,6 +540,15 @@ logging:
 # export MCP_REGISTRY_PATHS="./capabilities,./custom-tools"
 # export MCP_HOT_RELOAD="true"
 #
+# # MCP 2025-06-18 Enhanced Format (Always Enabled)
+# export MCP_2025_ENABLED="true"
+# export MCP_2025_CANCELLATION_ENABLED="true"
+# export MCP_2025_VALIDATION_ENABLED="true"
+# export MCP_2025_STARTUP_VALIDATION="true"
+# export MCP_2025_SECURITY_ENABLED="true"
+# export MCP_2025_ENTERPRISE_MODE="false"
+# export MCP_2025_MONITORING_ENABLED="true"
+#
 # # Authentication
 # export MCP_AUTH_ENABLED="true"
 # export MCP_AUTH_TYPE="api_key"
@@ -503,14 +563,22 @@ logging:
 #
 # # Smart Discovery Configuration
 # export SMART_DISCOVERY_ENABLED="true"
-# export SMART_DISCOVERY_MODE="llm_based"  # rule_based|llm_based
+# export SMART_DISCOVERY_MODE="hybrid"  # rule_based|llm_based|semantic_based|hybrid
 # export SMART_DISCOVERY_THRESHOLD="0.7"
 # export SMART_DISCOVERY_LLM_ENABLED="true"
 # export SMART_DISCOVERY_LLM_PROVIDER="openai"  # openai|anthropic|ollama
 # export SMART_DISCOVERY_LLM_MODEL="gpt-4o-mini"
 # export SMART_DISCOVERY_LLM_API_KEY="your-api-key-here"
 # export SMART_DISCOVERY_MAPPER_ENABLED="true"
+# export SMART_DISCOVERY_SEMANTIC_ENABLED="true"
+# export MAGICTUNNEL_SEMANTIC_MODEL="ollama:nomic-embed-text"
 # export OPENAI_API_KEY="your-openai-api-key"  # For LLM parameter mapping
+# export OLLAMA_BASE_URL="http://localhost:11434"  # For Ollama embedding
+#
+# # Tool Visibility
+# export VISIBILITY_HIDE_INDIVIDUAL_TOOLS="false"
+# export VISIBILITY_EXPOSE_SMART_DISCOVERY_ONLY="false" 
+# export VISIBILITY_DEFAULT_HIDDEN="false"
 #
 # # Logging
 # export MCP_LOG_LEVEL="debug"
@@ -552,45 +620,97 @@ logging:
 #
 # Create YAML files in ./capabilities/ directory with your tool definitions:
 #
-# Example: ./capabilities/weather.yaml
+# ENHANCED MCP 2025-06-18 FORMAT EXAMPLE: ./capabilities/weather.yaml
 # ---
-# tools:
+# enhanced_tools:
 #   - name: "get_weather"
-#     description: "Get current weather for a location"
-#     input_schema:
-#       type: "object"
-#       properties:
-#         location:
-#           type: "string"
-#           description: "City name or coordinates"
-#       required: ["location"]
+#     core:
+#       description: "AI-enhanced weather service with MCP 2025-06-18 compliance"
+#       input_schema:
+#         type: "object"
+#         properties:
+#           location:
+#             type: "string"
+#             description: "City name, coordinates, or airport code"
+#             examples: ["New York", "40.7128,-74.0060", "JFK"]
+#           units:
+#             type: "string"
+#             enum: ["metric", "imperial", "kelvin"]
+#             default: "metric"
+#             description: "Temperature units"
+#         required: ["location"]
+#     
+#     # AI-Enhanced Discovery Configuration
+#     discovery:
+#       semantic_tags: ["weather", "temperature", "forecast", "climate", "conditions"]
+#       keywords: ["weather", "temperature", "rain", "snow", "forecast", "climate"]
+#       categories: ["weather", "environment", "information"]
+#       ai_description: "Comprehensive weather information service with location intelligence"
+#       complexity_score: 0.3
+#       confidence_boost: 0.1
+#       
+#     # Security Sandboxing Configuration
+#     security:
+#       classification: "safe"      # safe|restricted|privileged|dangerous|blocked
+#       requires_approval: false
+#       audit_trail: true
+#       allowed_environments: ["development", "staging", "production"]
+#       risk_factors: ["external_api"]
+#       
+#     # Execution Configuration
+#     execution:
+#       timeout_seconds: 30
+#       retry_policy:
+#         max_attempts: 3
+#         backoff_strategy: "exponential"
+#         initial_delay_ms: 1000
+#       rate_limiting:
+#         max_calls_per_minute: 60
+#         burst_limit: 10
+#       caching:
+#         enabled: true
+#         ttl_seconds: 300
+#         vary_by: ["location", "units"]
+#         
+#     # Performance Monitoring
+#     monitoring:
+#       track_execution: true
+#       collect_metrics: true
+#       health_check_enabled: true
+#       sla_target_ms: 2000
+#       error_threshold: 0.05
+#       
+#     # Parameter Intelligence
+#     parameters:
+#       location:
+#         smart_defaults: true
+#         validation_rules: ["non_empty", "max_length:100"]
+#         auto_complete: true
+#         normalization: "trim_whitespace"
+#       units:
+#         smart_defaults: true
+#         user_preference_key: "weather_units"
+#         
+#     # Enterprise Integration
+#     enterprise:
+#       cost_center: "weather_services"
+#       business_impact: "low"
+#       compliance_tags: ["data_privacy", "gdpr"]
+#       
+#     # Tool Routing (same as legacy format)
 #     routing:
 #       type: "rest"
 #       url: "https://api.weather.com/v1/current"
 #       method: "GET"
 #       headers:
 #         "X-API-Key": "${WEATHER_API_KEY}"
+#         "User-Agent": "MagicTunnel/2025.06.18"
 #       query_params:
 #         q: "${location}"
-#     # Optional: hide this tool from main tool lists (for Smart Tool Discovery)
-#     # Hidden tools are still available for discovery and execution but not exposed in tools/list
+#         units: "${units}"
+#     
+#     # Visibility (supports both formats)
 #     hidden: false
-#
-#   - name: "internal_weather_cache"
-#     description: "Internal weather caching tool (hidden from main interface)"
-#     input_schema:
-#       type: "object"
-#       properties:
-#         action:
-#           type: "string"
-#           enum: ["clear", "stats"]
-#     routing:
-#       type: "subprocess"
-#       config:
-#         command: "weather-cache"
-#         args: ["{action}"]
-#     # This tool is hidden - available for Smart Tool Discovery but not in main tool list
-#     hidden: true
 #
 # Tool Visibility Management:
 # - Use the magictunnel-visibility CLI to manage tool visibility:
@@ -599,6 +719,13 @@ logging:
 #   - magictunnel-visibility show-tool get_weather     # Show specific tool
 #   - magictunnel-visibility hide-file weather.yaml --confirm  # Hide all tools in file
 #   - magictunnel-visibility show-all --confirm        # Show all tools globally
+#
+# API-to-Tool Generation (Always Enhanced Format):
+# - Generate tools from APIs using CLI generators (always produces enhanced format):
+#   - cargo run --bin graphql_generator -- --schema schema.graphql --endpoint https://api.example.com/graphql --output weather-graphql.yaml
+#   - cargo run --bin grpc_generator -- --proto weather.proto --endpoint localhost:50051 --output weather-grpc.yaml
+#   - cargo run --bin magictunnel-cli openapi --spec openapi.yaml --output weather-openapi.yaml
+#   - cargo run --bin magictunnel-cli merge --input dir1/ dir2/ --output merged.yaml
 
 # =============================================================================
 # TROUBLESHOOTING

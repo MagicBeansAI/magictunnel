@@ -140,6 +140,8 @@ impl CapabilityMerger {
         let merged_file = CapabilityFile {
             metadata: Some(metadata),
             tools: all_tools,
+            enhanced_metadata: None,
+            enhanced_tools: None,
         };
 
         // Validate the merged file

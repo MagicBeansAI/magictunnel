@@ -44,6 +44,8 @@ fn create_test_tool_definition() -> ToolDefinition {
         },
         hidden: false, // Test tools are visible by default
         enabled: true, // Test tools are enabled by default
+        prompt_refs: Vec::new(),
+        resource_refs: Vec::new(),
     }
 }
 

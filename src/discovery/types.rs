@@ -5,6 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use crate::registry::types::ToolDefinition;
+use crate::mcp::types::elicitation::ElicitationRequest;
 
 /// Request structure for smart tool discovery
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -304,6 +306,248 @@ impl Default for SmartDiscoveryMetadata {
             mapped_parameters: None,
             extraction_status: None,
             tool_candidates: None,
+        }
+    }
+}
+
+/// Enhanced tool definition with sampling and elicitation capabilities
+/// 
+/// This extends the base ToolDefinition with MCP 2025-06-18 sampling/elicitation
+/// enhancements for improved smart discovery ranking and parameter collection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnhancedToolDefinition {
+    /// Base tool definition (original from registry)
+    pub base: ToolDefinition,
+    
+    /// Enhanced description generated via sampling (if available)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sampling_enhanced_description: Option<String>,
+    
+    /// Additional metadata generated via elicitation (if available)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub elicitation_metadata: Option<ElicitationMetadata>,
+    
+    /// Source of the enhancement (base, sampling, elicitation, both)
+    pub enhancement_source: EnhancementSource,
+    
+    /// When this enhancement was created
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enhanced_at: Option<chrono::DateTime<chrono::Utc>>,
+    
+    /// Whether this tool has been approved for use (if enhancement requires approval)
+    pub approved: bool,
+    
+    /// Enhancement generation metadata
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enhancement_metadata: Option<EnhancementGenerationMetadata>,
+    
+    /// Whether this tool comes from an external/remote MCP server
+    pub is_external_mcp: bool,
+    
+    /// External MCP server source information (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_mcp_source: Option<ExternalMcpSource>,
+    
+    /// Last generation timestamp for tracking freshness
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_generated_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// Information about external MCP server source
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExternalMcpSource {
+    /// External MCP server identifier
+    pub server_id: String,
+    
+    /// External MCP server name/description
+    pub server_name: Option<String>,
+    
+    /// Whether the external MCP server supports sampling
+    pub supports_sampling: bool,
+    
+    /// Whether the external MCP server supports elicitation
+    pub supports_elicitation: bool,
+    
+    /// Last time we checked the external MCP server capabilities
+    pub last_capability_check: Option<chrono::DateTime<chrono::Utc>>,
+    
+    /// Connection type (websocket, external_mcp, etc.)
+    pub connection_type: String,
+}
+
+/// Additional metadata collected via elicitation for better tool matching
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ElicitationMetadata {
+    /// Enhanced keywords for rule-based matching
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enhanced_keywords: Option<Vec<String>>,
+    
+    /// Enhanced categories or tags
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enhanced_categories: Option<Vec<String>>,
+    
+    /// Usage patterns or common use cases
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage_patterns: Option<Vec<String>>,
+    
+    /// Parameter help text for complex parameters
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameter_help: Option<HashMap<String, String>>,
+    
+    /// Example values for parameters
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameter_examples: Option<HashMap<String, Vec<serde_json::Value>>>,
+    
+    /// Elicitation requests for missing parameter collection
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub elicitation_requests: Option<Vec<ElicitationRequest>>,
+}
+
+/// Source of tool enhancement
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum EnhancementSource {
+    /// Base tool only (no enhancement)
+    Base,
+    /// Enhanced via sampling only
+    Sampling,
+    /// Enhanced via elicitation only
+    Elicitation,
+    /// Enhanced via both sampling and elicitation
+    Both,
+    /// Enhanced manually by user
+    Manual,
+    /// Enhanced via external MCP server capabilities
+    External,
+}
+
+/// Metadata about how the enhancement was generated
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnhancementGenerationMetadata {
+    /// Model used for sampling enhancement (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sampling_model: Option<String>,
+    
+    /// Confidence score of the sampling enhancement (0.0-1.0)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sampling_confidence: Option<f64>,
+    
+    /// Template used for elicitation enhancement (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub elicitation_template: Option<String>,
+    
+    /// Whether this enhancement required human review
+    pub required_review: bool,
+    
+    /// Who approved this enhancement (if applicable)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approved_by: Option<String>,
+    
+    /// When this enhancement was approved
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approved_at: Option<chrono::DateTime<chrono::Utc>>,
+    
+    /// Generation time in milliseconds
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub generation_time_ms: Option<u64>,
+}
+
+impl EnhancedToolDefinition {
+    /// Create a new enhanced tool definition from a base tool
+    pub fn from_base(base: ToolDefinition) -> Self {
+        // Check if this tool comes from external/remote MCP
+        let is_external = Self::is_external_mcp_tool(&base);
+        let external_source = if is_external {
+            Some(Self::extract_external_mcp_source(&base))
+        } else {
+            None
+        };
+        
+        Self {
+            base,
+            sampling_enhanced_description: None,
+            elicitation_metadata: None,
+            enhancement_source: if is_external {
+                EnhancementSource::External
+            } else {
+                EnhancementSource::Base
+            },
+            enhanced_at: None,
+            approved: true, // Base tools are always approved
+            enhancement_metadata: None,
+            is_external_mcp: is_external,
+            external_mcp_source: external_source,
+            last_generated_at: None,
+        }
+    }
+    
+    /// Check if a tool comes from external/remote MCP server
+    fn is_external_mcp_tool(tool: &ToolDefinition) -> bool {
+        matches!(tool.routing.r#type.as_str(), "external_mcp" | "websocket")
+    }
+    
+    /// Extract external MCP source information from tool definition
+    fn extract_external_mcp_source(tool: &ToolDefinition) -> ExternalMcpSource {
+        let server_id = tool.routing.config
+            .get("server_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+            
+        let server_name = tool.routing.config
+            .get("server_name")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+            
+        ExternalMcpSource {
+            server_id,
+            server_name,
+            supports_sampling: false, // Will be detected by capability check
+            supports_elicitation: false, // Will be detected by capability check
+            last_capability_check: None,
+            connection_type: tool.routing.r#type.clone(),
+        }
+    }
+    
+    /// Check if this tool should skip automatic LLM enhancement generation
+    pub fn should_skip_llm_generation(&self) -> bool {
+        self.is_external_mcp
+    }
+    
+    /// Get the effective description (enhanced if available, otherwise base)
+    pub fn effective_description(&self) -> &str {
+        self.sampling_enhanced_description
+            .as_ref()
+            .unwrap_or(&self.base.description)
+    }
+    
+    /// Get enhanced keywords for rule-based matching
+    pub fn effective_keywords(&self) -> Vec<String> {
+        let mut keywords = vec![self.base.name.clone()];
+        
+        // Add keywords from enhanced metadata if available
+        if let Some(metadata) = &self.elicitation_metadata {
+            if let Some(enhanced_keywords) = &metadata.enhanced_keywords {
+                keywords.extend(enhanced_keywords.clone());
+            }
+        }
+        
+        keywords
+    }
+    
+    /// Check if this tool has any enhancements
+    pub fn is_enhanced(&self) -> bool {
+        self.enhancement_source != EnhancementSource::Base
+    }
+    
+    /// Get enhancement summary for display
+    pub fn enhancement_summary(&self) -> String {
+        match &self.enhancement_source {
+            EnhancementSource::Base => "Base tool definition".to_string(),
+            EnhancementSource::Sampling => "Enhanced with AI-generated description".to_string(),
+            EnhancementSource::Elicitation => "Enhanced with structured metadata".to_string(),
+            EnhancementSource::Both => "Enhanced with AI description and structured metadata".to_string(),
+            EnhancementSource::Manual => "Manually enhanced by user".to_string(),
+            EnhancementSource::External => "Enhanced by external MCP server".to_string(),
         }
     }
 }

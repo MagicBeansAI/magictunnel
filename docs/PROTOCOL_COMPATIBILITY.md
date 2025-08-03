@@ -1,10 +1,26 @@
 # 🌐 MCP Protocol Compatibility & Translation
 
-**How MagicTunnel bridges different MCP transport protocols seamlessly**
+**How MagicTunnel bridges different MCP transport protocols seamlessly with MCP 2025-06-18 compliance**
 
 ## Overview
 
-MagicTunnel acts as a **Universal MCP Protocol Gateway** that enables seamless communication between different MCP transport protocols. This allows you to expose services over HTTP while connecting to backend services via SSE, WebSocket, or stdio - with full protocol translation and compatibility.
+MagicTunnel acts as a **Universal MCP Protocol Gateway** that enables seamless communication between different MCP transport protocols with full MCP 2025-06-18 specification compliance. This allows you to expose services over multiple transports while maintaining backward compatibility and providing migration paths.
+
+## 🔄 MCP 2025-06-18 Dual Transport Support
+
+MagicTunnel now supports **both** transport protocols simultaneously:
+
+### **Streamable HTTP Transport** (Preferred - MCP 2025-06-18)
+- **Endpoint**: `POST /mcp/streamable`
+- **Features**: NDJSON streaming, enhanced batching, session management
+- **Headers**: `X-MCP-Transport: streamable-http`, `X-MCP-Version: 2025-06-18`
+- **Content-Type**: `application/x-ndjson` or `application/json`
+
+### **HTTP+SSE Transport** (Deprecated but Functional)
+- **Endpoint**: `GET /mcp/stream`
+- **Features**: Server-Sent Events streaming with deprecation guidance
+- **Headers**: `X-MCP-Transport: sse`, `X-MCP-Version: 2024-11-05`, `X-MCP-Deprecated: true`
+- **Migration**: Automatic upgrade recommendations via response headers
 
 ## 🎯 The Challenge
 

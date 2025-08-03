@@ -9,11 +9,12 @@ use crate::discovery::cache::{DiscoveryCache, DiscoveryCacheConfig, ToolMatchCac
 use crate::discovery::fallback::{FallbackManager, FallbackConfig, ErrorCategory, SmartDiscoveryError};
 use crate::discovery::semantic::{SemanticSearchService, SemanticSearchConfig};
 use crate::discovery::embedding_manager::{EmbeddingManager, EmbeddingManagerConfig};
+use crate::discovery::enhancement::{ToolEnhancementService, ToolEnhancementConfig};
 use crate::error::{ProxyError, Result};
 use crate::registry::service::RegistryService;
 use crate::registry::types::ToolDefinition;
 use crate::routing::Router;
-use crate::mcp::types::{ToolCall, ToolResult};
+use crate::mcp::types::ToolCall;
 use crate::metrics::tool_metrics::{ToolMetricsCollector, ToolExecutionRecord, ToolExecutionResult, DiscoveryRanking};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
@@ -102,6 +103,12 @@ pub struct SmartDiscoveryConfig {
     /// Whether to use fuzzy matching for tool names (rule-based mode only)
     pub use_fuzzy_matching: bool,
     
+    /// Enable sampling service for enhanced LLM interactions (MCP 2025-06-18)
+    pub enable_sampling: Option<bool>,
+    
+    /// Enable elicitation service for structured data collection (MCP 2025-06-18)
+    pub enable_elicitation: Option<bool>,
+    
     /// LLM mapper configuration
     pub llm_mapper: LlmMapperConfig,
     
@@ -135,6 +142,8 @@ impl Default for SmartDiscoveryConfig {
             max_high_quality_matches: 5,
             high_quality_threshold: 0.95,
             use_fuzzy_matching: true,
+            enable_sampling: Some(false), // Disabled by default, enable via config
+            enable_elicitation: Some(false), // Disabled by default, enable via config
             llm_mapper: LlmMapperConfig::default(),
             llm_tool_selection: LlmToolSelectionConfig::default(),
             cache: DiscoveryCacheConfig::default(),
@@ -174,6 +183,9 @@ pub struct SmartDiscoveryService {
     
     /// Tool metrics collector for tracking usage and performance
     tool_metrics: Option<Arc<ToolMetricsCollector>>,
+    
+    /// Tool enhancement service for sampling/elicitation pipeline
+    enhancement_service: Option<Arc<ToolEnhancementService>>,
 }
 
 impl SmartDiscoveryService {
@@ -184,26 +196,81 @@ impl SmartDiscoveryService {
     
     /// Create a new Smart Discovery Service with an optional router for tool execution
     pub async fn new_with_router(registry: Arc<RegistryService>, config: SmartDiscoveryConfig, router: Option<Arc<Router>>) -> Result<Self> {
+        Self::new_with_all_services(registry, config, router, None, None).await
+    }
+    
+    /// Create a new Smart Discovery Service with all optional services
+    pub async fn new_with_all_services(
+        registry: Arc<RegistryService>, 
+        config: SmartDiscoveryConfig, 
+        router: Option<Arc<Router>>,
+        sampling_service: Option<Arc<crate::mcp::sampling::SamplingService>>,
+        elicitation_service: Option<Arc<crate::mcp::elicitation::ElicitationService>>,
+    ) -> Result<Self> {
         let llm_mapper = LlmParameterMapper::new(config.llm_mapper.clone())?;
         let cache = DiscoveryCache::new(config.cache.clone());
         let fallback_manager = std::sync::Mutex::new(FallbackManager::new(config.fallback.clone()));
         
-        // Initialize semantic search service if enabled
-        let semantic_search = if config.semantic_search.enabled {
-            let service = SemanticSearchService::new(config.semantic_search.clone());
+        // Initialize tool enhancement service first if sampling/elicitation enabled
+        let enhancement_service = if config.enable_sampling.unwrap_or(false) || config.enable_elicitation.unwrap_or(false) {
+            info!("🚀 Initializing tool enhancement service for sampling/elicitation pipeline");
+            let enhancement_config = ToolEnhancementConfig {
+                enable_sampling_enhancement: config.enable_sampling.unwrap_or(false),
+                enable_elicitation_enhancement: config.enable_elicitation.unwrap_or(false),
+                require_approval: false, // TODO: Make configurable
+                cache_enhancements: true,
+                enhancement_timeout_seconds: 30,
+                batch_size: 10,
+                graceful_degradation: true,
+            };
+            
+            let service = ToolEnhancementService::new(
+                enhancement_config,
+                Arc::clone(&registry),
+                sampling_service,
+                elicitation_service,
+            );
             Some(Arc::new(service))
         } else {
             None
         };
         
-        // Initialize embedding manager if semantic search is enabled
+        // Initialize semantic search service with enhancement support if enabled
+        let semantic_search = if config.semantic_search.enabled {
+            let service = if let Some(ref enhancement_service) = enhancement_service {
+                info!("🌟 Creating semantic search service with sampling/elicitation enhancement support");
+                SemanticSearchService::new_with_enhancement(
+                    config.semantic_search.clone(),
+                    Arc::clone(enhancement_service),
+                )
+            } else {
+                info!("🔧 Creating semantic search service with base descriptions only");
+                SemanticSearchService::new(config.semantic_search.clone())
+            };
+            Some(Arc::new(service))
+        } else {
+            None
+        };
+        
+        // Initialize embedding manager with enhancement support if semantic search is enabled
         let embedding_manager = if let Some(ref semantic_service) = semantic_search {
             let manager_config = EmbeddingManagerConfig::default();
-            let manager = EmbeddingManager::new(
-                Arc::clone(&registry),
-                Arc::clone(semantic_service),
-                manager_config,
-            );
+            let manager = if let Some(ref enhancement_service) = enhancement_service {
+                info!("🌟 Creating embedding manager with sampling/elicitation enhancement support");
+                EmbeddingManager::new_with_enhancement(
+                    Arc::clone(&registry),
+                    Arc::clone(semantic_service),
+                    manager_config,
+                    Arc::clone(enhancement_service),
+                )
+            } else {
+                info!("🔧 Creating embedding manager with base descriptions only");
+                EmbeddingManager::new(
+                    Arc::clone(&registry),
+                    Arc::clone(semantic_service),
+                    manager_config,
+                )
+            };
             Some(Arc::new(manager))
         } else {
             None
@@ -233,6 +300,7 @@ impl SmartDiscoveryService {
             embedding_manager,
             router: Arc::new(tokio::sync::RwLock::new(router)),
             tool_metrics,
+            enhancement_service,
         })
     }
 
@@ -265,6 +333,55 @@ impl SmartDiscoveryService {
     /// Get the tool metrics collector (if enabled)
     pub fn tool_metrics(&self) -> Option<Arc<ToolMetricsCollector>> {
         self.tool_metrics.clone()
+    }
+    
+    /// Get enhanced tools for discovery (uses enhancement pipeline if available, otherwise base tools)
+    async fn get_enhanced_tools_for_discovery(&self) -> Result<Vec<(String, ToolDefinition)>> {
+        if let Some(enhancement_service) = &self.enhancement_service {
+            info!("🔄 Using enhanced tools from sampling/elicitation pipeline");
+            let enhanced_tools = enhancement_service.get_enhanced_tools().await?;
+            
+            // Count enhanced descriptions before consuming the HashMap
+            let enhanced_count = enhanced_tools.values().filter(|t| t.sampling_enhanced_description.is_some()).count();
+            
+            // Convert EnhancedToolDefinition back to (String, ToolDefinition) for compatibility
+            // Use effective_description() to get enhanced description if available
+            let tools: Vec<(String, ToolDefinition)> = enhanced_tools
+                .into_iter()
+                .map(|(name, enhanced_tool)| {
+                    let mut tool_def = enhanced_tool.base.clone();
+                    
+                    // Replace description with enhanced description if available
+                    if let Some(enhanced_desc) = &enhanced_tool.sampling_enhanced_description {
+                        tool_def.description = enhanced_desc.clone();
+                    }
+                    
+                    // TODO: Integrate elicitation metadata into tool selection somehow
+                    // For now we're focusing on the description enhancement which affects semantic search
+                    
+                    (name, tool_def)
+                })
+                .filter(|(tool_name, _)| {
+                    // Skip smart_discovery_tool itself to avoid recursion
+                    tool_name != "smart_discovery_tool" && tool_name != "smart_tool_discovery"
+                })
+                .collect();
+            
+            info!("📊 Enhanced tools prepared: {} tools with {} enhanced descriptions", 
+                  tools.len(), enhanced_count);
+            
+            Ok(tools)
+        } else {
+            debug!("🔧 Using base tools (enhancement service not available)");
+            let tools: Vec<(String, ToolDefinition)> = self.registry.get_enabled_tools()
+                .into_iter()
+                .filter(|(tool_name, _)| {
+                    // Skip smart_discovery_tool itself to avoid recursion
+                    tool_name != "smart_discovery_tool" && tool_name != "smart_tool_discovery"
+                })
+                .collect();
+            Ok(tools)
+        }
     }
 
     /// Process a smart discovery request
@@ -681,29 +798,9 @@ impl SmartDiscoveryService {
             return Ok(cached_matches);
         }
         
-        // Get all enabled tools (both visible and hidden for smart discovery)
-        // Try to get from cache first
-        let all_tools = if let Some(cached_tools) = self.cache.get_registry_tools().await {
-            debug!("Using cached registry tools");
-            // Filter out smart_tool_discovery from cached tools as well
-            cached_tools.into_iter()
-                .filter(|(tool_name, _)| {
-                    tool_name != "smart_discovery_tool" && tool_name != "smart_tool_discovery"
-                })
-                .collect()
-        } else {
-            let tools: Vec<(String, ToolDefinition)> = self.registry.get_enabled_tools()
-                .into_iter()
-                .filter(|(tool_name, _)| {
-                    // Skip smart_discovery_tool itself to avoid recursion
-                    tool_name != "smart_discovery_tool" && tool_name != "smart_tool_discovery"
-                })
-                .collect();
-            // Cache the registry tools for future use
-            self.cache.store_registry_tools(tools.clone()).await;
-            debug!("Cached registry tools for future use");
-            tools
-        };
+        // Get enhanced tools for discovery (uses sampling/elicitation pipeline if available)
+        // TODO: Add caching for enhanced tools
+        let all_tools = self.get_enhanced_tools_for_discovery().await?;
         
         debug!("Found {} discoverable tools to search", all_tools.len());
         
@@ -769,6 +866,214 @@ impl SmartDiscoveryService {
     }
 
     /// Calculate confidence score for a tool match
+    /// Calculate enhanced confidence score using elicitation metadata
+    fn calculate_enhanced_confidence_for_tool(&self, enhanced_tool: &EnhancedToolDefinition, request: &SmartDiscoveryRequest) -> f64 {
+        let mut confidence = 0.0;
+        let request_lower = request.request.to_lowercase();
+        let tool_name_lower = enhanced_tool.base.name.to_lowercase();
+        
+        // Use enhanced description if available, otherwise base description
+        let tool_desc = enhanced_tool.effective_description();
+        let tool_desc_lower = tool_desc.to_lowercase();
+        
+        let mut score_breakdown = Vec::new();
+        
+        // Exact name match gets highest confidence
+        if tool_name_lower == request_lower {
+            confidence += 0.8;
+            score_breakdown.push(format!("exact_name_match: +0.8"));
+        }
+        // Partial name match - check if any significant words from the request appear in the tool name
+        else {
+            let request_words: Vec<&str> = request_lower.split_whitespace()
+                .filter(|word| word.len() > 2) // Skip short words like "to", "a", "the"
+                .collect();
+            
+            let mut word_matches = 0;
+            let mut matched_words = Vec::new();
+            
+            for word in &request_words {
+                if tool_name_lower.contains(word) {
+                    word_matches += 1;
+                    matched_words.push(*word);
+                }
+            }
+            
+            if word_matches > 0 {
+                let word_match_score = (word_matches as f64 / request_words.len() as f64) * 0.6;
+                confidence += word_match_score;
+                score_breakdown.push(format!("name_words({}): +{:.2}", matched_words.join(","), word_match_score));
+            }
+        }
+        
+        // Enhanced keyword matching using elicitation metadata
+        if let Some(elicitation_metadata) = &enhanced_tool.elicitation_metadata {
+            if let Some(enhanced_keywords) = &elicitation_metadata.enhanced_keywords {
+                let mut keyword_score = 0.0f64;
+                let mut matched_keywords = Vec::new();
+                
+                for keyword in enhanced_keywords {
+                    let keyword_lower = keyword.to_lowercase();
+                    if request_lower.contains(&keyword_lower) {
+                        keyword_score += 0.15; // Higher weight for elicitation keywords
+                        matched_keywords.push(keyword.as_str());
+                    }
+                }
+                
+                if keyword_score > 0.0 {
+                    confidence += keyword_score.min(0.4); // Cap at 0.4
+                    score_breakdown.push(format!("elicitation_keywords({}): +{:.2}", 
+                                               matched_keywords.join(","), keyword_score.min(0.4)));
+                }
+            }
+            
+            // Enhanced categories matching
+            if let Some(enhanced_categories) = &elicitation_metadata.enhanced_categories {
+                let mut category_score = 0.0f64;
+                let mut matched_categories = Vec::new();
+                
+                for category in enhanced_categories {
+                    let category_lower = category.to_lowercase();
+                    if request_lower.contains(&category_lower) {
+                        category_score += 0.1;
+                        matched_categories.push(category.as_str());
+                    }
+                }
+                
+                if category_score > 0.0 {
+                    confidence += category_score.min(0.3); // Cap at 0.3
+                    score_breakdown.push(format!("elicitation_categories({}): +{:.2}", 
+                                               matched_categories.join(","), category_score.min(0.3)));
+                }
+            }
+            
+            // Usage patterns matching
+            if let Some(usage_patterns) = &elicitation_metadata.usage_patterns {
+                let mut pattern_score = 0.0f64;
+                let mut matched_patterns = Vec::new();
+                
+                for pattern in usage_patterns {
+                    let pattern_lower = pattern.to_lowercase();
+                    if request_lower.contains(&pattern_lower) || 
+                       self.calculate_string_similarity(&request_lower, &pattern_lower) > 0.7 {
+                        pattern_score += 0.12;
+                        matched_patterns.push(pattern.as_str());
+                    }
+                }
+                
+                if pattern_score > 0.0 {
+                    confidence += pattern_score.min(0.35); // Cap at 0.35
+                    score_breakdown.push(format!("usage_patterns({}): +{:.2}", 
+                                               matched_patterns.join(","), pattern_score.min(0.35)));
+                }
+            }
+        }
+        
+        // Description matching (using enhanced description if available)
+        let desc_similarity = self.calculate_string_similarity(&request_lower, &tool_desc_lower);
+        if desc_similarity > 0.3 {
+            let desc_score = desc_similarity * 0.4;
+            confidence += desc_score;
+            let desc_type = if enhanced_tool.sampling_enhanced_description.is_some() { 
+                "enhanced_desc" 
+            } else { 
+                "base_desc" 
+            };
+            score_breakdown.push(format!("{}({:.1}%): +{:.2}", desc_type, desc_similarity * 100.0, desc_score));
+        }
+        
+        // Standard keyword matching (fallback for tools without elicitation)
+        if enhanced_tool.elicitation_metadata.is_none() {
+            let keyword_score = self.calculate_keyword_match_score(&request.request, &enhanced_tool.base.name, &tool_desc);
+            if keyword_score > 0.0 {
+                confidence += keyword_score;
+                score_breakdown.push(format!("standard_keywords: +{:.2}", keyword_score));
+            }
+        }
+        
+        // Fuzzy matching if enabled (simplified approach)
+        if self.config.use_fuzzy_matching {
+            let fuzzy_score = self.calculate_string_similarity(&request_lower, &tool_name_lower) * 0.2;
+            if fuzzy_score > 0.0 {
+                confidence += fuzzy_score;
+                score_breakdown.push(format!("fuzzy: +{:.2}", fuzzy_score));
+            }
+        }
+        
+        // Ensure confidence is between 0 and 1
+        let final_confidence = confidence.min(1.0f64).max(0.0f64);
+        
+        // Log detailed scoring for tools with reasonable confidence
+        if final_confidence > 0.05 {
+            debug!("Enhanced confidence breakdown for '{}': {} = {:.3}", 
+                   enhanced_tool.base.name, score_breakdown.join(", "), final_confidence);
+        }
+        
+        final_confidence
+    }
+
+    /// Generate enhanced reasoning that includes elicitation metadata
+    fn generate_enhanced_reasoning(&self, enhanced_tool: &EnhancedToolDefinition, request: &SmartDiscoveryRequest, confidence: f64) -> String {
+        let mut reasons = Vec::new();
+        
+        // Base matching info
+        if enhanced_tool.base.name.to_lowercase() == request.request.to_lowercase() {
+            reasons.push("exact name match".to_string());
+        }
+        
+        // Enhanced description info
+        if enhanced_tool.sampling_enhanced_description.is_some() {
+            reasons.push("sampling-enhanced description".to_string());
+        }
+        
+        // Elicitation metadata info
+        if let Some(elicitation) = &enhanced_tool.elicitation_metadata {
+            if let Some(keywords) = &elicitation.enhanced_keywords {
+                let matched_keywords: Vec<&str> = keywords.iter()
+                    .filter(|k| request.request.to_lowercase().contains(&k.to_lowercase()))
+                    .map(|s| s.as_str())
+                    .collect();
+                if !matched_keywords.is_empty() {
+                    reasons.push(format!("elicitation keywords: {}", matched_keywords.iter().take(3).cloned().collect::<Vec<_>>().join(", ")));
+                }
+            }
+            
+            if let Some(categories) = &elicitation.enhanced_categories {
+                let matched_categories: Vec<&str> = categories.iter()
+                    .filter(|c| request.request.to_lowercase().contains(&c.to_lowercase()))
+                    .map(|s| s.as_str())
+                    .collect();
+                if !matched_categories.is_empty() {
+                    reasons.push(format!("categories: {}", matched_categories.iter().take(2).cloned().collect::<Vec<_>>().join(", ")));
+                }
+            }
+            
+            if let Some(patterns) = &elicitation.usage_patterns {
+                let matched_patterns: Vec<&str> = patterns.iter()
+                    .filter(|p| request.request.to_lowercase().contains(&p.to_lowercase()) || 
+                                self.calculate_string_similarity(&request.request.to_lowercase(), &p.to_lowercase()) > 0.7)
+                    .map(|s| s.as_str())
+                    .collect();
+                if !matched_patterns.is_empty() {
+                    reasons.push(format!("usage patterns: {}", matched_patterns.iter().take(2).cloned().collect::<Vec<_>>().join(", ")));
+                }
+            }
+        }
+        
+        // Enhancement source info
+        let source_info = match enhanced_tool.enhancement_source {
+            crate::discovery::types::EnhancementSource::Both => "sampling + elicitation",
+            crate::discovery::types::EnhancementSource::Sampling => "sampling only",
+            crate::discovery::types::EnhancementSource::Elicitation => "elicitation only", 
+            crate::discovery::types::EnhancementSource::Base => "base tool",
+            crate::discovery::types::EnhancementSource::Manual => "manual enhancement",
+            crate::discovery::types::EnhancementSource::External => "external enhancement",
+        };
+        
+        format!("Enhanced tool match ({}) with confidence {:.2}: {}", 
+                source_info, confidence, reasons.join("; "))
+    }
+
     fn calculate_confidence_for_tool(&self, tool_def: &ToolDefinition, request: &SmartDiscoveryRequest) -> f64 {
         let mut confidence = 0.0;
         let request_lower = request.request.to_lowercase();
@@ -904,7 +1209,7 @@ impl SmartDiscoveryService {
         
         let mut score = 0.0f64;
         
-        for (category, terms) in keywords {
+        for (_category, terms) in keywords {
             for term in terms {
                 if request.contains(term) {
                     if tool_name.contains(term) || tool_desc.contains(term) {
@@ -1326,8 +1631,121 @@ impl SmartDiscoveryService {
         }
     }
 
-    /// Rule-based tool matching (original algorithm)
+    /// Rule-based tool matching with elicitation enhancement
     async fn find_matching_tools_rule_based(&self, request: &SmartDiscoveryRequest, all_tools: &[(String, ToolDefinition)]) -> Result<Vec<ToolMatch>> {
+        // If enhancement service is available, use enhanced rule-based matching
+        if let Some(enhancement_service) = &self.enhancement_service {
+            debug!("🎯 Using elicitation-enhanced rule-based matching");
+            return self.find_matching_tools_rule_based_enhanced(request, enhancement_service).await;
+        }
+        
+        // Fallback to original rule-based matching
+        debug!("🔧 Using original rule-based matching (no enhancement service)");
+        self.find_matching_tools_rule_based_original(request, all_tools).await
+    }
+
+    /// Enhanced rule-based matching that leverages elicitation metadata
+    async fn find_matching_tools_rule_based_enhanced(&self, request: &SmartDiscoveryRequest, enhancement_service: &ToolEnhancementService) -> Result<Vec<ToolMatch>> {
+        let mut matches = Vec::new();
+        
+        // Get enhanced tools
+        let enhanced_tools = match enhancement_service.get_enhanced_tools().await {
+            Ok(tools) => tools,
+            Err(e) => {
+                warn!("Failed to get enhanced tools for rule-based matching: {}. Using base tools.", e);
+                let base_tools: Vec<(String, ToolDefinition)> = self.registry.get_enabled_tools().into_iter().collect();
+                return self.find_matching_tools_rule_based_original(request, &base_tools).await;
+            }
+        };
+        
+        info!("🔍 Evaluating {} enhanced tools for rule-based matching", enhanced_tools.len());
+        
+        // If preferred tools are specified, check them first
+        if let Some(preferred_tools) = &request.preferred_tools {
+            for tool_name in preferred_tools {
+                // Skip smart_tool_discovery to avoid recursion
+                if tool_name == "smart_discovery_tool" || tool_name == "smart_tool_discovery" {
+                    continue;
+                }
+                
+                if let Some(enhanced_tool) = enhanced_tools.get(tool_name) {
+                    let confidence = self.calculate_enhanced_confidence_for_tool(enhanced_tool, request);
+                    
+                    matches.push(ToolMatch {
+                        tool_name: tool_name.clone(),
+                        confidence_score: confidence,
+                        reasoning: format!("Preferred enhanced tool '{}' with confidence {:.2}", tool_name, confidence),
+                        meets_threshold: confidence >= self.get_confidence_threshold(request),
+                    });
+                }
+            }
+        }
+        
+        // Check if we already have enough high-quality matches from preferred tools
+        let high_quality_threshold = self.config.high_quality_threshold;
+        let high_quality_matches = matches.iter()
+            .filter(|m| m.confidence_score >= high_quality_threshold)
+            .count();
+        
+        if high_quality_matches >= self.config.max_high_quality_matches {
+            info!("Already found {} high-quality matches from preferred enhanced tools, skipping full evaluation", 
+                 high_quality_matches);
+        } else {
+            // Search through all enhanced tools for matches
+            for (tool_name, enhanced_tool) in enhanced_tools.iter() {
+                // Skip smart_tool_discovery to avoid recursion
+                if tool_name == "smart_discovery_tool" || tool_name == "smart_tool_discovery" {
+                    continue;
+                }
+                
+                // Skip if already added as preferred tool
+                if let Some(preferred) = &request.preferred_tools {
+                    if preferred.contains(tool_name) {
+                        continue;
+                    }
+                }
+                
+                let confidence = self.calculate_enhanced_confidence_for_tool(enhanced_tool, request);
+                debug!("Enhanced Tool Evaluation: {} -> confidence: {:.3} (base: \"{}\", sampling: {:?})", 
+                       tool_name, confidence, enhanced_tool.base.description, 
+                       enhanced_tool.sampling_enhanced_description.as_ref().map(|s| &s[..50.min(s.len())]));
+                
+                // Only include if confidence is reasonable
+                if confidence > 0.1 {
+                    info!("Including enhanced tool: {} (confidence: {:.3})", tool_name, confidence);
+                    matches.push(ToolMatch {
+                        tool_name: tool_name.clone(),
+                        confidence_score: confidence,
+                        reasoning: self.generate_enhanced_reasoning(enhanced_tool, request, confidence),
+                        meets_threshold: confidence >= self.get_confidence_threshold(request),
+                    });
+                    
+                    // Check if we have enough high-quality matches to stop early
+                    let current_high_quality = matches.iter()
+                        .filter(|m| m.confidence_score >= high_quality_threshold)
+                        .count();
+                    
+                    if current_high_quality >= self.config.max_high_quality_matches {
+                        info!("Found {} high-quality enhanced matches (>= {:.1}), stopping early processing", 
+                             current_high_quality, high_quality_threshold);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Sort by confidence score
+        matches.sort_by(|a, b| b.confidence_score.partial_cmp(&a.confidence_score).unwrap_or(std::cmp::Ordering::Equal));
+        
+        // Limit number of matches
+        matches.truncate(self.config.max_tools_to_consider);
+        
+        info!("Enhanced rule-based matching completed: {} matches found", matches.len());
+        Ok(matches)
+    }
+
+    /// Original rule-based tool matching (fallback)
+    async fn find_matching_tools_rule_based_original(&self, request: &SmartDiscoveryRequest, all_tools: &[(String, ToolDefinition)]) -> Result<Vec<ToolMatch>> {
         let mut matches = Vec::new();
         
         // If preferred tools are specified, check them first
@@ -1439,7 +1857,7 @@ impl SmartDiscoveryService {
         
         // Process tools in batches to manage context limits
         let batch_size = self.config.llm_tool_selection.batch_size;
-        let mut remaining_tools: Vec<_> = all_tools.iter()
+        let remaining_tools: Vec<_> = all_tools.iter()
             .filter(|(tool_name, _)| {
                 // Skip smart_tool_discovery to avoid recursion
                 if tool_name == "smart_discovery_tool" || tool_name == "smart_tool_discovery" {
@@ -2112,7 +2530,7 @@ impl SmartDiscoveryService {
                 continue;
             }
             
-            if let Some((_, tool_def)) = all_tools.iter().find(|(name, _)| name == &semantic_match.tool_name) {
+            if let Some((_, _tool_def)) = all_tools.iter().find(|(name, _)| name == &semantic_match.tool_name) {
                 let reasoning = format!("Semantic similarity: {:.3}", semantic_match.similarity_score);
                 
                 matches.push(ToolMatch {
@@ -2943,6 +3361,8 @@ Respond in JSON format:
             max_high_quality_matches: 5,
             high_quality_threshold: 0.95,
             use_fuzzy_matching: true,
+            enable_sampling: Some(false),
+            enable_elicitation: Some(false),
             llm_mapper: LlmMapperConfig {
                 provider: "mock".to_string(),
                 model: "test-model".to_string(),

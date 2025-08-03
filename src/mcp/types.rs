@@ -6,6 +6,18 @@ use jsonschema::{JSONSchema, ValidationError};
 use crate::error::Result;
 use crate::mcp::errors::McpError;
 
+// Re-export sampling types
+pub mod sampling;
+pub use sampling::*;
+
+// Re-export elicitation types
+pub mod elicitation;
+pub use elicitation::*;
+
+// Re-export roots types
+pub mod roots;
+pub use roots::*;
+
 /// MCP Tool definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tool {
@@ -144,6 +156,12 @@ pub struct ToolAnnotations {
     /// Indicates if tool has open-world semantics
     #[serde(rename = "openWorldHint")]
     pub open_world_hint: Option<bool>,
+    /// Enhanced sampling metadata (MCP 2025-06-18)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sampling: Option<SamplingCapability>,
+    /// Enhanced elicitation metadata (MCP 2025-06-18)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub elicitation: Option<ElicitationCapability>,
 }
 
 impl ToolAnnotations {
@@ -155,6 +173,8 @@ impl ToolAnnotations {
             destructive_hint: None,
             idempotent_hint: None,
             open_world_hint: None,
+            sampling: None,
+            elicitation: None,
         }
     }
 
@@ -166,6 +186,8 @@ impl ToolAnnotations {
             destructive_hint: None,
             idempotent_hint: None,
             open_world_hint: None,
+            sampling: None,
+            elicitation: None,
         }
     }
 
@@ -221,6 +243,44 @@ impl Default for ToolAnnotations {
 
 /// Type alias for MCP compliance - same as ToolAnnotations
 pub type MCPAnnotations = ToolAnnotations;
+
+/// MCP 2025-06-18: Sampling capability metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SamplingCapability {
+    /// Whether the tool supports enhanced description sampling
+    pub supports_description_enhancement: bool,
+    /// Pre-generated enhanced description from external MCP server
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enhanced_description: Option<String>,
+    /// Model used for generating the enhanced description
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_used: Option<String>,
+    /// Confidence score for the enhancement (0.0 to 1.0)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confidence_score: Option<f64>,
+    /// When the enhancement was generated
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub generated_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// MCP 2025-06-18: Elicitation capability metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ElicitationCapability {
+    /// Whether the tool supports parameter elicitation
+    pub supports_parameter_elicitation: bool,
+    /// Pre-generated enhanced keywords from external MCP server
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enhanced_keywords: Option<Vec<String>>,
+    /// Pre-generated usage patterns from external MCP server
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage_patterns: Option<Vec<String>>,
+    /// Pre-generated parameter examples from external MCP server
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameter_examples: Option<std::collections::HashMap<String, serde_json::Value>>,
+    /// When the elicitation metadata was generated
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub generated_at: Option<chrono::DateTime<chrono::Utc>>,
+}
 
 /// MCP Resource definition
 #[derive(Debug, Clone, Serialize, Deserialize)]

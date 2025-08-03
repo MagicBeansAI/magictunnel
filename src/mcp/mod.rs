@@ -23,6 +23,18 @@ pub mod session;
 pub mod validation;
 pub mod metrics;
 pub mod health_checker;
+pub mod sampling;
+pub mod elicitation;
+pub mod roots;
+pub mod request_generator;
+pub mod prompt_generator;
+pub mod resource_generator;
+pub mod content_storage;
+pub mod external_content_manager;
+pub mod streamable_http;
+pub mod cancellation;
+pub mod progress;
+pub mod tool_validation;
 
 // Test modules
 
@@ -45,3 +57,15 @@ pub use session::{McpSessionManager, McpSession, SessionConfig, ClientInfo, Sess
 pub use validation::{McpMessageValidator, ValidationConfig};
 pub use metrics::{McpMetricsCollector, McpServiceMetrics, HealthStatus, HealthCheckResult, McpMetricsSummary};
 pub use health_checker::{McpHealthChecker, HealthCheckConfig};
+pub use sampling::{SamplingService, SamplingConfig};
+pub use elicitation::{ElicitationService, ElicitationConfig};
+pub use roots::{RootsService};
+pub use request_generator::{RequestGeneratorService, RequestGeneratorConfig};
+pub use prompt_generator::{PromptGeneratorService, PromptGenerationConfig, PromptGenerationRequest, PromptGenerationResponse, GeneratedPrompt, PromptType, is_external_mcp_tool, get_external_mcp_server_for_tool};
+pub use resource_generator::{ResourceGeneratorService, ResourceGenerationConfig, ResourceGenerationRequest, ResourceGenerationResponse, GeneratedResource, ResourceType};
+pub use content_storage::{ContentStorageService, ContentStorageConfig, StoredPrompt, StoredResource, StorageMetadata};
+pub use external_content_manager::{ExternalContentManager, ExternalContentConfig};
+pub use streamable_http::{StreamableHttpTransport, StreamableHttpConfig, StreamableHttpStats};
+pub use cancellation::{CancellationManager, CancellationConfig, CancellationToken, CancellationReason, CancellationEvent, CancellationStats};
+pub use progress::{ProgressTracker, ProgressConfig, ProgressSession, ProgressState, ProgressEvent, ProgressEventType, ProgressUpdate, SubOperation, SubOperationState, ProgressStats, ProgressGranularity};
+pub use tool_validation::{RuntimeToolValidator, ValidationConfig as ToolValidationConfig, ValidationResult, SecurityClassification, SandboxPolicy, ValidationStats};

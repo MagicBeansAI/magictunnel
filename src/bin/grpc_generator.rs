@@ -162,6 +162,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         bidirectional_streaming_strategy: bidirectional_streaming,
         include_method_options: matches.get_flag("include-method-options"),
         separate_streaming_tools: matches.get_flag("separate-streaming-tools"),
+        use_enhanced_format: true, // Always use enhanced format
     };
 
     // Set tool prefix if provided
@@ -241,6 +242,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.auth_config = Some(auth);
     }
 
+    // Always using enhanced format
+    println!("Using enhanced MCP 2025-06-18 format");
+
     // Create generator
     let generator = GrpcCapabilityGenerator::new(config);
 
@@ -249,7 +253,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let capability_file = generator.generate_from_proto_content(&proto_content)
         .map_err(|e| format!("Failed to generate capability file from protobuf: {:?}", e))?;
 
-    println!("Generated {} tools from protobuf service definitions", capability_file.tools.len());
+    let tools_count = capability_file.enhanced_tools.as_ref().map(|t| t.len()).unwrap_or(0);
+    
+    println!("Generated {} enhanced tools from protobuf service definitions", tools_count);
 
     // Convert to YAML
     let yaml_content = serde_yaml::to_string(&capability_file)
@@ -263,8 +269,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Print summary
     println!("\nGenerated tools:");
-    for tool in &capability_file.tools {
-        println!("  - {}: {}", tool.name, tool.description);
+    if let Some(enhanced_tools) = &capability_file.enhanced_tools {
+        for tool in enhanced_tools {
+            println!("  - {}: {}", tool.name, tool.core.description);
+        }
     }
 
     Ok(())

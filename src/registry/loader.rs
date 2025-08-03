@@ -73,9 +73,13 @@ impl RegistryLoader {
             ProxyError::registry(format!("Failed to parse YAML file {}: {}", path.display(), e))
         })?;
 
+        // Log format detection (enhanced format detection temporarily disabled)
+        debug!("Loaded capability file: {} (tools: {})", 
+               path.display(), capability_file.tool_count());
+
         // Validate if strict mode is enabled
         if self.config.validation.strict {
-            self.validate_capability_file(&capability_file)?;
+            self.validate_capability_file_enhanced(&capability_file)?;
         }
 
         Ok(capability_file)
@@ -175,6 +179,14 @@ impl RegistryLoader {
             // TODO: Add JSON Schema validation for input_schema
         }
 
+        Ok(())
+    }
+
+    /// Validate a capability file (enhanced validation temporarily disabled)
+    fn validate_capability_file_enhanced(&self, file: &CapabilityFile) -> Result<()> {
+        debug!("Validating capability file with legacy validation");
+        // Use legacy validation for now
+        self.validate_capability_file(file)?;
         Ok(())
     }
 }

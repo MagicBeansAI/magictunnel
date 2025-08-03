@@ -874,11 +874,11 @@
   },
   "read_file": {
     "name": "read_file",
-    "description": "Read the contents of a file",
+    "description": "Read contents of a file",
     "enabled": true,
     "hidden": true,
-    "content_hash": "c3bab53c6077ed0a",
-    "last_updated": 1753895947,
+    "content_hash": "53f86f30f726f517",
+    "last_updated": 1754025847,
     "embedding_dims": 768
   },
   "openai_code_assistant": {
@@ -897,6 +897,15 @@
     "hidden": true,
     "content_hash": "fd6d0e59ee36d445",
     "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "process_large_dataset": {
+    "name": "process_large_dataset",
+    "description": "Process large datasets with progress tracking and cancellation",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "fee4e109b7b62af0",
+    "last_updated": 1754025847,
     "embedding_dims": 768
   },
   "aws_s3_operations": {

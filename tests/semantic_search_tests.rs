@@ -50,6 +50,8 @@ fn create_test_tools() -> Vec<ToolDefinition> {
             annotations: None,
             enabled: true,
             hidden: false,
+            prompt_refs: Vec::new(),
+            resource_refs: Vec::new(),
         },
         ToolDefinition {
             name: "search_files".to_string(),
@@ -69,6 +71,8 @@ fn create_test_tools() -> Vec<ToolDefinition> {
             annotations: None,
             enabled: true,
             hidden: false,
+            prompt_refs: Vec::new(),
+            resource_refs: Vec::new(),
         },
         ToolDefinition {
             name: "database_query".to_string(),
@@ -87,6 +91,8 @@ fn create_test_tools() -> Vec<ToolDefinition> {
             annotations: None,
             enabled: false, // Disabled tool
             hidden: false,
+            prompt_refs: Vec::new(),
+            resource_refs: Vec::new(),
         },
         ToolDefinition {
             name: "api_request".to_string(),
@@ -106,6 +112,8 @@ fn create_test_tools() -> Vec<ToolDefinition> {
             annotations: None,
             enabled: true,
             hidden: true, // Hidden tool
+            prompt_refs: Vec::new(),
+            resource_refs: Vec::new(),
         },
     ]
 }

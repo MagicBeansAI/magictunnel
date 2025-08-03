@@ -23,6 +23,8 @@ fn create_test_capability(name: &str, tools: Vec<ToolDefinition>) -> CapabilityF
             tags: Some(vec!["test".to_string()]),
         }),
         tools,
+        enhanced_metadata: None,
+        enhanced_tools: None,
     }
 }
 
@@ -49,6 +51,8 @@ fn create_test_tool(name: &str, description: &str) -> ToolDefinition {
         annotations: None,
         hidden: false, // Test tools are visible by default
         enabled: true, // Test tools are enabled by default
+        prompt_refs: Vec::new(),
+        resource_refs: Vec::new(),
     }
 }
 

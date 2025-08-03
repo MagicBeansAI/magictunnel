@@ -5,12 +5,14 @@
 
 use crate::error::{ProxyError, Result};
 use crate::registry::types::ToolDefinition;
+use crate::discovery::types::EnhancedToolDefinition;
+use crate::discovery::enhancement::ToolEnhancementService;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// Configuration for semantic search
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -278,6 +280,9 @@ pub struct SemanticSearchService {
     
     /// Whether the model is loaded
     model_loaded: Arc<RwLock<bool>>,
+    
+    /// Optional tool enhancement service for using enhanced descriptions
+    enhancement_service: Option<Arc<ToolEnhancementService>>,
 }
 
 impl SemanticSearchService {
@@ -287,6 +292,21 @@ impl SemanticSearchService {
             config,
             storage: Arc::new(RwLock::new(EmbeddingStorage::new())),
             model_loaded: Arc::new(RwLock::new(false)),
+            enhancement_service: None,
+        }
+    }
+    
+    /// Create a new semantic search service with enhancement support
+    pub fn new_with_enhancement(
+        config: SemanticSearchConfig,
+        enhancement_service: Arc<ToolEnhancementService>,
+    ) -> Self {
+        info!("🌟 Creating semantic search service with sampling/elicitation enhancement support");
+        Self {
+            config,
+            storage: Arc::new(RwLock::new(EmbeddingStorage::new())),
+            model_loaded: Arc::new(RwLock::new(false)),
+            enhancement_service: Some(enhancement_service),
         }
     }
     
@@ -768,14 +788,14 @@ impl SemanticSearchService {
         embedding
     }
     
-    /// Search for similar tools using semantic similarity
+    /// Search for similar tools using semantic similarity (enhanced descriptions when available)
     pub async fn search_similar_tools(&self, query: &str) -> Result<Vec<SemanticMatch>> {
         if !self.config.enabled {
             return Ok(Vec::new());
         }
         
-        // Generate embedding for the query
-        let query_embedding = self.generate_embedding(query).await?;
+        // Generate embedding for the query (using enhanced query processing if available)
+        let query_embedding = self.generate_enhanced_query_embedding(query).await?;
         
         let storage = self.storage.read().await;
         let mut matches = Vec::new();
@@ -802,8 +822,19 @@ impl SemanticSearchService {
         // Limit results
         matches.truncate(self.config.max_results);
         
-        debug!("Found {} semantic matches for query: '{}'", matches.len(), query);
+        debug!("🔍 Found {} semantic matches for query: '{}' (using {})", 
+               matches.len(), 
+               query,
+               if self.enhancement_service.is_some() { "enhanced embeddings" } else { "base embeddings" });
         Ok(matches)
+    }
+    
+    /// Generate enhanced query embedding (uses sampling for query enhancement if available)
+    async fn generate_enhanced_query_embedding(&self, query: &str) -> Result<Vec<f32>> {
+        // If enhancement service is available, we could potentially enhance the query too
+        // For now, just use standard embedding generation
+        // TODO: Consider query enhancement via sampling service
+        self.generate_embedding(query).await
     }
     
     /// Calculate cosine similarity between two embeddings
@@ -824,7 +855,7 @@ impl SemanticSearchService {
         (dot_product / (norm_a * norm_b)) as f64
     }
     
-    /// Generate content hash for a tool
+    /// Generate content hash for a tool (supports both base and enhanced tools)
     pub fn generate_content_hash(&self, tool_def: &ToolDefinition) -> String {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
@@ -834,6 +865,35 @@ impl SemanticSearchService {
         tool_def.description.hash(&mut hasher);
         tool_def.enabled.hash(&mut hasher);
         tool_def.hidden.hash(&mut hasher);
+        
+        format!("{:x}", hasher.finish())
+    }
+    
+    /// Generate content hash for an enhanced tool (includes sampling-enhanced description)
+    pub fn generate_enhanced_content_hash(&self, enhanced_tool: &EnhancedToolDefinition) -> String {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let mut hasher = DefaultHasher::new();
+        enhanced_tool.base.name.hash(&mut hasher);
+        
+        // Use enhanced description if available, otherwise use base description
+        let description = enhanced_tool.effective_description();
+        description.hash(&mut hasher);
+        
+        enhanced_tool.base.enabled.hash(&mut hasher);
+        enhanced_tool.base.hidden.hash(&mut hasher);
+        
+        // Include enhancement metadata in hash
+        if let Some(enhanced_desc) = &enhanced_tool.sampling_enhanced_description {
+            enhanced_desc.hash(&mut hasher);
+        }
+        
+        if let Some(elicitation_meta) = &enhanced_tool.elicitation_metadata {
+            if let Some(keywords) = &elicitation_meta.enhanced_keywords {
+                keywords.hash(&mut hasher);
+            }
+        }
         
         format!("{:x}", hasher.finish())
     }
@@ -856,6 +916,15 @@ impl SemanticSearchService {
         stats.insert("hidden_tools".to_string(), serde_json::Value::Number(hidden.into()));
         stats.insert("similarity_threshold".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(self.config.similarity_threshold).unwrap()));
         stats.insert("storage_dirty".to_string(), serde_json::Value::Bool(storage.is_dirty()));
+        stats.insert("enhancement_enabled".to_string(), serde_json::Value::Bool(self.enhancement_service.is_some()));
+        
+        // Add enhancement service stats if available
+        if let Some(enhancement_service) = &self.enhancement_service {
+            let enhancement_stats = enhancement_service.get_cache_stats().await;
+            for (key, value) in enhancement_stats.as_object().unwrap_or(&serde_json::Map::new()) {
+                stats.insert(format!("enhancement_{}", key), value.clone());
+            }
+        }
         
         stats
     }

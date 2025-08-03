@@ -4,7 +4,16 @@
 //! It supports parsing .proto files and converting gRPC service methods into MCP tools.
 
 use crate::error::{ProxyError, Result};
-use crate::registry::types::{CapabilityFile, FileMetadata, ToolDefinition, RoutingConfig};
+use crate::registry::types::{
+    CapabilityFile, FileMetadata, ToolDefinition, RoutingConfig,
+    // MCP 2025-06-18 Enhanced Types
+    EnhancedFileMetadata, EnhancedToolDefinition, CoreDefinition, ExecutionConfig,
+    DiscoveryEnhancement, MonitoringConfig, AccessConfig, ClassificationMetadata,
+    DiscoveryMetadata, McpCapabilities, SandboxConfig, PerformanceConfig,
+    AiEnhancedDiscovery, ProgressTrackingConfig, CancellationConfig,
+    MetricsConfig, EnhancedRoutingConfig, SemanticContext, WorkflowIntegration
+};
+use crate::mcp::tool_validation::SecurityClassification;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -45,6 +54,8 @@ pub struct GrpcGeneratorConfig {
     pub include_method_options: bool,
     /// Whether to generate separate tools for streaming methods
     pub separate_streaming_tools: bool,
+    /// Whether to generate enhanced MCP 2025-06-18 format
+    pub use_enhanced_format: bool,
 }
 
 /// Authentication configuration for gRPC endpoints
@@ -264,18 +275,325 @@ impl GrpcCapabilityGenerator {
             return Err(ProxyError::config("No tools generated from protobuf content"));
         }
         
-        // Create metadata for the capability file
+        // Generate capability file based on format selection
+        if self.config.use_enhanced_format {
+            self.generate_enhanced_capability_file(all_tools)
+        } else {
+            self.generate_legacy_capability_file(all_tools)
+        }
+    }
+
+    /// Generate enhanced MCP 2025-06-18 format capability file
+    fn generate_enhanced_capability_file(&self, tools: Vec<ToolDefinition>) -> Result<CapabilityFile> {
+        let mut enhanced_tools = Vec::new();
+
+        for tool in tools {
+            match self.tool_to_enhanced_definition(tool) {
+                Ok(enhanced_tool) => enhanced_tools.push(enhanced_tool),
+                Err(e) => {
+                    // Log warning but continue processing other tools
+                    tracing::warn!("Failed to convert tool to enhanced definition: {}", e);
+                }
+            }
+        }
+
+        let enhanced_metadata = EnhancedFileMetadata {
+            name: "Enhanced gRPC Service Capabilities".to_string(),
+            description: format!("Auto-generated gRPC service tools for {} - MCP 2025-06-18 compliant with AI enhancement", self.config.endpoint),
+            version: "3.0.0".to_string(),
+            author: "gRPC Capability Generator".to_string(),
+            classification: Some(ClassificationMetadata {
+                security_level: "safe".to_string(),
+                complexity_level: "moderate".to_string(),
+                domain: "rpc".to_string(),
+                use_cases: vec!["rpc_integration".to_string(), "grpc_client".to_string()],
+            }),
+            discovery_metadata: Some(DiscoveryMetadata {
+                primary_keywords: vec!["grpc".to_string(), "rpc".to_string(), "protobuf".to_string(), "auto-generated".to_string()],
+                semantic_embeddings: true,
+                llm_enhanced: true,
+                workflow_enabled: true,
+            }),
+            mcp_capabilities: Some(McpCapabilities {
+                version: "2025-06-18".to_string(),
+                supports_cancellation: true,
+                supports_progress: true,
+                supports_sampling: false,
+                supports_validation: true,
+                supports_elicitation: false,
+            }),
+        };
+
+        CapabilityFile::new_enhanced(enhanced_metadata, enhanced_tools)
+    }
+
+    /// Generate legacy format capability file
+    fn generate_legacy_capability_file(&self, tools: Vec<ToolDefinition>) -> Result<CapabilityFile> {
         let metadata = FileMetadata::with_name("grpc-capabilities".to_string())
             .description("gRPC service capabilities".to_string())
             .version("1.0.0".to_string())
             .author("gRPC Capability Generator".to_string())
             .tags(vec!["grpc".to_string()]);
         
-        // Create and return the capability file
         Ok(CapabilityFile {
             metadata: Some(metadata),
-            tools: all_tools,
+            tools,
+            enhanced_metadata: None,
+            enhanced_tools: None,
         })
+    }
+
+    /// Convert legacy tool definition to enhanced MCP 2025-06-18 format
+    fn tool_to_enhanced_definition(&self, tool: ToolDefinition) -> Result<EnhancedToolDefinition> {
+        let enhanced_name = format!("enhanced_{}", tool.name);
+        let enhanced_description = format!("AI-enhanced {} with MCP 2025-06-18 compliance", tool.description);
+
+        let input_schema = tool.input_schema.clone();
+        let core = CoreDefinition {
+            description: enhanced_description.clone(),
+            input_schema,
+        };
+
+        let execution = ExecutionConfig {
+            routing: EnhancedRoutingConfig {
+                r#type: "enhanced_grpc".to_string(),
+                primary: Some(self.create_enhanced_routing_config(&tool)?),
+                fallback: None,
+                config: Some(serde_json::json!({
+                    "enhanced": true,
+                    "grpc_endpoint": self.config.endpoint
+                })),
+            },
+            security: crate::registry::types::SecurityConfig {
+                classification: "safe".to_string(),
+                sandbox: Some(crate::registry::types::SandboxConfig {
+                    resources: Some(crate::registry::types::ResourceLimits {
+                        max_memory_mb: Some(512),
+                        max_cpu_percent: Some(40),
+                        max_execution_seconds: Some(120),
+                        max_file_descriptors: Some(200),
+                    }),
+                    filesystem: None,
+                    network: Some(crate::registry::types::NetworkRestrictions {
+                        allowed: true,
+                        allowed_domains: Some(vec![self.config.endpoint.clone()]),
+                        denied_domains: None,
+                    }),
+                    environment: Some(crate::registry::types::EnvironmentRestrictions {
+                        readonly_system: Some(true),
+                        env_vars: None,
+                    }),
+                }),
+                requires_approval: Some(false),
+                approval_workflow: None,
+            },
+            performance: PerformanceConfig {
+                estimated_duration: Some(serde_json::json!({
+                    "simple_operation": 10,
+                    "complex_operation": 60
+                })),
+                complexity: Some("moderate".to_string()),
+                supports_cancellation: Some(true),
+                supports_progress: Some(false),
+                cache_results: Some(false),
+                cache_ttl_seconds: Some(0),
+                adaptive_optimization: Some(true),
+            },
+        };
+
+        let discovery = DiscoveryEnhancement {
+            ai_enhanced: Some(AiEnhancedDiscovery {
+                description: Some(format!("AI-enhanced {} with intelligent processing and security validation", tool.description)),
+                usage_patterns: Some(vec![
+                    format!("use {} to {{action}}", enhanced_name),
+                    format!("help me {{accomplish_task}} with {}", enhanced_name),
+                    format!("{} for {{specific_purpose}}", enhanced_name),
+                ]),
+                semantic_context: Some(SemanticContext {
+                    primary_intent: Some("rpc_operation".to_string()),
+                    data_types: Some(vec!["structured".to_string(), "protobuf".to_string()]),
+                    operations: Some(vec!["grpc_call".to_string()]),
+                    security_features: Some(vec!["authenticated_access".to_string()]),
+                }),
+                ai_capabilities: None,
+                workflow_integration: Some(WorkflowIntegration {
+                    typically_follows: None,
+                    typically_precedes: None,
+                    chain_compatibility: Some(vec!["rpc_workflow".to_string()]),
+                }),
+            }),
+            parameter_intelligence: Some(self.generate_parameter_intelligence(&tool)?),
+        };
+
+        let monitoring = MonitoringConfig {
+            progress_tracking: Some(ProgressTrackingConfig {
+                enabled: false,
+                granularity: Some("basic".to_string()),
+                sub_operations: None,
+            }),
+            cancellation: Some(CancellationConfig {
+                enabled: true,
+                graceful_timeout_seconds: Some(30),
+                cleanup_required: Some(false),
+                cleanup_operations: None,
+            }),
+            metrics: Some(MetricsConfig {
+                track_execution_time: Some(true),
+                track_success_rate: Some(true),
+                custom_metrics: Some(vec![format!("{}_operations_completed", enhanced_name)]),
+            }),
+        };
+
+        let access = AccessConfig {
+            hidden: true, // gRPC tools are hidden by default
+            enabled: true, // gRPC tools are enabled by default
+            requires_permissions: Some(vec!["tool:execute".to_string(), "security:validated".to_string()]),
+            user_groups: Some(vec!["administrators".to_string()]),
+            approval_required: Some(false),
+            usage_analytics: Some(true),
+        };
+
+        EnhancedToolDefinition::new(enhanced_name, core, execution, discovery, monitoring, access)
+    }
+
+    /// Create enhanced routing configuration for gRPC tool
+    fn create_enhanced_routing_config(&self, tool: &ToolDefinition) -> Result<Value> {
+        let mut config = serde_json::Map::new();
+
+        // Basic gRPC configuration
+        config.insert("endpoint".to_string(), json!(self.config.endpoint));
+        config.insert("timeout_seconds".to_string(), json!(30));
+
+        // Enhanced features
+        config.insert("retry_count".to_string(), json!(3));
+        config.insert("retry_backoff_ms".to_string(), json!(1000));
+
+        // Copy existing routing config
+        if let serde_json::Value::Object(existing_config) = &tool.routing.config {
+            for (key, value) in existing_config {
+                config.insert(key.clone(), value.clone());
+            }
+        }
+
+        // Authentication
+        if let Some(ref auth) = self.config.auth_config {
+            match &auth.auth_type {
+                AuthType::Bearer { token } => {
+                    config.insert("headers".to_string(), json!({
+                        "Authorization": format!("Bearer {}", token)
+                    }));
+                }
+                AuthType::ApiKey { key, header } => {
+                    config.insert("headers".to_string(), json!({
+                        header: key
+                    }));
+                }
+                AuthType::Basic { username, password } => {
+                    let credentials = base64::engine::general_purpose::STANDARD.encode(format!("{}:{}", username, password));
+                    config.insert("headers".to_string(), json!({
+                        "Authorization": format!("Basic {}", credentials)
+                    }));
+                }
+                _ => {}
+            }
+        }
+
+        Ok(json!(config))
+    }
+
+    /// Generate parameter intelligence for gRPC tool
+    fn generate_parameter_intelligence(&self, tool: &ToolDefinition) -> Result<Value> {
+        let mut param_map = HashMap::new();
+
+        // Extract parameters from the input schema
+        if let Some(properties) = tool.input_schema.get("properties").and_then(|p| p.as_object()) {
+            for (param_name, param_schema) in properties {
+                let mut param_config = HashMap::new();
+
+                // Set smart default from schema
+                if let Some(default_value) = param_schema.get("default") {
+                    param_config.insert("smart_default".to_string(), default_value.clone());
+                } else {
+                    param_config.insert("smart_default".to_string(), Value::Null);
+                }
+
+                // Add validation rules
+                let mut validations = Vec::new();
+                if let Some(required_params) = tool.input_schema.get("required").and_then(|r| r.as_array()) {
+                    if required_params.iter().any(|r| r.as_str() == Some(param_name)) {
+                        validations.push(json!({
+                            "rule": "required_validation",
+                            "message": format!("{} must be provided and valid", param_name)
+                        }));
+                    }
+                }
+                param_config.insert("validation".to_string(), json!(validations));
+
+                // Add smart suggestions based on parameter type
+                let suggestions = vec![json!({
+                    "pattern": "*",
+                    "description": format!("{} parameter values", param_name),
+                    "examples": self.generate_param_examples(param_schema)
+                })];
+                param_config.insert("smart_suggestions".to_string(), json!(suggestions));
+
+                param_map.insert(param_name.clone(), Value::Object(
+                    param_config.into_iter().collect()
+                ));
+            }
+        }
+
+        Ok(json!(param_map))
+    }
+
+    /// Generate example values for parameter schema
+    fn generate_param_examples(&self, schema: &Value) -> Vec<String> {
+        let mut examples = Vec::new();
+
+        if let Some(schema_obj) = schema.as_object() {
+            if let Some(param_type) = schema_obj.get("type").and_then(|t| t.as_str()) {
+                match param_type {
+                    "string" => {
+                        examples.push("example_string".to_string());
+                        examples.push("test_value".to_string());
+                    }
+                    "integer" | "number" => {
+                        examples.push("123".to_string());
+                        examples.push("456".to_string());
+                    }
+                    "boolean" => {
+                        examples.push("true".to_string());
+                        examples.push("false".to_string());
+                    }
+                    "array" => {
+                        examples.push("[]".to_string());
+                        examples.push("[\"item1\", \"item2\"]".to_string());
+                    }
+                    "object" => {
+                        examples.push("{}".to_string());
+                        examples.push("{\"key\": \"value\"}".to_string());
+                    }
+                    _ => {
+                        examples.push("example_value".to_string());
+                    }
+                }
+            }
+
+            // Add enum values if available
+            if let Some(enum_values) = schema_obj.get("enum").and_then(|e| e.as_array()) {
+                for enum_val in enum_values {
+                    if let Some(val_str) = enum_val.as_str() {
+                        examples.push(val_str.to_string());
+                    }
+                }
+            }
+        }
+
+        if examples.is_empty() {
+            examples.push("example_value".to_string());
+        }
+
+        examples
     }
 
     /// Parse protobuf content into gRPC service definitions - actual implementation
@@ -465,6 +783,8 @@ impl GrpcCapabilityGenerator {
         Ok(CapabilityFile {
             metadata: Some(file_metadata),
             tools,
+            enhanced_metadata: None,
+            enhanced_tools: None,
         })
     }
 
@@ -744,6 +1064,7 @@ mod tests {
             bidirectional_streaming_strategy: StreamingStrategy::Polling,
             include_method_options: false,
             separate_streaming_tools: false,
+            use_enhanced_format: true,
         };
         
         let generator = GrpcCapabilityGenerator::new(config);

@@ -250,6 +250,8 @@ impl ToolAggregationService {
             annotations: None,
             hidden: false, // Aggregated tools are visible by default
             enabled: true, // Aggregated tools are enabled by default
+            prompt_refs: Vec::new(),
+            resource_refs: Vec::new(),
         })
     }
 }

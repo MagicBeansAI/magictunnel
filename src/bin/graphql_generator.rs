@@ -84,7 +84,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Get endpoint URL
     let endpoint = matches.get_one::<String>("endpoint").unwrap();
 
-    // Create generator
+    // Always use enhanced MCP 2025-06-18 format
+    println!("Using enhanced MCP 2025-06-18 format");
+
+    // Create generator (always enhanced format)
     let mut generator = GraphQLCapabilityGenerator::new(endpoint.clone());
 
     // Add prefix if specified
@@ -142,7 +145,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => return Err(format!("Unsupported format: {}. Use 'sdl' or 'json'", detected_format).into()),
     };
 
-    println!("Generated {} tools from GraphQL schema", capability_file.tools.len());
+    let tools_count = capability_file.enhanced_tools.as_ref().map(|t| t.len()).unwrap_or(0);
+    
+    println!("Generated {} enhanced tools from GraphQL schema", tools_count);
 
     // Convert to YAML
     let yaml_content = serde_yaml::to_string(&capability_file)
@@ -165,16 +170,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  Tool prefix: {}", prefix);
     }
     println!("  Auth type: {}", auth_type);
-    println!("  Tools generated: {}", capability_file.tools.len());
+    println!("  Tools generated: {}", tools_count);
 
     // Show first few tools
-    println!("\nFirst 5 tools:");
-    for (i, tool) in capability_file.tools.iter().take(5).enumerate() {
-        println!("  {}. {}: {}", i + 1, tool.name, tool.description);
-    }
+    if let Some(enhanced_tools) = &capability_file.enhanced_tools {
+        println!("\nFirst 5 tools:");
+        for (i, tool) in enhanced_tools.iter().take(5).enumerate() {
+            println!("  {}. {}: {}", i + 1, tool.name, tool.core.description);
+        }
 
-    if capability_file.tools.len() > 5 {
-        println!("  ... and {} more", capability_file.tools.len() - 5);
+        if enhanced_tools.len() > 5 {
+            println!("  ... and {} more", enhanced_tools.len() - 5);
+        }
     }
 
     Ok(())

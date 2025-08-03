@@ -6,6 +6,8 @@
 use clap::{Parser, Subcommand};
 use magictunnel::config::Config;
 use magictunnel::registry::types::CapabilityFile;
+use magictunnel::registry::types::ToolDefinition;
+use magictunnel::discovery::enhancement::ToolEnhancementConfig;
 use magictunnel::error::{ProxyError, Result};
 use std::path::PathBuf;
 use std::fs;
@@ -126,6 +128,12 @@ enum Commands {
         #[arg(short, long)]
         file: Option<PathBuf>,
     },
+    /// Show MCP capability override warnings
+    ShowMcpWarnings {
+        /// Show detailed information about external MCP tools and their capabilities
+        #[arg(short, long)]
+        detailed: bool,
+    },
 }
 
 #[tokio::main]
@@ -155,6 +163,7 @@ async fn main() -> Result<()> {
         Commands::DisableFile { file, confirm } => disable_file_tools(&file, confirm).await,
         Commands::EnableTool { tool_name, file } => enable_tool(&config, &tool_name, file.as_ref()).await,
         Commands::DisableTool { tool_name, file } => disable_tool(&config, &tool_name, file.as_ref()).await,
+        Commands::ShowMcpWarnings { detailed } => show_mcp_warnings(&config, detailed).await,
     }
 }
 
@@ -590,4 +599,189 @@ fn save_capability_file(file_path: &PathBuf, capability_file: &CapabilityFile) -
     })?;
 
     Ok(())
+}
+
+async fn show_mcp_warnings(config: &Config, detailed: bool) -> Result<()> {
+    info!("Analyzing MCP capability override warnings");
+
+    let capability_files = discover_capability_files(config).await?;
+    let mut total_warnings = 0;
+    let mut external_mcp_tools = 0;
+    let mut tools_with_capabilities = 0;
+
+    // Create enhancement config from main config
+    let enhancement_config = create_enhancement_config_from_main(config);
+
+    println!("MCP Capability Override Warnings");
+    println!("================================");
+    
+    if !enhancement_config.enable_sampling_enhancement && !enhancement_config.enable_elicitation_enhancement {
+        println!("✅ No local enhancement features are enabled, no capability override warnings.");
+        return Ok(());
+    }
+
+    for file_path in &capability_files {
+        let capability_file = load_capability_file(file_path)?;
+        let mut file_warnings = Vec::new();
+        let mut file_external_tools = 0;
+        let mut file_tools_with_caps = 0;
+
+        for tool in &capability_file.tools {
+            // Check if tool is from external MCP
+            if is_external_mcp_tool(tool) {
+                file_external_tools += 1;
+                
+                // Check if tool has original capabilities
+                let (has_sampling, has_elicitation) = has_original_mcp_capabilities(tool);
+                
+                if has_sampling || has_elicitation {
+                    file_tools_with_caps += 1;
+                }
+                
+                // Generate warnings for this tool
+                let warnings = would_overwrite_mcp_capabilities(tool, &enhancement_config);
+                if !warnings.is_empty() {
+                    file_warnings.extend(warnings.into_iter().map(|w| (tool.name.clone(), w)));
+                }
+            }
+        }
+
+        external_mcp_tools += file_external_tools;
+        tools_with_capabilities += file_tools_with_caps;
+        total_warnings += file_warnings.len();
+
+        if !file_warnings.is_empty() || (detailed && file_external_tools > 0) {
+            println!("\nFile: {}", file_path.display());
+            println!("  External MCP tools: {}", file_external_tools);
+            println!("  Tools with original capabilities: {}", file_tools_with_caps);
+            println!("  Capability override warnings: {}", file_warnings.len());
+            
+            if detailed {
+                for tool in &capability_file.tools {
+                    if is_external_mcp_tool(tool) {
+                        let (has_sampling, has_elicitation) = has_original_mcp_capabilities(tool);
+                        let routing_type = tool.routing.r#type.as_str();
+                        
+                        println!("    🔗 {} ({})", tool.name, routing_type);
+                        if has_sampling {
+                            println!("        ✅ Has original sampling capabilities");
+                        }
+                        if has_elicitation {
+                            println!("        ✅ Has original elicitation capabilities");
+                        }
+                        if !has_sampling && !has_elicitation {
+                            println!("        ❌ No original MCP 2025-06-18 capabilities detected");
+                        }
+                    }
+                }
+            }
+            
+            for (tool_name, warning) in &file_warnings {
+                println!("    ⚠️  {}: {}", tool_name, warning);
+            }
+        }
+    }
+
+    println!("\nOverall Summary");
+    println!("===============");
+    println!("Total external MCP tools: {}", external_mcp_tools);
+    println!("Tools with original capabilities: {}", tools_with_capabilities);
+    println!("Capability override warnings: {}", total_warnings);
+    
+    if total_warnings > 0 {
+        println!("\n💡 Recommendations:");
+        println!("   • Consider disabling local enhancement for tools with original MCP capabilities");
+        println!("   • External MCP servers should provide their own sampling/elicitation enhancements");
+        println!("   • Use capability file metadata to track external MCP tool sources");
+        
+        if enhancement_config.enable_sampling_enhancement {
+            println!("   • Disable sampling enhancement: Set smart_discovery.enable_sampling = false in config");
+        }
+        if enhancement_config.enable_elicitation_enhancement {
+            println!("   • Disable elicitation enhancement: Set smart_discovery.enable_elicitation = false in config");
+        }
+    } else {
+        println!("✅ No capability override issues detected");
+    }
+
+    Ok(())
+}
+
+/// Create enhancement config from main config (mirrors logic from ToolEnhancementService)
+fn create_enhancement_config_from_main(config: &Config) -> ToolEnhancementConfig {
+    config.smart_discovery
+        .as_ref()
+        .and_then(|sd| {
+            // Check if sampling/elicitation are enabled via smart discovery config
+            let sampling_enabled = sd.enable_sampling.unwrap_or(false);
+            let elicitation_enabled = sd.enable_elicitation.unwrap_or(false);
+            
+            if sampling_enabled || elicitation_enabled {
+                Some(ToolEnhancementConfig {
+                    enable_sampling_enhancement: sampling_enabled,
+                    enable_elicitation_enhancement: elicitation_enabled,
+                    ..ToolEnhancementConfig::default()
+                })
+            } else {
+                None
+            }
+        })
+        .unwrap_or_else(|| {
+            // Check main config sections
+            let sampling_enabled = config.sampling.as_ref().map(|s| s.enabled).unwrap_or(false);
+            let elicitation_enabled = config.elicitation.as_ref().map(|e| e.enabled).unwrap_or(false);
+            
+            ToolEnhancementConfig {
+                enable_sampling_enhancement: sampling_enabled,
+                enable_elicitation_enhancement: elicitation_enabled,
+                ..ToolEnhancementConfig::default()
+            }
+        })
+}
+
+/// Check if a tool comes from external/remote MCP server (mirrors logic from ToolEnhancementService)
+fn is_external_mcp_tool(tool: &ToolDefinition) -> bool {
+    matches!(tool.routing.r#type.as_str(), "external_mcp" | "websocket")
+}
+
+/// Check if a tool has original sampling/elicitation capabilities from external MCP server
+fn has_original_mcp_capabilities(tool: &ToolDefinition) -> (bool, bool) {
+    let has_sampling = tool.annotations.as_ref()
+        .and_then(|ann| ann.get("has_sampling_capability"))
+        .map(|v| v == "true")
+        .unwrap_or(false);
+        
+    let has_elicitation = tool.annotations.as_ref()
+        .and_then(|ann| ann.get("has_elicitation_capability"))
+        .map(|v| v == "true")
+        .unwrap_or(false);
+        
+    (has_sampling, has_elicitation)
+}
+
+/// Check if we would be overwriting original MCP capabilities (mirrors logic from ToolEnhancementService)
+fn would_overwrite_mcp_capabilities(tool: &ToolDefinition, config: &ToolEnhancementConfig) -> Vec<String> {
+    let mut warnings = Vec::new();
+    
+    if !is_external_mcp_tool(tool) {
+        return warnings;
+    }
+    
+    let (has_sampling, has_elicitation) = has_original_mcp_capabilities(tool);
+    
+    if has_sampling && config.enable_sampling_enhancement {
+        warnings.push(format!(
+            "Tool '{}' has original sampling capabilities from external MCP server but local sampling enhancement is enabled", 
+            tool.name
+        ));
+    }
+    
+    if has_elicitation && config.enable_elicitation_enhancement {
+        warnings.push(format!(
+            "Tool '{}' has original elicitation capabilities from external MCP server but local elicitation enhancement is enabled", 
+            tool.name
+        ));
+    }
+    
+    warnings
 }

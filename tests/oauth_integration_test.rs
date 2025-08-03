@@ -15,6 +15,11 @@ fn create_test_oauth_config() -> AuthConfig {
         client_secret: "test_client_secret".to_string(),
         auth_url: "https://github.com/login/oauth/authorize".to_string(),
         token_url: "https://github.com/login/oauth/access_token".to_string(),
+        oauth_2_1_enabled: true,
+        resource_indicators_enabled: false,
+        default_resources: Vec::new(),
+        default_audience: Vec::new(),
+        require_explicit_resources: false,
     });
     config
 }
@@ -29,6 +34,11 @@ fn create_test_oauth_config_google() -> AuthConfig {
         client_secret: "test_google_client_secret".to_string(),
         auth_url: "https://accounts.google.com/o/oauth2/auth".to_string(),
         token_url: "https://oauth2.googleapis.com/token".to_string(),
+        oauth_2_1_enabled: true,
+        resource_indicators_enabled: false,
+        default_resources: Vec::new(),
+        default_audience: Vec::new(),
+        require_explicit_resources: false,
     });
     config
 }
@@ -215,6 +225,9 @@ mod oauth_middleware_tests {
             user_info,
             expires_at: Some(1234567890),
             scopes: vec!["read".to_string(), "write".to_string()],
+            audience: None,
+            issuer: None,
+            resources: Some(Vec::new()),
         };
 
         let auth_result = AuthenticationResult::OAuth(oauth_result);
@@ -246,6 +259,9 @@ mod oauth_middleware_tests {
             user_info,
             expires_at: Some(1234567890),
             scopes: vec!["read".to_string(), "write".to_string()],
+            audience: None,
+            issuer: None,
+            resources: Some(Vec::new()),
         };
 
         let auth_result = AuthenticationResult::OAuth(oauth_result);

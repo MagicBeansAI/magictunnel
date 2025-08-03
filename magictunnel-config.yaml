@@ -114,9 +114,9 @@ mcp_client:
   max_reconnect_attempts: 5     # Maximum reconnection attempts
   reconnect_delay_secs: 5       # Delay between reconnection attempts
   auto_reconnect: true          # Enable automatic reconnection
-  protocol_version: "2025-03-26" # MCP protocol version to use
+  protocol_version: "2025-06-18" # MCP protocol version to use
   client_name: "magictunnel"    # Client name for MCP handshake (defaults to package name)
-  client_version: "0.2.49"      # Client version for MCP handshake (defaults to package version)
+  client_version: "0.3.0"       # Client version for MCP handshake (defaults to package version)
 
 # =============================================================================
 # EXTERNAL MCP CONFIGURATION (Claude Desktop Format)
@@ -176,6 +176,10 @@ smart_discovery:
   enabled: true                           # Enable smart discovery (env: SMART_DISCOVERY_ENABLED)
   tool_selection_mode: "hybrid"          # Tool selection mode: rule_based|llm_based|semantic_based|hybrid (env: SMART_DISCOVERY_MODE)
   default_confidence_threshold: 0.7       # Default confidence threshold for tool matching (env: SMART_DISCOVERY_THRESHOLD)
+  
+  # MCP 2025-06-18 Enhanced Features
+  enable_sampling: true                   # Enable sampling service for enhanced LLM interactions (env: SMART_DISCOVERY_SAMPLING_ENABLED)
+  enable_elicitation: true                # Enable elicitation service for structured data collection (env: SMART_DISCOVERY_ELICITATION_ENABLED)
   max_tools_to_consider: 10               # Maximum number of tools to consider for matching (env: SMART_DISCOVERY_MAX_TOOLS)
   max_high_quality_matches: 3             # Maximum high-quality matches to collect before stopping processing (env: SMART_DISCOVERY_MAX_HIGH_QUALITY_MATCHES)
   high_quality_threshold: 0.95            # Confidence threshold for considering a match as high-quality (env: SMART_DISCOVERY_HIGH_QUALITY_THRESHOLD)
@@ -275,6 +279,95 @@ smart_discovery:
       embedding_cache_size: 1000          # In-memory cache size for embeddings
       parallel_processing: true           # Enable parallel embedding generation
       worker_threads: 4                   # Number of worker threads for parallel processing
+
+# =============================================================================
+# MCP 2025-06-18 SAMPLING SERVICE CONFIGURATION
+# =============================================================================
+# Configuration for the Sampling service that enables structured LLM message generation
+sampling:
+  enabled: true                           # Enable sampling service (auto-enabled if smart_discovery.enable_sampling is true)
+  
+  # Default LLM Configuration (inherits from smart_discovery.llm_mapper if not specified)
+  default_model: "gpt-4o-mini"           # Default model for sampling requests
+  max_tokens_limit: 4000                 # Maximum tokens allowed per request
+  
+  # Rate Limiting
+  rate_limit:
+    requests_per_minute: 60              # Requests per minute per user
+    burst_size: 10                       # Burst size for rate limiting
+    window_seconds: 60                   # Rate limiting window in seconds
+  
+  # Content Security
+  content_filter:
+    enabled: true                        # Enable content filtering
+    max_content_length: 50000           # Maximum content length
+    blocked_patterns:                    # Content patterns to block (regex)
+      - "(?i)(password|secret|key|token|credential)"
+      - "(?i)(hack|exploit|vulnerability|injection)"
+    approval_patterns: []                # Patterns requiring approval (empty = none)
+  
+  # LLM Provider Configuration (uses smart_discovery providers by default)
+  providers:
+    - name: "openai"
+      type: "openai"
+      endpoint: "https://api.openai.com/v1"
+      models: ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"]
+    - name: "ollama"
+      type: "ollama" 
+      endpoint: "http://localhost:11434"
+      models: ["llama3.2", "qwen2.5"]
+
+# =============================================================================
+# MCP 2025-06-18 ELICITATION SERVICE CONFIGURATION
+# =============================================================================
+# Configuration for the Elicitation service that enables structured data collection
+elicitation:
+  enabled: true                          # Enable elicitation service (auto-enabled if smart_discovery.enable_elicitation is true)
+  
+  # Schema Configuration
+  max_schema_complexity: "WithArrays"    # Maximum schema complexity: Simple|WithArrays|Nested|Complex
+  default_timeout_seconds: 300           # Default timeout for elicitation requests (5 minutes)
+  max_timeout_seconds: 1800             # Maximum timeout allowed (30 minutes)
+  
+  # Rate Limiting
+  rate_limit:
+    requests_per_minute: 10              # Lower limit for elicitation (more resource intensive)
+    burst_size: 3                        # Smaller burst size
+    window_seconds: 60                   # Rate limiting window in seconds
+  
+  # Security Configuration
+  security:
+    enabled: true                        # Enable security checks
+    max_fields: 20                       # Maximum number of fields in schema
+    min_privacy_level: "Internal"        # Minimum privacy level: Public|Internal|Confidential|Restricted
+    log_requests: true                   # Log all elicitation requests for audit
+    blocked_field_names:                 # Field names that are not allowed
+      - "password"
+      - "secret"
+      - "private_key"
+      - "api_key"
+      - "auth_token"
+      - "ssn"
+      - "social_security_number"
+      - "credit_card"
+      - "bank_account"
+    blocked_schema_patterns:             # Schema patterns to block (regex)
+      - "(?i)(password|secret|key|token|credential)"
+      - "(?i)(ssn|social.*security|credit.*card|bank.*account)"
+      - "(?i)(private.*key|api.*key|auth.*token)"
+  
+  # Schema Validation Configuration
+  schema_validation:
+    strict_validation: true              # Enable strict schema validation
+    max_string_length: 1000             # Maximum string field length
+    max_number_value: 1000000000000     # Maximum numeric value (1e12)
+    min_number_value: -1000000000000    # Minimum numeric value (-1e12)
+    allowed_types:                       # JSON schema types allowed
+      - "string"
+      - "number" 
+      - "integer"
+      - "boolean"
+      - "array"
 
 
 # =============================================================================

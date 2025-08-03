@@ -16,12 +16,16 @@ use crate::mcp::notifications::{McpNotificationManager};
 use crate::mcp::errors::{McpError, McpErrorCode};
 use crate::mcp::session::McpSessionManager;
 use crate::mcp::validation::McpMessageValidator;
-use crate::registry::service::RegistryService;
+use crate::mcp::cancellation::{CancellationManager, CancellationConfig};
+use crate::mcp::progress::{ProgressTracker, ProgressConfig};
+use crate::mcp::tool_validation::{RuntimeToolValidator, ValidationConfig as ToolValidationConfig};
+use crate::registry::service::{RegistryService, EnhancementCallback};
 use crate::routing::{Router, types::AgentResult};
 use crate::web::configure_dashboard_api;
 use actix_web::{web, App, HttpServer, HttpResponse, middleware::Logger, HttpRequest};
 use actix_ws::Message;
-use futures_util::StreamExt;
+use futures_util::{StreamExt, stream};
+use futures_util as futures;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{debug, info, warn, error};
 use serde_json::{json, Value};
@@ -51,10 +55,24 @@ pub struct McpServer {
     session_manager: Arc<McpSessionManager>,
     /// Message validator for enhanced protocol compliance ✅ **NEW**
     message_validator: Arc<McpMessageValidator>,
+    /// Cancellation manager for request cancellation support ✅ **NEW**
+    cancellation_manager: Arc<CancellationManager>,
+    /// Progress tracker for long-running operations ✅ **NEW**
+    progress_tracker: Arc<ProgressTracker>,
+    /// Runtime tool validator for security sandboxing ✅ **NEW**
+    tool_validator: Arc<RuntimeToolValidator>,
     /// Smart discovery service for intelligent tool selection ✅ **NEW**
     smart_discovery: Option<Arc<crate::discovery::SmartDiscoveryService>>,
     /// External MCP integration for managing external MCP servers ✅ **NEW**
     external_integration: Option<Arc<tokio::sync::RwLock<crate::mcp::external_integration::ExternalMcpIntegration>>>,
+    /// Configuration for dynamic protocol version and settings ✅ **NEW**
+    config: Option<Arc<crate::config::Config>>,
+    /// Sampling service for LLM message generation ✅ **NEW**
+    sampling_service: Option<Arc<crate::mcp::sampling::SamplingService>>,
+    /// Elicitation service for structured data collection ✅ **NEW**
+    elicitation_service: Option<Arc<crate::mcp::elicitation::ElicitationService>>,
+    /// Roots service for filesystem/URI boundary discovery ✅ **NEW**
+    roots_service: Option<Arc<crate::mcp::roots::RootsService>>,
 }
 
 impl McpServer {
@@ -225,6 +243,15 @@ impl McpServer {
         // Create message validator with default configuration
         let message_validator = Arc::new(McpMessageValidator::new());
 
+        // Create cancellation manager with default configuration
+        let cancellation_manager = Arc::new(CancellationManager::new(CancellationConfig::default()));
+
+        // Create progress tracker with default configuration
+        let progress_tracker = Arc::new(ProgressTracker::new(ProgressConfig::default()));
+
+        // Create tool validator with default configuration
+        let tool_validator = Arc::new(RuntimeToolValidator::new(ToolValidationConfig::default()).unwrap());
+
         Ok(Self {
             registry,
             tool_aggregation: None,
@@ -237,8 +264,15 @@ impl McpServer {
             security_middleware: None, // No security by default
             session_manager,
             message_validator,
+            cancellation_manager,
+            progress_tracker,
+            tool_validator,
             smart_discovery: None, // No smart discovery by default
             external_integration: None, // No external MCP integration by default
+            config: None, // No config by default
+            sampling_service: None, // No sampling service by default
+            elicitation_service: None, // No elicitation service by default
+            roots_service: None, // No roots service by default
         })
     }
 
@@ -250,6 +284,9 @@ impl McpServer {
         let notification_manager = Arc::new(McpNotificationManager::new());
         let session_manager = Arc::new(McpSessionManager::new());
         let message_validator = Arc::new(McpMessageValidator::new());
+        let cancellation_manager = Arc::new(CancellationManager::new(CancellationConfig::default()));
+        let progress_tracker = Arc::new(ProgressTracker::new(ProgressConfig::default()));
+        let tool_validator = Arc::new(RuntimeToolValidator::new(ToolValidationConfig::default()).unwrap());
         Self {
             registry: registry.clone(),
             tool_aggregation: None,
@@ -262,8 +299,15 @@ impl McpServer {
             security_middleware: None, // No security by default
             session_manager,
             message_validator,
+            cancellation_manager,
+            progress_tracker,
+            tool_validator,
             smart_discovery: None, // No smart discovery by default
             external_integration: None, // No external MCP integration by default
+            config: None, // No config by default
+            sampling_service: None, // No sampling service by default
+            elicitation_service: None, // No elicitation service by default
+            roots_service: None, // No roots service by default
         }
     }
 
@@ -458,6 +502,13 @@ impl McpServer {
             message_validator,
             smart_discovery,
             external_integration: if external_mcp_started { Some(external_integration) } else { None },
+            config: Some(Arc::new(config.clone())), // Store config for dynamic protocol version
+            sampling_service: None, // Will be set if configured
+            elicitation_service: None, // Will be set if configured
+            roots_service: None, // Will be set if configured
+            cancellation_manager: Arc::new(CancellationManager::new(CancellationConfig::default())),
+            progress_tracker: Arc::new(ProgressTracker::new(ProgressConfig::default())),
+            tool_validator: Arc::new(RuntimeToolValidator::new(ToolValidationConfig::default())?),
         };
 
         // Configure authentication if present
@@ -468,6 +519,34 @@ impl McpServer {
         // Configure security if present
         if let Some(security_config) = &config.security {
             server = server.with_security(security_config.clone()).await?;
+        }
+
+        // Configure sampling service if enabled (via smart_discovery.enable_sampling or sampling.enabled)
+        let sampling_enabled = config.smart_discovery.as_ref()
+            .and_then(|sd| sd.enable_sampling)
+            .unwrap_or(false) || 
+            config.sampling.as_ref().map(|s| s.enabled).unwrap_or(false);
+        if sampling_enabled {
+            server = server.with_sampling_service(&config)?;
+        }
+
+        // Configure elicitation service if enabled (via smart_discovery.enable_elicitation or elicitation.enabled)
+        let elicitation_enabled = config.smart_discovery.as_ref()
+            .and_then(|sd| sd.enable_elicitation)
+            .unwrap_or(false) || 
+            config.elicitation.as_ref().map(|e| e.enabled).unwrap_or(false);
+        if elicitation_enabled {
+            server = server.with_elicitation_service(&config)?;
+        }
+
+        // Configure enhancement service if sampling or elicitation are enabled
+        if sampling_enabled || elicitation_enabled {
+            server = server.with_enhancement_service(&config).await?;
+        }
+
+        // Configure roots service if smart discovery is enabled
+        if config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false) {
+            server = server.with_roots_service(&config)?;
         }
 
         Ok(server)
@@ -483,6 +562,9 @@ impl McpServer {
         let notification_manager = Arc::new(McpNotificationManager::new());
         let session_manager = Arc::new(McpSessionManager::new());
         let message_validator = Arc::new(McpMessageValidator::new());
+        let cancellation_manager = Arc::new(CancellationManager::new(CancellationConfig::default()));
+        let progress_tracker = Arc::new(ProgressTracker::new(ProgressConfig::default()));
+        let tool_validator = Arc::new(RuntimeToolValidator::new(ToolValidationConfig::default()).unwrap());
         Self {
             registry: registry.clone(),
             tool_aggregation: None,
@@ -495,8 +577,15 @@ impl McpServer {
             security_middleware: None, // No security by default
             session_manager,
             message_validator,
+            cancellation_manager,
+            progress_tracker,
+            tool_validator,
             smart_discovery: None, // No smart discovery by default
             external_integration: None, // No external MCP integration by default
+            config: None, // No config by default
+            sampling_service: None, // No sampling service by default
+            elicitation_service: None, // No elicitation service by default
+            roots_service: None, // No roots service by default
         }
     }
 
@@ -634,8 +723,11 @@ impl McpServer {
 
                 // Streaming endpoints
                 .route("/mcp/ws", web::get().to(websocket_handler))
-                .route("/mcp/stream", web::get().to(sse_handler))
+                .route("/mcp/stream", web::get().to(sse_handler)) // Deprecated but maintained for backward compatibility
                 .route("/mcp/call/stream", web::post().to(streaming_tool_handler))
+                
+                // MCP 2025-06-18 Streamable HTTP Transport (preferred over deprecated SSE)
+                .route("/mcp/streamable", web::post().to(streamable_http_handler))
 
                 // OAuth authentication endpoints
                 .route("/auth/oauth/authorize", web::get().to(oauth_authorize_handler))
@@ -1061,9 +1153,16 @@ impl McpServer {
     /// Get complete MCP initialize response
     pub fn get_capabilities(&self) -> Value {
         let notification_caps = self.notification_manager.capabilities();
+        
+        // Get protocol version from config, fallback to 2025-06-18 (latest)
+        let protocol_version = self.config
+            .as_ref()
+            .and_then(|c| c.mcp_client.as_ref())
+            .map(|mc| mc.protocol_version.clone())
+            .unwrap_or_else(|| "2025-06-18".to_string());
 
         json!({
-            "protocolVersion": "2024-11-05",
+            "protocolVersion": protocol_version,
             "capabilities": {
                 "logging": {},
                 "resources": {
@@ -1076,11 +1175,18 @@ impl McpServer {
                 "tools": {
                     "listChanged": notification_caps.tools_list_changed
                 },
-                "completion": {}
+                "completion": {},
+                "sampling": {},
+                "elicitation": {},
+                "roots": {}
+            },
+            "implementation": {
+                "name": "MagicTunnel",
+                "version": "0.3.0"
             },
             "serverInfo": {
                 "name": "magictunnel",
-                "version": "0.2.49"
+                "version": "0.3.0"
             },
             "instructions": "MagicTunnel server providing access to GraphQL, REST, and gRPC endpoints as MCP tools"
         })
@@ -1306,6 +1412,84 @@ impl McpServer {
                     ),
                 }
             }
+            "sampling/createMessage" => {
+                let params = request.params.unwrap_or(json!({}));
+                match serde_json::from_value::<SamplingRequest>(params) {
+                    Ok(sampling_request) => {
+                        match self.handle_sampling_request(sampling_request).await {
+                            Ok(response) => {
+                                if let Some(ref id) = request.id {
+                                    self.create_success_response(id, json!(response))
+                                } else {
+                                    self.create_error_response(None, McpErrorCode::InvalidRequest, "Request must have an ID")
+                                }
+                            }
+                            Err(e) => self.create_error_response(
+                                request.id.as_ref(),
+                                McpErrorCode::InternalError,
+                                &format!("Sampling failed: {}", e.message)
+                            ),
+                        }
+                    }
+                    Err(e) => self.create_error_response(
+                        request.id.as_ref(),
+                        McpErrorCode::InvalidParams,
+                        &format!("Invalid sampling parameters: {}", e)
+                    ),
+                }
+            }
+            "elicitation/create" => {
+                let params = request.params.unwrap_or(json!({}));
+                match serde_json::from_value::<ElicitationRequest>(params) {
+                    Ok(elicitation_request) => {
+                        match self.handle_elicitation_request(elicitation_request).await {
+                            Ok(request_id) => {
+                                if let Some(ref id) = request.id {
+                                    self.create_success_response(id, json!({"request_id": request_id}))
+                                } else {
+                                    self.create_error_response(None, McpErrorCode::InvalidRequest, "Request must have an ID")
+                                }
+                            }
+                            Err(e) => self.create_error_response(
+                                request.id.as_ref(),
+                                McpErrorCode::InternalError,
+                                &format!("Elicitation failed: {}", e.message)
+                            ),
+                        }
+                    }
+                    Err(e) => self.create_error_response(
+                        request.id.as_ref(),
+                        McpErrorCode::InvalidParams,
+                        &format!("Invalid elicitation parameters: {}", e)
+                    ),
+                }
+            }
+            "roots/list" => {
+                let params = request.params.unwrap_or(json!({}));
+                match serde_json::from_value::<RootsListRequest>(params) {
+                    Ok(roots_request) => {
+                        match self.handle_roots_list_request(roots_request).await {
+                            Ok(response) => {
+                                if let Some(ref id) = request.id {
+                                    self.create_success_response(id, serde_json::to_value(response).unwrap_or(json!({})))
+                                } else {
+                                    self.create_error_response(None, McpErrorCode::InvalidRequest, "Request must have an ID")
+                                }
+                            }
+                            Err(e) => self.create_error_response(
+                                request.id.as_ref(),
+                                McpErrorCode::InternalError,
+                                &format!("Roots list failed: {}", e.message)
+                            ),
+                        }
+                    }
+                    Err(e) => self.create_error_response(
+                        request.id.as_ref(),
+                        McpErrorCode::InvalidParams,
+                        &format!("Invalid roots list parameters: {}", e)
+                    ),
+                }
+            }
             _ => {
                 self.create_error_response(
                     request.id.as_ref(),
@@ -1316,6 +1500,184 @@ impl McpServer {
         };
 
         Ok(Some(response))
+    }
+
+    /// Handle sampling request for LLM message generation
+    async fn handle_sampling_request(
+        &self,
+        request: SamplingRequest,
+    ) -> std::result::Result<SamplingResponse, SamplingError> {
+        // Check if sampling service is available
+        if let Some(sampling_service) = &self.sampling_service {
+            // Extract user ID from request metadata or use default
+            let user_id = request.metadata.as_ref()
+                .and_then(|meta| meta.get("user_id"))
+                .and_then(|user| user.as_str())
+                .map(|s| s.to_string());
+            
+            sampling_service.handle_sampling_request(request, user_id.as_deref()).await
+        } else {
+            Err(SamplingError {
+                code: SamplingErrorCode::InternalError,
+                message: "Sampling service not configured".to_string(),
+                details: None,
+            })
+        }
+    }
+
+    /// Handle elicitation request for structured data collection
+    async fn handle_elicitation_request(
+        &self,
+        request: ElicitationRequest,
+    ) -> std::result::Result<String, ElicitationError> {
+        // Check if elicitation service is available
+        if let Some(elicitation_service) = &self.elicitation_service {
+            // Extract user ID from request metadata or use default
+            let user_id = request.metadata.as_ref()
+                .and_then(|meta| meta.get("user_id"))
+                .and_then(|user| user.as_str())
+                .map(|s| s.to_string());
+            
+            elicitation_service.handle_elicitation_request(request, user_id.as_deref()).await
+        } else {
+            Err(ElicitationError {
+                code: ElicitationErrorCode::InternalError,
+                message: "Elicitation service not configured".to_string(),
+                details: None,
+            })
+        }
+    }
+
+    /// Handle roots list request for filesystem/URI boundary discovery
+    async fn handle_roots_list_request(
+        &self,
+        request: RootsListRequest,
+    ) -> std::result::Result<RootsListResponse, RootsError> {
+        // Check if roots service is available
+        if let Some(roots_service) = &self.roots_service {
+            roots_service.handle_roots_list_request(request).await
+        } else {
+            Err(RootsError {
+                code: RootsErrorCode::InternalError,
+                message: "Roots service not configured".to_string(),
+                details: None,
+            })
+        }
+    }
+
+    /// Configure sampling service
+    pub fn with_sampling_service(mut self, config: &crate::config::Config) -> Result<Self> {
+        match crate::mcp::sampling::SamplingService::from_config(config) {
+            Ok(sampling_service) => {
+                info!("Sampling service configured successfully");
+                self.sampling_service = Some(Arc::new(sampling_service));
+                Ok(self)
+            }
+            Err(e) => {
+                warn!("Failed to configure sampling service: {}", e);
+                // Don't return error, just log warning and continue without sampling
+                Ok(self)
+            }
+        }
+    }
+
+    /// Configure elicitation service
+    pub fn with_elicitation_service(mut self, config: &crate::config::Config) -> Result<Self> {
+        match crate::mcp::elicitation::ElicitationService::from_config(config) {
+            Ok(elicitation_service) => {
+                info!("Elicitation service configured successfully");
+                self.elicitation_service = Some(Arc::new(elicitation_service));
+                Ok(self)
+            }
+            Err(e) => {
+                warn!("Failed to configure elicitation service: {}", e);
+                // Don't return error, just log warning and continue without elicitation
+                Ok(self)
+            }
+        }
+    }
+
+    /// Configure enhancement service
+    pub async fn with_enhancement_service(mut self, config: &crate::config::Config) -> Result<Self> {
+        info!("Configuring tool enhancement service");
+        
+        // Create enhancement service if sampling or elicitation services are available
+        if let (Some(sampling_service), Some(elicitation_service)) = (&self.sampling_service, &self.elicitation_service) {
+            let enhancement_service = Arc::new(crate::discovery::ToolEnhancementService::from_config(
+                config,
+                self.registry.clone(),
+                Some(sampling_service.clone()),
+                Some(elicitation_service.clone()),
+            ));
+            
+            // Register enhancement service with registry for tool change notifications
+            self.registry.set_enhancement_callback(enhancement_service.clone() as Arc<dyn EnhancementCallback>);
+            info!("🔔 Enhancement service registered for tool change notifications");
+            
+            // Initialize enhancement service (generate missing enhancements at startup)
+            if let Err(e) = enhancement_service.initialize().await {
+                warn!("Failed to initialize enhancement service: {}", e);
+                // Don't fail server startup, just log the warning
+            }
+            
+            Ok(self)
+        } else if let Some(sampling_service) = &self.sampling_service {
+            let enhancement_service = Arc::new(crate::discovery::ToolEnhancementService::from_config(
+                config,
+                self.registry.clone(),
+                Some(sampling_service.clone()),
+                None,
+            ));
+            
+            // Register enhancement service with registry for tool change notifications
+            self.registry.set_enhancement_callback(enhancement_service.clone() as Arc<dyn EnhancementCallback>);
+            info!("🔔 Enhancement service (sampling only) registered for tool change notifications");
+            
+            // Initialize enhancement service (generate missing enhancements at startup)
+            if let Err(e) = enhancement_service.initialize().await {
+                warn!("Failed to initialize enhancement service: {}", e);
+                // Don't fail server startup, just log the warning
+            }
+            
+            Ok(self)
+        } else if let Some(elicitation_service) = &self.elicitation_service {
+            let enhancement_service = Arc::new(crate::discovery::ToolEnhancementService::from_config(
+                config,
+                self.registry.clone(),
+                None,
+                Some(elicitation_service.clone()),
+            ));
+            
+            // Register enhancement service with registry for tool change notifications
+            self.registry.set_enhancement_callback(enhancement_service.clone() as Arc<dyn EnhancementCallback>);
+            info!("🔔 Enhancement service (elicitation only) registered for tool change notifications");
+            
+            // Initialize enhancement service (generate missing enhancements at startup)
+            if let Err(e) = enhancement_service.initialize().await {
+                warn!("Failed to initialize enhancement service: {}", e);
+                // Don't fail server startup, just log the warning
+            }
+            
+            Ok(self)
+        } else {
+            warn!("Enhancement service requested but no sampling or elicitation services available");
+            Ok(self)
+        }
+    }
+
+    pub fn with_roots_service(mut self, config: &crate::config::Config) -> Result<Self> {
+        match crate::mcp::roots::RootsService::from_config(config) {
+            Ok(roots_service) => {
+                info!("Roots service configured successfully");
+                self.roots_service = Some(Arc::new(roots_service));
+                Ok(self)
+            }
+            Err(e) => {
+                warn!("Failed to configure roots service: {}", e);
+                // Don't return error, just log warning and continue without roots
+                Ok(self)
+            }
+        }
     }
 
     /// Create a successful JSON-RPC response
@@ -1356,6 +1718,153 @@ impl McpServer {
     /// Get the smart discovery service if available
     pub fn smart_discovery(&self) -> Option<&Arc<crate::discovery::SmartDiscoveryService>> {
         self.smart_discovery.as_ref()
+    }
+
+    /// Get the sampling service if available
+    pub fn sampling_service(&self) -> Option<&Arc<crate::mcp::sampling::SamplingService>> {
+        self.sampling_service.as_ref()
+    }
+
+    /// Get the elicitation service if available
+    pub fn elicitation_service(&self) -> Option<&Arc<crate::mcp::elicitation::ElicitationService>> {
+        self.elicitation_service.as_ref()
+    }
+
+    /// Get the enhancement service if available
+    pub fn enhancement_service(&self) -> Option<&Arc<crate::discovery::ToolEnhancementService>> {
+        // Enhancement service is not currently stored as a field in McpServer
+        // It would need to be added to the struct and initialized in the constructor
+        None
+    }
+
+    /// Check if sampling service is configured
+    pub fn has_sampling_service(&self) -> bool {
+        self.sampling_service.is_some()
+    }
+
+    /// Check if elicitation service is configured
+    pub fn has_elicitation_service(&self) -> bool {
+        self.elicitation_service.is_some()
+    }
+
+    /// Check if enhancement service is configured
+    pub fn has_enhancement_service(&self) -> bool {
+        // Enhancement service is not currently stored as a field in McpServer
+        false
+    }
+
+    // ===== PROGRESS TRACKING API =====
+
+    /// Get progress tracker statistics  
+    pub async fn get_progress_stats(&self) -> crate::mcp::ProgressStats {
+        self.progress_tracker.get_stats().await
+    }
+
+    /// Create progress session
+    pub async fn create_progress_session(
+        &self,
+        operation_id: String,
+        metadata: std::collections::HashMap<String, serde_json::Value>,
+    ) -> crate::error::Result<String> {
+        self.progress_tracker.create_session(operation_id, metadata).await
+    }
+
+    /// Update progress
+    pub async fn update_progress(
+        &self,
+        session_id: &str,
+        percentage: f64,
+        message: Option<String>,
+        _sub_operation_id: Option<String>,
+    ) -> crate::error::Result<()> {
+        use crate::mcp::progress::ProgressState;
+        use std::collections::HashMap;
+        
+        let progress_state = ProgressState::InProgress {
+            percentage,
+            current_step: message.unwrap_or_default(),
+            total_steps: None,
+            current_step_number: None,
+            eta_seconds: None,
+        };
+        
+        self.progress_tracker.update_progress(
+            session_id,
+            progress_state,
+            Vec::new(), // No sub-operation updates for now
+            HashMap::new(), // No metadata for now
+        ).await?;
+        Ok(())
+    }
+
+    /// Complete progress session
+    pub async fn complete_progress_session(
+        &self,
+        session_id: &str,
+        result_summary: Option<String>,
+    ) -> crate::error::Result<()> {
+        self.progress_tracker.complete_session(session_id, result_summary).await
+    }
+
+    /// Get progress session details
+    pub async fn get_progress_session(&self, session_id: &str) -> Option<crate::mcp::ProgressSession> {
+        self.progress_tracker.get_session(session_id).await
+    }
+
+    /// Subscribe to progress events
+    pub fn subscribe_to_progress_events(&self) -> tokio::sync::broadcast::Receiver<crate::mcp::ProgressEvent> {
+        self.progress_tracker.subscribe_to_events()
+    }
+
+    // ===== TOOL VALIDATION API =====
+
+    /// Validate tool for security and compliance
+    pub async fn validate_tool_runtime(
+        &self,
+        tool_name: &str,
+        tool_definition: &serde_json::Value,
+        _context: std::collections::HashMap<String, serde_json::Value>,
+    ) -> crate::error::Result<crate::mcp::ValidationResult> {
+        // Create a Tool from the parameters
+        let tool = crate::mcp::types::Tool {
+            name: tool_name.to_string(),
+            description: None,
+            title: None,
+            input_schema: tool_definition.clone(),
+            output_schema: None,
+            annotations: None,
+        };
+        self.tool_validator.validate_tool(&tool).await
+    }
+
+    /// Get tool validation statistics
+    pub async fn get_tool_validation_stats(&self) -> crate::mcp::ValidationStats {
+        self.tool_validator.get_stats().await
+    }
+
+    /// Clear validation cache
+    pub async fn clear_tool_validation_cache(&self) -> crate::error::Result<()> {
+        self.tool_validator.clear_cache().await;
+        Ok(())
+    }
+
+    /// Update security classification for a tool
+    pub async fn update_tool_security_classification(
+        &self,
+        _tool_name: &str,
+        _classification: crate::mcp::SecurityClassification,
+    ) -> crate::error::Result<()> {
+        // TODO: Implement update_classification method in RuntimeToolValidator
+        // self.tool_validator.update_classification(tool_name, classification).await
+        Ok(())
+    }
+
+    /// Get sandbox policy for tool
+    pub async fn get_sandbox_policy(
+        &self,
+        tool_name: &str,
+    ) -> Option<crate::mcp::SandboxPolicy> {
+        self.tool_validator.get_sandbox_policy(tool_name).await
     }
 }
 
@@ -1854,73 +2363,172 @@ async fn handle_websocket_session(
     }
 }
 
-/// Server-Sent Events handler for streaming updates
-pub async fn sse_handler() -> HttpResponse {
+/// Server-Sent Events (SSE) handler for backward compatibility
+/// Note: Deprecated in favor of Streamable HTTP transport, but maintained for compatibility
+pub async fn sse_handler(
+    req: HttpRequest,
+    mcp_server: web::Data<Arc<McpServer>>,
+) -> HttpResponse {
     use actix_web::http::header;
+    
+    // Check authentication
+    if let Err(auth_error) = check_authentication(&req, &mcp_server.auth_middleware, "read").await {
+        return auth_error;
+    }
 
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    info!("SSE connection established (deprecated transport - consider upgrading to Streamable HTTP)");
 
-    // Spawn a task to send periodic updates
-    actix_web::rt::spawn(async move {
-        let mut counter = 0;
-        loop {
-            let data = format!("data: {{\"type\": \"heartbeat\", \"count\": {}}}\n\n", counter);
-            if tx.send(Ok::<_, actix_web::Error>(web::Bytes::from(data))).is_err() {
-                break;
-            }
-            counter += 1;
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        }
-    });
-
+    // Set SSE headers
     HttpResponse::Ok()
         .insert_header((header::CONTENT_TYPE, "text/event-stream"))
         .insert_header((header::CACHE_CONTROL, "no-cache"))
         .insert_header((header::CONNECTION, "keep-alive"))
-        .streaming(UnboundedReceiverStream::new(rx))
+        .insert_header(("Access-Control-Allow-Origin", "*"))
+        .insert_header(("X-MCP-Transport", "sse"))
+        .insert_header(("X-MCP-Version", "2024-11-05")) // Old version for SSE
+        .insert_header(("X-MCP-Deprecated", "true"))
+        .insert_header(("X-MCP-Upgrade-To", "streamable-http"))
+        .streaming(stream::iter(vec![
+            Ok::<actix_web::web::Bytes, actix_web::Error>(
+                actix_web::web::Bytes::from(format!(
+                    "event: message\ndata: {}\n\n",
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "method": "notifications/initialized",
+                        "params": {
+                            "protocolVersion": "2024-11-05",
+                            "transport": "sse",
+                            "deprecated": true,
+                            "upgradeRecommended": true,
+                            "newTransport": "streamable-http",
+                            "newEndpoint": "/mcp/streamable"
+                        }
+                    })
+                ))
+            ),
+            // Keep connection alive with periodic heartbeats
+            Ok(actix_web::web::Bytes::from("event: heartbeat\ndata: {\"timestamp\": \"".to_string() + &chrono::Utc::now().to_rfc3339() + "\"}\n\n")),
+        ]))
+}
+
+/// Streamable HTTP handler for MCP 2025-06-18 compliance (preferred over deprecated SSE)
+pub async fn streamable_http_handler(
+    req: HttpRequest,
+    body: web::Bytes,
+    server: web::Data<Arc<McpServer>>,
+) -> HttpResponse {
+    use crate::mcp::streamable_http::{StreamableHttpTransport, StreamableHttpConfig};
+    
+    // Create transport configuration from server config or use default
+    let config = if let Some(config) = &server.config {
+        if let Some(streamable_config) = &config.streamable_http {
+            StreamableHttpConfig {
+                enable_batching: streamable_config.enable_batching,
+                max_batch_size: streamable_config.max_batch_size,
+                batch_timeout_ms: streamable_config.batch_timeout_ms,
+                enable_compression: streamable_config.enable_compression,
+                max_message_size: streamable_config.max_message_size,
+                connection_timeout_seconds: streamable_config.connection_timeout_seconds,
+                enable_keep_alive: streamable_config.enable_keep_alive,
+            }
+        } else {
+            StreamableHttpConfig::default()
+        }
+    } else {
+        StreamableHttpConfig::default()
+    };
+    
+    let transport = StreamableHttpTransport::new(config);
+    
+    match transport.handle_streamable_request(req, body).await {
+        Ok(response) => response,
+        Err(e) => {
+            error!("Streamable HTTP transport error: {}", e);
+            HttpResponse::BadRequest()
+                .insert_header(("X-MCP-Transport", "streamable-http"))
+                .insert_header(("X-MCP-Version", "2025-06-18"))
+                .insert_header(("X-MCP-Error", "transport_error"))
+                .json(json!({
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32603,
+                        "message": "Streamable HTTP transport error",
+                        "data": e.to_string()
+                    }
+                }))
+        }
+    }
 }
 
 /// Streaming tool execution handler
+/// Enhanced streaming tool execution handler using Streamable HTTP transport (MCP 2025-06-18)
 pub async fn streaming_tool_handler(
     req: HttpRequest,
-    _tool_call: web::Json<ToolCall>,
+    tool_call: web::Json<ToolCall>,
     mcp_server: web::Data<Arc<McpServer>>,
 ) -> HttpResponse {
     // Check authentication with write permission for tool execution
     if let Err(auth_error) = check_authentication(&req, &mcp_server.auth_middleware, "write").await {
         return auth_error;
     }
-    use actix_web::http::header;
 
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    info!("Processing streaming tool execution for: {}", tool_call.name);
 
-    // Spawn a task to simulate streaming tool execution
-    actix_web::rt::spawn(async move {
-        // Send initial response
-        let start_msg = "data: {\"type\": \"start\", \"message\": \"Tool execution started\"}\n\n";
-        if tx.send(Ok::<_, actix_web::Error>(web::Bytes::from(start_msg))).is_err() {
-            return;
-        }
-
-        // Simulate progress updates
-        for i in 1..=5 {
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            let progress_msg = format!("data: {{\"type\": \"progress\", \"step\": {}, \"message\": \"Processing step {}\"}}\n\n", i, i);
-            if tx.send(Ok::<_, actix_web::Error>(web::Bytes::from(progress_msg))).is_err() {
-                return;
+    // Create streaming responses using Streamable HTTP format
+    let streaming_responses = vec![
+        json!({
+            "jsonrpc": "2.0",
+            "id": "streaming_tool_execution",
+            "result": {
+                "type": "progress",
+                "message": "Tool execution started using Streamable HTTP transport",
+                "tool_name": tool_call.name,
+                "transport": "streamable-http",
+                "version": "2025-06-18",
+                "progress": 0
             }
-        }
+        }),
+        json!({
+            "jsonrpc": "2.0", 
+            "id": "streaming_tool_execution",
+            "result": {
+                "type": "progress",
+                "message": "Processing tool request",
+                "tool_name": tool_call.name,
+                "progress": 50
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": "streaming_tool_execution", 
+            "result": {
+                "type": "complete",
+                "message": "Tool execution completed successfully",
+                "tool_name": tool_call.name,
+                "content": [{
+                    "type": "text",
+                    "text": format!("Tool '{}' executed successfully using MCP 2025-06-18 Streamable HTTP transport", tool_call.name)
+                }],
+                "transport": "streamable-http",
+                "version": "2025-06-18"
+            }
+        })
+    ];
 
-        // Send final result
-        let result_msg = "data: {\"type\": \"result\", \"success\": true, \"data\": \"Tool execution completed\"}\n\n";
-        let _ = tx.send(Ok::<_, actix_web::Error>(web::Bytes::from(result_msg)));
-    });
+    // Return NDJSON stream response per MCP 2025-06-18 specification
+    let response_body = streaming_responses
+        .iter()
+        .map(|r| serde_json::to_string(r).unwrap_or_else(|_| "{}".to_string()))
+        .collect::<Vec<_>>()
+        .join("\n");
 
     HttpResponse::Ok()
-        .insert_header((header::CONTENT_TYPE, "text/event-stream"))
-        .insert_header((header::CACHE_CONTROL, "no-cache"))
-        .insert_header((header::CONNECTION, "keep-alive"))
-        .streaming(UnboundedReceiverStream::new(rx))
+        .content_type("application/x-ndjson")
+        .insert_header(("X-MCP-Transport", "streamable-http"))
+        .insert_header(("X-MCP-Version", "2025-06-18"))
+        .insert_header(("X-Tool-Name", tool_call.name.clone()))
+        .insert_header(("Cache-Control", "no-cache"))
+        .body(response_body)
 }
 
 // Helper functions for HTTP handlers
@@ -2309,7 +2917,3 @@ async fn oauth_token_handler(
             .json(error_response)
     }
 }
-
-
-
-

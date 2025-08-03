@@ -5,6 +5,108 @@ All notable changes to the MagicTunnel project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0]
+
+### Added
+
+#### **🚀 MCP 2025-06-18 Specification Compliance Complete**
+- **Full MCP 2025-06-18 Implementation**: Complete implementation of latest MCP spec with sampling and elicitation
+- **OAuth 2.1 Framework**: Upgraded authentication with PKCE and Resource Indicators (RFC 8707)
+- **Dual Transport Support**: HTTP+SSE (deprecated) and Streamable HTTP (preferred) with graceful migration
+- **Enhanced Security Model**: MCP-specific consent flows, capability permissions, and tool approval workflows
+- **Streamable HTTP Transport**: NDJSON streaming, enhanced batching, and session management
+- **Backward Compatibility**: Maintained HTTP+SSE support at `/mcp/stream` with deprecation guidance
+
+#### **🤖 Automatic LLM Generation Workflow Complete**
+- **Sampling Service**: AI-powered tool description enhancement with OpenAI/Anthropic/Ollama support
+- **Elicitation Service**: Automatic metadata extraction and parameter validation using structured LLM analysis
+- **Enhancement Pipeline**: Coordinated sampling + elicitation with parallel processing and error handling
+- **LLM Management CLI**: Unified `magictunnel-llm` tool for all LLM service management with external MCP protection
+- **External MCP Protection**: Automatic detection and protection of external MCP server content with warnings
+- **Performance Optimization**: Multi-level caching, rate limiting, and asynchronous processing for enterprise scale
+
+#### **🔒 Enterprise Security Features Complete**
+- **Allowlisting System**: Tool and domain allowlisting with granular permissions and policy enforcement
+- **Security Policy Engine**: Visual policy builder with condition-based rules and enterprise validation
+- **MCP Security Compliance**: Enhanced consent flows and capability validation per MCP 2025-06-18
+- **Enterprise Authentication**: OAuth 2.1 with PKCE and Resource Indicators for secure enterprise deployment
+- **Audit Logging**: Comprehensive security event tracking and monitoring with OpenTelemetry integration
+
+#### **🎨 Modern UI and Frontend Complete**
+- **LLM Services Dashboard**: Complete frontend for sampling, elicitation, and enhancement management
+- **Accessibility Improvements**: WCAG 2.1 AA compliance across all components with comprehensive accessibility fixes
+- **Responsive Design**: Mobile-first approach with enhanced user experience and real-time updates
+- **Real-time Monitoring**: Live service status and health indicators with automatic refresh
+- **Interactive Tool Management**: Dynamic forms and real-time enhancement execution with progress tracking
+
+#### **⚙️ Enhanced Configuration System**
+- **YAML Format Evolution**: Enhanced capability file format with metadata support and versioning
+- **Service Configuration**: Comprehensive LLM provider and enhancement settings with validation
+- **Security Configuration**: Granular security policy and allowlisting configuration management
+- **Performance Tuning**: Caching, batching, and optimization settings for enterprise deployments
+- **Environment Management**: Advanced environment variable and deployment configuration support
+
+#### **🛠️ Developer and Operations Tools**
+- **Advanced CLI Tools**: Complete suite including `magictunnel-llm` and `magictunnel-security` for enterprise management
+- **OpenAPI 3.1 Integration**: Complete Custom GPT support and API generation for seamless integrations
+- **Enhanced Documentation**: Comprehensive documentation including automatic LLM generation workflow guide
+- **Monitoring Integration**: OpenTelemetry, Prometheus metrics, and health checks for production monitoring
+
+### Enhanced - Architecture & Platform Improvements
+- **Enterprise-Grade Architecture**: Scalable platform supporting complex enterprise deployments
+- **Performance Optimization**: Sub-second response times with multi-level caching and distributed support
+- **Migration Support**: Backward-compatible upgrades with comprehensive migration documentation
+- **Production Ready**: Complete enterprise platform ready for production deployment
+
+### Documentation - Comprehensive Platform Documentation
+- **Automatic LLM Generation Workflow**: Complete documentation with architecture diagrams and implementation details
+- **Enterprise Security Guide**: Comprehensive security documentation with policy management and compliance
+- **Accessibility Implementation**: Detailed accessibility fixes and WCAG 2.1 AA compliance documentation
+- **Platform Migration Guide**: Step-by-step migration guide for existing installations
+
+### Technical - Major Version Breaking Changes
+- **Version Bump**: Major version change from 0.2.x to 0.3.0 reflecting comprehensive platform maturity
+- **Enterprise Focus**: Shift from development platform to enterprise-ready solution
+- **Complete Platform**: Full-featured enterprise platform with security, LLM enhancement, and modern UI
+
+## [0.2.50] - DEVELOPMENT BRANCH (ARCHIVED)
+### Added - 🎉 MAJOR: Enterprise-Grade Smart Discovery System
+- **🧠 Complete MCP 2025-06-18 Smart Discovery Integration**
+  - **Server-side LLM Request Generation**: Full RequestGeneratorService with OpenAI, Anthropic, and Ollama integration
+  - **Sampling Request Generation**: Automatic enhanced tool description generation for improved discoverability
+  - **Elicitation Request Generation**: Dynamic parameter collection with LLM-powered template generation
+  - **Tool Enhancement Pipeline**: Complete pipeline: base → sampling → elicitation → ranking with pre-generation
+  - **Event-driven Enhancement**: Real-time tool enhancement on registry changes with startup pre-generation
+  - **Performance Optimization**: Pre-generated enhanced descriptions maintain sub-second response times
+
+- **🛡️ External MCP Protection & Integration**
+  - **External MCP Detection**: Automatic detection of external/remote MCP tools using routing type analysis
+  - **Capability Inheritance**: Query external MCP servers for their own sampling/elicitation capabilities first
+  - **Protection System**: Prevent automatic LLM generation for external MCP tools to respect original capabilities
+  - **MCP Version Detection**: Automatic MCP protocol version detection and metadata tracking for external servers
+  - **Capability File Versioning**: Automatic saving of older versions when capability files change with rollback support
+
+- **🔧 CLI Management & Monitoring**
+  - **Enhanced Visibility CLI**: Added `show-mcp-warnings` command to `magictunnel-visibility` tool
+  - **MCP Capability Override Warnings**: Detect and warn when local enhancement would override original MCP capabilities
+  - **Detailed External MCP Analysis**: Complete analysis of external MCP tools with routing type and capability information
+  - **Configuration Integration**: Mirror enhancement service configuration logic for accurate warning detection
+  - **Actionable Recommendations**: Specific suggestions for resolving capability conflicts with config examples
+
+### Enhanced - Architecture & Reliability
+- **⚠️ Graceful Degradation**: Complete fallback system ensuring 100% reliability when enhancement fails
+- **🔄 Batch Processing**: Efficient batch enhancement processing for multiple tool additions with concurrent execution
+- **📊 Comprehensive Logging**: Enhanced logging with startup enhancement statistics and warning display
+- **🎯 Error Handling**: Robust error handling with retry logic and timeout-based fallback to base descriptions
+- **⚡ Caching System**: Smart caching of enhanced descriptions with failure cache to avoid repeated failures
+
+### Technical - MCP 2025-06-18 Compliance
+- **Extended MCP Types**: Enhanced ToolAnnotations with SamplingCapability and ElicitationCapability fields
+- **Protocol Integration**: Complete integration with existing MCP server infrastructure
+- **Configuration Schema**: Enhanced configuration with sampling/elicitation sections and smart discovery flags
+- **External MCP Fetch Logic**: Updated to handle 2025-06-18 sampling/elicitation spec with metadata preservation
+- **Lifetime Management**: Fixed compilation issues with proper lifetime handling in external manager
+
 ## [0.2.49]
 ### Added - Major Platform Enhancements
 - **🌐 Network MCP Services & Protocol Gateway**

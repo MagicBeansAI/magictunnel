@@ -525,7 +525,8 @@
                 <div class="border-t pt-4">
                   <button 
                     class="btn-primary w-full"
-                    on:click={() => openToolModal(selectedTool)}
+                    on:click={() => selectedTool && openToolModal(selectedTool)}
+                    disabled={!selectedTool}
                   >
                     🧪 Test This Tool
                   </button>

@@ -945,6 +945,8 @@ mod tests {
                 annotations: None,
                 hidden: false,
                 enabled: true,
+                prompt_refs: Vec::new(),
+                resource_refs: Vec::new(),
             }),
             ("http_request".to_string(), ToolDefinition {
                 name: "http_request".to_string(),
@@ -957,6 +959,8 @@ mod tests {
                 annotations: None,
                 hidden: false,
                 enabled: true,
+                prompt_refs: Vec::new(),
+                resource_refs: Vec::new(),
             }),
         ]
     }

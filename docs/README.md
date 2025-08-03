@@ -12,6 +12,7 @@
 - [🏗️ Architecture](architecture.md) - Technical architecture overview
 - [🔌 API Reference](api.md) - HTTP and MCP API documentation
 - [🧠 Smart Discovery](smart-discovery.md) - Intelligent tool discovery system
+- [✨ MCP 2025-06-18 Format](mcp-2025-06-18-format.md) - Enhanced MCP format with AI discovery and security
 - [📊 MCP Observability](MCP_OBSERVABILITY_ARCHITECTURE.md) - Metrics and monitoring system
 - [🔐 Authentication](AUTHENTICATION.md) - Authentication and authorization system
 - [🧠 Embedding Management](EMBEDDING_MANAGEMENT.md) - Vector embeddings for semantic search

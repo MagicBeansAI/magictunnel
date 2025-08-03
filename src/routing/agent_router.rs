@@ -139,7 +139,7 @@ impl AgentRouter for DefaultAgentRouter {
                         .to_string(),
                     model: config.get("model")
                         .and_then(|v| v.as_str())
-                        .unwrap_or("gpt-3.5-turbo")
+                        .unwrap_or("default-model") // Should be specified in config
                         .to_string(),
                     api_key: config.get("api_key")
                         .and_then(|v| v.as_str())

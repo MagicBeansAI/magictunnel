@@ -13,13 +13,15 @@ use uuid::Uuid;
 
 /// Supported MCP protocol versions in order of preference (newest first)
 pub const SUPPORTED_PROTOCOL_VERSIONS: &[&str] = &[
+    "2025-06-18",
+    "2025-03-26",
     "2024-11-05",
     "2024-10-07", 
     "2024-09-25",
 ];
 
 /// Default protocol version to use
-pub const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
+pub const DEFAULT_PROTOCOL_VERSION: &str = "2025-06-18";
 
 /// Maximum number of active sessions
 pub const MAX_ACTIVE_SESSIONS: usize = 1000;

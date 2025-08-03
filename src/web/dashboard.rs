@@ -3409,6 +3409,467 @@ tools:
         }
     }
 
+    // LLM Services API Methods
+
+    /// GET /dashboard/api/sampling/status - Get sampling service status
+    pub async fn get_sampling_status(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Getting sampling service status");
+        
+        let status = if let Some(sampling_service) = self.mcp_server.sampling_service() {
+            // Get basic provider info
+            let provider_info = json!({
+                "provider": "internal",
+                "status": "available"
+            });
+            json!({
+                "enabled": true,
+                "service_type": "SamplingService",
+                "status": "active",
+                "capabilities": ["enhanced_descriptions", "tool_analysis", "llm_generation"],
+                "provider_info": provider_info,
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            })
+        } else {
+            json!({
+                "enabled": false,
+                "service_type": "SamplingService", 
+                "status": "disabled",
+                "message": "Sampling service not configured",
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            })
+        };
+        
+        Ok(HttpResponse::Ok().json(status))
+    }
+
+    /// POST /dashboard/api/sampling/generate - Generate sampling request for a tool
+    pub async fn generate_sampling_request(&self, body: web::Json<SamplingGenerateRequest>) -> Result<HttpResponse> {
+        let tool_name = &body.tool_name;
+        debug!("⚡ [DASHBOARD] Generating sampling for tool: {}", tool_name);
+        
+        // Check if sampling service is available
+        let sampling_service = match self.mcp_server.sampling_service() {
+            Some(service) => service,
+            None => {
+                return Ok(HttpResponse::ServiceUnavailable().json(json!({
+                    "error": "Sampling service not available",
+                    "message": "Sampling service is not configured or enabled",
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                })));
+            }
+        };
+
+        // Get tool definition
+        let tools = self.registry.get_enabled_tools();
+        let tool_def = match tools.iter().find(|(name, _)| name == tool_name) {
+            Some((_, tool_def)) => tool_def,
+            None => {
+                return Ok(HttpResponse::NotFound().json(json!({
+                    "error": "Tool not found",
+                    "message": format!("Tool '{}' not found in registry", tool_name),
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                })));
+            }
+        };
+
+        // Check if external MCP tool (unless force=true)
+        if !body.force.unwrap_or(false) && self.is_external_mcp_tool(tool_def) {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "error": "External MCP tool",
+                "message": format!("Tool '{}' is from external MCP server. Use force=true to override", tool_name),
+                "warning": "Generating local content for external MCP tools may conflict with server-provided content",
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            })));
+        }
+
+        // Generate sampling request
+        match sampling_service.generate_enhanced_description_request(tool_name, &tool_def.description, &serde_json::to_value(&tool_def.input_schema).unwrap_or(json!({}))).await {
+            Ok(request) => {
+                info!("✅ [DASHBOARD] Generated sampling request for tool: {}", tool_name);
+                Ok(HttpResponse::Ok().json(json!({
+                    "success": true,
+                    "tool_name": tool_name,
+                    "request": request,
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                })))
+            }
+            Err(e) => {
+                error!("❌ [DASHBOARD] Failed to generate sampling for tool '{}': {:?}", tool_name, e);
+                Ok(HttpResponse::InternalServerError().json(json!({
+                    "error": "Generation failed",
+                    "message": format!("{:?}", e),
+                    "tool_name": tool_name,
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                })))
+            }
+        }
+    }
+
+    /// GET /dashboard/api/sampling/tools - List tools with sampling information
+    pub async fn list_sampling_tools(&self, query: web::Query<SamplingToolsQuery>) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Listing tools with sampling info, filter: {:?}", query.filter);
+        
+        let tools = if query.enhanced_only.unwrap_or(false) {
+            // Only tools with sampling enhancements
+            self.get_tools_with_sampling().await
+        } else {
+            // All tools
+            self.registry.get_enabled_tools().into_iter().collect()
+        };
+
+        let filtered_tools: Vec<_> = tools.iter()
+            .filter(|(name, _)| {
+                if let Some(filter) = &query.filter {
+                    name.contains(filter)
+                } else {
+                    true
+                }
+            })
+            .take(query.limit.unwrap_or(100))
+            .map(|(name, tool)| {
+                json!({
+                    "name": name,
+                    "description": tool.description,
+                    "has_sampling": self.tool_has_sampling_enhancement(name),
+                    "is_external": self.is_external_mcp_tool(tool),
+                    "enhanced_description": self.get_tool_sampling_enhancement(name)
+                })
+            })
+            .collect();
+
+        Ok(HttpResponse::Ok().json(json!({
+            "tools": filtered_tools,
+            "total": filtered_tools.len(),
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        })))
+    }
+
+    /// GET /dashboard/api/elicitation/status - Get elicitation service status  
+    pub async fn get_elicitation_status(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Getting elicitation service status");
+        
+        let status = if let Some(elicitation_service) = self.mcp_server.elicitation_service() {
+            json!({
+                "enabled": true,
+                "service_type": "ElicitationService",
+                "status": "active", 
+                "capabilities": ["parameter_validation", "keyword_generation", "usage_patterns"],
+                "provider_info": json!({
+                    "provider": "internal",
+                    "status": "available"
+                }),
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            })
+        } else {
+            json!({
+                "enabled": false,
+                "service_type": "ElicitationService",
+                "status": "disabled",
+                "message": "Elicitation service not configured", 
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            })
+        };
+        
+        Ok(HttpResponse::Ok().json(status))
+    }
+
+    /// POST /dashboard/api/elicitation/generate - Generate elicitation request for a tool
+    pub async fn generate_elicitation_request(&self, body: web::Json<ElicitationGenerateRequest>) -> Result<HttpResponse> {
+        let tool_name = &body.tool_name;
+        debug!("⚡ [DASHBOARD] Generating elicitation for tool: {}", tool_name);
+        
+        // Check if elicitation service is available
+        let elicitation_service = match self.mcp_server.elicitation_service() {
+            Some(service) => service,
+            None => {
+                return Ok(HttpResponse::ServiceUnavailable().json(json!({
+                    "error": "Elicitation service not available",
+                    "message": "Elicitation service is not configured or enabled",
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                })));
+            }
+        };
+
+        // Get tool definition
+        let tools = self.registry.get_enabled_tools();
+        let tool_def = match tools.iter().find(|(name, _)| name == tool_name) {
+            Some((_, tool_def)) => tool_def,
+            None => {
+                return Ok(HttpResponse::NotFound().json(json!({
+                    "error": "Tool not found",
+                    "message": format!("Tool '{}' not found in registry", tool_name),
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                })));
+            }
+        };
+
+        // Check if external MCP tool (unless force=true)
+        if !body.force.unwrap_or(false) && self.is_external_mcp_tool(tool_def) {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "error": "External MCP tool",
+                "message": format!("Tool '{}' is from external MCP server. Use force=true to override", tool_name),
+                "warning": "Generating local content for external MCP tools may conflict with server-provided content", 
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            })));
+        }
+
+        // Generate elicitation request based on type
+        let elicitation_type = body.elicitation_type.as_deref().unwrap_or("keywords");
+        let missing_parameters = body.missing_parameters.as_deref().unwrap_or(&[]);
+        let user_request = body.user_request.as_deref().unwrap_or("Generate keywords and metadata for this tool");
+        match elicitation_service.generate_parameter_elicitation_request(tool_name, &tool_def.description, &serde_json::to_value(&tool_def.input_schema).unwrap_or(json!({})), missing_parameters, user_request).await {
+            Ok(request) => {
+                info!("✅ [DASHBOARD] Generated elicitation request for tool: {}", tool_name);
+                Ok(HttpResponse::Ok().json(json!({
+                    "success": true,
+                    "tool_name": tool_name,
+                    "elicitation_type": elicitation_type,
+                    "request": request,
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                })))
+            }
+            Err(e) => {
+                error!("❌ [DASHBOARD] Failed to generate elicitation for tool '{}': {}", tool_name, e);
+                Ok(HttpResponse::InternalServerError().json(json!({
+                    "error": "Generation failed",
+                    "message": e.to_string(),
+                    "tool_name": tool_name,
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                })))
+            }
+        }
+    }
+
+    /// GET /dashboard/api/elicitation/tools - List tools with elicitation information
+    pub async fn list_elicitation_tools(&self, query: web::Query<ElicitationToolsQuery>) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Listing tools with elicitation info, filter: {:?}", query.filter);
+        
+        let tools = if query.enhanced_only.unwrap_or(false) {
+            // Only tools with elicitation enhancements
+            self.get_tools_with_elicitation().await  
+        } else {
+            // All tools
+            self.registry.get_enabled_tools().into_iter().collect()
+        };
+
+        let filtered_tools: Vec<_> = tools.iter()
+            .filter(|(name, _)| {
+                if let Some(filter) = &query.filter {
+                    name.contains(filter)
+                } else {
+                    true
+                }
+            })
+            .take(query.limit.unwrap_or(100))
+            .map(|(name, tool)| {
+                json!({
+                    "name": name,
+                    "description": tool.description,
+                    "has_elicitation": self.tool_has_elicitation_enhancement(name),
+                    "is_external": self.is_external_mcp_tool(tool),
+                    "keywords": self.get_tool_elicitation_keywords(name),
+                    "usage_patterns": self.get_tool_usage_patterns(name)
+                })
+            })
+            .collect();
+
+        Ok(HttpResponse::Ok().json(json!({
+            "tools": filtered_tools,
+            "total": filtered_tools.len(),
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        })))
+    }
+
+    /// GET /dashboard/api/enhancement/status - Get enhancement pipeline status
+    pub async fn get_enhancement_status(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Getting enhancement pipeline status");
+        
+        let sampling_available = self.mcp_server.has_sampling_service();
+        let elicitation_available = self.mcp_server.has_elicitation_service();
+        let enhancement_available = self.mcp_server.enhancement_service().is_some();
+        
+        let status = json!({
+            "enabled": enhancement_available,
+            "pipeline_components": {
+                "sampling": {
+                    "available": sampling_available,
+                    "status": if sampling_available { "active" } else { "disabled" }
+                },
+                "elicitation": {
+                    "available": elicitation_available,
+                    "status": if elicitation_available { "active" } else { "disabled" }
+                },
+                "enhancement": {
+                    "available": enhancement_available,
+                    "status": if enhancement_available { "active" } else { "disabled" }
+                }
+            },
+            "pipeline_flow": ["sampling", "elicitation", "enhancement"],
+            "capabilities": [
+                "coordinated_generation",
+                "external_mcp_protection", 
+                "batch_processing",
+                "automatic_caching"
+            ],
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        });
+        
+        Ok(HttpResponse::Ok().json(status))
+    }
+
+    /// POST /dashboard/api/enhancement/generate - Generate full enhancement pipeline for tool(s)
+    pub async fn generate_enhancement_pipeline(&self, body: web::Json<EnhancementGenerateRequest>) -> Result<HttpResponse> {
+        let tool_name = &body.tool_name;
+        debug!("⚡ [DASHBOARD] Running enhancement pipeline for tool: {}", tool_name);
+        
+        // Check if enhancement service is available
+        let enhancement_service = match self.mcp_server.enhancement_service() {
+            Some(service) => service,
+            None => {
+                return Ok(HttpResponse::ServiceUnavailable().json(json!({
+                    "error": "Enhancement service not available",
+                    "message": "Enhancement pipeline is not configured. Requires sampling and/or elicitation services",
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                })));
+            }
+        };
+
+        // Get tool definition
+        let tools = self.registry.get_enabled_tools();
+        let tool_def = match tools.iter().find(|(name, _)| name == tool_name) {
+            Some((_, tool_def)) => tool_def,
+            None => {
+                return Ok(HttpResponse::NotFound().json(json!({
+                    "error": "Tool not found",
+                    "message": format!("Tool '{}' not found in registry", tool_name),
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                })));
+            }
+        };
+
+        // Check if external MCP tool (unless force=true)
+        if !body.force.unwrap_or(false) && self.is_external_mcp_tool(tool_def) {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "error": "External MCP tool",
+                "message": format!("Tool '{}' is from external MCP server. Use force=true to override", tool_name),
+                "warning": "Generating local enhancements for external MCP tools may conflict with server-provided content",
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            })));
+        }
+
+        // Run enhancement pipeline by triggering tool change event
+        match enhancement_service.on_tools_changed(vec![(tool_name.to_string(), tool_def.clone())]).await {
+            Ok(()) => {
+                info!("✅ [DASHBOARD] Enhancement pipeline triggered for tool: {}", tool_name);
+                
+                // Get the enhanced tool from the cache
+                match enhancement_service.get_enhanced_tools().await {
+                    Ok(enhanced_tools) => {
+                        if let Some(enhanced_tool) = enhanced_tools.get(tool_name) {
+                            Ok(HttpResponse::Ok().json(json!({
+                                "success": true,
+                                "tool_name": tool_name,
+                                "enhancement_results": {
+                                    "sampling_enhanced": enhanced_tool.sampling_enhanced_description.is_some(),
+                                    "elicitation_enhanced": enhanced_tool.elicitation_metadata.is_some(),
+                                    "enhanced_at": enhanced_tool.enhanced_at,
+                                    "generation_metadata": enhanced_tool.enhancement_metadata
+                                },
+                                "enhanced_tool": enhanced_tool,
+                                "timestamp": chrono::Utc::now().to_rfc3339()
+                            })))
+                        } else {
+                            Ok(HttpResponse::Ok().json(json!({
+                                "success": true,
+                                "tool_name": tool_name,
+                                "message": "Enhancement pipeline triggered but tool not yet enhanced",
+                                "timestamp": chrono::Utc::now().to_rfc3339()
+                            })))
+                        }
+                    }
+                    Err(e) => {
+                        error!("❌ [DASHBOARD] Failed to get enhanced tools after pipeline trigger: {}", e);
+                        Ok(HttpResponse::InternalServerError().json(json!({
+                            "error": "Failed to retrieve enhanced tool",
+                            "message": e.to_string(),
+                            "tool_name": tool_name,
+                            "timestamp": chrono::Utc::now().to_rfc3339()
+                        })))
+                    }
+                }
+            }
+            Err(e) => {
+                error!("❌ [DASHBOARD] Enhancement pipeline failed for tool '{}': {}", tool_name, e);
+                Ok(HttpResponse::InternalServerError().json(json!({
+                    "error": "Enhancement pipeline failed",
+                    "message": e.to_string(),
+                    "tool_name": tool_name,
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                })))
+            }
+        }
+    }
+
+    /// GET /dashboard/api/enhancement/tools - List tools with enhancement information
+    pub async fn list_enhanced_tools(&self, query: web::Query<EnhancementToolsQuery>) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Listing enhanced tools, filter: {:?}", query.filter);
+        
+        // Get enhanced tools if enhancement service is available
+        let enhanced_tools = if let Some(enhancement_service) = self.mcp_server.enhancement_service() {
+            match enhancement_service.get_enhanced_tools().await {
+                Ok(tools) => tools,
+                Err(e) => {
+                    warn!("Failed to get enhanced tools: {}", e);
+                    HashMap::new()
+                }
+            }
+        } else {
+            HashMap::new()
+        };
+
+        let all_tools = self.registry.get_enabled_tools();
+        let filtered_tools: Vec<_> = all_tools.iter()
+            .filter(|(name, _)| {
+                if query.enhanced_only.unwrap_or(false) {
+                    enhanced_tools.contains_key(name)
+                } else {
+                    true
+                }
+            })
+            .filter(|(name, _)| {
+                if let Some(filter) = &query.filter {
+                    name.contains(filter)
+                } else {
+                    true
+                }
+            })
+            .take(query.limit.unwrap_or(100))
+            .map(|(name, tool)| {
+                let enhanced_tool = enhanced_tools.get(name);
+                json!({
+                    "name": name,
+                    "description": tool.description,
+                    "is_enhanced": enhanced_tool.is_some(),
+                    "is_external": self.is_external_mcp_tool(tool),
+                    "enhancement_info": enhanced_tool.map(|et| json!({
+                        "source": et.enhancement_source,
+                        "has_sampling": et.sampling_enhanced_description.is_some(),
+                        "has_elicitation": et.elicitation_metadata.is_some(),
+                        "enhanced_at": et.enhanced_at,
+                        "last_generated_at": et.last_generated_at
+                    }))
+                })
+            })
+            .collect();
+
+        Ok(HttpResponse::Ok().json(json!({
+            "tools": filtered_tools,
+            "total": filtered_tools.len(),
+            "enhanced_count": enhanced_tools.len(),
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        })))
+    }
+
     /// GET /dashboard/api/openapi.json - Generate OpenAPI 3.1.0 specification for Custom GPT integration (all tools)
     pub async fn get_openapi_spec(&self) -> Result<HttpResponse> {
         debug!("🔧 [DASHBOARD] Generating OpenAPI 3.1.0 specification for Custom GPT integration (all tools)");
@@ -4071,6 +4532,159 @@ tools:
             }
         }
     }
+
+    // Helper methods for LLM services integration
+
+    /// Check if a tool is from an external MCP server
+    fn is_external_mcp_tool(&self, tool: &crate::registry::types::ToolDefinition) -> bool {
+        matches!(tool.routing.r#type.as_str(), "external_mcp" | "websocket")
+    }
+
+    /// Get tools that have sampling enhancements
+    async fn get_tools_with_sampling(&self) -> Vec<(String, crate::registry::types::ToolDefinition)> {
+        if let Some(enhancement_service) = self.mcp_server.enhancement_service() {
+            match enhancement_service.get_enhanced_tools().await {
+                Ok(enhanced_tools) => {
+                    enhanced_tools.into_iter()
+                        .filter(|(_, enhanced_tool)| enhanced_tool.sampling_enhanced_description.is_some())
+                        .map(|(name, enhanced_tool)| (name, enhanced_tool.base))
+                        .collect()
+                },
+                Err(e) => {
+                    warn!("Failed to get enhanced tools: {}", e);
+                    Vec::new()
+                }
+            }
+        } else {
+            // Fallback to all tools if no enhancement service
+            self.registry.get_enabled_tools().into_iter().collect()
+        }
+    }
+
+    /// Get tools that have elicitation enhancements  
+    async fn get_tools_with_elicitation(&self) -> Vec<(String, crate::registry::types::ToolDefinition)> {
+        if let Some(enhancement_service) = self.mcp_server.enhancement_service() {
+            match enhancement_service.get_enhanced_tools().await {
+                Ok(enhanced_tools) => {
+                    enhanced_tools.into_iter()
+                        .filter(|(_, enhanced_tool)| enhanced_tool.elicitation_metadata.is_some())
+                        .map(|(name, enhanced_tool)| (name, enhanced_tool.base))
+                        .collect()
+                },
+                Err(e) => {
+                    warn!("Failed to get enhanced tools: {}", e);
+                    Vec::new()
+                }
+            }
+        } else {
+            // Fallback to all tools if no enhancement service
+            self.registry.get_enabled_tools().into_iter().collect()
+        }
+    }
+
+    /// Check if a tool has sampling enhancement
+    fn tool_has_sampling_enhancement(&self, tool_name: &str) -> bool {
+        if let Some(enhancement_service) = self.mcp_server.enhancement_service() {
+            // Check enhancement cache synchronously
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    match enhancement_service.get_enhanced_tools().await {
+                        Ok(enhanced_tools) => {
+                            enhanced_tools.get(tool_name)
+                                .map(|enhanced_tool| enhanced_tool.sampling_enhanced_description.is_some())
+                                .unwrap_or(false)
+                        },
+                        Err(_) => false
+                    }
+                })
+            })
+        } else {
+            false
+        }
+    }
+
+    /// Check if a tool has elicitation enhancement
+    fn tool_has_elicitation_enhancement(&self, tool_name: &str) -> bool {
+        if let Some(enhancement_service) = self.mcp_server.enhancement_service() {
+            // Check enhancement cache synchronously
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    match enhancement_service.get_enhanced_tools().await {
+                        Ok(enhanced_tools) => {
+                            enhanced_tools.get(tool_name)
+                                .map(|enhanced_tool| enhanced_tool.elicitation_metadata.is_some())
+                                .unwrap_or(false)
+                        },
+                        Err(_) => false
+                    }
+                })
+            })
+        } else {
+            false
+        }
+    }
+
+    /// Get sampling enhancement for a tool
+    fn get_tool_sampling_enhancement(&self, tool_name: &str) -> Option<String> {
+        if let Some(enhancement_service) = self.mcp_server.enhancement_service() {
+            // Get enhancement from cache synchronously
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    match enhancement_service.get_enhanced_tools().await {
+                        Ok(enhanced_tools) => {
+                            enhanced_tools.get(tool_name)
+                                .and_then(|enhanced_tool| enhanced_tool.sampling_enhanced_description.clone())
+                        },
+                        Err(_) => None
+                    }
+                })
+            })
+        } else {
+            None
+        }
+    }
+
+    /// Get elicitation keywords for a tool
+    fn get_tool_elicitation_keywords(&self, tool_name: &str) -> Option<Vec<String>> {
+        if let Some(enhancement_service) = self.mcp_server.enhancement_service() {
+            // Get keywords from enhancement cache synchronously
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    match enhancement_service.get_enhanced_tools().await {
+                        Ok(enhanced_tools) => {
+                            enhanced_tools.get(tool_name)
+                                .and_then(|enhanced_tool| enhanced_tool.elicitation_metadata.as_ref())
+                                .and_then(|metadata| metadata.enhanced_keywords.clone())
+                        },
+                        Err(_) => None
+                    }
+                })
+            })
+        } else {
+            None
+        }
+    }
+
+    /// Get usage patterns for a tool
+    fn get_tool_usage_patterns(&self, tool_name: &str) -> Option<Vec<String>> {
+        if let Some(enhancement_service) = self.mcp_server.enhancement_service() {
+            // Get usage patterns from enhancement cache synchronously
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    match enhancement_service.get_enhanced_tools().await {
+                        Ok(enhanced_tools) => {
+                            enhanced_tools.get(tool_name)
+                                .and_then(|enhanced_tool| enhanced_tool.elicitation_metadata.as_ref())
+                                .and_then(|metadata| metadata.usage_patterns.clone())
+                        },
+                        Err(_) => None
+                    }
+                })
+            })
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(serde::Deserialize)]
@@ -4226,6 +4840,36 @@ pub fn configure_dashboard_api(
                 .route("/prompts/execute", web::post().to(|api: web::Data<DashboardApi>, body: web::Json<PromptExecuteRequest>| async move {
                     api.execute_prompt(body).await
                 }))
+                // LLM Services - Sampling endpoints
+                .route("/sampling/status", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_sampling_status().await
+                }))
+                .route("/sampling/generate", web::post().to(|api: web::Data<DashboardApi>, body: web::Json<SamplingGenerateRequest>| async move {
+                    api.generate_sampling_request(body).await
+                }))
+                .route("/sampling/tools", web::get().to(|api: web::Data<DashboardApi>, query: web::Query<SamplingToolsQuery>| async move {
+                    api.list_sampling_tools(query).await
+                }))
+                // LLM Services - Elicitation endpoints
+                .route("/elicitation/status", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_elicitation_status().await
+                }))
+                .route("/elicitation/generate", web::post().to(|api: web::Data<DashboardApi>, body: web::Json<ElicitationGenerateRequest>| async move {
+                    api.generate_elicitation_request(body).await
+                }))
+                .route("/elicitation/tools", web::get().to(|api: web::Data<DashboardApi>, query: web::Query<ElicitationToolsQuery>| async move {
+                    api.list_elicitation_tools(query).await
+                }))
+                // LLM Services - Enhancement Pipeline endpoints
+                .route("/enhancement/status", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_enhancement_status().await
+                }))
+                .route("/enhancement/generate", web::post().to(|api: web::Data<DashboardApi>, body: web::Json<EnhancementGenerateRequest>| async move {
+                    api.generate_enhancement_pipeline(body).await
+                }))
+                .route("/enhancement/tools", web::get().to(|api: web::Data<DashboardApi>, query: web::Query<EnhancementToolsQuery>| async move {
+                    api.list_enhanced_tools(query).await
+                }))
                 // OpenAPI specification endpoint for Custom GPT integration
                 .route("/openapi.json", web::get().to(|api: web::Data<DashboardApi>| async move {
                     api.get_openapi_spec().await
@@ -4275,24 +4919,24 @@ pub fn configure_dashboard_api(
 /// Request to get current environment variables
 #[derive(Debug, Deserialize)]
 pub struct GetEnvVarsRequest {
-        /// Optional filter for environment variable names (regex supported)
-        pub filter: Option<String>,
-        /// Include sensitive variables (API keys, etc.)
-        pub include_sensitive: Option<bool>,
-    }
+    /// Optional filter for environment variable names (regex supported)
+    pub filter: Option<String>,
+    /// Include sensitive variables (API keys, etc.)
+    pub include_sensitive: Option<bool>,
+}
 
-    /// Request to set environment variables
-    #[derive(Debug, Deserialize)]
-    pub struct SetEnvVarsRequest {
-        /// Environment variables to set
-        pub variables: HashMap<String, String>,
-        /// Whether to persist changes to .env file
-        pub persist: Option<bool>,
-        /// Environment file to write to (default: .env.local)
-        pub env_file: Option<String>,
-    }
+/// Request to set environment variables
+#[derive(Debug, Deserialize)]
+pub struct SetEnvVarsRequest {
+    /// Environment variables to set
+    pub variables: HashMap<String, String>,
+    /// Whether to persist changes to .env file
+    pub persist: Option<bool>,
+    /// Environment file to write to (default: .env.local)
+    pub env_file: Option<String>,
+}
 
-    /// Request to delete environment variables
+/// Request to delete environment variables
     #[derive(Debug, Deserialize)]
     pub struct DeleteEnvVarsRequest {
         /// Environment variable names to delete
@@ -4344,6 +4988,76 @@ pub struct GetEnvVarsRequest {
     #[derive(Debug, Deserialize)]
     pub struct RecentExecutionsQuery {
         /// Maximum number of executions to return
+        pub limit: Option<usize>,
+    }
+
+    // LLM Services Request/Response Types
+
+    #[derive(Deserialize)]
+    pub struct SamplingGenerateRequest {
+        /// Tool name to generate sampling for
+        pub tool_name: String,
+        /// Force generation even if external MCP tool
+        pub force: Option<bool>,
+        /// Custom prompt template (optional)
+        pub custom_prompt: Option<String>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct SamplingToolsQuery {
+        /// Filter by tool name pattern
+        pub filter: Option<String>,
+        /// Include enhanced tools only
+        pub enhanced_only: Option<bool>,
+        /// Pagination limit
+        pub limit: Option<usize>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct ElicitationGenerateRequest {
+        /// Tool name to generate elicitation for
+        pub tool_name: String,
+        /// Type of elicitation (keywords, examples, validation)
+        pub elicitation_type: Option<String>,
+        /// Force generation even if external MCP tool
+        pub force: Option<bool>,
+        /// Missing parameters to elicit
+        pub missing_parameters: Option<Vec<String>>,
+        /// User request context
+        pub user_request: Option<String>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct ElicitationToolsQuery {
+        /// Filter by tool name pattern
+        pub filter: Option<String>,
+        /// Include enhanced tools only
+        pub enhanced_only: Option<bool>,
+        /// Pagination limit
+        pub limit: Option<usize>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct EnhancementGenerateRequest {
+        /// Tool name to enhance (runs full pipeline: sampling + elicitation)
+        pub tool_name: String,
+        /// Enable sampling enhancement
+        pub enable_sampling: Option<bool>,
+        /// Enable elicitation enhancement  
+        pub enable_elicitation: Option<bool>,
+        /// Force generation even if external MCP tool
+        pub force: Option<bool>,
+        /// Batch size for multiple tools
+        pub batch_size: Option<usize>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct EnhancementToolsQuery {
+        /// Filter by tool name pattern
+        pub filter: Option<String>,
+        /// Include only tools with enhancements
+        pub enhanced_only: Option<bool>,
+        /// Pagination limit
         pub limit: Option<usize>,
     }
 

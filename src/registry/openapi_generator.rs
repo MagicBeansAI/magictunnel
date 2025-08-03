@@ -5,7 +5,16 @@
 //! to create corresponding MCP tools for REST API endpoints.
 
 use crate::error::{ProxyError, Result};
-use crate::registry::types::{CapabilityFile, FileMetadata, ToolDefinition, RoutingConfig};
+use crate::registry::types::{
+    CapabilityFile, FileMetadata, ToolDefinition, RoutingConfig,
+    // MCP 2025-06-18 Enhanced Types
+    EnhancedFileMetadata, EnhancedToolDefinition, CoreDefinition, ExecutionConfig,
+    DiscoveryEnhancement, MonitoringConfig, AccessConfig, ClassificationMetadata,
+    DiscoveryMetadata, McpCapabilities, SandboxConfig, PerformanceConfig,
+    AiEnhancedDiscovery, ProgressTrackingConfig, CancellationConfig,
+    MetricsConfig, EnhancedRoutingConfig, SemanticContext, WorkflowIntegration
+};
+use crate::mcp::tool_validation::SecurityClassification;
 use openapiv3::{OpenAPI, Operation, Parameter, RequestBody, Response};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -145,6 +154,8 @@ pub struct OpenAPICapabilityGenerator {
     pub naming_convention: NamingConvention,
     /// Whether to include deprecated operations
     pub include_deprecated: bool,
+    /// Whether to generate enhanced MCP 2025-06-18 format
+    pub use_enhanced_format: bool,
 }
 
 /// Naming convention for generated tools
@@ -279,6 +290,7 @@ impl OpenAPICapabilityGenerator {
             method_filter: None,
             naming_convention: NamingConvention::default(),
             include_deprecated: false,
+            use_enhanced_format: true, // Default to enhanced format
         }
     }
 
@@ -321,6 +333,12 @@ impl OpenAPICapabilityGenerator {
     /// Include deprecated operations
     pub fn include_deprecated(mut self) -> Self {
         self.include_deprecated = true;
+        self
+    }
+
+    /// Use enhanced MCP 2025-06-18 format
+    pub fn with_enhanced_format(mut self, enhanced: bool) -> Self {
+        self.use_enhanced_format = enhanced;
         self
     }
 
@@ -1359,6 +1377,59 @@ impl OpenAPICapabilityGenerator {
 
     /// Generate capability file from operations
     fn generate_capability_file(&self, operations: Vec<OpenAPIOperation>) -> Result<CapabilityFile> {
+        if self.use_enhanced_format {
+            self.generate_enhanced_capability_file(operations)
+        } else {
+            self.generate_legacy_capability_file(operations)
+        }
+    }
+
+    /// Generate enhanced MCP 2025-06-18 format capability file
+    fn generate_enhanced_capability_file(&self, operations: Vec<OpenAPIOperation>) -> Result<CapabilityFile> {
+        let mut enhanced_tools = Vec::new();
+
+        for operation in operations {
+            match self.operation_to_enhanced_tool_definition(operation) {
+                Ok(tool) => enhanced_tools.push(tool),
+                Err(e) => {
+                    // Log warning but continue processing other operations
+                    tracing::warn!("Failed to convert operation to enhanced tool: {}", e);
+                }
+            }
+        }
+
+        let enhanced_metadata = EnhancedFileMetadata {
+            name: "Enhanced OpenAPI REST API".to_string(),
+            description: format!("Auto-generated REST API tools for {} - MCP 2025-06-18 compliant with AI enhancement", self.base_url),
+            version: "3.0.0".to_string(),
+            author: "OpenAPI Schema Generator".to_string(),
+            classification: Some(ClassificationMetadata {
+                security_level: "safe".to_string(),
+                complexity_level: "simple".to_string(),
+                domain: "api".to_string(),
+                use_cases: vec!["api_integration".to_string(), "rest_client".to_string()],
+            }),
+            discovery_metadata: Some(DiscoveryMetadata {
+                primary_keywords: vec!["openapi".to_string(), "rest".to_string(), "api".to_string(), "auto-generated".to_string()],
+                semantic_embeddings: true,
+                llm_enhanced: true,
+                workflow_enabled: true,
+            }),
+            mcp_capabilities: Some(McpCapabilities {
+                version: "2025-06-18".to_string(),
+                supports_cancellation: true,
+                supports_progress: true,
+                supports_sampling: false,
+                supports_validation: true,
+                supports_elicitation: false,
+            }),
+        };
+
+        CapabilityFile::new_enhanced(enhanced_metadata, enhanced_tools)
+    }
+
+    /// Generate legacy format capability file
+    fn generate_legacy_capability_file(&self, operations: Vec<OpenAPIOperation>) -> Result<CapabilityFile> {
         let mut tools = Vec::new();
 
         for operation in operations {
@@ -1382,7 +1453,127 @@ impl OpenAPICapabilityGenerator {
         CapabilityFile::with_metadata(metadata, tools)
     }
 
-    /// Convert OpenAPI operation to MCP tool definition
+    /// Convert OpenAPI operation to enhanced MCP 2025-06-18 tool definition
+    fn operation_to_enhanced_tool_definition(&self, operation: OpenAPIOperation) -> Result<EnhancedToolDefinition> {
+        let tool_name = format!("enhanced_{}", self.generate_tool_name(&operation)?);
+        let description = format!("AI-enhanced {} with MCP 2025-06-18 compliance", self.generate_tool_description(&operation));
+        let input_schema = self.generate_input_schema(&operation)?;
+
+        let core = CoreDefinition {
+            description,
+            input_schema,
+        };
+
+        let execution = ExecutionConfig {
+            routing: EnhancedRoutingConfig {
+                r#type: "enhanced_http".to_string(),
+                primary: Some(self.create_enhanced_routing_config(&operation)?),
+                fallback: None,
+                config: Some(serde_json::json!({
+                    "enhanced": true,
+                    "base_url": self.base_url
+                })),
+            },
+            security: crate::registry::types::SecurityConfig {
+                classification: "safe".to_string(),
+                sandbox: Some(crate::registry::types::SandboxConfig {
+                    resources: Some(crate::registry::types::ResourceLimits {
+                        max_memory_mb: Some(256),
+                        max_cpu_percent: Some(30), 
+                        max_execution_seconds: Some(60),
+                        max_file_descriptors: Some(100),
+                    }),
+                    filesystem: None,
+                    network: Some(crate::registry::types::NetworkRestrictions {
+                        allowed: true,
+                        allowed_domains: Some(vec![self.base_url.clone()]),
+                        denied_domains: None,
+                    }),
+                    environment: Some(crate::registry::types::EnvironmentRestrictions {
+                        readonly_system: Some(true),
+                        env_vars: None,
+                    }),
+                }),
+                requires_approval: Some(false),
+                approval_workflow: None,
+            },
+            performance: PerformanceConfig {
+                estimated_duration: Some(serde_json::json!({
+                    "simple_operation": 5,
+                    "complex_operation": 30
+                })),
+                complexity: Some("moderate".to_string()),
+                supports_cancellation: Some(true),
+                supports_progress: Some(false),
+                cache_results: Some(operation.method.to_lowercase() == "get"),
+                cache_ttl_seconds: if operation.method.to_lowercase() == "get" { Some(300) } else { Some(0) },
+                adaptive_optimization: Some(true),
+            },
+        };
+
+        let discovery = DiscoveryEnhancement {
+            ai_enhanced: Some(AiEnhancedDiscovery {
+                description: Some(format!("AI-enhanced {} with intelligent processing and security validation", 
+                    self.generate_tool_description(&operation))),
+                usage_patterns: Some(vec![
+                    format!("use {} to {{action}}", tool_name),
+                    format!("help me {{accomplish_task}} with {}", tool_name),
+                    format!("{} for {{specific_purpose}}", tool_name),
+                ]),
+                semantic_context: Some(SemanticContext {
+                    primary_intent: Some(match operation.method.to_lowercase().as_str() {
+                        "get" => "data_retrieval",
+                        "post" => "data_creation",
+                        "put" | "patch" => "data_modification",
+                        "delete" => "data_deletion",
+                        _ => "general_operation"
+                    }.to_string()),
+                    operations: Some(vec![operation.method.to_lowercase()]),
+                    data_types: Some(vec!["structured".to_string(), "unstructured".to_string()]),
+                    security_features: Some(vec!["authentication".to_string(), "authorization".to_string()]),
+                }),
+                ai_capabilities: None,
+                workflow_integration: Some(WorkflowIntegration {
+                    typically_follows: Some(vec![]),
+                    typically_precedes: Some(vec![]),
+                    chain_compatibility: Some(vec!["api_workflow".to_string()]),
+                }),
+            }),
+            parameter_intelligence: Some(self.generate_parameter_intelligence(&operation)?),
+        };
+
+        let monitoring = MonitoringConfig {
+            progress_tracking: Some(ProgressTrackingConfig {
+                enabled: false,
+                granularity: Some("basic".to_string()),
+                sub_operations: None,
+            }),
+            cancellation: Some(CancellationConfig {
+                enabled: true,
+                graceful_timeout_seconds: Some(10),
+                cleanup_required: Some(false),
+                cleanup_operations: None,
+            }),
+            metrics: Some(MetricsConfig {
+                track_execution_time: Some(true),
+                track_success_rate: Some(true),
+                custom_metrics: Some(vec![format!("{}_operations_completed", tool_name)]),
+            }),
+        };
+
+        let access = AccessConfig {
+            hidden: true, // OpenAPI tools are hidden by default
+            enabled: true, // OpenAPI tools are enabled by default
+            requires_permissions: Some(vec!["tool:execute".to_string(), "security:validated".to_string()]),
+            user_groups: Some(vec!["administrators".to_string()]),
+            approval_required: Some(false),
+            usage_analytics: Some(true),
+        };
+
+        EnhancedToolDefinition::new(tool_name, core, execution, discovery, monitoring, access)
+    }
+
+    /// Convert OpenAPI operation to legacy MCP tool definition
     fn operation_to_tool_definition(&self, operation: OpenAPIOperation) -> Result<ToolDefinition> {
         let tool_name = self.generate_tool_name(&operation)?;
         let description = self.generate_tool_description(&operation);
@@ -1397,6 +1588,8 @@ impl OpenAPICapabilityGenerator {
             annotations: None, // TODO: Add annotations support
             hidden: true, // OpenAPI tools are hidden by default (consistent with other tools)
             enabled: true, // OpenAPI tools are enabled by default
+            prompt_refs: Vec::new(),
+            resource_refs: Vec::new(),
         })
     }
 
@@ -1550,6 +1743,150 @@ impl OpenAPICapabilityGenerator {
         }
 
         Ok(RoutingConfig::new("http".to_string(), Value::Object(config)))
+    }
+
+    /// Create enhanced routing configuration for OpenAPI operation
+    fn create_enhanced_routing_config(&self, operation: &OpenAPIOperation) -> Result<Value> {
+        let mut config = serde_json::Map::new();
+
+        // Basic HTTP configuration
+        config.insert("method".to_string(), json!(operation.method.to_uppercase()));
+        config.insert("url".to_string(), json!(format!("{}{}", self.base_url, operation.path)));
+        config.insert("timeout_seconds".to_string(), json!(30));
+
+        // Enhanced features
+        config.insert("retry_count".to_string(), json!(3));
+        config.insert("cache_responses".to_string(), json!(operation.method.to_lowercase() == "get"));
+
+        // Authentication
+        if let Some(ref auth) = self.auth_config {
+            match &auth.auth_type {
+                AuthType::Bearer { token } => {
+                    config.insert("headers".to_string(), json!({
+                        "Authorization": format!("Bearer {}", token)
+                    }));
+                }
+                AuthType::ApiKey { key, header } => {
+                    config.insert("headers".to_string(), json!({
+                        header: key
+                    }));
+                }
+                AuthType::Basic { username, password } => {
+                    let credentials = general_purpose::STANDARD.encode(format!("{}:{}", username, password));
+                    config.insert("headers".to_string(), json!({
+                        "Authorization": format!("Basic {}", credentials)
+                    }));
+                }
+                _ => {}
+            }
+        }
+
+        // Request body handling
+        if operation.request_body.is_some() {
+            config.insert("body_param".to_string(), json!("body"));
+        }
+
+        Ok(json!(config))
+    }
+
+    /// Generate parameter intelligence for OpenAPI operation
+    fn generate_parameter_intelligence(&self, operation: &OpenAPIOperation) -> Result<Value> {
+        let mut param_map = HashMap::new();
+
+        for param in &operation.parameters {
+            let mut param_config = HashMap::new();
+
+            // Set smart default
+            if let Some(ref default_value) = param.default {
+                param_config.insert("smart_default".to_string(), default_value.clone());
+            } else {
+                param_config.insert("smart_default".to_string(), Value::Null);
+            }
+
+            // Add validation rules
+            let mut validations = Vec::new();
+            if param.required {
+                validations.push(json!({
+                    "rule": "required_validation",
+                    "message": format!("{} must be provided and valid", param.name)
+                }));
+            }
+            param_config.insert("validation".to_string(), json!(validations));
+
+            // Add smart suggestions based on parameter type
+            if param.location == "path" || param.location == "query" {
+                let suggestions = vec![json!({
+                    "pattern": "*",
+                    "description": format!("{} parameter values", param.name),
+                    "examples": self.generate_param_examples(&param.schema)
+                })];
+                param_config.insert("smart_suggestions".to_string(), json!(suggestions));
+            }
+
+            param_map.insert(param.name.clone(), Value::Object(
+                param_config.into_iter().collect()
+            ));
+        }
+
+        // Handle request body parameters
+        if let Some(ref request_body) = operation.request_body {
+            param_map.insert("body".to_string(), json!({
+                "smart_default": null,
+                "validation": if request_body.required {
+                    vec![json!({
+                        "rule": "required_validation",
+                        "message": "Request body must be provided and valid"
+                    })]
+                } else {
+                    vec![]
+                },
+                "content_types": request_body.content.keys().collect::<Vec<_>>()
+            }));
+        }
+
+        Ok(json!(param_map))
+    }
+
+    /// Generate example values for parameter schema
+    fn generate_param_examples(&self, schema: &Value) -> Vec<String> {
+        let mut examples = Vec::new();
+
+        if let Some(schema_obj) = schema.as_object() {
+            if let Some(param_type) = schema_obj.get("type").and_then(|t| t.as_str()) {
+                match param_type {
+                    "string" => {
+                        examples.push("example_string".to_string());
+                        examples.push("test_value".to_string());
+                    }
+                    "integer" | "number" => {
+                        examples.push("123".to_string());
+                        examples.push("456".to_string());
+                    }
+                    "boolean" => {
+                        examples.push("true".to_string());
+                        examples.push("false".to_string());
+                    }
+                    _ => {
+                        examples.push("example_value".to_string());
+                    }
+                }
+            }
+
+            // Add enum values if available
+            if let Some(enum_values) = schema_obj.get("enum").and_then(|e| e.as_array()) {
+                for enum_val in enum_values {
+                    if let Some(val_str) = enum_val.as_str() {
+                        examples.push(val_str.to_string());
+                    }
+                }
+            }
+        }
+
+        if examples.is_empty() {
+            examples.push("example_value".to_string());
+        }
+
+        examples
     }
 }
 

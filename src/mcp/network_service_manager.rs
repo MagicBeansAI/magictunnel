@@ -258,6 +258,8 @@ impl NetworkMcpServiceManager {
                 annotations: None,
                 hidden: false,
                 enabled: true,
+                prompt_refs: Vec::new(),
+                resource_refs: Vec::new(),
             }
         }).collect();
 

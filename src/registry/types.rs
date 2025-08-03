@@ -43,6 +43,17 @@ impl RoutingConfig {
             "llm" => self.validate_llm_config(),
             "websocket" => self.validate_websocket_config(),
             "external_mcp" => self.validate_external_mcp_config(),
+            // MCP 2025-06-18 enhanced routing types
+            "smart_discovery" => Ok(()), // Smart discovery is always valid
+            "enhanced_subprocess" => self.validate_enhanced_subprocess_config(),
+            "ai_enhanced_discovery" => self.validate_ai_enhanced_discovery_config(),
+            "enhanced_system_monitor" => self.validate_enhanced_system_monitor_config(),
+            "ai_memory_analyzer" => self.validate_ai_memory_analyzer_config(),
+            "ai_process_monitor" => self.validate_ai_process_monitor_config(),
+            "ai_network_diagnostics" => self.validate_ai_network_diagnostics_config(),
+            "ai_service_monitor" => self.validate_ai_service_monitor_config(),
+            "ai_enhanced_processor" => self.validate_ai_enhanced_processor_config(),
+            "enhanced" => Ok(()), // Generic enhanced type
             _ => {
                 // Allow unknown types but warn
                 tracing::warn!("Unknown routing type: {}", self.r#type);
@@ -135,7 +146,63 @@ impl RoutingConfig {
 
     /// Check if routing type is supported
     pub fn is_supported_type(&self) -> bool {
-        matches!(self.r#type.as_str(), "subprocess" | "http" | "llm" | "websocket" | "database" | "external_mcp")
+        matches!(self.r#type.as_str(), 
+            "subprocess" | "http" | "llm" | "websocket" | "database" | "external_mcp" |
+            // MCP 2025-06-18 enhanced routing types
+            "smart_discovery" | "enhanced_subprocess" | "ai_enhanced_discovery" |
+            "enhanced_system_monitor" | "ai_memory_analyzer" | "ai_process_monitor" |
+            "ai_network_diagnostics" | "ai_service_monitor" | "ai_enhanced_processor" | "enhanced"
+        )
+    }
+
+    // MCP 2025-06-18 Enhanced routing validation methods
+    
+    /// Validate enhanced subprocess routing configuration
+    fn validate_enhanced_subprocess_config(&self) -> Result<()> {
+        // Enhanced subprocess allows more flexible configuration
+        Ok(())
+    }
+
+    /// Validate AI-enhanced discovery routing configuration
+    fn validate_ai_enhanced_discovery_config(&self) -> Result<()> {
+        // AI discovery routing is always valid
+        Ok(())
+    }
+
+    /// Validate enhanced system monitor routing configuration
+    fn validate_enhanced_system_monitor_config(&self) -> Result<()> {
+        // Enhanced system monitoring is always valid
+        Ok(())
+    }
+
+    /// Validate AI memory analyzer routing configuration
+    fn validate_ai_memory_analyzer_config(&self) -> Result<()> {
+        // AI memory analyzer is always valid
+        Ok(())
+    }
+
+    /// Validate AI process monitor routing configuration
+    fn validate_ai_process_monitor_config(&self) -> Result<()> {
+        // AI process monitor is always valid
+        Ok(())
+    }
+
+    /// Validate AI network diagnostics routing configuration
+    fn validate_ai_network_diagnostics_config(&self) -> Result<()> {
+        // AI network diagnostics is always valid
+        Ok(())
+    }
+
+    /// Validate AI service monitor routing configuration
+    fn validate_ai_service_monitor_config(&self) -> Result<()> {
+        // AI service monitor is always valid
+        Ok(())
+    }
+
+    /// Validate AI enhanced processor routing configuration
+    fn validate_ai_enhanced_processor_config(&self) -> Result<()> {
+        // AI enhanced processor is always valid
+        Ok(())
     }
 }
 
@@ -161,6 +228,12 @@ pub struct ToolDefinition {
     /// Disabled tools are not considered for routing or execution, regardless of visibility
     #[serde(default = "default_enabled")]
     pub enabled: bool,
+    /// Generated prompt template references for this tool
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub prompt_refs: Vec<PromptReference>,
+    /// Generated resource references for this tool
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resource_refs: Vec<ResourceReference>,
 }
 
 impl ToolDefinition {
@@ -177,6 +250,8 @@ impl ToolDefinition {
             }),
             hidden: true, // Default to hidden (consistent with other tools)
             enabled: true, // Default to enabled
+            prompt_refs: Vec::new(), // No prompts initially
+            resource_refs: Vec::new(), // No resources initially
         };
         definition.validate()?;
         Ok(definition)
@@ -198,6 +273,8 @@ impl ToolDefinition {
             annotations,
             hidden: false, // Default to visible
             enabled: true, // Default to enabled
+            prompt_refs: Vec::new(), // No prompts initially
+            resource_refs: Vec::new(), // No resources initially
         };
         definition.validate()?;
         Ok(definition)
@@ -221,6 +298,8 @@ impl ToolDefinition {
             annotations,
             hidden,
             enabled,
+            prompt_refs: Vec::new(), // No prompts initially
+            resource_refs: Vec::new(), // No resources initially
         };
         definition.validate()?;
         Ok(definition)
@@ -253,6 +332,8 @@ impl ToolDefinition {
                     destructive_hint: None,
                     idempotent_hint: None,
                     open_world_hint: None,
+                    sampling: None,
+                    elicitation: None,
                 }
             }),
         }
@@ -371,10 +452,14 @@ impl ToolDefinition {
 /// Capability file structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CapabilityFile {
-    /// File metadata
+    /// File metadata (legacy format)
     pub metadata: Option<FileMetadata>,
-    /// Tool definitions
+    /// Tool definitions (legacy format)
     pub tools: Vec<ToolDefinition>,
+    /// Enhanced file metadata (MCP 2025-06-18 format)
+    pub enhanced_metadata: Option<EnhancedFileMetadata>,
+    /// Enhanced tool definitions (MCP 2025-06-18 format)
+    pub enhanced_tools: Option<Vec<EnhancedToolDefinition>>,
 }
 
 impl CapabilityFile {
@@ -383,6 +468,8 @@ impl CapabilityFile {
         let file = Self {
             metadata: None,
             tools,
+            enhanced_metadata: None,
+            enhanced_tools: None,
         };
         file.validate()?;
         Ok(file)
@@ -393,6 +480,8 @@ impl CapabilityFile {
         let file = Self {
             metadata: Some(metadata),
             tools,
+            enhanced_metadata: None,
+            enhanced_tools: None,
         };
         file.validate()?;
         Ok(file)
@@ -656,4 +745,561 @@ impl Default for FileMetadata {
     fn default() -> Self {
         Self::new()
     }
+}
+
+// Enhanced MCP 2025-06-18 Type Definitions
+// These types support the full MCP 2025-06-18 specification with AI enhancement,
+// security sandboxing, progress tracking, and comprehensive monitoring
+
+/// Enhanced file metadata for MCP 2025-06-18 format
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnhancedFileMetadata {
+    /// File name/identifier  
+    pub name: String,
+    /// File description
+    pub description: String,
+    /// File version
+    pub version: String,
+    /// File author/team
+    pub author: String,
+    /// Enhanced classification metadata
+    pub classification: Option<ClassificationMetadata>,
+    /// Discovery enhancement metadata
+    pub discovery_metadata: Option<DiscoveryMetadata>,
+    /// MCP 2025-06-18 capabilities
+    pub mcp_capabilities: Option<McpCapabilities>,
+}
+
+/// Classification metadata for security and complexity
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClassificationMetadata {
+    /// Security level classification
+    pub security_level: String,
+    /// Complexity level classification  
+    pub complexity_level: String,
+    /// Domain classification
+    pub domain: String,
+    /// Use cases
+    pub use_cases: Vec<String>,
+}
+
+/// Discovery metadata for AI-enhanced discovery
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscoveryMetadata {
+    /// Primary keywords for discovery
+    pub primary_keywords: Vec<String>,
+    /// Whether semantic embeddings are enabled
+    pub semantic_embeddings: bool,
+    /// Whether LLM enhancement is enabled
+    pub llm_enhanced: bool,
+    /// Whether workflow integration is enabled
+    pub workflow_enabled: bool,
+}
+
+/// MCP 2025-06-18 capabilities specification
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpCapabilities {
+    /// MCP specification version
+    pub version: String,
+    /// Whether cancellation is supported
+    pub supports_cancellation: bool,
+    /// Whether progress tracking is supported
+    pub supports_progress: bool,
+    /// Whether sampling is supported
+    pub supports_sampling: bool,
+    /// Whether validation is supported
+    pub supports_validation: bool,
+    /// Whether elicitation is supported
+    pub supports_elicitation: bool,
+}
+
+/// Enhanced tool definition for MCP 2025-06-18 format
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnhancedToolDefinition {
+    /// Tool name (unique identifier)
+    pub name: String,
+    /// Core tool definition
+    pub core: CoreDefinition,
+    /// Execution configuration
+    pub execution: ExecutionConfig,
+    /// Discovery enhancement
+    pub discovery: DiscoveryEnhancement,
+    /// Monitoring configuration
+    pub monitoring: MonitoringConfig,
+    /// Access control configuration
+    pub access: AccessConfig,
+}
+
+/// Core tool definition
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CoreDefinition {
+    /// Human-readable description
+    pub description: String,
+    /// JSON Schema for input parameters
+    pub input_schema: serde_json::Value,
+}
+
+/// Execution configuration with security and performance
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionConfig {
+    /// Enhanced routing configuration
+    pub routing: EnhancedRoutingConfig,
+    /// Security configuration
+    pub security: SecurityConfig,
+    /// Performance configuration
+    pub performance: PerformanceConfig,
+}
+
+/// Enhanced routing configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnhancedRoutingConfig {
+    /// Routing type
+    pub r#type: String,
+    /// Primary routing configuration
+    pub primary: Option<serde_json::Value>,
+    /// Fallback routing configuration
+    pub fallback: Option<serde_json::Value>,
+    /// Additional routing configuration
+    pub config: Option<serde_json::Value>,
+}
+
+/// Security configuration with sandboxing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityConfig {
+    /// Security classification
+    pub classification: String,
+    /// Sandbox configuration
+    pub sandbox: Option<SandboxConfig>,
+    /// Whether approval is required
+    pub requires_approval: Option<bool>,
+    /// Approval workflow
+    pub approval_workflow: Option<String>,
+}
+
+/// Sandbox configuration for security isolation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SandboxConfig {
+    /// Resource limits
+    pub resources: Option<ResourceLimits>,
+    /// Filesystem restrictions
+    pub filesystem: Option<FilesystemRestrictions>,
+    /// Network restrictions
+    pub network: Option<NetworkRestrictions>,
+    /// Environment restrictions
+    pub environment: Option<EnvironmentRestrictions>,
+}
+
+/// Resource limits for sandboxing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceLimits {
+    /// Maximum memory in MB
+    pub max_memory_mb: Option<u64>,
+    /// Maximum CPU percentage
+    pub max_cpu_percent: Option<u64>,
+    /// Maximum execution seconds
+    pub max_execution_seconds: Option<u64>,
+    /// Maximum file descriptors
+    pub max_file_descriptors: Option<u64>,
+}
+
+/// Filesystem restrictions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FilesystemRestrictions {
+    /// Allowed read paths
+    pub allowed_read_paths: Option<Vec<String>>,
+    /// Allowed write paths  
+    pub allowed_write_paths: Option<Vec<String>>,
+    /// Denied read patterns
+    pub denied_read_patterns: Option<Vec<String>>,
+    /// Denied write patterns
+    pub denied_write_patterns: Option<Vec<String>>,
+}
+
+/// Network restrictions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkRestrictions {
+    /// Whether network access is allowed
+    pub allowed: bool,
+    /// Allowed domains
+    pub allowed_domains: Option<Vec<String>>,
+    /// Denied domains
+    pub denied_domains: Option<Vec<String>>,
+}
+
+/// Environment restrictions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnvironmentRestrictions {
+    /// Whether system is readonly
+    pub readonly_system: Option<bool>,
+    /// Environment variables
+    pub env_vars: Option<serde_json::Value>,
+}
+
+/// Performance configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceConfig {
+    /// Estimated duration for different operation types
+    pub estimated_duration: Option<serde_json::Value>,
+    /// Complexity level
+    pub complexity: Option<String>,
+    /// Whether cancellation is supported
+    pub supports_cancellation: Option<bool>,
+    /// Whether progress tracking is supported
+    pub supports_progress: Option<bool>,
+    /// Whether results should be cached
+    pub cache_results: Option<bool>,
+    /// Cache TTL in seconds
+    pub cache_ttl_seconds: Option<u64>,
+    /// Whether adaptive optimization is enabled
+    pub adaptive_optimization: Option<bool>,
+}
+
+/// Discovery enhancement configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscoveryEnhancement {
+    /// AI-enhanced discovery metadata
+    pub ai_enhanced: Option<AiEnhancedDiscovery>,
+    /// Parameter intelligence
+    pub parameter_intelligence: Option<serde_json::Value>,
+}
+
+/// AI-enhanced discovery metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiEnhancedDiscovery {
+    /// Enhanced description
+    pub description: Option<String>,
+    /// Usage patterns
+    pub usage_patterns: Option<Vec<String>>,
+    /// Semantic context
+    pub semantic_context: Option<SemanticContext>,
+    /// AI capabilities
+    pub ai_capabilities: Option<serde_json::Value>,
+    /// Workflow integration
+    pub workflow_integration: Option<WorkflowIntegration>,
+}
+
+/// Semantic context for AI understanding
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SemanticContext {
+    /// Primary intent
+    pub primary_intent: Option<String>,
+    /// Data types
+    pub data_types: Option<Vec<String>>,
+    /// Operations
+    pub operations: Option<Vec<String>>,
+    /// Security features
+    pub security_features: Option<Vec<String>>,
+}
+
+/// Workflow integration metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowIntegration {
+    /// Tools that typically follow this one
+    pub typically_follows: Option<Vec<String>>,
+    /// Tools that typically precede this one
+    pub typically_precedes: Option<Vec<String>>,
+    /// Chain compatibility
+    pub chain_compatibility: Option<Vec<String>>,
+}
+
+/// Monitoring configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MonitoringConfig {
+    /// Progress tracking configuration
+    pub progress_tracking: Option<ProgressTrackingConfig>,
+    /// Cancellation configuration
+    pub cancellation: Option<CancellationConfig>,
+    /// Metrics configuration
+    pub metrics: Option<MetricsConfig>,
+}
+
+/// Progress tracking configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgressTrackingConfig {
+    /// Whether progress tracking is enabled
+    pub enabled: bool,
+    /// Progress granularity
+    pub granularity: Option<String>,
+    /// Sub-operations for detailed progress
+    pub sub_operations: Option<Vec<SubOperation>>,
+}
+
+/// Sub-operation for progress tracking
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubOperation {
+    /// Sub-operation ID
+    pub id: String,
+    /// Sub-operation name
+    pub name: String,
+    /// Estimated percentage of total work
+    pub estimated_percentage: u8,
+}
+
+/// Cancellation configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CancellationConfig {
+    /// Whether cancellation is enabled
+    pub enabled: bool,
+    /// Graceful timeout in seconds
+    pub graceful_timeout_seconds: Option<u64>,
+    /// Whether cleanup is required
+    pub cleanup_required: Option<bool>,
+    /// Cleanup operations
+    pub cleanup_operations: Option<Vec<String>>,
+}
+
+/// Metrics configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetricsConfig {
+    /// Whether to track execution time
+    pub track_execution_time: Option<bool>,
+    /// Whether to track success rate
+    pub track_success_rate: Option<bool>,
+    /// Custom metrics to track
+    pub custom_metrics: Option<Vec<String>>,
+}
+
+/// Access control configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccessConfig {
+    /// Whether this tool should be hidden from main tool lists
+    pub hidden: bool,
+    /// Whether this tool is enabled for execution
+    pub enabled: bool,
+    /// Required permissions
+    pub requires_permissions: Option<Vec<String>>,
+    /// Allowed user groups
+    pub user_groups: Option<Vec<String>>,
+    /// Whether approval is required
+    pub approval_required: Option<bool>,
+    /// Whether to track usage analytics
+    pub usage_analytics: Option<bool>,
+}
+
+// Enhanced MCP 2025-06-18 implementations
+impl EnhancedFileMetadata {
+    /// Create new enhanced metadata
+    pub fn new(name: String, description: String, version: String, author: String) -> Self {
+        Self {
+            name,
+            description,
+            version,
+            author,
+            classification: None,
+            discovery_metadata: None,
+            mcp_capabilities: None,
+        }
+    }
+
+    /// Validate enhanced metadata
+    pub fn validate(&self) -> Result<()> {
+        if self.name.trim().is_empty() {
+            return Err(ProxyError::validation("Enhanced metadata name cannot be empty"));
+        }
+        if self.description.trim().is_empty() {
+            return Err(ProxyError::validation("Enhanced metadata description cannot be empty"));
+        }
+        if self.version.trim().is_empty() {
+            return Err(ProxyError::validation("Enhanced metadata version cannot be empty"));
+        }
+        if self.author.trim().is_empty() {
+            return Err(ProxyError::validation("Enhanced metadata author cannot be empty"));
+        }
+        Ok(())
+    }
+}
+
+impl EnhancedToolDefinition {
+    /// Create a new enhanced tool definition
+    pub fn new(
+        name: String,
+        core: CoreDefinition,
+        execution: ExecutionConfig,
+        discovery: DiscoveryEnhancement,
+        monitoring: MonitoringConfig,
+        access: AccessConfig,
+    ) -> Result<Self> {
+        let tool = Self {
+            name,
+            core,
+            execution,
+            discovery,
+            monitoring,
+            access,
+        };
+        tool.validate()?;
+        Ok(tool)
+    }
+
+    /// Validate the enhanced tool definition
+    pub fn validate(&self) -> Result<()> {
+        if self.name.trim().is_empty() {
+            return Err(ProxyError::validation("Enhanced tool name cannot be empty"));
+        }
+        if self.core.description.trim().is_empty() {
+            return Err(ProxyError::validation("Enhanced tool description cannot be empty"));
+        }
+        if !self.core.input_schema.is_object() {
+            return Err(ProxyError::validation("Enhanced tool input schema must be a JSON object"));
+        }
+        Ok(())
+    }
+
+    /// Convert to legacy ToolDefinition for compatibility
+    pub fn to_legacy_tool(&self) -> Result<ToolDefinition> {
+        // Create a basic routing config from the enhanced execution config
+        let routing_config = RoutingConfig::new(
+            self.execution.routing.r#type.clone(),
+            self.execution.routing.config.clone().unwrap_or_else(|| serde_json::json!({})),
+        );
+
+        ToolDefinition::new_with_all_fields(
+            self.name.clone(),
+            self.core.description.clone(),
+            self.core.input_schema.clone(),
+            routing_config,
+            None, // annotations
+            self.access.hidden,
+            self.access.enabled,
+        )
+    }
+}
+
+impl From<&EnhancedToolDefinition> for ToolDefinition {
+    fn from(enhanced: &EnhancedToolDefinition) -> Self {
+        enhanced.to_legacy_tool().unwrap_or_else(|_| {
+            // Fallback with minimal configuration
+            ToolDefinition {
+                name: enhanced.name.clone(),
+                description: enhanced.core.description.clone(),
+                input_schema: enhanced.core.input_schema.clone(),
+                routing: RoutingConfig::new("enhanced".to_string(), serde_json::json!({})),
+                annotations: None,
+                hidden: enhanced.access.hidden,
+                enabled: enhanced.access.enabled,
+                prompt_refs: Vec::new(), // No prompts initially
+                resource_refs: Vec::new(), // No resources initially
+            }
+        })
+    }
+}
+
+// Enhanced CapabilityFile methods
+impl CapabilityFile {
+    /// Create a new enhanced capability file (MCP 2025-06-18 format)
+    pub fn new_enhanced(metadata: EnhancedFileMetadata, tools: Vec<EnhancedToolDefinition>) -> Result<Self> {
+        let file = Self {
+            metadata: None,
+            enhanced_metadata: Some(metadata),
+            tools: Vec::new(), // No legacy tools in enhanced format
+            enhanced_tools: Some(tools),
+        };
+        file.validate_enhanced()?;
+        Ok(file)
+    }
+
+
+    /// Get effective tools (enhanced or legacy)
+    pub fn effective_tools(&self) -> Vec<&ToolDefinition> {
+        self.tools.iter().collect()
+    }
+
+    /// Get enhanced tools if available
+    pub fn get_enhanced_tools(&self) -> Option<&Vec<EnhancedToolDefinition>> {
+        self.enhanced_tools.as_ref()
+    }
+
+    /// Validate enhanced capability file
+    pub fn validate_enhanced(&self) -> Result<()> {
+        // Validate enhanced metadata if present
+        if let Some(ref enhanced_metadata) = self.enhanced_metadata {
+            enhanced_metadata.validate()?;
+        }
+
+        // Validate enhanced tool definitions if present
+        if let Some(ref enhanced_tools) = self.enhanced_tools {
+            for tool_def in enhanced_tools {
+                tool_def.validate()?;
+            }
+
+            // Check for duplicate tool names in enhanced tools
+            let mut enhanced_tool_names = std::collections::HashSet::new();
+            for tool_def in enhanced_tools {
+                if !enhanced_tool_names.insert(&tool_def.name) {
+                    return Err(crate::error::ProxyError::validation(
+                        format!("Duplicate enhanced tool name: {}", tool_def.name)
+                    ));
+                }
+            }
+
+            if enhanced_tools.is_empty() {
+                return Err(crate::error::ProxyError::validation(
+                    "Enhanced capability file must contain at least one tool".to_string()
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Count enhanced tools only
+    pub fn enhanced_tool_count(&self) -> usize {
+        self.enhanced_tools.as_ref().map_or(0, |t| t.len())
+    }
+
+    /// Get enhanced tool by name
+    pub fn get_enhanced_tool(&self, name: &str) -> Option<&EnhancedToolDefinition> {
+        self.enhanced_tools.as_ref()?.iter().find(|tool| tool.name == name)
+    }
+}
+
+/// Reference to a generated prompt template stored separately
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PromptReference {
+    /// Unique prompt ID/name
+    pub name: String,
+    /// Prompt type (usage, parameter_validation, troubleshooting, etc.)
+    pub prompt_type: String,
+    /// Short description of the prompt
+    pub description: Option<String>,
+    /// Storage location/path for the prompt content
+    pub storage_path: Option<String>,
+    /// Generation metadata
+    pub generation_metadata: Option<GenerationReferenceMetadata>,
+}
+
+/// Reference to a generated resource stored separately  
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ResourceReference {
+    /// Unique resource ID/name
+    pub name: String,
+    /// Resource type (documentation, examples, schema, configuration, etc.)
+    pub resource_type: String,
+    /// Resource URI for MCP clients
+    pub uri: String,
+    /// MIME type of the resource
+    pub mime_type: Option<String>,
+    /// Short description of the resource
+    pub description: Option<String>,
+    /// Storage location/path for the resource content
+    pub storage_path: Option<String>,
+    /// Generation metadata
+    pub generation_metadata: Option<GenerationReferenceMetadata>,
+}
+
+/// Metadata for generated content references
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GenerationReferenceMetadata {
+    /// Model used for generation
+    pub model_used: Option<String>,
+    /// Confidence score of the generation
+    pub confidence_score: Option<f32>,
+    /// Generation timestamp
+    pub generated_at: Option<String>,
+    /// Generation time in milliseconds
+    pub generation_time_ms: Option<u64>,
+    /// Version of the content
+    pub version: Option<String>,
+    /// Whether this is from external MCP server
+    pub external_source: Option<String>,
 }

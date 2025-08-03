@@ -24,6 +24,13 @@ use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 use walkdir::WalkDir;
 
+/// Callback trait for enhancement services to be notified of tool changes
+#[async_trait::async_trait]
+pub trait EnhancementCallback: Send + Sync {
+    /// Called when tools are added, updated, or reloaded
+    async fn on_tools_changed(&self, changed_tools: Vec<(String, ToolDefinition)>) -> crate::error::Result<()>;
+}
+
 /// High-performance registry service with hot-reloading
 pub struct RegistryService {
     /// Lock-free atomic registry for zero-contention reads
@@ -49,6 +56,9 @@ pub struct RegistryService {
 
     /// Optional notification manager for MCP list_changed notifications
     notification_manager: RwLock<Option<Arc<McpNotificationManager>>>,
+    
+    /// Optional enhancement callback for tool changes
+    enhancement_callback: RwLock<Option<Arc<dyn EnhancementCallback>>>,
 }
 
 /// Complete capability registry with metadata
@@ -128,6 +138,7 @@ impl RegistryService {
             _watcher: None,
             event_rx: None,
             notification_manager: RwLock::new(None),
+            enhancement_callback: RwLock::new(None),
         };
         
         // Perform initial load
@@ -527,18 +538,58 @@ impl RegistryService {
 
         let load_duration = start_time.elapsed();
 
+        // Get current tools before swap to detect changes
+        let old_tools: HashMap<String, ToolDefinition> = {
+            let old_registry = self.registry.load();
+            old_registry.tools.iter()
+                .map(|(name, tool_def)| (name.clone(), (**tool_def).clone()))
+                .collect()
+        };
+
         // Atomic swap - zero downtime update
         self.registry.store(Arc::new(new_registry));
 
         // Update cache
         self.update_cache().await;
 
+        // Detect changed tools and notify enhancement service
+        let new_tools: HashMap<String, ToolDefinition> = {
+            let current_registry = self.registry.load();
+            current_registry.tools.iter()
+                .map(|(name, tool_def)| (name.clone(), (**tool_def).clone()))
+                .collect()
+        };
+
+        // Find tools that are new or changed
+        let mut changed_tools = Vec::new();
+        for (tool_name, new_tool) in &new_tools {
+            if let Some(old_tool) = old_tools.get(tool_name) {
+                // Check if tool changed (compare description and schema)
+                if old_tool.description != new_tool.description || 
+                   serde_json::to_string(&old_tool.input_schema).unwrap_or_default() != 
+                   serde_json::to_string(&new_tool.input_schema).unwrap_or_default() {
+                    debug!("Tool '{}' has changed, will trigger enhancement", tool_name);
+                    changed_tools.push((tool_name.clone(), new_tool.clone()));
+                }
+            } else {
+                // New tool
+                debug!("Tool '{}' is new, will trigger enhancement", tool_name);
+                changed_tools.push((tool_name.clone(), new_tool.clone()));
+            }
+        }
+
         info!(
-            "Registry reload completed in {}ms - {} files, {} tools",
+            "Registry reload completed in {}ms - {} files, {} tools ({} changed)",
             load_duration.as_millis(),
             self.metadata().file_count,
-            self.metadata().tool_count
+            self.metadata().tool_count,
+            changed_tools.len()
         );
+
+        // Notify enhancement service of changes (async)
+        if !changed_tools.is_empty() {
+            self.notify_tools_changed(changed_tools).await;
+        }
 
         // Send tools list_changed notification
         self.notify_tools_list_changed();
@@ -955,6 +1006,39 @@ impl RegistryService {
                     warn!("Failed to send tools list_changed notification: {}", e);
                 }
             }
+        }
+    }
+
+    /// Set enhancement callback for tool change notifications
+    pub fn set_enhancement_callback(&self, callback: Arc<dyn EnhancementCallback>) {
+        if let Ok(mut cb) = self.enhancement_callback.write() {
+            *cb = Some(callback);
+            info!("Enhancement callback registered for tool change notifications");
+        }
+    }
+
+    /// Notify enhancement service of tool changes
+    async fn notify_tools_changed(&self, changed_tools: Vec<(String, ToolDefinition)>) {
+        if changed_tools.is_empty() {
+            return;
+        }
+
+        // Clone the callback outside the lock to avoid holding the guard across await
+        let callback = {
+            if let Ok(callback_guard) = self.enhancement_callback.read() {
+                callback_guard.clone()
+            } else {
+                None
+            }
+        };
+
+        if let Some(callback) = callback {
+            info!("🔄 Notifying enhancement service of {} changed tools", changed_tools.len());
+            if let Err(e) = callback.on_tools_changed(changed_tools).await {
+                error!("Enhancement callback failed: {}", e);
+            }
+        } else {
+            debug!("No enhancement callback registered, skipping tool change notification");
         }
     }
 }

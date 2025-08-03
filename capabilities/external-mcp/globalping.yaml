@@ -46,9 +46,9 @@ tools:
       timeout: 30
       tool_name: ping
   annotations:
+    server: globalping
     original_name: ping
     source: external_mcp
-    server: globalping
   hidden: true
   enabled: true
 - name: traceroute_globalping
@@ -95,9 +95,9 @@ tools:
       timeout: 30
       tool_name: traceroute
   annotations:
+    source: external_mcp
     server: globalping
     original_name: traceroute
-    source: external_mcp
   hidden: true
   enabled: true
 - name: dns_globalping
@@ -160,9 +160,9 @@ tools:
       timeout: 30
       tool_name: dns
   annotations:
+    source: external_mcp
     server: globalping
     original_name: dns
-    source: external_mcp
   hidden: true
   enabled: true
 - name: mtr_globalping
@@ -212,9 +212,9 @@ tools:
       timeout: 30
       tool_name: mtr
   annotations:
-    original_name: mtr
-    source: external_mcp
     server: globalping
+    source: external_mcp
+    original_name: mtr
   hidden: true
   enabled: true
 - name: http_globalping
@@ -274,8 +274,8 @@ tools:
       tool_name: http
   annotations:
     original_name: http
-    server: globalping
     source: external_mcp
+    server: globalping
   hidden: true
   enabled: true
 - name: locations_globalping
@@ -295,9 +295,9 @@ tools:
       timeout: 30
       tool_name: locations
   annotations:
+    original_name: locations
     source: external_mcp
     server: globalping
-    original_name: locations
   hidden: true
   enabled: true
 - name: limits_globalping
@@ -318,8 +318,8 @@ tools:
       tool_name: limits
   annotations:
     source: external_mcp
-    server: globalping
     original_name: limits
+    server: globalping
   hidden: true
   enabled: true
 - name: getMeasurement_globalping
@@ -344,9 +344,9 @@ tools:
       timeout: 30
       tool_name: getMeasurement
   annotations:
+    original_name: getMeasurement
     source: external_mcp
     server: globalping
-    original_name: getMeasurement
   hidden: true
   enabled: true
 - name: compareLocations_globalping
@@ -366,8 +366,8 @@ tools:
       timeout: 30
       tool_name: compareLocations
   annotations:
-    server: globalping
     source: external_mcp
+    server: globalping
     original_name: compareLocations
   hidden: true
   enabled: true
@@ -388,9 +388,9 @@ tools:
       timeout: 30
       tool_name: help
   annotations:
-    server: globalping
     original_name: help
     source: external_mcp
+    server: globalping
   hidden: true
   enabled: true
 - name: authStatus_globalping
@@ -410,8 +410,8 @@ tools:
       timeout: 30
       tool_name: authStatus
   annotations:
-    original_name: authStatus
     server: globalping
+    original_name: authStatus
     source: external_mcp
   hidden: true
   enabled: true

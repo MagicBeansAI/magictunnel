@@ -170,6 +170,11 @@ fn test_auth_config_validation() {
         client_secret: "secret123".to_string(),
         auth_url: "https://accounts.google.com/oauth/authorize".to_string(),
         token_url: "https://oauth2.googleapis.com/token".to_string(),
+        oauth_2_1_enabled: true,
+        resource_indicators_enabled: false,
+        default_resources: Vec::new(),
+        default_audience: Vec::new(),
+        require_explicit_resources: false,
     };
     let valid_config = AuthConfig {
         enabled: true,
@@ -267,6 +272,15 @@ fn test_cross_dependency_validation() {
         conflict_resolution: None,
         visibility: None,
         smart_discovery: None,
+        security: None,
+        streamable_http: None,
+        sampling: None,
+        elicitation: None,
+        prompt_generation: None,
+        resource_generation: None,
+        content_storage: None,
+        external_content: None,
+        enhancement_storage: None,
     };
     assert!(invalid_config.validate().is_err());
 
@@ -292,6 +306,15 @@ fn test_cross_dependency_validation() {
         conflict_resolution: None,
         visibility: None,
         smart_discovery: None,
+        security: None,
+        streamable_http: None,
+        sampling: None,
+        elicitation: None,
+        prompt_generation: None,
+        resource_generation: None,
+        content_storage: None,
+        external_content: None,
+        enhancement_storage: None,
     };
     assert!(invalid_config.validate().is_err());
 }
@@ -428,9 +451,9 @@ fn test_mcp_client_config_validation() {
         max_reconnect_attempts: 3,
         reconnect_delay_secs: 5,
         auto_reconnect: true,
-        protocol_version: "2024-11-05".to_string(),
+        protocol_version: "2025-06-18".to_string(),
         client_name: "magictunnel".to_string(),
-        client_version: "0.2.49".to_string(),
+        client_version: "0.3.0".to_string(),
     };
     assert!(valid_config.validate().is_ok());
 
@@ -441,9 +464,9 @@ fn test_mcp_client_config_validation() {
         max_reconnect_attempts: 3,
         reconnect_delay_secs: 5,
         auto_reconnect: true,
-        protocol_version: "2024-11-05".to_string(),
+        protocol_version: "2025-06-18".to_string(),
         client_name: "magictunnel".to_string(),
-        client_version: "0.2.49".to_string(),
+        client_version: "0.3.0".to_string(),
     };
     assert!(invalid_config.validate().is_err());
 
@@ -454,9 +477,9 @@ fn test_mcp_client_config_validation() {
         max_reconnect_attempts: 3,
         reconnect_delay_secs: 5,
         auto_reconnect: true,
-        protocol_version: "2024-11-05".to_string(),
+        protocol_version: "2025-06-18".to_string(),
         client_name: "magictunnel".to_string(),
-        client_version: "0.2.49".to_string(),
+        client_version: "0.3.0".to_string(),
     };
     assert!(invalid_config.validate().is_err());
 
@@ -467,9 +490,9 @@ fn test_mcp_client_config_validation() {
         max_reconnect_attempts: 3,
         reconnect_delay_secs: 5,
         auto_reconnect: true,
-        protocol_version: "2024-11-05".to_string(),
+        protocol_version: "2025-06-18".to_string(),
         client_name: "magictunnel".to_string(),
-        client_version: "0.2.49".to_string(),
+        client_version: "0.3.0".to_string(),
     };
     assert!(invalid_config.validate().is_err());
 
@@ -480,9 +503,9 @@ fn test_mcp_client_config_validation() {
         max_reconnect_attempts: 15,
         reconnect_delay_secs: 5,
         auto_reconnect: true,
-        protocol_version: "2024-11-05".to_string(),
+        protocol_version: "2025-06-18".to_string(),
         client_name: "magictunnel".to_string(),
-        client_version: "0.2.49".to_string(),
+        client_version: "0.3.0".to_string(),
     };
     assert!(invalid_config.validate().is_err());
 
@@ -493,9 +516,9 @@ fn test_mcp_client_config_validation() {
         max_reconnect_attempts: 3,
         reconnect_delay_secs: 0,
         auto_reconnect: true,
-        protocol_version: "2024-11-05".to_string(),
+        protocol_version: "2025-06-18".to_string(),
         client_name: "magictunnel".to_string(),
-        client_version: "0.2.49".to_string(),
+        client_version: "0.3.0".to_string(),
     };
     assert!(invalid_config.validate().is_err());
 }

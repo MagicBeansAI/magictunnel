@@ -33,6 +33,7 @@ impl GrpcGeneratorAdapter {
             bidirectional_streaming_strategy: StreamingStrategy::Polling,
             include_method_options: false,
             separate_streaming_tools: false,
+            use_enhanced_format: true, // Always use enhanced format
         };
         
         Self {

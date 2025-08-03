@@ -4,7 +4,7 @@ use crate::error::{ProxyError, Result};
 
 // Default functions for serde
 fn default_protocol_version() -> String {
-    "2025-03-26".to_string()
+    "2025-06-18".to_string()
 }
 
 fn default_client_name() -> String {
@@ -66,6 +66,22 @@ pub struct Config {
     pub smart_discovery: Option<crate::discovery::SmartDiscoveryConfig>,
     /// Security configuration
     pub security: Option<crate::security::SecurityConfig>,
+    /// Streamable HTTP Transport configuration (MCP 2025-06-18)
+    pub streamable_http: Option<StreamableHttpTransportConfig>,
+    /// MCP 2025-06-18 Sampling service configuration
+    pub sampling: Option<SamplingConfig>,
+    /// MCP 2025-06-18 Elicitation service configuration
+    pub elicitation: Option<ElicitationConfig>,
+    /// Prompt generation service configuration
+    pub prompt_generation: Option<crate::mcp::PromptGenerationConfig>,
+    /// Resource generation service configuration
+    pub resource_generation: Option<crate::mcp::ResourceGenerationConfig>,
+    /// Content storage service configuration
+    pub content_storage: Option<crate::mcp::ContentStorageConfig>,
+    /// External content management configuration
+    pub external_content: Option<crate::mcp::ExternalContentConfig>,
+    /// Enhancement storage configuration for persistent tool descriptions
+    pub enhancement_storage: Option<crate::discovery::EnhancementStorageConfig>,
 }
 
 /// Server configuration
@@ -247,7 +263,7 @@ pub struct JwtConfig {
     pub audience: Option<String>,
 }
 
-/// OAuth configuration
+/// OAuth 2.1 configuration with Resource Indicators (RFC 8707) support
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthConfig {
     /// OAuth provider
@@ -260,6 +276,44 @@ pub struct OAuthConfig {
     pub auth_url: String,
     /// Token URL
     pub token_url: String,
+    /// Enable OAuth 2.1 features (PKCE, Resource Indicators)
+    #[serde(default = "default_oauth_2_1_enabled")]
+    pub oauth_2_1_enabled: bool,
+    /// Enable Resource Indicators (RFC 8707) support
+    #[serde(default = "default_resource_indicators_enabled")]
+    pub resource_indicators_enabled: bool,
+    /// Default resource URIs for Resource Indicators
+    #[serde(default = "default_oauth_resources")]
+    pub default_resources: Vec<String>,
+    /// Default audience for tokens
+    #[serde(default = "default_oauth_audience")]
+    pub default_audience: Vec<String>,
+    /// Require explicit resource specification
+    #[serde(default)]
+    pub require_explicit_resources: bool,
+}
+
+/// Default value for OAuth 2.1 enabled (true for MCP 2025-06-18 compliance)
+fn default_oauth_2_1_enabled() -> bool {
+    true
+}
+
+/// Default value for Resource Indicators enabled (true for MCP 2025-06-18 compliance)
+fn default_resource_indicators_enabled() -> bool {
+    true
+}
+
+/// Default resources for OAuth Resource Indicators
+fn default_oauth_resources() -> Vec<String> {
+    vec![
+        "https://api.magictunnel.io/mcp".to_string(),
+        "urn:magictunnel:mcp:*".to_string(),
+    ]
+}
+
+/// Default audience for OAuth tokens
+fn default_oauth_audience() -> Vec<String> {
+    vec!["magictunnel-mcp-server".to_string()]
 }
 
 /// Logging configuration
@@ -385,7 +439,7 @@ impl Default for McpClientConfig {
             max_reconnect_attempts: 5,
             reconnect_delay_secs: 5,
             auto_reconnect: true,
-            protocol_version: "2025-03-26".to_string(),
+            protocol_version: "2025-06-18".to_string(),
             client_name: env!("CARGO_PKG_NAME").to_string(),
             client_version: env!("CARGO_PKG_VERSION").to_string(),
         }
@@ -723,6 +777,14 @@ impl Default for Config {
             visibility: None,
             smart_discovery: None,
             security: None,
+            streamable_http: None,
+            sampling: None,
+            elicitation: None,
+            prompt_generation: None,
+            resource_generation: None,
+            content_storage: None,
+            external_content: None,
+            enhancement_storage: None,
         }
     }
 }
@@ -2071,5 +2133,119 @@ impl McpClientConfig {
         }
 
         Ok(())
+    }
+}
+
+/// Streamable HTTP Transport configuration for MCP 2025-06-18 compliance
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StreamableHttpTransportConfig {
+    /// Enable the streamable HTTP transport
+    pub enabled: bool,
+    /// Enable enhanced batching capabilities
+    pub enable_batching: bool,
+    /// Maximum batch size for requests
+    pub max_batch_size: usize,
+    /// Batch timeout in milliseconds
+    pub batch_timeout_ms: u64,
+    /// Enable compression for transport
+    pub enable_compression: bool,
+    /// Maximum message size in bytes
+    pub max_message_size: usize,
+    /// Connection timeout in seconds
+    pub connection_timeout_seconds: u64,
+    /// Enable HTTP keep-alive
+    pub enable_keep_alive: bool,
+    /// Enable NDJSON streaming support
+    pub enable_ndjson_streaming: bool,
+}
+
+impl Default for StreamableHttpTransportConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            enable_batching: true,
+            max_batch_size: 100,
+            batch_timeout_ms: 50,
+            enable_compression: true,
+            max_message_size: 10 * 1024 * 1024, // 10MB
+            connection_timeout_seconds: 30,
+            enable_keep_alive: true,
+            enable_ndjson_streaming: true,
+        }
+    }
+}
+
+impl StreamableHttpTransportConfig {
+    /// Validate the streamable HTTP transport configuration
+    pub fn validate(&self) -> Result<()> {
+        if self.max_batch_size == 0 {
+            return Err(ProxyError::config("Streamable HTTP batch size must be greater than 0"));
+        }
+
+        if self.max_batch_size > 1000 {
+            return Err(ProxyError::config("Streamable HTTP batch size cannot exceed 1000"));
+        }
+
+        if self.batch_timeout_ms == 0 {
+            return Err(ProxyError::config("Streamable HTTP batch timeout must be greater than 0"));
+        }
+
+        if self.batch_timeout_ms > 60000 {
+            return Err(ProxyError::config("Streamable HTTP batch timeout cannot exceed 60 seconds"));
+        }
+
+        if self.max_message_size < 1024 {
+            return Err(ProxyError::config("Streamable HTTP message size must be at least 1KB"));
+        }
+
+        if self.max_message_size > 100 * 1024 * 1024 {
+            return Err(ProxyError::config("Streamable HTTP message size cannot exceed 100MB"));
+        }
+
+        if self.connection_timeout_seconds == 0 {
+            return Err(ProxyError::config("Streamable HTTP connection timeout must be greater than 0"));
+        }
+
+        if self.connection_timeout_seconds > 300 {
+            return Err(ProxyError::config("Streamable HTTP connection timeout cannot exceed 5 minutes"));
+        }
+
+        Ok(())
+    }
+}
+
+/// MCP 2025-06-18 Sampling service configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SamplingConfig {
+    pub enabled: bool,
+    pub default_model: String,
+    pub max_tokens_limit: u32,
+}
+
+impl Default for SamplingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            default_model: "gpt-4o-mini".to_string(),
+            max_tokens_limit: 4000,
+        }
+    }
+}
+
+/// MCP 2025-06-18 Elicitation service configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ElicitationConfig {
+    pub enabled: bool,
+    pub max_schema_complexity: String,
+    pub default_timeout_seconds: u32,
+}
+
+impl Default for ElicitationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            max_schema_complexity: "WithArrays".to_string(),  
+            default_timeout_seconds: 300,
+        }
     }
 }
