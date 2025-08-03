@@ -343,9 +343,10 @@ async fn test_validation_script_integration() {
     
     let output = Command::new("bash")
         .arg(&bash_script)
-        .arg(capabilities_dir.to_string_lossy().as_ref())
+        .arg("capabilities") // relative path instead of absolute
         .arg("false") // non-strict mode for testing
         .arg("false") // non-verbose mode
+        .current_dir(&capabilities_dir.parent().unwrap()) // set working directory
         .output()
         .expect("Failed to execute bash validation script");
 

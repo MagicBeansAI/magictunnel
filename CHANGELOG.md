@@ -5,6 +5,30 @@ All notable changes to the MagicTunnel project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2025-08-03
+
+### Added
+- **🛠️ Development Tools Organization**: Comprehensive reorganization of development and operational tools
+  - **tools/validation/**: YAML validation and MCP compliance tools with automated testing integration
+  - **tools/migration/**: Format migration utilities for MCP 2025-06-18 compatibility
+  - **tools/integrations/**: External service integration tools (Google Sheets, OAuth2)
+  - **tools/testing/**: Semantic search and API testing utilities for development workflows
+  - **tools/release/**: Version management and release automation tools
+- **📚 Comprehensive Tool Documentation**: Complete README files for each tool category with usage examples, integration patterns, and troubleshooting guides
+- **🔄 Development Workflow Integration Strategy**: Detailed plan for integrating tools into existing workflows (cargo test, CI/CD, git hooks, make targets)
+
+### Changed
+- **📋 TODO Documentation Consolidation**: 
+  - Split massive TODO.md (3,381 lines) into manageable TODO.md (233 lines) and TODO_DONE.md (386 lines)
+  - TODO.md now focuses on current and future tasks with clear priorities
+  - TODO_DONE.md preserves complete implementation history and achievements
+- **📖 Enhanced Project Documentation**: Added development tools references to main README.md and docs/README.md for better discoverability
+
+### Improved
+- **🎯 Script Discoverability**: All 12 Python and bash scripts now properly organized with clear categorization and usage documentation
+- **🚀 Development Experience**: Clear path forward for transforming standalone scripts into integrated development workflow tools
+- **📚 Documentation Structure**: Better organization of documentation with cross-references and navigation between current tasks and completed work
+
 ## [0.3.0]
 
 ### Added

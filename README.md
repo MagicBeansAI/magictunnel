@@ -218,6 +218,31 @@ MagicTunnel includes powerful CLI tools for managing tool visibility and MCP cap
 
 🔧 **[Complete CLI Reference](docs/cli.md)** - All CLI tools and management commands
 
+### Development Tools
+
+MagicTunnel includes comprehensive development and operational tools:
+
+```bash
+# YAML Validation
+python3 tools/validation/validate_yaml_migration.py capabilities/
+bash tools/validation/validate_yaml_migration.sh capabilities/
+
+# Format Migration  
+python3 tools/migration/migrate_yaml_to_enhanced.py input.yaml output.yaml
+
+# External Service Integration
+python3 tools/integrations/google_sheets_tools.py read "spreadsheet_id" "A:D"
+
+# Testing and Development
+python3 tools/testing/test_search.py --query "ping google.com"
+python3 tools/testing/test_rust_semantic.py
+
+# Version Management
+bash tools/release/update-version.sh 0.3.1
+```
+
+🛠️ **[Complete Tools Documentation](tools/README.md)** - All development tools and utilities
+
 ## Features
 
 - ✨ **Enhanced MCP 2025-06-18 Format**: Latest MCP specification with AI-enhanced discovery, security sandboxing, and enterprise monitoring

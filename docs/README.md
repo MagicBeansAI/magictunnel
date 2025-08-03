@@ -28,6 +28,12 @@
 ### Development & Code Generation
 - [🔢 Version Management](VERSION_MANAGEMENT.md) - Managing versions across the codebase
 - [🤝 Contributing](contributing.md) - How to contribute to MagicTunnel
+- [🛠️ Development Tools](../tools/README.md) - Development, testing, and operational tools
+  - [🔍 Validation Tools](../tools/validation/README.md) - YAML validation and MCP compliance
+  - [🔄 Migration Tools](../tools/migration/README.md) - Format migration utilities
+  - [🔗 Integration Tools](../tools/integrations/README.md) - External service integrations
+  - [🧪 Testing Tools](../tools/testing/README.md) - Development and testing utilities
+  - [🚀 Release Tools](../tools/release/README.md) - Version management and release automation
 - [⚙️ Code Generators](generators/) - Automatic capability generation
   - [GraphQL Generator](generators/graphql_schema_generator.md)
   - [OpenAPI Generator](generators/openapi_generator.md)
