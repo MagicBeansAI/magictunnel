@@ -1303,3 +1303,82 @@ pub struct GenerationReferenceMetadata {
     /// Whether this is from external MCP server
     pub external_source: Option<String>,
 }
+
+/// Raw enhanced capability file format for parsing (before conversion to legacy)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnhancedCapabilityFileRaw {
+    /// File metadata
+    pub metadata: Option<FileMetadata>,
+    /// Enhanced file metadata (MCP 2025-06-18 format)
+    pub enhanced_metadata: Option<EnhancedFileMetadata>,
+    /// Enhanced tool definitions
+    pub tools: Vec<EnhancedToolDefinitionRaw>,
+}
+
+/// Raw enhanced tool definition for parsing (before conversion to legacy)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnhancedToolDefinitionRaw {
+    /// Tool name (unique identifier)
+    pub name: String,
+    /// Core tool definition
+    pub core: CoreDefinition,
+    /// Execution configuration (optional)
+    pub execution: Option<ExecutionConfigRaw>,
+    /// Discovery enhancement (optional)
+    pub discovery: Option<DiscoveryEnhancement>,
+    /// Monitoring configuration (optional)
+    pub monitoring: Option<MonitoringConfig>,
+    /// Access control configuration (optional)
+    pub access: Option<AccessConfigRaw>,
+    /// Routing configuration (optional, will use default if not specified)
+    pub routing: Option<RoutingConfig>,
+    /// Optional annotations for metadata
+    pub annotations: Option<std::collections::HashMap<String, String>>,
+    /// Whether this tool should be hidden from main tool lists
+    pub hidden: Option<bool>,
+    /// Whether this tool is enabled for routing and execution
+    pub enabled: Option<bool>,
+    /// Generated prompt template references for this tool
+    pub prompt_refs: Option<Vec<PromptReference>>,
+    /// Generated resource references for this tool
+    pub resource_refs: Option<Vec<ResourceReference>>,
+}
+
+/// Raw execution configuration for parsing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionConfigRaw {
+    /// Enhanced routing configuration
+    pub routing: Option<EnhancedRoutingConfigRaw>,
+    /// Security configuration
+    pub security: Option<serde_json::Value>,
+    /// Performance configuration
+    pub performance: Option<serde_json::Value>,
+}
+
+/// Raw enhanced routing configuration for parsing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnhancedRoutingConfigRaw {
+    /// Routing type
+    pub r#type: String,
+    /// Primary routing configuration
+    pub primary: Option<serde_json::Value>,
+    /// Fallback routing configuration
+    pub fallback: Option<serde_json::Value>,
+    /// Additional routing configuration
+    pub config: Option<serde_json::Value>,
+}
+
+/// Raw access configuration for parsing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccessConfigRaw {
+    /// Whether this tool should be hidden from main tool lists
+    pub hidden: Option<bool>,
+    /// Whether this tool is enabled for routing and execution
+    pub enabled: Option<bool>,
+    /// Required permissions
+    pub requires_permissions: Option<Vec<String>>,
+    /// User groups with access
+    pub user_groups: Option<Vec<String>>,
+    /// Whether approval is required
+    pub approval_required: Option<bool>,
+}

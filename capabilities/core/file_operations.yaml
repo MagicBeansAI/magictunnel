@@ -1,472 +1,146 @@
-# MCP 2025-06-18 Enhanced Core File Operations - Enterprise Edition
-# Complete restructure for maximum security, AI intelligence, and enterprise capabilities
-
-# Enhanced metadata with comprehensive classification
 metadata:
-  name: "Enterprise Core File Operations Suite"
-  description: "Next-generation file operations with AI-enhanced security and MCP 2025-06-18 compliance"
-  version: "3.0.0"
-  author: "MCP 2025 Core Team"
-  
-  # Enhanced categorization
-  classification:
-    security_level: "mixed"       # File operations have varied security implications
-    complexity_level: "varied"    # From simple reads to complex operations
-    domain: "filesystem"
-    use_cases: ["file_management", "data_processing", "content_analysis", "system_administration"]
-  
-  # Discovery enhancement metadata
-  discovery_metadata:
-    primary_keywords: ["file", "read", "write", "filesystem", "path", "content", "data"]
-    semantic_embeddings: true
-    llm_enhanced: true
-    workflow_enabled: true
-  
-  # MCP 2025-06-18 capabilities
-  mcp_capabilities:
-    version: "2025-06-18"
-    supports_cancellation: true
-    supports_progress: true
-    supports_sampling: false
-    supports_validation: true
-    supports_elicitation: false
-# Enhanced tools with full MCP 2025-06-18 integration
+  name: Enterprise Core File Operations Suite
+  description: Next-generation file operations with AI-enhanced security and MCP 2025-06-18 compliance
+  version: 3.0.0
+  author: MCP 2025 Core Team
+  tags: null
 tools:
-  # Enhanced file reading with AI security analysis
-  - name: "secure_file_reader"
-    
-    # Core definition with enhanced validation
-    core:
-      description: "AI-enhanced secure file reader with content validation and encoding detection"
-      input_schema:
-        type: object
-        properties:
-          path:
-            type: string
-            description: "File path with security validation and access control"
-            validation:
-              path_traversal_protection: true
-              allowed_extensions: ["txt", "json", "yaml", "yml", "md", "log", "csv", "xml"]
-              max_file_size_mb: 100
-              security_scan: true
-          encoding:
-            type: string
-            enum: ["auto", "utf-8", "utf-16", "ascii", "latin1", "iso-8859-1"]
-            default: "auto"
-            description: "File encoding (auto-detect recommended)"
-          validate_content:
-            type: boolean
-            default: true
-            description: "Enable content validation and security scanning"
-          read_mode:
-            type: string
-            enum: ["full", "streaming", "chunked"]
-            default: "full"
-            description: "Reading strategy for different file sizes"
-        required: ["path"]
-        additionalProperties: false
-    
-    # Enhanced execution with security sandboxing
-    execution:
-      routing:
-        type: "enhanced_subprocess"
-        primary:
-          command: "secure_file_reader"
-          args: ["--path", "{path}", "--encoding", "{encoding}", "--validate", "{validate_content}", "--mode", "{read_mode}"]
-          timeout_seconds: 60
-        fallback:
-          command: "cat"
-          args: ["{path}"]
-          timeout_seconds: 30
-      
-      # Comprehensive security configuration
-      security:
-        classification: "restricted"  # File access requires careful validation
-        sandbox:
-          filesystem:
-            allowed_read_paths: ["{path}", "/tmp/magictunnel/*"]
-            denied_read_patterns: ["/etc/passwd", "/etc/shadow", "/root/*", "*.private", "*.key", "*.pem"]
-          network:
-            allowed: false
-          resources:
-            max_memory_mb: 512
-            max_cpu_percent: 30
-            max_execution_seconds: 60
-            max_file_descriptors: 10
-          environment:
-            readonly_system: true
-      
-      # Performance characteristics
-      performance:
-        estimated_duration:
-          small_files: 2      # < 1MB
-          medium_files: 8     # 1-50MB
-          large_files: 30     # > 50MB
-        complexity: "moderate"
-        supports_cancellation: true
-        supports_progress: true
-        cache_results: false  # File contents shouldn't be cached
-        adaptive_optimization: true
-    
-    # AI-enhanced discovery metadata
-    discovery:
-      ai_enhanced:
-        description: >
-          Enterprise-grade secure file reader with AI-powered content analysis and security validation. 
-          Automatically detects file encoding, validates content safety, and provides intelligent insights 
-          about file structure and contents. Perfect for configuration files, logs, documentation, 
-          and data analysis workflows with enterprise security standards.
-        
-        usage_patterns:
-          - "read the {filename} file securely"
-          - "analyze contents of {document}"
-          - "safely load {config_file} with validation"
-          - "examine {log_file} for analysis"
-        
-        semantic_context:
-          primary_intent: "secure_content_retrieval"
-          data_types: ["text", "configuration", "logs", "documentation", "structured_data"]
-          operations: ["read", "analyze", "validate", "inspect", "examine"]
-          security_features: ["validation", "sandboxing", "access_control", "content_scanning"]
-        
-        ai_capabilities:
-          content_analysis: true
-          security_scanning: true
-          encoding_detection: true
-          structure_recognition: true
-          anomaly_detection: true
-        
-        workflow_integration:
-          typically_follows: ["find_files", "list_directory"]
-          typically_precedes: ["parse_config", "analyze_logs", "process_data", "generate_report"]
-          chain_compatibility: ["data_pipeline", "security_audit", "configuration_management"]
-      
-      # Enhanced parameter intelligence
-      parameter_intelligence:
-        path:
-          smart_suggestions:
-            - pattern: "config.*"
-              description: "Configuration files"
-              examples: ["config.yaml", "config.json", "app.config"]
-            - pattern: "*.log"
-              description: "Log files"
-              examples: ["error.log", "access.log", "application.log"]
-            - pattern: "*.md"
-              description: "Documentation files"
-              examples: ["README.md", "CHANGELOG.md", "docs/*.md"]
-          validation:
-            - rule: "file_exists_and_readable"
-              message: "File must exist and be readable"
-            - rule: "size_limit"
-              max_size_mb: 100
-              message: "File too large (max 100MB for security)"
-            - rule: "safe_path"
-              message: "Path must not contain traversal attempts or access sensitive locations"
-        
-        encoding:
-          smart_default: "auto"
-          recommendations:
-            - when: "path.endswith('.json')"
-              suggest: "utf-8"
-            - when: "path.contains('legacy')"
-              suggest: "latin1"
-            - when: "path.endswith('.csv')"
-              suggest: "auto"  # CSV files can have various encodings
-    
-    # Comprehensive monitoring and progress tracking
-    monitoring:
-      progress_tracking:
-        enabled: true
-        granularity: "standard"
-        sub_operations:
-          - id: "security_validation"
-            name: "Validating file security and access"
-            estimated_percentage: 20
-          - id: "encoding_detection"
-            name: "Detecting file encoding"
-            estimated_percentage: 10
-          - id: "content_reading"
-            name: "Reading file contents"
-            estimated_percentage: 60
-          - id: "content_analysis"
-            name: "Analyzing and validating content"
-            estimated_percentage: 10
-      
-      cancellation:
-        enabled: true
-        graceful_timeout_seconds: 10
-        cleanup_required: true
-        cleanup_operations:
-          - "close_file_handles"
-          - "cleanup_temp_buffers"
-      
-      metrics:
-        track_execution_time: true
-        track_success_rate: true
-        track_file_sizes: true
-        track_encoding_detection: true
-        custom_metrics:
-          - files_processed
-          - security_validations_performed
-          - encoding_detections
-    
-    # Enhanced access control
-    access:
-      hidden: false
-      enabled: true
-      requires_permissions: ["file:read", "security:validate"]
-      user_groups: ["all"]
-      approval_required: false
-      usage_analytics: true
-
-  # Enhanced secure file writing with comprehensive safety checks
-  - name: "secure_file_writer"
-    
-    # Core definition with enhanced validation
-    core:
-      description: "AI-enhanced secure file writer with validation and permission checks"
-      input_schema:
-        type: object
-        properties:
-          path:
-            type: string
-            description: "File path with security validation"
-            validation:
-              path_traversal_protection: true
-              allowed_extensions: ["txt", "json", "yaml", "yml", "md", "log", "csv", "xml"]
-              security_scan: true
-          content:
-            type: string
-            description: "Content to write to the file"
-            validation:
-              max_size_mb: 50
-              content_filter: true
-          encoding:
-            type: string
-            enum: ["utf-8", "utf-16", "ascii", "latin1"]
-            default: "utf-8"
-            description: "File encoding"
-          create_dirs:
-            type: boolean
-            default: false
-            description: "Create parent directories if they don't exist"
-        required: ["path", "content"]
-        additionalProperties: false
-    
-    # Enhanced execution with security sandboxing
-    execution:
-      routing:
-        type: "enhanced_subprocess"
-        primary:
-          command: "secure_file_writer"
-          args: ["--path", "{path}", "--content", "{content}", "--encoding", "{encoding}", "--create-dirs", "{create_dirs}"]
-          timeout_seconds: 60
-        fallback:
-          command: "tee"
-          args: ["{path}"]
-          timeout_seconds: 30
-      
-      security:
-        classification: "privileged"  # File writing requires elevated permissions
-        sandbox:
-          filesystem:
-            allowed_write_paths: ["{path}", "/tmp/magictunnel/*"]
-            denied_write_patterns: ["/etc/*", "/root/*", "/usr/*", "*.private", "*.key", "*.pem"]
-          network:
-            allowed: false
-          resources:
-            max_memory_mb: 256
-            max_cpu_percent: 20
-            max_execution_seconds: 60
-          environment:
-            readonly_system: true
-      
-      performance:
-        estimated_duration:
-          small_files: 3
-          medium_files: 10
-          large_files: 45
-        complexity: "moderate"
-        supports_cancellation: true
-        supports_progress: true
-        cache_results: false
-    
-    # AI-enhanced discovery metadata
-    discovery:
-      ai_enhanced:
-        description: >
-          Enterprise-grade secure file writer with comprehensive validation and safety checks.
-          Automatically validates content, creates directories if needed, and enforces security policies.
-          Perfect for creating configuration files, logs, documentation, and data outputs with enterprise security standards.
-        
-        usage_patterns:
-          - "write {content} to {filename} securely"
-          - "create {document} with {data}"
-          - "save {config} to {config_file} safely"
-          - "output {results} to {output_file}"
-        
-        semantic_context:
-          primary_intent: "secure_content_creation"
-          data_types: ["text", "configuration", "logs", "documentation", "structured_data"]
-          operations: ["write", "create", "save", "output", "store"]
-          security_features: ["validation", "sandboxing", "access_control", "content_filtering"]
-        
-        workflow_integration:
-          typically_follows: ["process_data", "generate_report", "analyze_results"]
-          typically_precedes: ["validate_output", "backup_file", "send_notification"]
-          chain_compatibility: ["data_pipeline", "reporting_workflow", "configuration_management"]
-    
-    # Comprehensive monitoring
-    monitoring:
-      progress_tracking:
-        enabled: true
-        granularity: "standard"
-        sub_operations:
-          - id: "security_validation"
-            name: "Validating write permissions and security"
-            estimated_percentage: 25
-          - id: "directory_creation"
-            name: "Creating directories if needed"
-            estimated_percentage: 15
-          - id: "content_writing"
-            name: "Writing file contents"
-            estimated_percentage: 50
-          - id: "verification"
-            name: "Verifying write operation"
-            estimated_percentage: 10
-      
-      cancellation:
-        enabled: true
-        graceful_timeout_seconds: 15
-        cleanup_required: true
-        cleanup_operations:
-          - "remove_partial_writes"
-          - "cleanup_temp_files"
-      
-      metrics:
-        track_execution_time: true
-        track_success_rate: true
-        track_file_sizes: true
-        custom_metrics:
-          - files_written
-          - security_validations_performed
-          - directories_created
-    
-    # Enhanced access control
-    access:
-      hidden: false
-      enabled: true
-      requires_permissions: ["file:write", "security:validate", "admin:elevated"]
-      user_groups: ["administrators"]
-      approval_required: true
-      usage_analytics: true
-
-  # Enhanced directory listing with intelligent analysis
-  - name: "intelligent_directory_lister"
-    
-    core:
-      description: "AI-enhanced directory listing with intelligent file analysis and metadata extraction"
-      input_schema:
-        type: object
-        properties:
-          path:
-            type: string
-            description: "Directory path with security validation"
-            validation:
-              path_traversal_protection: true
-              security_scan: true
-          recursive:
-            type: boolean
-            default: false
-            description: "List recursively through subdirectories"
-          show_hidden:
-            type: boolean
-            default: false
-            description: "Include hidden files and directories"
-          include_metadata:
-            type: boolean
-            default: true
-            description: "Include file metadata (size, permissions, timestamps)"
-          filter_pattern:
-            type: string
-            description: "Optional file pattern filter (e.g., '*.txt', '*.log')"
-        required: ["path"]
-        additionalProperties: false
-    
-    execution:
-      routing:
-        type: "enhanced_subprocess"
-        primary:
-          command: "intelligent_ls"
-          args: ["--path", "{path}", "--recursive", "{recursive}", "--hidden", "{show_hidden}", "--metadata", "{include_metadata}", "--filter", "{filter_pattern}"]
-          timeout_seconds: 45
-        fallback:
-          command: "ls"
-          args: ["-la", "{path}"]
-          timeout_seconds: 30
-      
-      security:
-        classification: "safe"
-        sandbox:
-          filesystem:
-            allowed_read_paths: ["{path}", "/tmp/magictunnel/*"]
-            denied_read_patterns: ["/etc/passwd", "/etc/shadow", "/root/*", "*.private"]
-          network:
-            allowed: false
-          resources:
-            max_memory_mb: 128
-            max_cpu_percent: 15
-            max_execution_seconds: 45
-      
-      performance:
-        estimated_duration:
-          small_directories: 2
-          medium_directories: 8
-          large_directories: 30
-        complexity: "simple"
-        supports_cancellation: true
-        supports_progress: false
-        cache_results: true
-        cache_ttl_seconds: 300
-    
-    discovery:
-      ai_enhanced:
-        description: >
-          Intelligent directory listing tool with AI-powered file analysis and metadata extraction.
-          Provides comprehensive directory insights with security validation and smart filtering capabilities.
-        
-        usage_patterns:
-          - "list contents of {directory}"
-          - "show files in {folder} recursively"
-          - "analyze directory {path} structure"
-          - "find {file_pattern} in {directory}"
-        
-        semantic_context:
-          primary_intent: "directory_exploration"
-          data_types: ["filesystem", "metadata", "file_listings"]
-          operations: ["list", "explore", "analyze", "filter", "enumerate"]
-    
-    monitoring:
-      progress_tracking:
-        enabled: false
-        granularity: "basic"
-      
-      cancellation:
-        enabled: true
-        graceful_timeout_seconds: 5
-        cleanup_required: false
-      
-      metrics:
-        track_execution_time: true
-        track_success_rate: true
-        custom_metrics:
-          - directories_listed
-          - files_analyzed
-    
-    access:
-      hidden: false
-      enabled: true
-      requires_permissions: ["file:read"]
-      user_groups: ["all"]
-      approval_required: false
-      usage_analytics: true
+- name: secure_file_reader
+  description: AI-enhanced secure file reader with content validation and encoding detection
+  inputSchema:
+    additionalProperties: false
+    properties:
+      encoding:
+        default: auto
+        description: File encoding (auto-detect recommended)
+        enum:
+        - auto
+        - utf-8
+        - utf-16
+        - ascii
+        - latin1
+        - iso-8859-1
+        type: string
+      path:
+        description: File path with security validation and access control
+        type: string
+        validation:
+          allowed_extensions:
+          - txt
+          - json
+          - yaml
+          - yml
+          - md
+          - log
+          - csv
+          - xml
+          max_file_size_mb: 100
+          path_traversal_protection: true
+          security_scan: true
+      read_mode:
+        default: full
+        description: Reading strategy for different file sizes
+        enum:
+        - full
+        - streaming
+        - chunked
+        type: string
+      validate_content:
+        default: true
+        description: Enable content validation and security scanning
+        type: boolean
+    required:
+    - path
+    type: object
+  routing:
+    type: enhanced_subprocess
+    config: {}
+  annotations: null
+  hidden: true
+  enabled: true
+- name: secure_file_writer
+  description: AI-enhanced secure file writer with validation and permission checks
+  inputSchema:
+    additionalProperties: false
+    properties:
+      content:
+        description: Content to write to the file
+        type: string
+        validation:
+          content_filter: true
+          max_size_mb: 50
+      create_dirs:
+        default: false
+        description: Create parent directories if they don't exist
+        type: boolean
+      encoding:
+        default: utf-8
+        description: File encoding
+        enum:
+        - utf-8
+        - utf-16
+        - ascii
+        - latin1
+        type: string
+      path:
+        description: File path with security validation
+        type: string
+        validation:
+          allowed_extensions:
+          - txt
+          - json
+          - yaml
+          - yml
+          - md
+          - log
+          - csv
+          - xml
+          path_traversal_protection: true
+          security_scan: true
+    required:
+    - path
+    - content
+    type: object
+  routing:
+    type: enhanced_subprocess
+    config: {}
+  annotations: null
+  hidden: false
+  enabled: true
+- name: intelligent_directory_lister
+  description: AI-enhanced directory listing with intelligent file analysis and metadata extraction
+  inputSchema:
+    additionalProperties: false
+    properties:
+      filter_pattern:
+        description: Optional file pattern filter (e.g., '*.txt', '*.log')
+        type: string
+      include_metadata:
+        default: true
+        description: Include file metadata (size, permissions, timestamps)
+        type: boolean
+      path:
+        description: Directory path with security validation
+        type: string
+        validation:
+          path_traversal_protection: true
+          security_scan: true
+      recursive:
+        default: false
+        description: List recursively through subdirectories
+        type: boolean
+      show_hidden:
+        default: false
+        description: Include hidden files and directories
+        type: boolean
+    required:
+    - path
+    type: object
+  routing:
+    type: enhanced_subprocess
+    config: {}
+  annotations: null
+  hidden: false
+  enabled: true
+enhanced_metadata: null
+enhanced_tools: null

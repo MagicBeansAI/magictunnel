@@ -810,6 +810,539 @@ pub async fn enhance_with_comprehensive_recovery(
 }
 ```
 
+## Enhancement Pipeline Management APIs
+
+MagicTunnel provides comprehensive REST APIs for managing the enhancement pipeline programmatically. These APIs enable UI development, monitoring, and integration with external systems.
+
+### Authentication
+
+All Enhancement Pipeline APIs require authentication via API key or session token:
+
+```bash
+# Using API key
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+     "http://localhost:3001/dashboard/api/enhancements/pipeline/status"
+
+# Using session token
+curl -H "X-Session-Token: YOUR_SESSION_TOKEN" \
+     "http://localhost:3001/dashboard/api/enhancements/pipeline/status"
+```
+
+### Endpoints
+
+#### 1. Pipeline Status
+
+**GET** `/dashboard/api/enhancements/pipeline/status`
+
+Get enhancement pipeline system health and configuration.
+
+**Request:**
+```bash
+curl -X GET "http://localhost:3001/dashboard/api/enhancements/pipeline/status"
+```
+
+**Response:**
+```json
+{
+  "enabled": true,
+  "health_status": "healthy",
+  "enhancement_pipeline_active": true,
+  "total_tools": 83,
+  "features": [
+    "sampling_enhancement",
+    "elicitation_enhancement",
+    "enhancement_caching",
+    "persistent_storage",
+    "batch_processing"
+  ],
+  "providers": {
+    "openai": "connected",
+    "anthropic": "connected", 
+    "ollama": "available"
+  },
+  "cache_statistics": {
+    "cached_enhancements": 45,
+    "cache_hit_rate": 0.78,
+    "avg_generation_time_ms": 1200
+  }
+}
+```
+
+#### 2. Enhanced Tools Listing
+
+**GET** `/dashboard/api/enhancements/pipeline/tools`
+
+List all tools with their enhancement status and metadata.
+
+**Query Parameters:**
+- `filter` (optional): Filter by tool name or description
+- `enhancement_status` (optional): Filter by status (enhanced/pending/failed)
+- `limit` (optional): Maximum results per page (default: 50)
+- `offset` (optional): Skip number of results
+
+**Request:**
+```bash
+curl -X GET "http://localhost:3001/dashboard/api/enhancements/pipeline/tools?enhancement_status=enhanced&limit=10"
+```
+
+**Response:**
+```json
+{
+  "tools": [
+    {
+      "name": "network_ping",
+      "original_description": "Test network connectivity",
+      "enhanced_description": "Test network connectivity to remote hosts with comprehensive diagnostics including latency, packet loss, and connection reliability metrics.",
+      "enhancement_status": "enhanced",
+      "enhancement_metadata": {
+        "model_used": "gpt-4",
+        "confidence_score": 0.92,
+        "generated_at": "2025-08-03T10:30:00Z",
+        "enhancement_time_ms": 1150
+      },
+      "keywords": ["network", "connectivity", "diagnostics", "latency"],
+      "categories": ["networking", "monitoring"],
+      "use_cases": ["troubleshooting", "monitoring", "performance_testing"]
+    }
+  ],
+  "pagination": {
+    "total": 83,
+    "returned": 10,
+    "has_more": true
+  },
+  "summary": {
+    "enhanced_tools": 78,
+    "pending_tools": 3,
+    "failed_tools": 2
+  }
+}
+```
+
+#### 3. Individual Tool Enhancement
+
+**POST** `/dashboard/api/enhancements/pipeline/tools/{tool_name}/enhance`
+
+Trigger enhancement for a specific tool.
+
+**Request Body:**
+```json
+{
+  "force_regenerate": false,
+  "enhancement_options": {
+    "include_examples": true,
+    "include_troubleshooting": true,
+    "target_audience": "developers"
+  }
+}
+```
+
+**Request:**
+```bash
+curl -X POST "http://localhost:3001/dashboard/api/enhancements/pipeline/tools/network_ping/enhance" \
+     -H "Content-Type: application/json" \
+     -d '{"force_regenerate": true}'
+```
+
+**Response:**
+```json
+{
+  "job_id": "enhance_network_ping_20250803_103045",
+  "tool_name": "network_ping",
+  "status": "started",
+  "estimated_completion_time": "2025-08-03T10:32:00Z",
+  "job_details": {
+    "started_at": "2025-08-03T10:30:45Z",
+    "model": "gpt-4",
+    "provider": "openai",
+    "force_regenerate": true
+  }
+}
+```
+
+#### 4. Enhancement Jobs Tracking
+
+**GET** `/dashboard/api/enhancements/pipeline/jobs`
+
+Track enhancement job status and history.
+
+**Query Parameters:**
+- `status` (optional): Filter by job status (running/completed/failed)
+- `tool_name` (optional): Filter by specific tool
+- `limit` (optional): Maximum results per page (default: 20)
+
+**Request:**
+```bash
+curl -X GET "http://localhost:3001/dashboard/api/enhancements/pipeline/jobs?status=running"
+```
+
+**Response:**
+```json
+{
+  "jobs": [
+    {
+      "job_id": "enhance_network_ping_20250803_103045",
+      "tool_name": "network_ping",
+      "status": "running",
+      "progress": 0.75,
+      "started_at": "2025-08-03T10:30:45Z",
+      "estimated_completion": "2025-08-03T10:32:00Z",
+      "provider": "openai",
+      "model": "gpt-4"
+    },
+    {
+      "job_id": "enhance_file_read_20250803_102830",
+      "tool_name": "file_read",
+      "status": "completed",
+      "started_at": "2025-08-03T10:28:30Z",
+      "completed_at": "2025-08-03T10:29:45Z",
+      "duration_ms": 75000,
+      "provider": "anthropic",
+      "model": "claude-3-sonnet",
+      "result": {
+        "success": true,
+        "confidence_score": 0.89,
+        "improvement_summary": "Enhanced with comprehensive examples and error handling guidance"
+      }
+    }
+  ],
+  "summary": {
+    "total_jobs": 127,
+    "running_jobs": 1,
+    "completed_jobs": 124,
+    "failed_jobs": 2
+  }
+}
+```
+
+#### 5. Batch Enhancement
+
+**POST** `/dashboard/api/enhancements/pipeline/batch`
+
+Process multiple tools for enhancement in batch.
+
+**Request Body:**
+```json
+{
+  "tool_names": ["network_ping", "file_read", "database_query"],
+  "batch_options": {
+    "concurrency": 3,
+    "force_regenerate": false,
+    "target_audience": "developers",
+    "stop_on_first_error": false
+  }
+}
+```
+
+**Request:**
+```bash
+curl -X POST "http://localhost:3001/dashboard/api/enhancements/pipeline/batch" \
+     -H "Content-Type: application/json" \
+     -d '{"tool_names": ["network_ping", "file_read"], "batch_options": {"concurrency": 2}}'
+```
+
+**Response:**
+```json
+{
+  "batch_id": "batch_20250803_103200",
+  "total_tools": 2,
+  "jobs_created": [
+    {
+      "job_id": "enhance_network_ping_20250803_103201",
+      "tool_name": "network_ping",
+      "status": "queued"
+    },
+    {
+      "job_id": "enhance_file_read_20250803_103202", 
+      "tool_name": "file_read",
+      "status": "queued"
+    }
+  ],
+  "batch_settings": {
+    "concurrency": 2,
+    "estimated_total_time": "2025-08-03T10:35:00Z"
+  }
+}
+```
+
+#### 6. Cache Management
+
+**DELETE** `/dashboard/api/enhancements/pipeline/cache`
+
+Clear enhancement cache with optional filtering.
+
+**Query Parameters:**
+- `tool_name` (optional): Clear cache for specific tool
+- `older_than` (optional): Clear cache older than timestamp
+- `confirm` (required): Must be "true" to confirm deletion
+
+**Request:**
+```bash
+curl -X DELETE "http://localhost:3001/dashboard/api/enhancements/pipeline/cache?confirm=true"
+```
+
+**Response:**
+```json
+{
+  "cache_cleared": true,
+  "items_removed": 45,
+  "cache_size_before_mb": 12.5,
+  "cache_size_after_mb": 0.0,
+  "operation_time_ms": 150
+}
+```
+
+#### 7. Pipeline Statistics
+
+**GET** `/dashboard/api/enhancements/pipeline/statistics`
+
+Get comprehensive analytics and performance metrics.
+
+**Request:**
+```bash
+curl -X GET "http://localhost:3001/dashboard/api/enhancements/pipeline/statistics"
+```
+
+**Response:**
+```json
+{
+  "overview": {
+    "total_tools": 83,
+    "enhanced_tools": 78,
+    "enhancement_rate": 0.94,
+    "avg_enhancement_time_ms": 1150,
+    "total_enhancements_generated": 156
+  },
+  "by_provider": {
+    "openai": {
+      "enhancements": 89,
+      "avg_time_ms": 1200,
+      "success_rate": 0.96,
+      "cost_estimate_usd": 12.34
+    },
+    "anthropic": {
+      "enhancements": 45,
+      "avg_time_ms": 1050,
+      "success_rate": 0.91,
+      "cost_estimate_usd": 8.76
+    },
+    "ollama": {
+      "enhancements": 22,
+      "avg_time_ms": 2100,
+      "success_rate": 0.88,
+      "cost_estimate_usd": 0.0
+    }
+  },
+  "performance_trends": {
+    "enhancements_last_24h": 12,
+    "avg_confidence_score": 0.89,
+    "cache_hit_rate": 0.78,
+    "error_rate": 0.04
+  },
+  "quality_metrics": {
+    "avg_description_improvement": 2.8,
+    "avg_keywords_extracted": 6.2,
+    "avg_use_cases_identified": 3.4
+  }
+}
+```
+
+#### 8. Provider Health
+
+**GET** `/dashboard/api/enhancements/pipeline/providers`
+
+Check health and configuration of all LLM providers.
+
+**Request:**
+```bash
+curl -X GET "http://localhost:3001/dashboard/api/enhancements/pipeline/providers"
+```
+
+**Response:**
+```json
+{
+  "providers": [
+    {
+      "name": "openai",
+      "type": "OpenAI",
+      "status": "healthy",
+      "endpoint": "https://api.openai.com/v1/chat/completions",
+      "models": ["gpt-4", "gpt-3.5-turbo"],
+      "default_model": "gpt-4",
+      "rate_limits": {
+        "requests_per_minute": 50,
+        "tokens_per_minute": 100000
+      },
+      "last_check": "2025-08-03T10:30:00Z",
+      "response_time_ms": 450
+    },
+    {
+      "name": "anthropic",
+      "type": "Anthropic", 
+      "status": "healthy",
+      "endpoint": "https://api.anthropic.com/v1/messages",
+      "models": ["claude-3-sonnet", "claude-3-haiku"],
+      "default_model": "claude-3-sonnet",
+      "rate_limits": {
+        "requests_per_minute": 30,
+        "tokens_per_minute": 80000
+      },
+      "last_check": "2025-08-03T10:29:45Z",
+      "response_time_ms": 380
+    }
+  ],
+  "health_summary": {
+    "total_providers": 2,
+    "healthy_providers": 2,
+    "degraded_providers": 0,
+    "offline_providers": 0
+  }
+}
+```
+
+#### 9. Enhancement Validation
+
+**POST** `/dashboard/api/enhancements/pipeline/validate`
+
+Validate enhancement configuration and test provider connectivity.
+
+**Request Body:**
+```json
+{
+  "test_tool": "network_ping",
+  "providers_to_test": ["openai", "anthropic"],
+  "validate_config": true
+}
+```
+
+**Request:**
+```bash
+curl -X POST "http://localhost:3001/dashboard/api/enhancements/pipeline/validate" \
+     -H "Content-Type: application/json" \
+     -d '{"test_tool": "network_ping", "validate_config": true}'
+```
+
+**Response:**
+```json
+{
+  "validation_results": {
+    "config_valid": true,
+    "providers_tested": 2,
+    "providers_healthy": 2,
+    "test_enhancement": {
+      "success": true,
+      "tool_name": "network_ping",
+      "provider_used": "openai",
+      "generation_time_ms": 1050,
+      "confidence_score": 0.91
+    }
+  },
+  "provider_results": [
+    {
+      "provider": "openai",
+      "status": "healthy",
+      "response_time_ms": 450,
+      "test_successful": true
+    },
+    {
+      "provider": "anthropic", 
+      "status": "healthy",
+      "response_time_ms": 380,
+      "test_successful": true
+    }
+  ],
+  "overall_health": "excellent"
+}
+```
+
+### Error Handling
+
+All Enhancement Pipeline APIs return consistent error responses:
+
+**Error Response Format:**
+```json
+{
+  "error": {
+    "code": "ENHANCEMENT_FAILED",
+    "message": "Tool enhancement failed",
+    "details": "Provider rate limit exceeded, retry in 60 seconds",
+    "timestamp": "2025-08-03T10:30:00Z",
+    "request_id": "req_123456789",
+    "retry_after_seconds": 60
+  }
+}
+```
+
+**Common Error Codes:**
+- `TOOL_NOT_FOUND` (404): Specified tool does not exist
+- `ENHANCEMENT_FAILED` (500): Enhancement generation failed
+- `PROVIDER_UNAVAILABLE` (503): LLM provider is offline or rate-limited
+- `INVALID_CONFIGURATION` (400): Enhancement configuration is invalid
+- `JOB_NOT_FOUND` (404): Enhancement job not found
+- `CACHE_ERROR` (500): Cache operation failed
+- `BATCH_SIZE_EXCEEDED` (413): Too many tools in batch request
+
+### Usage Examples
+
+#### Complete Enhancement Workflow
+
+```bash
+# 1. Check pipeline status
+curl -X GET "http://localhost:3001/dashboard/api/enhancements/pipeline/status"
+
+# 2. List current enhanced tools
+curl -X GET "http://localhost:3001/dashboard/api/enhancements/pipeline/tools?limit=5"
+
+# 3. Enhance a specific tool
+curl -X POST "http://localhost:3001/dashboard/api/enhancements/pipeline/tools/network_ping/enhance" \
+     -H "Content-Type: application/json" \
+     -d '{"force_regenerate": false}'
+
+# 4. Track the enhancement job
+curl -X GET "http://localhost:3001/dashboard/api/enhancements/pipeline/jobs?tool_name=network_ping"
+
+# 5. Check provider health
+curl -X GET "http://localhost:3001/dashboard/api/enhancements/pipeline/providers"
+
+# 6. Get performance statistics
+curl -X GET "http://localhost:3001/dashboard/api/enhancements/pipeline/statistics"
+```
+
+#### Batch Enhancement with Monitoring
+
+```bash
+# 1. Start batch enhancement
+BATCH_RESPONSE=$(curl -X POST "http://localhost:3001/dashboard/api/enhancements/pipeline/batch" \
+     -H "Content-Type: application/json" \
+     -d '{"tool_names": ["tool1", "tool2", "tool3"], "batch_options": {"concurrency": 2}}')
+
+# 2. Extract batch ID
+BATCH_ID=$(echo $BATCH_RESPONSE | jq -r '.batch_id')
+
+# 3. Monitor batch progress
+while true; do
+    curl -X GET "http://localhost:3001/dashboard/api/enhancements/pipeline/jobs?batch_id=$BATCH_ID"
+    sleep 5
+done
+
+# 4. Get final statistics
+curl -X GET "http://localhost:3001/dashboard/api/enhancements/pipeline/statistics"
+```
+
+#### Cache Management and Optimization
+
+```bash
+# 1. Check cache statistics
+curl -X GET "http://localhost:3001/dashboard/api/enhancements/pipeline/statistics" | jq '.performance_trends.cache_hit_rate'
+
+# 2. Clear old cache entries
+curl -X DELETE "http://localhost:3001/dashboard/api/enhancements/pipeline/cache?older_than=2025-08-01T00:00:00Z&confirm=true"
+
+# 3. Validate configuration
+curl -X POST "http://localhost:3001/dashboard/api/enhancements/pipeline/validate" \
+     -H "Content-Type: application/json" \
+     -d '{"validate_config": true}'
+```
+
 ## Future Enhancements and Roadmap
 
 ### Planned Features (Q1-Q2 2025)

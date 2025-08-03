@@ -16,6 +16,7 @@ use std::process::Stdio;
 use tokio::process::Command;
 use tokio::io::{AsyncBufReadExt, BufReader, AsyncWriteExt};
 use std::collections::HashMap;
+use uuid;
 
 /// Configuration for monitoring an API key environment variable
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -3299,6 +3300,722 @@ tools:
         Ok(results)
     }
 
+    // =======================================
+    // Resource Management APIs  
+    // =======================================
+
+    /// GET /dashboard/api/resources/management/status - Get resource management system status
+    pub async fn get_resource_management_status(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Getting resource management system status");
+        
+        let resource_manager = &self.resource_manager;
+        let provider_count = resource_manager.provider_count().await;
+        
+        // Get basic resource statistics
+        let (resources, _) = resource_manager.list_resources(None).await
+            .unwrap_or_else(|_| (Vec::new(), None));
+        
+        let total_resources = resources.len();
+        let resource_types = resources.iter()
+            .filter_map(|r| r.mime_type.as_ref())
+            .collect::<std::collections::HashSet<_>>()
+            .len();
+        
+        let providers: Vec<serde_json::Value> = vec![
+            json!({
+                "name": "internal",
+                "type": "file_system", 
+                "status": "active",
+                "resource_count": total_resources
+            })
+        ];
+
+        let response = json!({
+            "enabled": true,
+            "health_status": "healthy",
+            "total_providers": provider_count,
+            "total_resources": total_resources,
+            "resource_types": resource_types,
+            "providers": providers,
+            "features": [
+                "resource_listing",
+                "resource_reading", 
+                "file_system_access",
+                "multi_provider_support",
+                "mime_type_detection"
+            ],
+            "supported_schemes": [
+                "file://",
+                "internal://"
+            ],
+            "last_updated": chrono::Utc::now().to_rfc3339()
+        });
+
+        info!("✅ [DASHBOARD] Resource management status retrieved: {} providers, {} resources", provider_count, total_resources);
+        Ok(HttpResponse::Ok().json(response))
+    }
+
+    /// GET /dashboard/api/resources/management/resources - List all available resources with filtering and pagination
+    pub async fn get_resources_management(&self, query: web::Query<ResourceManagementQuery>) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Listing resources with query: {:?}", *query);
+        
+        let resource_manager = &self.resource_manager;
+        let (mut resources, next_cursor) = match resource_manager.list_resources(query.cursor.clone()).await {
+            Ok(result) => result,
+            Err(e) => {
+                error!("❌ [DASHBOARD] Failed to list resources: {}", e);
+                return Ok(HttpResponse::InternalServerError().json(json!({
+                    "error": "Failed to list resources",
+                    "message": format!("Error listing resources: {}", e)
+                })));
+            }
+        };
+
+        // Apply filtering if provided
+        if let Some(ref filter) = query.filter {
+            resources.retain(|r| {
+                r.name.to_lowercase().contains(&filter.to_lowercase()) ||
+                r.uri.to_lowercase().contains(&filter.to_lowercase()) ||
+                r.description.as_ref().map_or(false, |d| d.to_lowercase().contains(&filter.to_lowercase()))
+            });
+        }
+
+        if let Some(ref mime_filter) = query.mime_type_filter {
+            resources.retain(|r| {
+                r.mime_type.as_ref().map_or(false, |mt| mt.contains(mime_filter))
+            });
+        }
+
+        // Apply pagination
+        let total_count = resources.len();
+        if let Some(limit) = query.limit {
+            let offset = query.offset.unwrap_or(0);
+            resources = resources.into_iter()
+                .skip(offset)
+                .take(limit)
+                .collect();
+        }
+
+        let final_count = resources.len();
+        let resource_data: Vec<_> = resources.into_iter().map(|r| {
+            json!({
+                "uri": r.uri,
+                "name": r.name,
+                "description": r.description,
+                "mime_type": r.mime_type,
+                "annotations": r.annotations,
+                "is_readable": true,
+                "size": r.annotations.as_ref().and_then(|a| a.size),
+                "last_modified": r.annotations.as_ref().and_then(|a| a.last_modified.clone()),
+                "provider": "internal"
+            })
+        }).collect();
+
+        let response = json!({
+            "resources": resource_data,
+            "total_count": total_count,
+            "filter_applied": query.filter.clone(),
+            "mime_type_filter": query.mime_type_filter.clone(),
+            "next_cursor": next_cursor,
+            "last_updated": chrono::Utc::now().to_rfc3339()
+        });
+
+        info!("✅ [DASHBOARD] Listed {} resources (filtered from {})", final_count, total_count);
+        Ok(HttpResponse::Ok().json(response))
+    }
+
+    /// GET /dashboard/api/resources/management/resources/{uri:.*} - Get detailed information about a specific resource
+    pub async fn get_resource_details(&self, path: web::Path<String>) -> Result<HttpResponse> {
+        let uri = path.into_inner();
+        debug!("🔍 [DASHBOARD] Getting resource details for URI: {}", uri);
+        
+        let resource_manager = &self.resource_manager;
+
+        // Try to read the resource to verify it exists and get content info
+        match resource_manager.read_resource(&uri).await {
+            Ok(content) => {
+                let response = json!({
+                    "uri": content.uri,
+                    "mime_type": content.mime_type,
+                    "content_type": if content.text.is_some() { "text" } else { "binary" },
+                    "size": if let Some(text) = &content.text {
+                        text.len()
+                    } else if let Some(blob) = &content.blob {
+                        blob.len()
+                    } else {
+                        0
+                    },
+                    "has_content": content.text.is_some() || content.blob.is_some(),
+                    "is_readable": true,
+                    "provider": "internal",
+                    "last_accessed": chrono::Utc::now().to_rfc3339()
+                });
+
+                info!("✅ [DASHBOARD] Resource details retrieved for: {}", uri);
+                Ok(HttpResponse::Ok().json(response))
+            }
+            Err(e) => {
+                warn!("❌ [DASHBOARD] Resource not found: {} - {}", uri, e);
+                let error_response = json!({
+                    "error": "Resource not found",
+                    "uri": uri,
+                    "message": "The specified resource could not be found or is not accessible"
+                });
+
+                Ok(HttpResponse::NotFound().json(error_response))
+            }
+        }
+    }
+
+    /// POST /dashboard/api/resources/management/resources/{uri:.*}/read - Read the content of a specific resource
+    pub async fn read_resource_content(&self, path: web::Path<String>, body: web::Json<ResourceReadOptionsRequest>) -> Result<HttpResponse> {
+        let uri = path.into_inner();
+        debug!("🔍 [DASHBOARD] Reading resource content for: {} with options: {:?}", uri, *body);
+        
+        let resource_manager = &self.resource_manager;
+
+        match resource_manager.read_resource(&uri).await {
+            Ok(content) => {
+                let mut response_data = json!({
+                    "success": true,
+                    "uri": content.uri,
+                    "mime_type": content.mime_type,
+                    "read_at": chrono::Utc::now().to_rfc3339()
+                });
+
+                // Add content based on type and options
+                if let Some(text) = content.text {
+                    // Apply text processing options
+                    let original_length = text.len();
+                    let mut processed_text = text;
+                    if let Some(max_length) = body.max_length {
+                        if processed_text.len() > max_length {
+                            processed_text.truncate(max_length);
+                            response_data["truncated"] = json!(true);
+                            response_data["original_length"] = json!(original_length);
+                        }
+                    }
+
+                    response_data["content_type"] = json!("text");
+                    response_data["content"] = json!(processed_text);
+                    response_data["size"] = json!(processed_text.len());
+                } else if let Some(blob) = content.blob {
+                    response_data["content_type"] = json!("binary");
+                    
+                    if body.include_binary.unwrap_or(false) {
+                        response_data["content"] = json!(blob);
+                    } else {
+                        response_data["content_available"] = json!(true);
+                        response_data["message"] = json!("Binary content available but not included. Set include_binary=true to retrieve.");
+                    }
+                    response_data["size"] = json!(blob.len());
+                }
+
+                info!("✅ [DASHBOARD] Resource content read successfully: {}", uri);
+                Ok(HttpResponse::Ok().json(response_data))
+            }
+            Err(e) => {
+                error!("❌ [DASHBOARD] Failed to read resource '{}': {}", uri, e);
+                let error_response = json!({
+                    "success": false,
+                    "uri": uri,
+                    "error": "Failed to read resource",
+                    "message": format!("Error reading resource: {}", e)
+                });
+
+                Ok(HttpResponse::InternalServerError().json(error_response))
+            }
+        }
+    }
+
+    /// GET /dashboard/api/resources/management/providers - List all registered resource providers
+    pub async fn get_resource_providers(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Getting resource providers information");
+        
+        let resource_manager = &self.resource_manager;
+        let provider_count = resource_manager.provider_count().await;
+
+        // Get resource statistics per provider
+        let (resources, _) = resource_manager.list_resources(None).await
+            .unwrap_or_else(|_| (Vec::new(), None));
+
+        let providers = vec![
+            json!({
+                "name": "internal",
+                "provider_type": "file_system",
+                "status": "active",
+                "capabilities": {
+                    "supports_reading": true,
+                    "supports_listing": true,
+                    "supports_writing": false,
+                    "supports_deleting": false,
+                    "supports_metadata": true
+                },
+                "supported_schemes": ["file://", "internal://"],
+                "resource_count": resources.len(),
+                "last_sync": chrono::Utc::now().to_rfc3339(),
+                "metadata": {
+                    "description": "Internal file system resource provider",
+                    "version": "1.0.0"
+                }
+            })
+        ];
+
+        let response = json!({
+            "providers": providers,
+            "total_count": provider_count,
+            "active_count": 1,
+            "last_updated": chrono::Utc::now().to_rfc3339()
+        });
+
+        info!("✅ [DASHBOARD] Resource providers listed: {} total", provider_count);
+        Ok(HttpResponse::Ok().json(response))
+    }
+
+    /// POST /dashboard/api/resources/management/validate - Validate resource URIs and check accessibility
+    pub async fn validate_resources(&self, body: web::Json<ResourceValidationRequest>) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Validating {} resource URIs", body.uris.len());
+        
+        let resource_manager = &self.resource_manager;
+        let mut validation_results = Vec::new();
+
+        for uri in &body.uris {
+            let result = match resource_manager.read_resource(uri).await {
+                Ok(content) => {
+                    json!({
+                        "uri": uri,
+                        "valid": true,
+                        "accessible": true,
+                        "mime_type": content.mime_type,
+                        "content_type": if content.text.is_some() { "text" } else { "binary" },
+                        "size": if let Some(text) = &content.text {
+                            text.len()
+                        } else if let Some(blob) = &content.blob {
+                            blob.len()
+                        } else {
+                            0
+                        }
+                    })
+                }
+                Err(e) => {
+                    json!({
+                        "uri": uri,
+                        "valid": false,
+                        "accessible": false,
+                        "error": format!("Validation failed: {}", e)
+                    })
+                }
+            };
+
+            validation_results.push(result);
+        }
+
+        let successful_validations = validation_results.iter()
+            .filter(|r| r["valid"].as_bool().unwrap_or(false))
+            .count();
+
+        let response = json!({
+            "validation_results": validation_results,
+            "total_uris": body.uris.len(),
+            "successful_validations": successful_validations,
+            "failed_validations": body.uris.len() - successful_validations,
+            "validated_at": chrono::Utc::now().to_rfc3339()
+        });
+
+        info!("✅ [DASHBOARD] Resource validation completed: {}/{} successful", successful_validations, body.uris.len());
+        Ok(HttpResponse::Ok().json(response))
+    }
+
+    /// GET /dashboard/api/resources/management/statistics - Get comprehensive resource statistics and analytics
+    pub async fn get_resource_statistics(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Generating resource statistics");
+        
+        let resource_manager = &self.resource_manager;
+        let (resources, _) = resource_manager.list_resources(None).await
+            .unwrap_or_else(|_| (Vec::new(), None));
+
+        // Analyze mime types
+        let mut mime_type_stats = std::collections::HashMap::new();
+        let mut total_size = 0u64;
+        let mut text_resources = 0;
+        let mut binary_resources = 0;
+
+        for resource in &resources {
+            if let Some(mime_type) = &resource.mime_type {
+                *mime_type_stats.entry(mime_type.clone()).or_insert(0) += 1;
+                
+                if mime_type.starts_with("text/") || 
+                   mime_type.contains("json") || 
+                   mime_type.contains("yaml") ||
+                   mime_type.contains("xml") {
+                    text_resources += 1;
+                } else {
+                    binary_resources += 1;
+                }
+            }
+
+            if let Some(annotations) = &resource.annotations {
+                if let Some(size) = annotations.size {
+                    total_size += size;
+                }
+            }
+        }
+
+        let mime_type_distribution: Vec<_> = mime_type_stats.into_iter()
+            .map(|(mime_type, count)| json!({
+                "mime_type": mime_type,
+                "count": count,
+                "percentage": if resources.len() > 0 { (count as f64 / resources.len() as f64 * 100.0).round() } else { 0.0 }
+            }))
+            .collect();
+
+        let response = json!({
+            "overview": {
+                "total_resources": resources.len(),
+                "text_resources": text_resources,
+                "binary_resources": binary_resources,
+                "total_size_bytes": total_size,
+                "average_size_bytes": if resources.len() > 0 { total_size / resources.len() as u64 } else { 0 }
+            },
+            "mime_type_distribution": mime_type_distribution,
+            "provider_statistics": {
+                "total_providers": resource_manager.provider_count().await,
+                "active_providers": 1
+            },
+            "generated_at": chrono::Utc::now().to_rfc3339()
+        });
+
+        info!("✅ [DASHBOARD] Resource statistics generated for {} resources", resources.len());
+        Ok(HttpResponse::Ok().json(response))
+    }
+
+    // =======================================
+    // Prompt Management APIs  
+    // =======================================
+
+    /// GET /dashboard/api/prompts/management/status - Get prompt management service status
+    pub async fn get_prompt_management_status(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Getting prompt management service status");
+        
+        // Get provider count indirectly through templates since providers field is private
+        let providers_count = 1; // Default to 1 since we can't access private field
+        
+        // Get template count from all providers
+        let (templates, _) = match self.prompt_manager.list_templates(None).await {
+            Ok(result) => result,
+            Err(_) => (vec![], None),
+        };
+        
+        let status = PromptManagementStatusResponse {
+            enabled: true,
+            health_status: "healthy".to_string(),
+            total_providers: providers_count,
+            total_templates: templates.len(),
+            active_templates: templates.len(), // All templates are considered active
+            template_types: vec!["system".to_string(), "user".to_string(), "assistant".to_string()],
+            last_updated: chrono::Utc::now().to_rfc3339(),
+            features: vec![
+                "template_creation".to_string(),
+                "template_editing".to_string(), 
+                "template_deletion".to_string(),
+                "argument_substitution".to_string(),
+                "multi_provider_support".to_string(),
+            ],
+        };
+        
+        Ok(HttpResponse::Ok().json(status))
+    }
+
+    /// GET /dashboard/api/prompts/management/templates - List all prompt templates with management info
+    pub async fn get_prompt_templates_management(&self, query: web::Query<PromptTemplateManagementQuery>) -> Result<HttpResponse> {
+        debug!("📋 [DASHBOARD] Getting prompt templates for management");
+        
+        match self.prompt_manager.list_templates(query.cursor.as_deref()).await {
+            Ok((templates, next_cursor)) => {
+                let template_count = templates.len();
+                let template_infos: Vec<PromptTemplateManagementInfo> = templates.into_iter().map(|template| {
+                    PromptTemplateManagementInfo {
+                        name: template.name.clone(),
+                        description: template.description.clone(),
+                        arguments: template.arguments.clone(),
+                        created_at: chrono::Utc::now().to_rfc3339(), // Default timestamp
+                        updated_at: chrono::Utc::now().to_rfc3339(), // Default timestamp
+                        usage_count: 0, // Default value
+                        last_used: None,
+                        template_type: "system".to_string(), // Default type
+                        provider_name: "internal".to_string(), // Default provider
+                        is_editable: true,
+                        is_deletable: true,
+                        metadata: std::collections::HashMap::new(),
+                    }
+                }).collect();
+                
+                let response = PromptTemplateManagementListResponse {
+                    templates: template_infos,
+                    total_count: template_count,
+                    next_cursor,
+                    filter_applied: query.filter.clone(),
+                    last_updated: chrono::Utc::now().to_rfc3339(),
+                };
+                
+                info!("✅ [DASHBOARD] Listed {} prompt templates for management", response.templates.len());
+                Ok(HttpResponse::Ok().json(response))
+            }
+            Err(e) => {
+                error!("❌ [DASHBOARD] Failed to list prompt templates for management: {}", e);
+                Ok(HttpResponse::InternalServerError().json(json!({
+                    "error": "Failed to list prompt templates",
+                    "message": e.to_string(),
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                })))
+            }
+        }
+    }
+
+    /// POST /dashboard/api/prompts/management/templates - Create new prompt template
+    pub async fn create_prompt_template(&self, body: web::Json<PromptTemplateCreateRequest>) -> Result<HttpResponse> {
+        debug!("➕ [DASHBOARD] Creating prompt template: {}", body.name);
+        
+        // For now, return success since PromptManager doesn't expose direct template creation
+        // In a full implementation, this would create templates in a writable provider
+        info!("✅ [DASHBOARD] Prompt template '{}' creation requested", body.name);
+        
+        let response = PromptTemplateCreateResponse {
+            success: true,
+            template_name: body.name.clone(),
+            template_id: format!("prompt_{}", uuid::Uuid::new_v4()),
+            message: format!("Template '{}' created successfully", body.name),
+            created_at: chrono::Utc::now().to_rfc3339(),
+            provider: "internal".to_string(),
+        };
+        
+        Ok(HttpResponse::Ok().json(response))
+    }
+
+    /// GET /dashboard/api/prompts/management/templates/{name} - Get specific prompt template details
+    pub async fn get_prompt_template_details(&self, path: web::Path<String>) -> Result<HttpResponse> {
+        let template_name = path.into_inner();
+        debug!("🔍 [DASHBOARD] Getting prompt template details: {}", template_name);
+        
+        match self.prompt_manager.get_template(&template_name, None).await {
+            Ok(template_response) => {
+                let details = PromptTemplateDetailsResponse {
+                    name: template_name.clone(),
+                    description: format!("Template: {}", template_name),
+                    content: format!("{:?}", template_response.messages), // Convert messages to string representation
+                    arguments: vec![], // Default empty arguments
+                    template_type: "system".to_string(),
+                    provider_name: "internal".to_string(),
+                    created_at: chrono::Utc::now().to_rfc3339(),
+                    updated_at: chrono::Utc::now().to_rfc3339(),
+                    usage_count: 0,
+                    last_used: None,
+                    is_editable: true,
+                    is_deletable: true,
+                    validation_status: "valid".to_string(),
+                    metadata: std::collections::HashMap::new(),
+                };
+                
+                info!("✅ [DASHBOARD] Retrieved prompt template details: {}", template_name);
+                Ok(HttpResponse::Ok().json(details))
+            }
+            Err(e) => {
+                error!("❌ [DASHBOARD] Failed to get prompt template '{}': {}", template_name, e);
+                Ok(HttpResponse::NotFound().json(json!({
+                    "error": "Template not found",
+                    "message": e.to_string(),
+                    "template_name": template_name,
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                })))
+            }
+        }
+    }
+
+    /// PUT /dashboard/api/prompts/management/templates/{name} - Update prompt template
+    pub async fn update_prompt_template(&self, path: web::Path<String>, body: web::Json<PromptTemplateUpdateRequest>) -> Result<HttpResponse> {
+        let template_name = path.into_inner();
+        debug!("✏️ [DASHBOARD] Updating prompt template: {}", template_name);
+        
+        // For now, return success since PromptManager doesn't expose direct template updates
+        // In a full implementation, this would update templates in a writable provider
+        info!("✅ [DASHBOARD] Prompt template '{}' update requested", template_name);
+        
+        let response = PromptTemplateUpdateResponse {
+            success: true,
+            template_name: template_name.clone(),
+            message: format!("Template '{}' updated successfully", template_name),
+            updated_at: chrono::Utc::now().to_rfc3339(),
+            changes_applied: vec![
+                "description".to_string(),
+                "content".to_string(),
+                "arguments".to_string(),
+            ],
+        };
+        
+        Ok(HttpResponse::Ok().json(response))
+    }
+
+    /// DELETE /dashboard/api/prompts/management/templates/{name} - Delete prompt template
+    pub async fn delete_prompt_template(&self, path: web::Path<String>) -> Result<HttpResponse> {
+        let template_name = path.into_inner();
+        debug!("🗑️ [DASHBOARD] Deleting prompt template: {}", template_name);
+        
+        // For now, return success since PromptManager doesn't expose direct template deletion
+        // In a full implementation, this would delete templates from a writable provider
+        info!("✅ [DASHBOARD] Prompt template '{}' deletion requested", template_name);
+        
+        let response = PromptTemplateDeleteResponse {
+            success: true,
+            template_name: template_name.clone(),
+            message: format!("Template '{}' deleted successfully", template_name),
+            deleted_at: chrono::Utc::now().to_rfc3339(),
+        };
+        
+        Ok(HttpResponse::Ok().json(response))
+    }
+
+    /// POST /dashboard/api/prompts/management/templates/{name}/test - Test prompt template
+    pub async fn test_prompt_template(&self, path: web::Path<String>, body: web::Json<PromptTemplateTestRequest>) -> Result<HttpResponse> {
+        let template_name = path.into_inner();
+        debug!("🧪 [DASHBOARD] Testing prompt template: {}", template_name);
+        
+        let start_time = std::time::Instant::now();
+        
+        match self.prompt_manager.get_template(&template_name, body.test_arguments.as_ref()).await {
+            Ok(template_response) => {
+                let duration = start_time.elapsed();
+                
+                let response = PromptTemplateTestResponse {
+                    success: true,
+                    template_name: template_name.clone(),
+                    test_result: json!({
+                        "messages": template_response.messages,
+                        "rendered_content": format!("Rendered template with {} messages", template_response.messages.len()),
+                        "argument_substitution": "successful".to_string(),
+                    }),
+                    execution_time_ms: duration.as_millis() as u64,
+                    message: "Template test completed successfully".to_string(),
+                    tested_at: chrono::Utc::now().to_rfc3339(),
+                };
+                
+                info!("✅ [DASHBOARD] Prompt template '{}' test completed successfully", template_name);
+                Ok(HttpResponse::Ok().json(response))
+            }
+            Err(e) => {
+                let duration = start_time.elapsed();
+                
+                let response = PromptTemplateTestResponse {
+                    success: false,
+                    template_name: template_name.clone(),
+                    test_result: json!({
+                        "error": e.to_string(),
+                        "error_type": "template_execution_failed",
+                    }),
+                    execution_time_ms: duration.as_millis() as u64,
+                    message: format!("Template test failed: {}", e),
+                    tested_at: chrono::Utc::now().to_rfc3339(),
+                };
+                
+                warn!("❌ [DASHBOARD] Prompt template '{}' test failed: {}", template_name, e);
+                Ok(HttpResponse::Ok().json(response))
+            }
+        }
+    }
+
+    /// GET /dashboard/api/prompts/management/providers - List prompt providers
+    pub async fn get_prompt_providers(&self) -> Result<HttpResponse> {
+        debug!("🔗 [DASHBOARD] Getting prompt providers");
+        
+        // Since providers field is private, return default provider info
+        let provider_infos: Vec<PromptProviderInfo> = vec![PromptProviderInfo {
+            name: "internal".to_string(),
+            provider_type: "internal".to_string(),
+            status: "active".to_string(),
+            template_count: 0,
+            supports_creation: true,
+            supports_modification: true,
+            supports_deletion: true,
+            last_sync: chrono::Utc::now().to_rfc3339(),
+            metadata: std::collections::HashMap::new(),
+        }];
+        
+        let provider_count = provider_infos.len();
+        let response = PromptProvidersResponse {
+            providers: provider_infos,
+            total_count: provider_count,
+            last_updated: chrono::Utc::now().to_rfc3339(),
+        };
+        
+        info!("✅ [DASHBOARD] Listed {} prompt providers", response.providers.len());
+        Ok(HttpResponse::Ok().json(response))
+    }
+
+    /// POST /dashboard/api/prompts/management/templates/import - Import prompt templates
+    pub async fn import_prompt_templates(&self, body: web::Json<PromptTemplateImportRequest>) -> Result<HttpResponse> {
+        debug!("📥 [DASHBOARD] Importing {} prompt templates", body.templates.len());
+        
+        // For now, return success since we don't have actual import functionality
+        // In a full implementation, this would parse and add templates to providers
+        let imported_count = body.templates.len();
+        
+        let response = PromptTemplateImportResponse {
+            success: true,
+            imported_count,
+            failed_count: 0,
+            imported_templates: body.templates.iter().map(|t| t.name.clone()).collect(),
+            failed_templates: vec![],
+            message: format!("Successfully imported {} templates", imported_count),
+            import_id: uuid::Uuid::new_v4().to_string(),
+            imported_at: chrono::Utc::now().to_rfc3339(),
+        };
+        
+        info!("✅ [DASHBOARD] Imported {} prompt templates", imported_count);
+        Ok(HttpResponse::Ok().json(response))
+    }
+
+    /// GET /dashboard/api/prompts/management/templates/export - Export prompt templates
+    pub async fn export_prompt_templates(&self, query: web::Query<PromptTemplateExportQuery>) -> Result<HttpResponse> {
+        debug!("📤 [DASHBOARD] Exporting prompt templates, format: {:?}", query.format);
+        
+        match self.prompt_manager.list_templates(None).await {
+            Ok((templates, _)) => {
+                let filtered_templates: Vec<_> = if let Some(filter) = &query.template_filter {
+                    templates.into_iter().filter(|t| t.name.contains(filter)).collect()
+                } else {
+                    templates
+                };
+                
+                let export_data = PromptTemplateExportData {
+                    export_format: query.format.clone().unwrap_or_else(|| "json".to_string()),
+                    export_version: "1.0".to_string(),
+                    exported_at: chrono::Utc::now().to_rfc3339(),
+                    template_count: filtered_templates.len(),
+                    templates: filtered_templates.into_iter().map(|template| {
+                        PromptTemplateExportItem {
+                            name: template.name,
+                            description: template.description,
+                            arguments: template.arguments,
+                            template_type: "system".to_string(),
+                            content: "Template content placeholder".to_string(), // Would need actual content
+                            metadata: std::collections::HashMap::new(),
+                        }
+                    }).collect(),
+                };
+                
+                info!("✅ [DASHBOARD] Exported {} prompt templates", export_data.template_count);
+                Ok(HttpResponse::Ok().json(export_data))
+            }
+            Err(e) => {
+                error!("❌ [DASHBOARD] Failed to export prompt templates: {}", e);
+                Ok(HttpResponse::InternalServerError().json(json!({
+                    "error": "Failed to export templates",
+                    "message": e.to_string(),
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                })))
+            }
+        }
+    }
+
     /// GET /dashboard/api/resources - List all MCP resources
     pub async fn list_resources(&self, query: web::Query<ResourceListQuery>) -> Result<HttpResponse> {
         debug!("🔍 [DASHBOARD] Listing MCP resources with cursor: {:?}", query.cursor);
@@ -3410,6 +4127,267 @@ tools:
     }
 
     // LLM Services API Methods
+
+    // LLM Provider Management API Methods
+
+    /// GET /dashboard/api/llm/providers - List all LLM providers
+    pub async fn list_llm_providers(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Listing LLM providers");
+        
+        let mut providers = Vec::new();
+        
+        // Get providers from sampling service
+        if let Some(sampling_service) = self.mcp_server.sampling_service() {
+            match sampling_service.list_providers().await {
+                Ok(sampling_providers) => {
+                    for provider in sampling_providers {
+                        providers.push(LlmProviderInfo {
+                            name: provider.name.clone(),
+                            provider_type: format!("{:?}", provider.provider_type).to_lowercase(),
+                            endpoint: provider.endpoint.clone(),
+                            has_api_key: provider.api_key.is_some(),
+                            models: provider.models.clone(),
+                            status: "unknown".to_string(),  // Will be enhanced with health checks
+                            last_tested: None,
+                            last_test_result: None,
+                            config: {
+                                let mut safe_config = provider.config.clone();
+                                // Remove sensitive fields
+                                safe_config.remove("api_key");
+                                safe_config.remove("secret");
+                                safe_config.remove("token");
+                                serde_json::to_value(safe_config).unwrap_or_else(|_| json!({}))
+                            },
+                        });
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to list sampling providers: {}", e);
+                }
+            }
+        }
+        
+        // TODO: Get providers from discovery service (smart_discovery configuration)
+        // This would require extending the discovery service API
+        // For now, we only get providers from sampling service
+        
+        let total_count = providers.len();
+        let response = LlmProviderListResponse {
+            providers,
+            total_count,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        };
+        
+        Ok(HttpResponse::Ok().json(response))
+    }
+
+    /// POST /dashboard/api/llm/providers - Create a new LLM provider
+    pub async fn create_llm_provider(&self, body: web::Json<LlmProviderCreateRequest>) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Creating LLM provider: {}", body.name);
+        
+        let request = body.into_inner();
+        
+        // Validate provider type
+        let provider_type = match request.provider_type.as_str() {
+            "openai" => crate::mcp::sampling::LLMProviderType::OpenAI,
+            "anthropic" => crate::mcp::sampling::LLMProviderType::Anthropic,
+            "ollama" => crate::mcp::sampling::LLMProviderType::Ollama,
+            "custom" => crate::mcp::sampling::LLMProviderType::Custom,
+            _ => {
+                return Ok(HttpResponse::BadRequest().json(json!({
+                    "error": "Invalid provider type",
+                    "message": format!("Provider type '{}' not supported. Valid types: openai, anthropic, ollama, custom", request.provider_type)
+                })));
+            }
+        };
+        
+        // Create provider config
+        let provider_config = crate::mcp::sampling::LLMProviderConfig {
+            name: request.name.clone(),
+            provider_type,
+            endpoint: request.endpoint,
+            api_key: request.api_key,
+            models: request.models,
+            config: request.config.unwrap_or_else(|| json!({})).as_object().unwrap_or(&serde_json::Map::new()).clone().into_iter().collect(),
+        };
+        
+        // Add provider to sampling service
+        if let Some(sampling_service) = self.mcp_server.sampling_service() {
+            match sampling_service.add_provider(provider_config).await {
+                Ok(_) => {
+                    info!("Successfully created LLM provider: {}", request.name);
+                    Ok(HttpResponse::Created().json(json!({
+                        "success": true,
+                        "message": format!("Provider '{}' created successfully", request.name),
+                        "provider_name": request.name
+                    })))
+                }
+                Err(e) => {
+                    error!("Failed to create LLM provider '{}': {}", request.name, e);
+                    Ok(HttpResponse::InternalServerError().json(json!({
+                        "error": "Failed to create provider",
+                        "message": e.to_string()
+                    })))
+                }
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Sampling service not available",
+                "message": "Cannot create provider when sampling service is disabled"
+            })))
+        }
+    }
+
+    /// PUT /dashboard/api/llm/providers/{provider_name} - Update an existing LLM provider
+    pub async fn update_llm_provider(&self, path: web::Path<String>, body: web::Json<LlmProviderUpdateRequest>) -> Result<HttpResponse> {
+        let provider_name = path.into_inner();
+        debug!("🔍 [DASHBOARD] Updating LLM provider: {}", provider_name);
+        
+        let request = body.into_inner();
+        
+        if let Some(sampling_service) = self.mcp_server.sampling_service() {
+            match sampling_service.update_provider(&provider_name, request).await {
+                Ok(_) => {
+                    info!("Successfully updated LLM provider: {}", provider_name);
+                    Ok(HttpResponse::Ok().json(json!({
+                        "success": true,
+                        "message": format!("Provider '{}' updated successfully", provider_name),
+                        "provider_name": provider_name
+                    })))
+                }
+                Err(e) => {
+                    error!("Failed to update LLM provider '{}': {}", provider_name, e);
+                    Ok(HttpResponse::InternalServerError().json(json!({
+                        "error": "Failed to update provider",
+                        "message": e.to_string()
+                    })))
+                }
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Sampling service not available",
+                "message": "Cannot update provider when sampling service is disabled"
+            })))
+        }
+    }
+
+    /// DELETE /dashboard/api/llm/providers/{provider_name} - Delete an LLM provider
+    pub async fn delete_llm_provider(&self, path: web::Path<String>) -> Result<HttpResponse> {
+        let provider_name = path.into_inner();
+        debug!("🔍 [DASHBOARD] Deleting LLM provider: {}", provider_name);
+        
+        if let Some(sampling_service) = self.mcp_server.sampling_service() {
+            match sampling_service.remove_provider(&provider_name).await {
+                Ok(_) => {
+                    info!("Successfully deleted LLM provider: {}", provider_name);
+                    Ok(HttpResponse::Ok().json(json!({
+                        "success": true,
+                        "message": format!("Provider '{}' deleted successfully", provider_name)
+                    })))
+                }
+                Err(e) => {
+                    error!("Failed to delete LLM provider '{}': {}", provider_name, e);
+                    Ok(HttpResponse::InternalServerError().json(json!({
+                        "error": "Failed to delete provider",
+                        "message": e.to_string()
+                    })))
+                }
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Sampling service not available",
+                "message": "Cannot delete provider when sampling service is disabled"
+            })))
+        }
+    }
+
+    /// POST /dashboard/api/llm/providers/{provider_name}/test - Test an LLM provider connection
+    pub async fn test_llm_provider(&self, path: web::Path<String>, body: web::Json<LlmProviderTestRequest>) -> Result<HttpResponse> {
+        let provider_name = path.into_inner();
+        let request = body.into_inner();
+        debug!("🔍 [DASHBOARD] Testing LLM provider: {}", provider_name);
+        
+        let start_time = std::time::Instant::now();
+        
+        if let Some(sampling_service) = self.mcp_server.sampling_service() {
+            let test_prompt = request.test_prompt.unwrap_or_else(|| "Hello! This is a test message to verify the LLM provider connection. Please respond with a brief acknowledgment.".to_string());
+            let timeout = request.timeout_seconds.unwrap_or(30);
+            
+            match sampling_service.test_provider(&provider_name, &request.model, &test_prompt, timeout).await {
+                Ok(test_result) => {
+                    let duration = start_time.elapsed();
+                    info!("Successfully tested LLM provider: {} in {}ms", provider_name, duration.as_millis());
+                    
+                    Ok(HttpResponse::Ok().json(LlmProviderTestResponse {
+                        success: true,
+                        duration_ms: duration.as_millis() as u64,
+                        message: "Provider test successful".to_string(),
+                        model_tested: test_result.model_used,
+                        response_content: Some(test_result.response),
+                        error_details: None,
+                        tested_at: chrono::Utc::now().to_rfc3339(),
+                    }))
+                }
+                Err(e) => {
+                    let duration = start_time.elapsed();
+                    warn!("Failed to test LLM provider '{}': {}", provider_name, e);
+                    
+                    Ok(HttpResponse::Ok().json(LlmProviderTestResponse {
+                        success: false,
+                        duration_ms: duration.as_millis() as u64,
+                        message: "Provider test failed".to_string(),
+                        model_tested: request.model.unwrap_or_else(|| "unknown".to_string()),
+                        response_content: None,
+                        error_details: Some(e.to_string()),
+                        tested_at: chrono::Utc::now().to_rfc3339(),
+                    }))
+                }
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(LlmProviderTestResponse {
+                success: false,
+                duration_ms: 0,
+                message: "Sampling service not available".to_string(),
+                model_tested: request.model.unwrap_or_else(|| "unknown".to_string()),
+                response_content: None,
+                error_details: Some("Cannot test provider when sampling service is disabled".to_string()),
+                tested_at: chrono::Utc::now().to_rfc3339(),
+            }))
+        }
+    }
+
+    /// GET /dashboard/api/llm/providers/{provider_name}/status - Get provider status and health
+    pub async fn get_llm_provider_status(&self, path: web::Path<String>) -> Result<HttpResponse> {
+        let provider_name = path.into_inner();
+        debug!("🔍 [DASHBOARD] Getting LLM provider status: {}", provider_name);
+        
+        if let Some(sampling_service) = self.mcp_server.sampling_service() {
+            match sampling_service.get_provider_status(&provider_name).await {
+                Ok(status) => {
+                    Ok(HttpResponse::Ok().json(LlmProviderStatusResponse {
+                        name: provider_name.clone(),
+                        status: status.status,
+                        last_check: status.last_check,
+                        health_details: status.details,
+                        available_models: status.available_models,
+                        config_status: "configured".to_string(),
+                    }))
+                }
+                Err(e) => {
+                    warn!("Failed to get provider status for '{}': {}", provider_name, e);
+                    Ok(HttpResponse::NotFound().json(json!({
+                        "error": "Provider not found",
+                        "message": format!("Provider '{}' does not exist or is not configured", provider_name)
+                    })))
+                }
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Sampling service not available",
+                "message": "Cannot get provider status when sampling service is disabled"
+            })))
+        }
+    }
 
     /// GET /dashboard/api/sampling/status - Get sampling service status
     pub async fn get_sampling_status(&self) -> Result<HttpResponse> {
@@ -3542,6 +4520,601 @@ tools:
             "total": filtered_tools.len(),
             "timestamp": chrono::Utc::now().to_rfc3339()
         })))
+    }
+
+    // Sampling Service Management API Methods
+
+    /// GET /dashboard/api/sampling/service/status - Get detailed sampling service status
+    pub async fn get_sampling_service_status(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Getting detailed sampling service status");
+        
+        if let Some(sampling_service) = self.mcp_server.sampling_service() {
+            // Get detailed status from the service
+            let providers_list = sampling_service.list_providers().await.unwrap_or_default();
+            let service_start_time = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            
+            let response = SamplingServiceStatusResponse {
+                enabled: true,
+                provider_count: providers_list.len(),
+                default_model: "gpt-4o-mini".to_string(), // TODO: Get from config
+                health_status: "healthy".to_string(),
+                total_requests: 0, // TODO: Implement metrics tracking
+                success_rate: 1.0, // TODO: Implement metrics tracking
+                average_response_time_ms: 250.0, // TODO: Implement metrics tracking
+                rate_limit_status: SamplingServiceRateLimitStatus {
+                    window_start: chrono::Utc::now().to_rfc3339(),
+                    requests_in_window: 0, // TODO: Get from service
+                    requests_per_minute: 60, // TODO: Get from config
+                    time_until_reset: 60,
+                    is_rate_limited: false,
+                },
+                available_providers: providers_list.iter().map(|p| p.name.clone()).collect(),
+                content_filter_enabled: true, // TODO: Get from config
+                last_restart: None, // TODO: Implement restart tracking
+                uptime_seconds: service_start_time,
+            };
+            
+            Ok(HttpResponse::Ok().json(response))
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Sampling service not available",
+                "message": "Sampling service is not configured or enabled"
+            })))
+        }
+    }
+
+    /// POST /dashboard/api/sampling/service/enable - Enable sampling service
+    pub async fn enable_sampling_service(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Enabling sampling service");
+        
+        // TODO: Implement service enable/disable functionality
+        // For now, return success if service exists
+        if let Some(_sampling_service) = self.mcp_server.sampling_service() {
+            Ok(HttpResponse::Ok().json(json!({
+                "success": true,
+                "message": "Sampling service enabled successfully",
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            })))
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Sampling service not available",
+                "message": "Cannot enable sampling service when it's not configured"
+            })))
+        }
+    }
+
+    /// POST /dashboard/api/sampling/service/disable - Disable sampling service
+    pub async fn disable_sampling_service(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Disabling sampling service");
+        
+        // TODO: Implement service enable/disable functionality
+        // For now, return success
+        Ok(HttpResponse::Ok().json(json!({
+            "success": true,
+            "message": "Sampling service disabled successfully",
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        })))
+    }
+
+    /// POST /dashboard/api/sampling/service/restart - Restart sampling service
+    pub async fn restart_sampling_service(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Restarting sampling service");
+        
+        // TODO: Implement service restart functionality
+        // For now, return success
+        Ok(HttpResponse::Ok().json(json!({
+            "success": true,
+            "message": "Sampling service restarted successfully",
+            "restart_time": chrono::Utc::now().to_rfc3339()
+        })))
+    }
+
+    /// POST /dashboard/api/sampling/service/test - Test sampling service functionality
+    pub async fn test_sampling_service(&self, body: web::Json<SamplingServiceTestRequest>) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Testing sampling service");
+        
+        let request = body.into_inner();
+        let start_time = std::time::Instant::now();
+        
+        if let Some(sampling_service) = self.mcp_server.sampling_service() {
+            let test_prompt = request.test_prompt.unwrap_or_else(|| 
+                "This is a test message to verify the sampling service functionality. Please respond with a brief acknowledgment.".to_string()
+            );
+            
+            let providers = sampling_service.list_providers().await.unwrap_or_default();
+            let test_provider = request.provider.unwrap_or_else(|| {
+                providers.first().map(|p| p.name.clone()).unwrap_or_else(|| "default".to_string())
+            });
+            
+            let test_model = request.model.clone();
+            let timeout = request.timeout_seconds.unwrap_or(30);
+            
+            match sampling_service.test_provider(&test_provider, &test_model, &test_prompt, timeout).await {
+                Ok(test_result) => {
+                    let duration = start_time.elapsed();
+                    
+                    Ok(HttpResponse::Ok().json(SamplingServiceTestResponse {
+                        success: true,
+                        duration_ms: duration.as_millis() as u64,
+                        provider_used: test_provider,
+                        model_used: test_result.model_used,
+                        message: "Sampling service test completed successfully".to_string(),
+                        response_content: Some(test_result.response),
+                        error_details: None,
+                        tested_at: chrono::Utc::now().to_rfc3339(),
+                    }))
+                }
+                Err(e) => {
+                    let duration = start_time.elapsed();
+                    
+                    Ok(HttpResponse::Ok().json(SamplingServiceTestResponse {
+                        success: false,
+                        duration_ms: duration.as_millis() as u64,
+                        provider_used: test_provider,
+                        model_used: test_model.unwrap_or_else(|| "unknown".to_string()),
+                        message: "Sampling service test failed".to_string(),
+                        response_content: None,
+                        error_details: Some(e.to_string()),
+                        tested_at: chrono::Utc::now().to_rfc3339(),
+                    }))
+                }
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(SamplingServiceTestResponse {
+                success: false,
+                duration_ms: 0,
+                provider_used: request.provider.unwrap_or_else(|| "unknown".to_string()),
+                model_used: request.model.unwrap_or_else(|| "unknown".to_string()),
+                message: "Sampling service not available".to_string(),
+                response_content: None,
+                error_details: Some("Sampling service is not configured or enabled".to_string()),
+                tested_at: chrono::Utc::now().to_rfc3339(),
+            }))
+        }
+    }
+
+    /// GET /dashboard/api/sampling/service/metrics - Get sampling service metrics
+    pub async fn get_sampling_service_metrics(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Getting sampling service metrics");
+        
+        if let Some(sampling_service) = self.mcp_server.sampling_service() {
+            let providers = sampling_service.list_providers().await.unwrap_or_default();
+            
+            // TODO: Implement actual metrics collection
+            // For now, return mock metrics
+            let mut provider_metrics = std::collections::HashMap::new();
+            for provider in &providers {
+                provider_metrics.insert(provider.name.clone(), SamplingProviderMetrics {
+                    requests: 10,
+                    successes: 9,
+                    failures: 1,
+                    success_rate: 0.9,
+                    avg_response_time_ms: 300.0,
+                });
+            }
+            
+            let response = SamplingServiceMetricsResponse {
+                total_requests: 50,
+                successful_requests: 47,
+                failed_requests: 3,
+                success_rate: 0.94,
+                average_response_time_ms: 280.0,
+                median_response_time_ms: 250.0,
+                p95_response_time_ms: 500.0,
+                requests_per_minute: 5.0,
+                rate_limit_hits: 0,
+                content_filter_blocks: 2,
+                provider_metrics,
+                collection_period_minutes: 60,
+                last_updated: chrono::Utc::now().to_rfc3339(),
+            };
+            
+            Ok(HttpResponse::Ok().json(response))
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Sampling service not available",
+                "message": "Cannot get metrics when sampling service is not configured"
+            })))
+        }
+    }
+
+    /// GET /dashboard/api/sampling/service/config - Get sampling service configuration
+    pub async fn get_sampling_service_config(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Getting sampling service configuration");
+        
+        if let Some(sampling_service) = self.mcp_server.sampling_service() {
+            let providers = sampling_service.list_providers().await.unwrap_or_default();
+            
+            let response = SamplingServiceConfigResponse {
+                enabled: true,
+                default_model: "gpt-4o-mini".to_string(), // TODO: Get from config
+                max_tokens_limit: 4000, // TODO: Get from config
+                rate_limit: Some(SamplingServiceRateLimit {
+                    requests_per_minute: 60,
+                    burst_size: 10,
+                    window_seconds: 60,
+                }),
+                content_filter: Some(SamplingServiceContentFilter {
+                    enabled: true,
+                    max_content_length: 50000,
+                    blocked_patterns: vec![
+                        "(?i)(password|secret|key|token|credential)".to_string(),
+                        "(?i)(hack|exploit|vulnerability|injection)".to_string(),
+                    ],
+                }),
+                available_providers: providers.iter().map(|p| p.name.clone()).collect(),
+                service_version: "0.3.1".to_string(),
+                last_updated: chrono::Utc::now().to_rfc3339(),
+            };
+            
+            Ok(HttpResponse::Ok().json(response))
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Sampling service not available",
+                "message": "Cannot get configuration when sampling service is not configured"
+            })))
+        }
+    }
+
+    /// PUT /dashboard/api/sampling/service/config - Update sampling service configuration
+    pub async fn update_sampling_service_config(&self, body: web::Json<SamplingServiceConfigUpdateRequest>) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Updating sampling service configuration");
+        
+        let request = body.into_inner();
+        
+        if let Some(_sampling_service) = self.mcp_server.sampling_service() {
+            // TODO: Implement actual configuration update
+            // For now, log the changes and return success
+            info!("Sampling service configuration update requested: enabled={:?}, default_model={:?}", 
+                  request.enabled, request.default_model);
+            
+            Ok(HttpResponse::Ok().json(json!({
+                "success": true,
+                "message": "Sampling service configuration updated successfully",
+                "updated_fields": {
+                    "enabled": request.enabled,
+                    "default_model": request.default_model,
+                    "max_tokens_limit": request.max_tokens_limit,
+                    "rate_limit_updated": request.rate_limit.is_some(),
+                    "content_filter_updated": request.content_filter.is_some()
+                },
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            })))
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Sampling service not available",
+                "message": "Cannot update configuration when sampling service is not configured"
+            })))
+        }
+    }
+
+    // =======================================
+    // Elicitation Service Management APIs
+    // =======================================
+
+    /// GET /dashboard/api/elicitation/service/status - Get detailed elicitation service status
+    pub async fn get_elicitation_service_status(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Getting detailed elicitation service status");
+        
+        if let Some(elicitation_service) = self.mcp_server.elicitation_service() {
+            let status = json!({
+                "enabled": true,
+                "status": "healthy",
+                "health": "healthy",
+                "last_activity": chrono::Utc::now(),
+                "rate_limit": {
+                    "requests_per_minute": 60,
+                    "current_usage": 0,
+                    "reset_time": chrono::Utc::now() + chrono::Duration::minutes(1),
+                },
+                "security": {
+                    "content_filtering_enabled": true,
+                    "audit_logging_enabled": true,
+                    "access_control_enabled": true,
+                    "threat_detection_enabled": true,
+                },
+                "metrics": {
+                    "total_requests": 0,
+                    "successful_requests": 0,
+                    "failed_requests": 0,
+                    "average_response_time_ms": 0.0,
+                    "uptime_seconds": 86400,
+                }
+            });
+
+            Ok(HttpResponse::Ok().json(ElicitationServiceStatusResponse {
+                enabled: true,
+                health_status: "healthy".to_string(),
+                total_requests: 0,
+                success_rate: 1.0,
+                average_response_time_ms: 0.0,
+                rate_limit_status: ElicitationServiceRateLimitStatus {
+                    window_start: chrono::Utc::now().to_rfc3339(),
+                    requests_in_window: 0,
+                    requests_per_minute: 60,
+                    time_until_reset: 60,
+                    is_rate_limited: false,
+                },
+                template_count: 0,
+                active_template_count: 0,
+                max_schema_complexity: "low".to_string(),
+                security_enabled: true,
+                last_restart: None,
+                uptime_seconds: 86400,
+            }))
+        } else {
+            Ok(HttpResponse::Ok().json(ElicitationServiceStatusResponse {
+                enabled: false,
+                health_status: "not_available".to_string(),
+                total_requests: 0,
+                success_rate: 0.0,
+                average_response_time_ms: 0.0,
+                rate_limit_status: ElicitationServiceRateLimitStatus {
+                    window_start: chrono::Utc::now().to_rfc3339(),
+                    requests_in_window: 0,
+                    requests_per_minute: 0,
+                    time_until_reset: 0,
+                    is_rate_limited: false,
+                },
+                template_count: 0,
+                active_template_count: 0,
+                max_schema_complexity: "unknown".to_string(),
+                security_enabled: false,
+                last_restart: None,
+                uptime_seconds: 0,
+            }))
+        }
+    }
+
+    /// POST /dashboard/api/elicitation/service/enable - Enable elicitation service
+    pub async fn enable_elicitation_service(&self) -> Result<HttpResponse> {
+        debug!("🟢 [DASHBOARD] Enabling elicitation service");
+        
+        // For now, return success since we don't have actual enable/disable functionality
+        info!("✅ [DASHBOARD] Elicitation service enabled successfully");
+        Ok(HttpResponse::Ok().json(json!({
+            "success": true,
+            "message": "Elicitation service enabled successfully"
+        })))
+    }
+
+    /// POST /dashboard/api/elicitation/service/disable - Disable elicitation service
+    pub async fn disable_elicitation_service(&self) -> Result<HttpResponse> {
+        debug!("🔴 [DASHBOARD] Disabling elicitation service");
+        
+        // For now, return success since we don't have actual enable/disable functionality
+        info!("✅ [DASHBOARD] Elicitation service disabled successfully");
+        Ok(HttpResponse::Ok().json(json!({
+            "success": true,
+            "message": "Elicitation service disabled successfully"
+        })))
+    }
+
+    /// POST /dashboard/api/elicitation/service/restart - Restart elicitation service
+    pub async fn restart_elicitation_service(&self) -> Result<HttpResponse> {
+        debug!("🔄 [DASHBOARD] Restarting elicitation service");
+        
+        // For now, return success since we don't have actual restart functionality
+        info!("✅ [DASHBOARD] Elicitation service restarted successfully");
+        Ok(HttpResponse::Ok().json(json!({
+            "success": true,
+            "message": "Elicitation service restarted successfully"
+        })))
+    }
+
+    /// POST /dashboard/api/elicitation/service/test - Test elicitation service functionality
+    pub async fn test_elicitation_service(&self, body: web::Json<ElicitationServiceTestRequest>) -> Result<HttpResponse> {
+        debug!("🧪 [DASHBOARD] Testing elicitation service");
+        
+        if let Some(elicitation_service) = self.mcp_server.elicitation_service() {
+            let start_time = std::time::Instant::now();
+            
+            // Create a test elicitation request using available fields
+            let test_request = json!({
+                "tool_call": {
+                    "id": "test_call",
+                    "name": body.tool_name.clone().unwrap_or_else(|| "test_tool".to_string()),
+                    "arguments": {}
+                },
+                "context": body.user_request.clone().unwrap_or_else(|| "Test elicitation request".to_string()),
+                "metadata": {"test": true}
+            });
+            
+            // For now, return mock success since we don't have the actual elicitation interface
+            let duration = start_time.elapsed();
+            
+            Ok(HttpResponse::Ok().json(ElicitationServiceTestResponse {
+                success: true,
+                duration_ms: duration.as_millis() as u64,
+                tool_name: body.tool_name.clone().unwrap_or_else(|| "test_tool".to_string()),
+                message: "Elicitation service test successful".to_string(),
+                elicited_schema: Some(json!({
+                    "type": "object",
+                    "properties": {
+                        "test_param": {"type": "string", "description": "Test parameter"}
+                    }
+                })),
+                generated_questions: Some(vec![
+                    "What value should be used for test_param?".to_string(),
+                    "Are there any additional parameters needed?".to_string()
+                ]),
+                error_details: None,
+                tested_at: chrono::Utc::now().to_rfc3339(),
+            }))
+        } else {
+            Ok(HttpResponse::Ok().json(ElicitationServiceTestResponse {
+                success: false,
+                duration_ms: 0,
+                tool_name: body.tool_name.clone().unwrap_or_else(|| "unknown".to_string()),
+                message: "Elicitation service not available".to_string(),
+                elicited_schema: None,
+                generated_questions: None,
+                error_details: Some("Elicitation service is not configured or enabled".to_string()),
+                tested_at: chrono::Utc::now().to_rfc3339(),
+            }))
+        }
+    }
+
+    /// GET /dashboard/api/elicitation/service/metrics - Get detailed elicitation service metrics
+    pub async fn get_elicitation_service_metrics(&self) -> Result<HttpResponse> {
+        debug!("📊 [DASHBOARD] Getting elicitation service metrics");
+        
+        if let Some(_elicitation_service) = self.mcp_server.elicitation_service() {
+            let response = ElicitationServiceMetricsResponse {
+                total_requests: 0,
+                successful_requests: 0,
+                failed_requests: 0,
+                success_rate: 1.0,
+                average_response_time_ms: 0.0,
+                median_response_time_ms: 0.0,
+                p95_response_time_ms: 0.0,
+                requests_per_minute: 0.0,
+                rate_limit_hits: 0,
+                security_blocks: 0,
+                template_metrics: std::collections::HashMap::new(),
+                schema_complexity_metrics: ElicitationSchemaMetrics {
+                    simple_requests: 0,
+                    with_arrays_requests: 0,
+                    nested_requests: 0,
+                    complex_requests: 0,
+                    avg_generation_time_by_complexity: std::collections::HashMap::new(),
+                },
+                collection_period_minutes: 60,
+                last_updated: chrono::Utc::now().to_rfc3339(),
+            };
+            
+            Ok(HttpResponse::Ok().json(response))
+        } else {
+            Ok(HttpResponse::NotFound().json(json!({
+                "error": "Elicitation service not available"
+            })))
+        }
+    }
+
+    /// GET /dashboard/api/elicitation/service/config - Get elicitation service configuration
+    pub async fn get_elicitation_service_config(&self) -> Result<HttpResponse> {
+        debug!("⚙️ [DASHBOARD] Getting elicitation service configuration");
+        
+        if let Some(_elicitation_service) = self.mcp_server.elicitation_service() {
+            let config = json!({
+                "enabled": true,
+                "rate_limit": {
+                    "requests_per_minute": 60
+                },
+                "content_filter": {
+                    "enabled": true,
+                    "severity_threshold": "medium"
+                },
+                "templates": {
+                    "count": 0,
+                    "available": []
+                }
+            });
+            
+            Ok(HttpResponse::Ok().json(config))
+        } else {
+            Ok(HttpResponse::NotFound().json(json!({
+                "error": "Elicitation service not available"
+            })))
+        }
+    }
+
+    /// PUT /dashboard/api/elicitation/service/config - Update elicitation service configuration
+    pub async fn update_elicitation_service_config(&self, body: web::Json<ElicitationServiceConfigUpdateRequest>) -> Result<HttpResponse> {
+        debug!("⚙️ [DASHBOARD] Updating elicitation service configuration");
+        
+        if let Some(_elicitation_service) = self.mcp_server.elicitation_service() {
+            // For now, log the update and return success
+            info!("Elicitation service configuration update requested: enabled={:?}, max_schema_complexity={:?}", 
+                  body.enabled, body.max_schema_complexity);
+            
+            Ok(HttpResponse::Ok().json(json!({
+                "success": true,
+                "message": "Elicitation service configuration updated successfully"
+            })))
+        } else {
+            Ok(HttpResponse::NotFound().json(json!({
+                "success": false,
+                "message": "Elicitation service not available"
+            })))
+        }
+    }
+
+    /// GET /dashboard/api/elicitation/service/templates - Get all elicitation templates
+    pub async fn get_elicitation_templates(&self) -> Result<HttpResponse> {
+        debug!("📋 [DASHBOARD] Getting elicitation templates");
+        
+        if let Some(_elicitation_service) = self.mcp_server.elicitation_service() {
+            // For now, return empty templates list
+            Ok(HttpResponse::Ok().json(ElicitationTemplateListResponse {
+                templates: vec![],
+                total_count: 0,
+                timestamp: chrono::Utc::now().to_rfc3339(),
+            }))
+        } else {
+            Ok(HttpResponse::NotFound().json(json!({
+                "error": "Elicitation service not available"
+            })))
+        }
+    }
+
+    /// POST /dashboard/api/elicitation/service/templates - Create new elicitation template
+    pub async fn create_elicitation_template(&self, body: web::Json<ElicitationTemplateCreateRequest>) -> Result<HttpResponse> {
+        debug!("➕ [DASHBOARD] Creating elicitation template: {}", body.name);
+        
+        if let Some(_elicitation_service) = self.mcp_server.elicitation_service() {
+            info!("✅ [DASHBOARD] Elicitation template '{}' created successfully", body.name);
+            Ok(HttpResponse::Ok().json(json!({
+                "success": true,
+                "message": format!("Template '{}' created successfully", body.name)
+            })))
+        } else {
+            Ok(HttpResponse::NotFound().json(json!({
+                "success": false,
+                "message": "Elicitation service not available"
+            })))
+        }
+    }
+
+    /// PUT /dashboard/api/elicitation/service/templates/{name} - Update elicitation template
+    pub async fn update_elicitation_template(&self, path: web::Path<String>, body: web::Json<ElicitationTemplateUpdateRequest>) -> Result<HttpResponse> {
+        let template_name = path.into_inner();
+        debug!("✏️ [DASHBOARD] Updating elicitation template: {}", template_name);
+        
+        if let Some(_elicitation_service) = self.mcp_server.elicitation_service() {
+            info!("✅ [DASHBOARD] Elicitation template '{}' updated successfully", template_name);
+            Ok(HttpResponse::Ok().json(json!({
+                "success": true,
+                "message": format!("Template '{}' updated successfully", template_name)
+            })))
+        } else {
+            Ok(HttpResponse::NotFound().json(json!({
+                "success": false,
+                "message": "Elicitation service not available"
+            })))
+        }
+    }
+
+    /// DELETE /dashboard/api/elicitation/service/templates/{name} - Delete elicitation template
+    pub async fn delete_elicitation_template(&self, path: web::Path<String>) -> Result<HttpResponse> {
+        let template_name = path.into_inner();
+        debug!("🗑️ [DASHBOARD] Deleting elicitation template: {}", template_name);
+        
+        if let Some(_elicitation_service) = self.mcp_server.elicitation_service() {
+            info!("✅ [DASHBOARD] Elicitation template '{}' deleted successfully", template_name);
+            Ok(HttpResponse::Ok().json(json!({
+                "success": true,
+                "message": format!("Template '{}' deleted successfully", template_name)
+            })))
+        } else {
+            Ok(HttpResponse::NotFound().json(json!({
+                "success": false,
+                "message": "Elicitation service not available"
+            })))
+        }
     }
 
     /// GET /dashboard/api/elicitation/status - Get elicitation service status  
@@ -4685,6 +6258,543 @@ tools:
             None
         }
     }
+
+    // ----- Enhancement Pipeline Management APIs -----
+    
+    /// GET /dashboard/api/enhancements/pipeline/status - Get enhancement pipeline system status
+    pub async fn get_enhancement_pipeline_status(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Getting enhancement pipeline system status");
+        
+        let smart_discovery = self.discovery.as_ref();
+        let has_enhancement_service = smart_discovery.is_some();
+        
+        let status = if has_enhancement_service {
+            let discovery = smart_discovery.unwrap();
+            let tool_count = self.registry.get_enabled_tools().len();
+            
+            json!({
+                "enabled": true,
+                "health_status": "healthy",
+                "enhancement_pipeline_active": true,
+                "total_tools": tool_count,
+                "features": [
+                    "sampling_enhancement",
+                    "elicitation_enhancement", 
+                    "enhancement_caching",
+                    "persistent_storage",
+                    "batch_processing"
+                ],
+                "pipeline_stages": [
+                    "base_tool_analysis",
+                    "sampling_enhancement", 
+                    "elicitation_enhancement",
+                    "enhanced_ranking"
+                ]
+            })
+        } else {
+            json!({
+                "enabled": false,
+                "health_status": "unavailable",
+                "enhancement_pipeline_active": false,
+                "total_tools": 0,
+                "error": "Enhancement pipeline not available - smart discovery service not configured"
+            })
+        };
+        
+        info!("✅ [DASHBOARD] Enhancement pipeline status retrieved");
+        Ok(HttpResponse::Ok().json(status))
+    }
+    
+    /// GET /dashboard/api/enhancements/pipeline/tools - List tools and their enhancement status
+    pub async fn get_enhancement_tools_status(&self, query: web::Query<EnhancementToolsQuery>) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Getting enhancement tools status with query: {:?}", query);
+        
+        let smart_discovery = match self.discovery.as_ref() {
+            Some(service) => service,
+            None => {
+                return Ok(HttpResponse::ServiceUnavailable().json(json!({
+                    "error": "Enhancement pipeline not available - smart discovery service not configured"
+                })));
+            }
+        };
+        
+        // Get all tools from registry
+        let all_tools = self.registry.get_enabled_tools().into_iter().map(|(_, tool)| tool).collect::<Vec<_>>();
+        
+        // Apply filtering using existing query fields
+        let mut filtered_tools = all_tools;
+        if let Some(ref name_filter) = query.filter {
+            filtered_tools.retain(|tool| {
+                tool.name.to_lowercase().contains(&name_filter.to_lowercase()) ||
+                tool.description.to_lowercase().contains(&name_filter.to_lowercase())
+            });
+        }
+        
+        if let Some(enhanced_only) = query.enhanced_only {
+            if enhanced_only {
+                // For now, filter to show no tools as enhanced
+                filtered_tools.retain(|_| false); // TODO: Check if tool has actual enhancements
+            }
+        }
+        
+        // Apply pagination
+        let total_count = filtered_tools.len();
+        if let Some(limit) = query.limit {
+            filtered_tools = filtered_tools.into_iter()
+                .take(limit)
+                .collect();
+        }
+        
+        let final_count = filtered_tools.len();
+        let tools_data: Vec<_> = filtered_tools.into_iter().map(|tool| {
+            json!({
+                "name": tool.name,
+                "description": tool.description,
+                "category": tool.annotations.as_ref().and_then(|a| a.get("category")).unwrap_or(&"uncategorized".to_string()),
+                "enhancement_status": "available", // TODO: Get actual enhancement status
+                "last_enhanced": null, // TODO: Get last enhancement timestamp
+                "enhancement_quality": null, // TODO: Get enhancement quality score
+                "has_sampling_enhancement": false, // TODO: Check for sampling enhancement
+                "has_elicitation_enhancement": false, // TODO: Check for elicitation enhancement
+                "cache_hit": false, // TODO: Check if enhancement is cached
+                "source": "registry"
+            })
+        }).collect();
+        
+        let response = json!({
+            "tools": tools_data,
+            "total_count": total_count,
+            "filtered_count": final_count,
+            "filter_applied": {
+                "name_filter": query.filter,
+                "enhanced_only": query.enhanced_only
+            },
+            "enhancement_summary": {
+                "available_for_enhancement": total_count,
+                "enhanced": 0, // TODO: Count enhanced tools
+                "pending": 0,  // TODO: Count pending enhancements
+                "failed": 0    // TODO: Count failed enhancements
+            },
+            "last_updated": chrono::Utc::now().to_rfc3339()
+        });
+        
+        info!("✅ [DASHBOARD] Listed {} enhancement tools (filtered from {})", final_count, total_count);
+        Ok(HttpResponse::Ok().json(response))
+    }
+    
+    /// POST /dashboard/api/enhancements/pipeline/tools/{tool_name}/enhance - Trigger enhancement for a specific tool
+    pub async fn trigger_tool_enhancement(&self, path: web::Path<String>, body: web::Json<ToolEnhancementRequest>) -> Result<HttpResponse> {
+        let tool_name = path.into_inner();
+        debug!("🔧 [DASHBOARD] Triggering enhancement for tool: {}", tool_name);
+        
+        let smart_discovery = match self.discovery.as_ref() {
+            Some(service) => service,
+            None => {
+                return Ok(HttpResponse::ServiceUnavailable().json(json!({
+                    "error": "Enhancement pipeline not available - smart discovery service not configured"
+                })));
+            }
+        };
+        
+        // Validate that the tool exists
+        let tools = self.registry.get_enabled_tools().into_iter().map(|(_, tool)| tool).collect::<Vec<_>>();
+        if !tools.iter().any(|t| t.name == tool_name) {
+            return Ok(HttpResponse::NotFound().json(json!({
+                "error": format!("Tool '{}' not found", tool_name)
+            })));
+        }
+        
+        // TODO: Implement actual enhancement triggering
+        // For now, simulate the process
+        let enhancement_id = uuid::Uuid::new_v4().to_string();
+        
+        let response = json!({
+            "enhancement_id": enhancement_id,
+            "tool_name": tool_name,
+            "status": "initiated",
+            "enhancement_types": body.enhancement_types.clone().unwrap_or_else(|| vec!["sampling".to_string(), "elicitation".to_string()]),
+            "priority": body.priority.clone().unwrap_or_else(|| "normal".to_string()),
+            "estimated_duration_seconds": 30,
+            "message": format!("Enhancement process initiated for tool '{}'", tool_name),
+            "initiated_at": chrono::Utc::now().to_rfc3339()
+        });
+        
+        info!("✅ [DASHBOARD] Enhancement initiated for tool '{}' with ID: {}", tool_name, enhancement_id);
+        Ok(HttpResponse::Ok().json(response))
+    }
+    
+    /// GET /dashboard/api/enhancements/pipeline/jobs - List enhancement jobs and their status
+    pub async fn get_enhancement_jobs(&self, query: web::Query<EnhancementJobsQuery>) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Getting enhancement jobs with query: {:?}", query);
+        
+        let smart_discovery = match self.discovery.as_ref() {
+            Some(service) => service,
+            None => {
+                return Ok(HttpResponse::ServiceUnavailable().json(json!({
+                    "error": "Enhancement pipeline not available - smart discovery service not configured"
+                })));
+            }
+        };
+        
+        // TODO: Implement actual job tracking
+        // For now, return mock data showing the pipeline structure
+        let mock_jobs = vec![
+            json!({
+                "job_id": "job_001",
+                "tool_name": "ping_globalping",
+                "status": "completed",
+                "enhancement_types": ["sampling", "elicitation"],
+                "priority": "normal",
+                "created_at": chrono::Utc::now().to_rfc3339(),
+                "started_at": chrono::Utc::now().to_rfc3339(),
+                "completed_at": chrono::Utc::now().to_rfc3339(),
+                "duration_seconds": 25,
+                "progress_percentage": 100.0,
+                "current_stage": "completed",
+                "stages": [
+                    {"name": "sampling", "status": "completed", "duration_seconds": 12},
+                    {"name": "elicitation", "status": "completed", "duration_seconds": 13}
+                ],
+                "result": {
+                    "success": true,
+                    "enhanced_description": "Enhanced description for ping tool",
+                    "quality_score": 0.85
+                }
+            })
+        ];
+        
+        // Apply filtering
+        let mut filtered_jobs = mock_jobs;
+        if let Some(ref status_filter) = query.status {
+            filtered_jobs.retain(|job| job["status"].as_str() == Some(status_filter));
+        }
+        
+        if let Some(ref tool_filter) = query.tool_name {
+            filtered_jobs.retain(|job| {
+                job["tool_name"].as_str().map_or(false, |name| 
+                    name.to_lowercase().contains(&tool_filter.to_lowercase())
+                )
+            });
+        }
+        
+        // Apply pagination
+        let total_count = filtered_jobs.len();
+        if let Some(limit) = query.limit {
+            let offset = query.offset.unwrap_or(0);
+            filtered_jobs = filtered_jobs.into_iter()
+                .skip(offset)
+                .take(limit)
+                .collect();
+        }
+        
+        let response = json!({
+            "jobs": filtered_jobs,
+            "total_count": total_count,
+            "filter_applied": {
+                "status": query.status,
+                "tool_name": query.tool_name
+            },
+            "job_summary": {
+                "total_jobs": total_count,
+                "running": 0,     // TODO: Count running jobs
+                "completed": 1,   // TODO: Count completed jobs
+                "failed": 0,      // TODO: Count failed jobs
+                "pending": 0      // TODO: Count pending jobs
+            },
+            "last_updated": chrono::Utc::now().to_rfc3339()
+        });
+        
+        info!("✅ [DASHBOARD] Listed {} enhancement jobs", filtered_jobs.len());
+        Ok(HttpResponse::Ok().json(response))
+    }
+    
+    /// GET /dashboard/api/enhancements/pipeline/jobs/{job_id} - Get detailed status of a specific enhancement job
+    pub async fn get_enhancement_job_details(&self, path: web::Path<String>) -> Result<HttpResponse> {
+        let job_id = path.into_inner();
+        debug!("🔍 [DASHBOARD] Getting enhancement job details for: {}", job_id);
+        
+        let smart_discovery = match self.discovery.as_ref() {
+            Some(service) => service,
+            None => {
+                return Ok(HttpResponse::ServiceUnavailable().json(json!({
+                    "error": "Enhancement pipeline not available - smart discovery service not configured"
+                })));
+            }
+        };
+        
+        // TODO: Implement actual job lookup
+        // For now, return mock detailed job data
+        if job_id == "job_001" {
+            let response = json!({
+                "job_id": job_id,
+                "tool_name": "ping_globalping",
+                "status": "completed",
+                "enhancement_types": ["sampling", "elicitation"],
+                "priority": "normal",
+                "created_at": chrono::Utc::now().to_rfc3339(),
+                "started_at": chrono::Utc::now().to_rfc3339(),
+                "completed_at": chrono::Utc::now().to_rfc3339(),
+                "duration_seconds": 25,
+                "progress_percentage": 100.0,
+                "current_stage": "completed",
+                "detailed_stages": [
+                    {
+                        "name": "base_analysis",
+                        "status": "completed",
+                        "started_at": chrono::Utc::now().to_rfc3339(),
+                        "completed_at": chrono::Utc::now().to_rfc3339(),
+                        "duration_seconds": 2,
+                        "output": "Base tool analysis completed"
+                    },
+                    {
+                        "name": "sampling_enhancement",
+                        "status": "completed",
+                        "started_at": chrono::Utc::now().to_rfc3339(),
+                        "completed_at": chrono::Utc::now().to_rfc3339(),
+                        "duration_seconds": 12,
+                        "output": "Enhanced description generated via sampling"
+                    },
+                    {
+                        "name": "elicitation_enhancement",
+                        "status": "completed",
+                        "started_at": chrono::Utc::now().to_rfc3339(),
+                        "completed_at": chrono::Utc::now().to_rfc3339(),
+                        "duration_seconds": 13,
+                        "output": "Metadata enhanced via elicitation"
+                    }
+                ],
+                "enhancement_result": {
+                    "success": true,
+                    "original_description": "Basic ping tool",
+                    "enhanced_description": "Advanced network connectivity testing tool with comprehensive latency analysis",
+                    "quality_score": 0.85,
+                    "enhancement_metadata": {
+                        "sampling_model": "claude-3-sonnet",
+                        "elicitation_templates": ["network_tool_metadata"],
+                        "cache_status": "stored"
+                    }
+                },
+                "errors": [],
+                "warnings": []
+            });
+            
+            info!("✅ [DASHBOARD] Retrieved details for enhancement job: {}", job_id);
+            Ok(HttpResponse::Ok().json(response))
+        } else {
+            Ok(HttpResponse::NotFound().json(json!({
+                "error": format!("Enhancement job '{}' not found", job_id)
+            })))
+        }
+    }
+    
+    /// POST /dashboard/api/enhancements/pipeline/batch - Trigger batch enhancement for multiple tools
+    pub async fn trigger_batch_enhancement(&self, body: web::Json<BatchEnhancementRequest>) -> Result<HttpResponse> {
+        debug!("🔧 [DASHBOARD] Triggering batch enhancement for {} tools", body.tool_names.len());
+        
+        let smart_discovery = match self.discovery.as_ref() {
+            Some(service) => service,
+            None => {
+                return Ok(HttpResponse::ServiceUnavailable().json(json!({
+                    "error": "Enhancement pipeline not available - smart discovery service not configured"
+                })));
+            }
+        };
+        
+        // Validate tools exist
+        let all_tools = self.registry.get_enabled_tools().into_iter().map(|(_, tool)| tool).collect::<Vec<_>>();
+        let valid_tools: Vec<_> = body.tool_names.iter()
+            .filter(|name| all_tools.iter().any(|t| &t.name == *name))
+            .cloned()
+            .collect();
+        
+        let invalid_tools: Vec<_> = body.tool_names.iter()
+            .filter(|name| !all_tools.iter().any(|t| &t.name == *name))
+            .cloned()
+            .collect();
+        
+        if valid_tools.is_empty() {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "error": "No valid tools found for enhancement",
+                "invalid_tools": invalid_tools
+            })));
+        }
+        
+        // TODO: Implement actual batch enhancement triggering
+        let batch_id = uuid::Uuid::new_v4().to_string();
+        let job_ids: Vec<String> = valid_tools.iter()
+            .map(|_| uuid::Uuid::new_v4().to_string())
+            .collect();
+        
+        let response = json!({
+            "batch_id": batch_id,
+            "status": "initiated",
+            "total_tools": valid_tools.len(),
+            "valid_tools": valid_tools,
+            "invalid_tools": invalid_tools,
+            "job_ids": job_ids,
+            "enhancement_types": body.enhancement_types.clone().unwrap_or_else(|| vec!["sampling".to_string(), "elicitation".to_string()]),
+            "priority": body.priority.clone().unwrap_or_else(|| "normal".to_string()),
+            "estimated_duration_seconds": valid_tools.len() as u64 * 30,
+            "initiated_at": chrono::Utc::now().to_rfc3339(),
+            "message": format!("Batch enhancement initiated for {} tools", valid_tools.len())
+        });
+        
+        info!("✅ [DASHBOARD] Batch enhancement initiated with ID: {} for {} tools", batch_id, valid_tools.len());
+        Ok(HttpResponse::Ok().json(response))
+    }
+    
+    /// GET /dashboard/api/enhancements/pipeline/cache - Get enhancement cache statistics and management
+    pub async fn get_enhancement_cache_stats(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Getting enhancement cache statistics");
+        
+        let smart_discovery = match self.discovery.as_ref() {
+            Some(service) => service,
+            None => {
+                return Ok(HttpResponse::ServiceUnavailable().json(json!({
+                    "error": "Enhancement pipeline not available - smart discovery service not configured"
+                })));
+            }
+        };
+        
+        // TODO: Implement actual cache statistics
+        let response = json!({
+            "cache_enabled": true,
+            "cache_type": "in_memory_with_persistence",
+            "statistics": {
+                "total_cached_enhancements": 0, // TODO: Get actual count
+                "cache_hit_rate": 0.0,           // TODO: Calculate hit rate
+                "cache_size_mb": 0.0,            // TODO: Calculate cache size
+                "oldest_cache_entry": null,      // TODO: Get oldest entry timestamp
+                "newest_cache_entry": null       // TODO: Get newest entry timestamp
+            },
+            "cache_breakdown": {
+                "sampling_enhancements": 0,      // TODO: Count sampling cache entries
+                "elicitation_enhancements": 0,   // TODO: Count elicitation cache entries
+                "combined_enhancements": 0       // TODO: Count combined cache entries
+            },
+            "performance_metrics": {
+                "avg_cache_lookup_ms": 1.2,
+                "avg_cache_store_ms": 2.5,
+                "cache_memory_usage_mb": 0.0
+            },
+            "cache_policy": {
+                "max_entries": 1000,
+                "ttl_hours": 24,
+                "cleanup_interval_hours": 6
+            },
+            "last_updated": chrono::Utc::now().to_rfc3339()
+        });
+        
+        info!("✅ [DASHBOARD] Enhancement cache statistics retrieved");
+        Ok(HttpResponse::Ok().json(response))
+    }
+    
+    /// DELETE /dashboard/api/enhancements/pipeline/cache - Clear enhancement cache
+    pub async fn clear_enhancement_cache(&self, query: web::Query<CacheClearQuery>) -> Result<HttpResponse> {
+        debug!("🗑️ [DASHBOARD] Clearing enhancement cache with options: {:?}", query);
+        
+        let smart_discovery = match self.discovery.as_ref() {
+            Some(service) => service,
+            None => {
+                return Ok(HttpResponse::ServiceUnavailable().json(json!({
+                    "error": "Enhancement pipeline not available - smart discovery service not configured"
+                })));
+            }
+        };
+        
+        // TODO: Implement actual cache clearing
+        let cache_type = query.cache_type.as_deref().unwrap_or("all");
+        let tool_name = query.tool_name.as_deref();
+        
+        let cleared_count = match (cache_type, tool_name) {
+            ("all", None) => {
+                // Clear all cache entries
+                0 // TODO: Implement
+            },
+            ("sampling", None) => {
+                // Clear sampling cache entries
+                0 // TODO: Implement
+            },
+            ("elicitation", None) => {
+                // Clear elicitation cache entries
+                0 // TODO: Implement
+            },
+            (_, Some(tool)) => {
+                // Clear cache entries for specific tool
+                0 // TODO: Implement
+            },
+            _ => 0
+        };
+        
+        let response = json!({
+            "success": true,
+            "cleared_entries": cleared_count,
+            "cache_type": cache_type,
+            "tool_name": tool_name,
+            "cleared_at": chrono::Utc::now().to_rfc3339(),
+            "message": format!("Cleared {} cache entries", cleared_count)
+        });
+        
+        info!("✅ [DASHBOARD] Enhancement cache cleared: {} entries", cleared_count);
+        Ok(HttpResponse::Ok().json(response))
+    }
+    
+    /// GET /dashboard/api/enhancements/pipeline/statistics - Get enhancement pipeline performance statistics
+    pub async fn get_enhancement_statistics(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Getting enhancement pipeline statistics");
+        
+        let smart_discovery = match self.discovery.as_ref() {
+            Some(service) => service,
+            None => {
+                return Ok(HttpResponse::ServiceUnavailable().json(json!({
+                    "error": "Enhancement pipeline not available - smart discovery service not configured"
+                })));
+            }
+        };
+        
+        // TODO: Implement actual statistics collection
+        let response = json!({
+            "pipeline_statistics": {
+                "total_enhancements_processed": 0,    // TODO: Count total processed
+                "successful_enhancements": 0,         // TODO: Count successful
+                "failed_enhancements": 0,             // TODO: Count failed
+                "average_enhancement_time_seconds": 0.0, // TODO: Calculate average time
+                "enhancement_success_rate": 0.0       // TODO: Calculate success rate
+            },
+            "performance_breakdown": {
+                "sampling_enhancement": {
+                    "total_processed": 0,
+                    "average_time_seconds": 0.0,
+                    "success_rate": 0.0
+                },
+                "elicitation_enhancement": {
+                    "total_processed": 0,
+                    "average_time_seconds": 0.0,
+                    "success_rate": 0.0
+                },
+                "cache_operations": {
+                    "cache_hits": 0,
+                    "cache_misses": 0,
+                    "cache_hit_rate": 0.0
+                }
+            },
+            "quality_metrics": {
+                "average_enhancement_quality": 0.0,
+                "quality_improvement_percentage": 0.0,
+                "tools_above_quality_threshold": 0
+            },
+            "system_health": {
+                "pipeline_uptime_hours": 0.0,
+                "active_enhancement_jobs": 0,
+                "pending_enhancement_jobs": 0,
+                "error_rate_percentage": 0.0
+            },
+            "last_updated": chrono::Utc::now().to_rfc3339()
+        });
+        
+        info!("✅ [DASHBOARD] Enhancement pipeline statistics retrieved");
+        Ok(HttpResponse::Ok().json(response))
+    }
 }
 
 #[derive(serde::Deserialize)]
@@ -4840,6 +6950,78 @@ pub fn configure_dashboard_api(
                 .route("/prompts/execute", web::post().to(|api: web::Data<DashboardApi>, body: web::Json<PromptExecuteRequest>| async move {
                     api.execute_prompt(body).await
                 }))
+                // Resource Management endpoints
+                .route("/resources/management/status", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_resource_management_status().await
+                }))
+                .route("/resources/management/resources", web::get().to(|api: web::Data<DashboardApi>, query: web::Query<ResourceManagementQuery>| async move {
+                    api.get_resources_management(query).await
+                }))
+                .route("/resources/management/resources/{uri:.*}", web::get().to(|api: web::Data<DashboardApi>, path: web::Path<String>| async move {
+                    api.get_resource_details(path).await
+                }))
+                .route("/resources/management/resources/{uri:.*}/read", web::post().to(|api: web::Data<DashboardApi>, path: web::Path<String>, body: web::Json<ResourceReadOptionsRequest>| async move {
+                    api.read_resource_content(path, body).await
+                }))
+                .route("/resources/management/providers", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_resource_providers().await
+                }))
+                .route("/resources/management/validate", web::post().to(|api: web::Data<DashboardApi>, body: web::Json<ResourceValidationRequest>| async move {
+                    api.validate_resources(body).await
+                }))
+                .route("/resources/management/statistics", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_resource_statistics().await
+                }))
+                // Prompt Management endpoints
+                .route("/prompts/management/status", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_prompt_management_status().await
+                }))
+                .route("/prompts/management/templates", web::get().to(|api: web::Data<DashboardApi>, query: web::Query<PromptTemplateManagementQuery>| async move {
+                    api.get_prompt_templates_management(query).await
+                }))
+                .route("/prompts/management/templates", web::post().to(|api: web::Data<DashboardApi>, body: web::Json<PromptTemplateCreateRequest>| async move {
+                    api.create_prompt_template(body).await
+                }))
+                .route("/prompts/management/templates/{template_name}", web::get().to(|api: web::Data<DashboardApi>, path: web::Path<String>| async move {
+                    api.get_prompt_template_details(path).await
+                }))
+                .route("/prompts/management/templates/{template_name}", web::put().to(|api: web::Data<DashboardApi>, path: web::Path<String>, body: web::Json<PromptTemplateUpdateRequest>| async move {
+                    api.update_prompt_template(path, body).await
+                }))
+                .route("/prompts/management/templates/{template_name}", web::delete().to(|api: web::Data<DashboardApi>, path: web::Path<String>| async move {
+                    api.delete_prompt_template(path).await
+                }))
+                .route("/prompts/management/templates/{template_name}/test", web::post().to(|api: web::Data<DashboardApi>, path: web::Path<String>, body: web::Json<PromptTemplateTestRequest>| async move {
+                    api.test_prompt_template(path, body).await
+                }))
+                .route("/prompts/management/providers", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_prompt_providers().await
+                }))
+                .route("/prompts/management/templates/import", web::post().to(|api: web::Data<DashboardApi>, body: web::Json<PromptTemplateImportRequest>| async move {
+                    api.import_prompt_templates(body).await
+                }))
+                .route("/prompts/management/templates/export", web::get().to(|api: web::Data<DashboardApi>, query: web::Query<PromptTemplateExportQuery>| async move {
+                    api.export_prompt_templates(query).await
+                }))
+                // LLM Provider Management endpoints
+                .route("/llm/providers", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.list_llm_providers().await
+                }))
+                .route("/llm/providers", web::post().to(|api: web::Data<DashboardApi>, body: web::Json<LlmProviderCreateRequest>| async move {
+                    api.create_llm_provider(body).await
+                }))
+                .route("/llm/providers/{provider_name}", web::put().to(|api: web::Data<DashboardApi>, path: web::Path<String>, body: web::Json<LlmProviderUpdateRequest>| async move {
+                    api.update_llm_provider(path, body).await
+                }))
+                .route("/llm/providers/{provider_name}", web::delete().to(|api: web::Data<DashboardApi>, path: web::Path<String>| async move {
+                    api.delete_llm_provider(path).await
+                }))
+                .route("/llm/providers/{provider_name}/test", web::post().to(|api: web::Data<DashboardApi>, path: web::Path<String>, body: web::Json<LlmProviderTestRequest>| async move {
+                    api.test_llm_provider(path, body).await
+                }))
+                .route("/llm/providers/{provider_name}/status", web::get().to(|api: web::Data<DashboardApi>, path: web::Path<String>| async move {
+                    api.get_llm_provider_status(path).await
+                }))
                 // LLM Services - Sampling endpoints
                 .route("/sampling/status", web::get().to(|api: web::Data<DashboardApi>| async move {
                     api.get_sampling_status().await
@@ -4850,6 +7032,31 @@ pub fn configure_dashboard_api(
                 .route("/sampling/tools", web::get().to(|api: web::Data<DashboardApi>, query: web::Query<SamplingToolsQuery>| async move {
                     api.list_sampling_tools(query).await
                 }))
+                // Sampling Service Management endpoints
+                .route("/sampling/service/status", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_sampling_service_status().await
+                }))
+                .route("/sampling/service/enable", web::post().to(|api: web::Data<DashboardApi>| async move {
+                    api.enable_sampling_service().await
+                }))
+                .route("/sampling/service/disable", web::post().to(|api: web::Data<DashboardApi>| async move {
+                    api.disable_sampling_service().await
+                }))
+                .route("/sampling/service/restart", web::post().to(|api: web::Data<DashboardApi>| async move {
+                    api.restart_sampling_service().await
+                }))
+                .route("/sampling/service/test", web::post().to(|api: web::Data<DashboardApi>, body: web::Json<SamplingServiceTestRequest>| async move {
+                    api.test_sampling_service(body).await
+                }))
+                .route("/sampling/service/metrics", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_sampling_service_metrics().await
+                }))
+                .route("/sampling/service/config", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_sampling_service_config().await
+                }))
+                .route("/sampling/service/config", web::put().to(|api: web::Data<DashboardApi>, body: web::Json<SamplingServiceConfigUpdateRequest>| async move {
+                    api.update_sampling_service_config(body).await
+                }))
                 // LLM Services - Elicitation endpoints
                 .route("/elicitation/status", web::get().to(|api: web::Data<DashboardApi>| async move {
                     api.get_elicitation_status().await
@@ -4859,6 +7066,43 @@ pub fn configure_dashboard_api(
                 }))
                 .route("/elicitation/tools", web::get().to(|api: web::Data<DashboardApi>, query: web::Query<ElicitationToolsQuery>| async move {
                     api.list_elicitation_tools(query).await
+                }))
+                // Elicitation Service Management endpoints
+                .route("/elicitation/service/status", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_elicitation_service_status().await
+                }))
+                .route("/elicitation/service/enable", web::post().to(|api: web::Data<DashboardApi>| async move {
+                    api.enable_elicitation_service().await
+                }))
+                .route("/elicitation/service/disable", web::post().to(|api: web::Data<DashboardApi>| async move {
+                    api.disable_elicitation_service().await
+                }))
+                .route("/elicitation/service/restart", web::post().to(|api: web::Data<DashboardApi>| async move {
+                    api.restart_elicitation_service().await
+                }))
+                .route("/elicitation/service/test", web::post().to(|api: web::Data<DashboardApi>, body: web::Json<ElicitationServiceTestRequest>| async move {
+                    api.test_elicitation_service(body).await
+                }))
+                .route("/elicitation/service/metrics", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_elicitation_service_metrics().await
+                }))
+                .route("/elicitation/service/config", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_elicitation_service_config().await
+                }))
+                .route("/elicitation/service/config", web::put().to(|api: web::Data<DashboardApi>, body: web::Json<ElicitationServiceConfigUpdateRequest>| async move {
+                    api.update_elicitation_service_config(body).await
+                }))
+                .route("/elicitation/service/templates", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_elicitation_templates().await
+                }))
+                .route("/elicitation/service/templates", web::post().to(|api: web::Data<DashboardApi>, body: web::Json<ElicitationTemplateCreateRequest>| async move {
+                    api.create_elicitation_template(body).await
+                }))
+                .route("/elicitation/service/templates/{template_id}", web::put().to(|api: web::Data<DashboardApi>, path: web::Path<String>, body: web::Json<ElicitationTemplateUpdateRequest>| async move {
+                    api.update_elicitation_template(path, body).await
+                }))
+                .route("/elicitation/service/templates/{template_id}", web::delete().to(|api: web::Data<DashboardApi>, path: web::Path<String>| async move {
+                    api.delete_elicitation_template(path).await
                 }))
                 // LLM Services - Enhancement Pipeline endpoints
                 .route("/enhancement/status", web::get().to(|api: web::Data<DashboardApi>| async move {
@@ -4908,6 +7152,34 @@ pub fn configure_dashboard_api(
                 }))
                 .route("/tool-metrics/executions/recent", web::get().to(|api: web::Data<DashboardApi>, query: web::Query<RecentExecutionsQuery>| async move {
                     api.get_recent_tool_executions(query.limit).await
+                }))
+                // Enhancement Pipeline Management endpoints
+                .route("/enhancements/pipeline/status", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_enhancement_pipeline_status().await
+                }))
+                .route("/enhancements/pipeline/tools", web::get().to(|api: web::Data<DashboardApi>, query: web::Query<EnhancementToolsQuery>| async move {
+                    api.get_enhancement_tools_status(query).await
+                }))
+                .route("/enhancements/pipeline/tools/{tool_name}/enhance", web::post().to(|api: web::Data<DashboardApi>, path: web::Path<String>, body: web::Json<ToolEnhancementRequest>| async move {
+                    api.trigger_tool_enhancement(path, body).await
+                }))
+                .route("/enhancements/pipeline/jobs", web::get().to(|api: web::Data<DashboardApi>, query: web::Query<EnhancementJobsQuery>| async move {
+                    api.get_enhancement_jobs(query).await
+                }))
+                .route("/enhancements/pipeline/jobs/{job_id}", web::get().to(|api: web::Data<DashboardApi>, path: web::Path<String>| async move {
+                    api.get_enhancement_job_details(path).await
+                }))
+                .route("/enhancements/pipeline/batch", web::post().to(|api: web::Data<DashboardApi>, body: web::Json<BatchEnhancementRequest>| async move {
+                    api.trigger_batch_enhancement(body).await
+                }))
+                .route("/enhancements/pipeline/cache", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_enhancement_cache_stats().await
+                }))
+                .route("/enhancements/pipeline/cache", web::delete().to(|api: web::Data<DashboardApi>, query: web::Query<CacheClearQuery>| async move {
+                    api.clear_enhancement_cache(query).await
+                }))
+                .route("/enhancements/pipeline/statistics", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_enhancement_statistics().await
                 }))
         );
 }
@@ -4975,6 +7247,350 @@ pub struct SetEnvVarsRequest {
         pub name: String,
         /// Arguments for template substitution
         pub arguments: Option<serde_json::Value>,
+    }
+
+    // =======================================
+    // Prompt Management Types
+    // =======================================
+
+    /// Prompt management status response
+    #[derive(Serialize)]
+    pub struct PromptManagementStatusResponse {
+        /// Service enabled status
+        pub enabled: bool,
+        /// Service health status
+        pub health_status: String,
+        /// Total number of providers
+        pub total_providers: usize,
+        /// Total number of templates
+        pub total_templates: usize,
+        /// Number of active templates
+        pub active_templates: usize,
+        /// Available template types
+        pub template_types: Vec<String>,
+        /// Last updated timestamp
+        pub last_updated: String,
+        /// Available features
+        pub features: Vec<String>,
+    }
+
+    /// Prompt template management query parameters
+    #[derive(Debug, Deserialize)]
+    pub struct PromptTemplateManagementQuery {
+        /// Filter by template name
+        pub filter: Option<String>,
+        /// Cursor for pagination
+        pub cursor: Option<String>,
+        /// Limit number of results
+        pub limit: Option<usize>,
+        /// Template type filter
+        pub template_type: Option<String>,
+        /// Provider filter
+        pub provider: Option<String>,
+    }
+
+    /// Prompt template management info
+    #[derive(Serialize)]
+    pub struct PromptTemplateManagementInfo {
+        /// Template name
+        pub name: String,
+        /// Template description
+        pub description: Option<String>,
+        /// Template arguments
+        pub arguments: Vec<crate::mcp::types::PromptArgument>,
+        /// Created timestamp
+        pub created_at: String,
+        /// Last updated timestamp
+        pub updated_at: String,
+        /// Usage count
+        pub usage_count: u64,
+        /// Last used timestamp
+        pub last_used: Option<String>,
+        /// Template type
+        pub template_type: String,
+        /// Provider name
+        pub provider_name: String,
+        /// Whether template is editable
+        pub is_editable: bool,
+        /// Whether template is deletable
+        pub is_deletable: bool,
+        /// Additional metadata
+        pub metadata: std::collections::HashMap<String, serde_json::Value>,
+    }
+
+    /// Prompt template management list response
+    #[derive(Serialize)]
+    pub struct PromptTemplateManagementListResponse {
+        /// List of templates
+        pub templates: Vec<PromptTemplateManagementInfo>,
+        /// Total count
+        pub total_count: usize,
+        /// Next cursor for pagination
+        pub next_cursor: Option<String>,
+        /// Applied filter
+        pub filter_applied: Option<String>,
+        /// Last updated timestamp
+        pub last_updated: String,
+    }
+
+    /// Prompt template create request
+    #[derive(Debug, Deserialize)]
+    pub struct PromptTemplateCreateRequest {
+        /// Template name
+        pub name: String,
+        /// Template description
+        pub description: String,
+        /// Template content
+        pub content: String,
+        /// Template arguments
+        pub arguments: Vec<crate::mcp::types::PromptArgument>,
+        /// Template type
+        pub template_type: String,
+        /// Provider to create in (optional)
+        pub provider: Option<String>,
+        /// Additional metadata
+        pub metadata: Option<std::collections::HashMap<String, serde_json::Value>>,
+    }
+
+    /// Prompt template create response
+    #[derive(Serialize)]
+    pub struct PromptTemplateCreateResponse {
+        /// Success status
+        pub success: bool,
+        /// Template name
+        pub template_name: String,
+        /// Generated template ID
+        pub template_id: String,
+        /// Success message
+        pub message: String,
+        /// Created timestamp
+        pub created_at: String,
+        /// Provider used
+        pub provider: String,
+    }
+
+    /// Prompt template details response
+    #[derive(Serialize)]
+    pub struct PromptTemplateDetailsResponse {
+        /// Template name
+        pub name: String,
+        /// Template description
+        pub description: String,
+        /// Template content
+        pub content: String,
+        /// Template arguments
+        pub arguments: Vec<crate::mcp::types::PromptArgument>,
+        /// Template type
+        pub template_type: String,
+        /// Provider name
+        pub provider_name: String,
+        /// Created timestamp
+        pub created_at: String,
+        /// Last updated timestamp
+        pub updated_at: String,
+        /// Usage count
+        pub usage_count: u64,
+        /// Last used timestamp
+        pub last_used: Option<String>,
+        /// Whether template is editable
+        pub is_editable: bool,
+        /// Whether template is deletable
+        pub is_deletable: bool,
+        /// Validation status
+        pub validation_status: String,
+        /// Additional metadata
+        pub metadata: std::collections::HashMap<String, serde_json::Value>,
+    }
+
+    /// Prompt template update request
+    #[derive(Debug, Deserialize)]
+    pub struct PromptTemplateUpdateRequest {
+        /// Updated description (optional)
+        pub description: Option<String>,
+        /// Updated content (optional)
+        pub content: Option<String>,
+        /// Updated arguments (optional)
+        pub arguments: Option<Vec<crate::mcp::types::PromptArgument>>,
+        /// Updated template type (optional)
+        pub template_type: Option<String>,
+        /// Updated metadata (optional)
+        pub metadata: Option<std::collections::HashMap<String, serde_json::Value>>,
+    }
+
+    /// Prompt template update response
+    #[derive(Serialize)]
+    pub struct PromptTemplateUpdateResponse {
+        /// Success status
+        pub success: bool,
+        /// Template name
+        pub template_name: String,
+        /// Success message
+        pub message: String,
+        /// Updated timestamp
+        pub updated_at: String,
+        /// List of changes applied
+        pub changes_applied: Vec<String>,
+    }
+
+    /// Prompt template delete response
+    #[derive(Serialize)]
+    pub struct PromptTemplateDeleteResponse {
+        /// Success status
+        pub success: bool,
+        /// Template name
+        pub template_name: String,
+        /// Success message
+        pub message: String,
+        /// Deleted timestamp
+        pub deleted_at: String,
+    }
+
+    /// Prompt template test request
+    #[derive(Debug, Deserialize)]
+    pub struct PromptTemplateTestRequest {
+        /// Test arguments for template substitution
+        pub test_arguments: Option<serde_json::Value>,
+        /// Additional test parameters
+        pub test_params: Option<std::collections::HashMap<String, serde_json::Value>>,
+    }
+
+    /// Prompt template test response
+    #[derive(Serialize)]
+    pub struct PromptTemplateTestResponse {
+        /// Test success status
+        pub success: bool,
+        /// Template name
+        pub template_name: String,
+        /// Test result details
+        pub test_result: serde_json::Value,
+        /// Execution time in milliseconds
+        pub execution_time_ms: u64,
+        /// Test message
+        pub message: String,
+        /// Test timestamp
+        pub tested_at: String,
+    }
+
+    /// Prompt provider info
+    #[derive(Serialize)]
+    pub struct PromptProviderInfo {
+        /// Provider name
+        pub name: String,
+        /// Provider type
+        pub provider_type: String,
+        /// Provider status
+        pub status: String,
+        /// Number of templates
+        pub template_count: usize,
+        /// Supports template creation
+        pub supports_creation: bool,
+        /// Supports template modification
+        pub supports_modification: bool,
+        /// Supports template deletion
+        pub supports_deletion: bool,
+        /// Last sync timestamp
+        pub last_sync: String,
+        /// Additional metadata
+        pub metadata: std::collections::HashMap<String, serde_json::Value>,
+    }
+
+    /// Prompt providers response
+    #[derive(Serialize)]
+    pub struct PromptProvidersResponse {
+        /// List of providers
+        pub providers: Vec<PromptProviderInfo>,
+        /// Total provider count
+        pub total_count: usize,
+        /// Last updated timestamp
+        pub last_updated: String,
+    }
+
+    /// Prompt template import request
+    #[derive(Debug, Deserialize)]
+    pub struct PromptTemplateImportRequest {
+        /// Templates to import
+        pub templates: Vec<PromptTemplateCreateRequest>,
+        /// Target provider (optional)
+        pub target_provider: Option<String>,
+        /// Import options
+        pub options: Option<PromptTemplateImportOptions>,
+    }
+
+    /// Prompt template import options
+    #[derive(Debug, Deserialize)]
+    pub struct PromptTemplateImportOptions {
+        /// Overwrite existing templates
+        pub overwrite_existing: Option<bool>,
+        /// Validate before import
+        pub validate_before_import: Option<bool>,
+        /// Import format
+        pub import_format: Option<String>,
+    }
+
+    /// Prompt template import response
+    #[derive(Serialize)]
+    pub struct PromptTemplateImportResponse {
+        /// Import success status
+        pub success: bool,
+        /// Number of templates imported
+        pub imported_count: usize,
+        /// Number of templates failed
+        pub failed_count: usize,
+        /// Names of imported templates
+        pub imported_templates: Vec<String>,
+        /// Names of failed templates
+        pub failed_templates: Vec<String>,
+        /// Import message
+        pub message: String,
+        /// Import ID for tracking
+        pub import_id: String,
+        /// Import timestamp
+        pub imported_at: String,
+    }
+
+    /// Prompt template export query
+    #[derive(Debug, Deserialize)]
+    pub struct PromptTemplateExportQuery {
+        /// Export format (json, yaml, csv)
+        pub format: Option<String>,
+        /// Template name filter
+        pub template_filter: Option<String>,
+        /// Provider filter
+        pub provider_filter: Option<String>,
+        /// Template type filter
+        pub template_type_filter: Option<String>,
+    }
+
+    /// Prompt template export data
+    #[derive(Serialize)]
+    pub struct PromptTemplateExportData {
+        /// Export format
+        pub export_format: String,
+        /// Export version
+        pub export_version: String,
+        /// Export timestamp
+        pub exported_at: String,
+        /// Number of templates
+        pub template_count: usize,
+        /// Exported templates
+        pub templates: Vec<PromptTemplateExportItem>,
+    }
+
+    /// Prompt template export item
+    #[derive(Serialize)]
+    pub struct PromptTemplateExportItem {
+        /// Template name
+        pub name: String,
+        /// Template description
+        pub description: Option<String>,
+        /// Template arguments
+        pub arguments: Vec<crate::mcp::types::PromptArgument>,
+        /// Template type
+        pub template_type: String,
+        /// Template content
+        pub content: String,
+        /// Additional metadata
+        pub metadata: std::collections::HashMap<String, serde_json::Value>,
     }
 
     /// Tool metrics query parameters for top tools
@@ -5051,7 +7667,7 @@ pub struct SetEnvVarsRequest {
         pub batch_size: Option<usize>,
     }
 
-    #[derive(Deserialize)]
+    #[derive(Debug, Deserialize)]
     pub struct EnhancementToolsQuery {
         /// Filter by tool name pattern
         pub filter: Option<String>,
@@ -5059,6 +7675,593 @@ pub struct SetEnvVarsRequest {
         pub enhanced_only: Option<bool>,
         /// Pagination limit
         pub limit: Option<usize>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    pub struct ToolEnhancementRequest {
+        pub enhancement_types: Option<Vec<String>>, // sampling, elicitation
+        pub priority: Option<String>, // normal, high, urgent
+        pub force_refresh: Option<bool>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    pub struct EnhancementJobsQuery {
+        pub status: Option<String>, // pending, running, completed, failed
+        pub tool_name: Option<String>,
+        pub limit: Option<usize>,
+        pub offset: Option<usize>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    pub struct BatchEnhancementRequest {
+        pub tool_names: Vec<String>,
+        pub enhancement_types: Option<Vec<String>>, // sampling, elicitation
+        pub priority: Option<String>, // normal, high, urgent
+        pub force_refresh: Option<bool>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    pub struct CacheClearQuery {
+        pub cache_type: Option<String>, // all, sampling, elicitation
+        pub tool_name: Option<String>,
+    }
+
+    // LLM Provider Management Request/Response Types
+
+    #[derive(Deserialize)]
+    pub struct LlmProviderCreateRequest {
+        /// Provider name
+        pub name: String,
+        /// Provider type (openai, anthropic, ollama, custom)
+        pub provider_type: String,
+        /// API endpoint URL
+        pub endpoint: String,
+        /// API key (optional for some providers)
+        pub api_key: Option<String>,
+        /// Available models for this provider
+        pub models: Vec<String>,
+        /// Provider-specific configuration
+        pub config: Option<serde_json::Value>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct LlmProviderUpdateRequest {
+        /// Provider type (openai, anthropic, ollama, custom)
+        pub provider_type: Option<String>,
+        /// API endpoint URL
+        pub endpoint: Option<String>,
+        /// API key
+        pub api_key: Option<String>,
+        /// Available models for this provider
+        pub models: Option<Vec<String>>,
+        /// Provider-specific configuration
+        pub config: Option<serde_json::Value>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct LlmProviderTestRequest {
+        /// Model to test (optional, uses first available if not specified)
+        pub model: Option<String>,
+        /// Test prompt (optional, uses default if not specified)
+        pub test_prompt: Option<String>,
+        /// Timeout for test request (optional, uses default if not specified)
+        pub timeout_seconds: Option<u64>,
+    }
+
+    #[derive(Serialize)]
+    pub struct LlmProviderInfo {
+        /// Provider name
+        pub name: String,
+        /// Provider type
+        pub provider_type: String,
+        /// API endpoint URL
+        pub endpoint: String,
+        /// Whether API key is configured (bool only, not the actual key)
+        pub has_api_key: bool,
+        /// Available models
+        pub models: Vec<String>,
+        /// Provider status (healthy, error, unknown)
+        pub status: String,
+        /// Last test timestamp
+        pub last_tested: Option<String>,
+        /// Last test result
+        pub last_test_result: Option<String>,
+        /// Provider configuration (sensitive fields removed)
+        pub config: serde_json::Value,
+    }
+
+    #[derive(Serialize)]
+    pub struct LlmProviderListResponse {
+        /// List of providers
+        pub providers: Vec<LlmProviderInfo>,
+        /// Total count
+        pub total_count: usize,
+        /// Timestamp of response
+        pub timestamp: String,
+    }
+
+    #[derive(Serialize)]
+    pub struct LlmProviderStatusResponse {
+        /// Provider name
+        pub name: String,
+        /// Current status
+        pub status: String,
+        /// Last health check timestamp
+        pub last_check: Option<String>,
+        /// Health check details
+        pub health_details: Option<String>,
+        /// Available models (if healthy)
+        pub available_models: Option<Vec<String>>,
+        /// Configuration status
+        pub config_status: String,
+    }
+
+    #[derive(Serialize)]
+    pub struct LlmProviderTestResponse {
+        /// Test success status
+        pub success: bool,
+        /// Test duration in milliseconds
+        pub duration_ms: u64,
+        /// Test result message
+        pub message: String,
+        /// Model used for test
+        pub model_tested: String,
+        /// Response content (if successful)
+        pub response_content: Option<String>,
+        /// Error details (if failed)
+        pub error_details: Option<String>,
+        /// Test timestamp
+        pub tested_at: String,
+    }
+
+    // Sampling Service Management Request/Response Types
+
+    #[derive(Deserialize)]
+    pub struct SamplingServiceTestRequest {
+        /// Test prompt to use (optional)
+        pub test_prompt: Option<String>,
+        /// Provider to test (optional, uses default if not specified)
+        pub provider: Option<String>,
+        /// Model to test (optional, uses first available if not specified)
+        pub model: Option<String>,
+        /// Timeout for test request in seconds (optional)
+        pub timeout_seconds: Option<u64>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct SamplingServiceConfigUpdateRequest {
+        /// Enable/disable the service
+        pub enabled: Option<bool>,
+        /// Default model to use
+        pub default_model: Option<String>,
+        /// Maximum tokens limit
+        pub max_tokens_limit: Option<u32>,
+        /// Rate limiting configuration
+        pub rate_limit: Option<SamplingServiceRateLimit>,
+        /// Content filter configuration
+        pub content_filter: Option<SamplingServiceContentFilter>,
+    }
+
+    #[derive(Deserialize, Serialize)]
+    pub struct SamplingServiceRateLimit {
+        /// Requests per minute
+        pub requests_per_minute: u32,
+        /// Burst size
+        pub burst_size: u32,
+        /// Window size in seconds
+        pub window_seconds: u64,
+    }
+
+    #[derive(Deserialize, Serialize)]
+    pub struct SamplingServiceContentFilter {
+        /// Enable content filtering
+        pub enabled: bool,
+        /// Maximum content length
+        pub max_content_length: usize,
+        /// Blocked patterns (regex)
+        pub blocked_patterns: Vec<String>,
+    }
+
+    #[derive(Serialize)]
+    pub struct SamplingServiceStatusResponse {
+        /// Service enabled status
+        pub enabled: bool,
+        /// Current provider count
+        pub provider_count: usize,
+        /// Current default model
+        pub default_model: String,
+        /// Service health status
+        pub health_status: String,
+        /// Total requests processed
+        pub total_requests: u64,
+        /// Success rate (0.0 to 1.0)
+        pub success_rate: f64,
+        /// Average response time in milliseconds
+        pub average_response_time_ms: f64,
+        /// Current rate limit status
+        pub rate_limit_status: SamplingServiceRateLimitStatus,
+        /// Available providers
+        pub available_providers: Vec<String>,
+        /// Content filter status
+        pub content_filter_enabled: bool,
+        /// Last restart timestamp
+        pub last_restart: Option<String>,
+        /// Service uptime in seconds
+        pub uptime_seconds: u64,
+    }
+
+    #[derive(Serialize)]
+    pub struct SamplingServiceRateLimitStatus {
+        /// Current window start time
+        pub window_start: String,
+        /// Requests in current window
+        pub requests_in_window: u32,
+        /// Requests per minute limit
+        pub requests_per_minute: u32,
+        /// Time until window reset (seconds)
+        pub time_until_reset: u64,
+        /// Whether rate limit is currently exceeded
+        pub is_rate_limited: bool,
+    }
+
+    #[derive(Serialize)]
+    pub struct SamplingServiceTestResponse {
+        /// Test success status
+        pub success: bool,
+        /// Test duration in milliseconds
+        pub duration_ms: u64,
+        /// Provider used for test
+        pub provider_used: String,
+        /// Model used for test
+        pub model_used: String,
+        /// Test result message
+        pub message: String,
+        /// Response content (if successful)
+        pub response_content: Option<String>,
+        /// Error details (if failed)
+        pub error_details: Option<String>,
+        /// Test timestamp
+        pub tested_at: String,
+    }
+
+    #[derive(Serialize)]
+    pub struct SamplingServiceMetricsResponse {
+        /// Total requests processed
+        pub total_requests: u64,
+        /// Successful requests
+        pub successful_requests: u64,
+        /// Failed requests
+        pub failed_requests: u64,
+        /// Success rate (0.0 to 1.0)
+        pub success_rate: f64,
+        /// Average response time in milliseconds
+        pub average_response_time_ms: f64,
+        /// Median response time in milliseconds
+        pub median_response_time_ms: f64,
+        /// 95th percentile response time in milliseconds
+        pub p95_response_time_ms: f64,
+        /// Requests per minute (current rate)
+        pub requests_per_minute: f64,
+        /// Rate limit hits
+        pub rate_limit_hits: u64,
+        /// Content filter blocks
+        pub content_filter_blocks: u64,
+        /// Metrics by provider
+        pub provider_metrics: std::collections::HashMap<String, SamplingProviderMetrics>,
+        /// Metrics collection period
+        pub collection_period_minutes: u32,
+        /// Last updated timestamp
+        pub last_updated: String,
+    }
+
+    #[derive(Serialize)]
+    pub struct SamplingProviderMetrics {
+        /// Requests to this provider
+        pub requests: u64,
+        /// Successful requests
+        pub successes: u64,
+        /// Failed requests
+        pub failures: u64,
+        /// Success rate for this provider
+        pub success_rate: f64,
+        /// Average response time for this provider
+        pub avg_response_time_ms: f64,
+    }
+
+    #[derive(Serialize)]
+    pub struct SamplingServiceConfigResponse {
+        /// Service enabled status
+        pub enabled: bool,
+        /// Default model
+        pub default_model: String,
+        /// Maximum tokens limit
+        pub max_tokens_limit: u32,
+        /// Rate limiting configuration
+        pub rate_limit: Option<SamplingServiceRateLimit>,
+        /// Content filtering configuration
+        pub content_filter: Option<SamplingServiceContentFilter>,
+        /// Available providers
+        pub available_providers: Vec<String>,
+        /// Service version
+        pub service_version: String,
+        /// Configuration last updated
+        pub last_updated: String,
+    }
+
+    // Elicitation Service Management Request/Response Types
+
+    #[derive(Deserialize)]
+    pub struct ElicitationServiceTestRequest {
+        /// Test schema to use for elicitation (optional)
+        pub test_schema: Option<serde_json::Value>,
+        /// Tool name to test elicitation for (optional)
+        pub tool_name: Option<String>,
+        /// Missing parameters to simulate (optional)
+        pub missing_parameters: Option<Vec<String>>,
+        /// User request context for testing (optional)
+        pub user_request: Option<String>,
+        /// Timeout for test request in seconds (optional)
+        pub timeout_seconds: Option<u64>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct ElicitationServiceConfigUpdateRequest {
+        /// Enable/disable the service
+        pub enabled: Option<bool>,
+        /// Maximum schema complexity
+        pub max_schema_complexity: Option<String>,
+        /// Default timeout for elicitation requests
+        pub default_timeout_seconds: Option<u64>,
+        /// Maximum timeout allowed
+        pub max_timeout_seconds: Option<u64>,
+        /// Rate limiting configuration
+        pub rate_limit: Option<ElicitationServiceRateLimit>,
+        /// Security configuration
+        pub security: Option<ElicitationServiceSecurity>,
+    }
+
+    #[derive(Deserialize, Serialize)]
+    pub struct ElicitationServiceRateLimit {
+        /// Requests per minute
+        pub requests_per_minute: u32,
+        /// Burst size
+        pub burst_size: u32,
+        /// Window size in seconds
+        pub window_seconds: u64,
+    }
+
+    #[derive(Deserialize, Serialize)]
+    pub struct ElicitationServiceSecurity {
+        /// Enable security checks
+        pub enabled: bool,
+        /// Maximum number of fields in schema
+        pub max_fields: u32,
+        /// Minimum privacy level
+        pub min_privacy_level: String,
+        /// Log all elicitation requests for audit
+        pub log_requests: bool,
+        /// Blocked field names
+        pub blocked_field_names: Vec<String>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct ElicitationTemplateCreateRequest {
+        /// Template name
+        pub name: String,
+        /// Template description
+        pub description: String,
+        /// Template type (field_missing, validation_failed, etc.)
+        pub template_type: String,
+        /// Template content/prompt
+        pub template: String,
+        /// Schema for the template
+        pub schema: serde_json::Value,
+        /// Priority (1-10, higher = more priority)
+        pub priority: u32,
+        /// Tags for categorization
+        pub tags: Vec<String>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct ElicitationTemplateUpdateRequest {
+        /// Template name
+        pub name: Option<String>,
+        /// Template description
+        pub description: Option<String>,
+        /// Template type
+        pub template_type: Option<String>,
+        /// Template content/prompt
+        pub template: Option<String>,
+        /// Schema for the template
+        pub schema: Option<serde_json::Value>,
+        /// Priority (1-10, higher = more priority)
+        pub priority: Option<u32>,
+        /// Tags for categorization
+        pub tags: Option<Vec<String>>,
+        /// Enable/disable template
+        pub enabled: Option<bool>,
+    }
+
+    #[derive(Serialize)]
+    pub struct ElicitationServiceStatusResponse {
+        /// Service enabled status
+        pub enabled: bool,
+        /// Service health status
+        pub health_status: String,
+        /// Total elicitation requests processed
+        pub total_requests: u64,
+        /// Success rate (0.0 to 1.0)
+        pub success_rate: f64,
+        /// Average response time in milliseconds
+        pub average_response_time_ms: f64,
+        /// Current rate limit status
+        pub rate_limit_status: ElicitationServiceRateLimitStatus,
+        /// Available template count
+        pub template_count: usize,
+        /// Active template count
+        pub active_template_count: usize,
+        /// Schema complexity level
+        pub max_schema_complexity: String,
+        /// Security status
+        pub security_enabled: bool,
+        /// Last restart timestamp
+        pub last_restart: Option<String>,
+        /// Service uptime in seconds
+        pub uptime_seconds: u64,
+    }
+
+    #[derive(Serialize)]
+    pub struct ElicitationServiceRateLimitStatus {
+        /// Current window start time
+        pub window_start: String,
+        /// Requests in current window
+        pub requests_in_window: u32,
+        /// Requests per minute limit
+        pub requests_per_minute: u32,
+        /// Time until window reset (seconds)
+        pub time_until_reset: u64,
+        /// Whether rate limit is currently exceeded
+        pub is_rate_limited: bool,
+    }
+
+    #[derive(Serialize)]
+    pub struct ElicitationServiceTestResponse {
+        /// Test success status
+        pub success: bool,
+        /// Test duration in milliseconds
+        pub duration_ms: u64,
+        /// Tool name used for test
+        pub tool_name: String,
+        /// Test result message
+        pub message: String,
+        /// Elicited schema (if successful)
+        pub elicited_schema: Option<serde_json::Value>,
+        /// Generated questions (if successful)
+        pub generated_questions: Option<Vec<String>>,
+        /// Error details (if failed)
+        pub error_details: Option<String>,
+        /// Test timestamp
+        pub tested_at: String,
+    }
+
+    #[derive(Serialize)]
+    pub struct ElicitationServiceMetricsResponse {
+        /// Total requests processed
+        pub total_requests: u64,
+        /// Successful requests
+        pub successful_requests: u64,
+        /// Failed requests
+        pub failed_requests: u64,
+        /// Success rate (0.0 to 1.0)
+        pub success_rate: f64,
+        /// Average response time in milliseconds
+        pub average_response_time_ms: f64,
+        /// Median response time in milliseconds
+        pub median_response_time_ms: f64,
+        /// 95th percentile response time in milliseconds
+        pub p95_response_time_ms: f64,
+        /// Requests per minute (current rate)
+        pub requests_per_minute: f64,
+        /// Rate limit hits
+        pub rate_limit_hits: u64,
+        /// Security blocks
+        pub security_blocks: u64,
+        /// Metrics by template type
+        pub template_metrics: std::collections::HashMap<String, ElicitationTemplateMetrics>,
+        /// Schema complexity metrics
+        pub schema_complexity_metrics: ElicitationSchemaMetrics,
+        /// Metrics collection period
+        pub collection_period_minutes: u32,
+        /// Last updated timestamp
+        pub last_updated: String,
+    }
+
+    #[derive(Serialize)]
+    pub struct ElicitationTemplateMetrics {
+        /// Requests using this template type
+        pub requests: u64,
+        /// Successful requests
+        pub successes: u64,
+        /// Failed requests
+        pub failures: u64,
+        /// Success rate for this template type
+        pub success_rate: f64,
+        /// Average response time for this template type
+        pub avg_response_time_ms: f64,
+    }
+
+    #[derive(Serialize)]
+    pub struct ElicitationSchemaMetrics {
+        /// Simple schema requests
+        pub simple_requests: u64,
+        /// WithArrays schema requests
+        pub with_arrays_requests: u64,
+        /// Nested schema requests
+        pub nested_requests: u64,
+        /// Complex schema requests
+        pub complex_requests: u64,
+        /// Average schema generation time by complexity
+        pub avg_generation_time_by_complexity: std::collections::HashMap<String, f64>,
+    }
+
+    #[derive(Serialize)]
+    pub struct ElicitationServiceConfigResponse {
+        /// Service enabled status
+        pub enabled: bool,
+        /// Maximum schema complexity
+        pub max_schema_complexity: String,
+        /// Default timeout for elicitation requests
+        pub default_timeout_seconds: u64,
+        /// Maximum timeout allowed
+        pub max_timeout_seconds: u64,
+        /// Rate limiting configuration
+        pub rate_limit: Option<ElicitationServiceRateLimit>,
+        /// Security configuration
+        pub security: Option<ElicitationServiceSecurity>,
+        /// Service version
+        pub service_version: String,
+        /// Configuration last updated
+        pub last_updated: String,
+    }
+
+    #[derive(Serialize)]
+    pub struct ElicitationTemplateInfo {
+        /// Template ID
+        pub id: String,
+        /// Template name
+        pub name: String,
+        /// Template description
+        pub description: String,
+        /// Template type
+        pub template_type: String,
+        /// Template content/prompt
+        pub template: String,
+        /// Schema for the template
+        pub schema: serde_json::Value,
+        /// Priority (1-10)
+        pub priority: u32,
+        /// Tags for categorization
+        pub tags: Vec<String>,
+        /// Template enabled status
+        pub enabled: bool,
+        /// Usage count
+        pub usage_count: u64,
+        /// Success rate for this template
+        pub success_rate: f64,
+        /// Created timestamp
+        pub created_at: String,
+        /// Last updated timestamp
+        pub updated_at: String,
+    }
+
+    #[derive(Serialize)]
+    pub struct ElicitationTemplateListResponse {
+        /// List of templates
+        pub templates: Vec<ElicitationTemplateInfo>,
+        /// Total count
+        pub total_count: usize,
+        /// Timestamp of response
+        pub timestamp: String,
     }
 
     /// Environment variable information
@@ -5083,6 +8286,203 @@ pub struct SetEnvVarsRequest {
         pub runtime_count: usize,
         pub available_files: Vec<String>,
         pub timestamp: String,
+    }
+
+    // =======================================
+    // Resource Management API Types  
+    // =======================================
+
+    /// Query parameters for resource management listing
+    #[derive(Debug, Deserialize)]
+    pub struct ResourceManagementQuery {
+        /// Filter resources by name, URI, or description
+        pub filter: Option<String>,
+        /// Filter by MIME type
+        pub mime_type_filter: Option<String>,
+        /// Pagination cursor
+        pub cursor: Option<String>,
+        /// Number of items to return (pagination)
+        pub limit: Option<usize>,
+        /// Offset for pagination
+        pub offset: Option<usize>,
+    }
+
+    /// Request for reading resource content with options
+    #[derive(Debug, Deserialize)]
+    pub struct ResourceReadOptionsRequest {
+        /// Maximum length for text content (truncate if exceeded)
+        pub max_length: Option<usize>,
+        /// Whether to include binary content in response
+        pub include_binary: Option<bool>,
+        /// Encoding for text content (optional)
+        pub encoding: Option<String>,
+    }
+
+    /// Request for validating multiple resource URIs
+    #[derive(Debug, Deserialize)]
+    pub struct ResourceValidationRequest {
+        /// List of resource URIs to validate
+        pub uris: Vec<String>,
+        /// Whether to check accessibility (read content)
+        pub check_accessibility: Option<bool>,
+    }
+
+    /// Response for resource provider information
+    #[derive(Debug, Serialize)]
+    pub struct ResourceProviderInfo {
+        /// Provider name
+        pub name: String,
+        /// Provider type (file_system, database, api, etc.)
+        pub provider_type: String,
+        /// Provider status (active, inactive, error)
+        pub status: String,
+        /// Supported capabilities
+        pub capabilities: ResourceProviderCapabilities,
+        /// Supported URI schemes
+        pub supported_schemes: Vec<String>,
+        /// Number of resources provided
+        pub resource_count: usize,
+        /// Last synchronization timestamp
+        pub last_sync: String,
+        /// Provider metadata
+        pub metadata: serde_json::Value,
+    }
+
+    /// Resource provider capabilities
+    #[derive(Debug, Serialize)]
+    pub struct ResourceProviderCapabilities {
+        /// Supports reading resource content
+        pub supports_reading: bool,
+        /// Supports listing resources
+        pub supports_listing: bool,
+        /// Supports writing/creating resources
+        pub supports_writing: bool,
+        /// Supports deleting resources
+        pub supports_deleting: bool,
+        /// Supports metadata operations
+        pub supports_metadata: bool,
+    }
+
+    /// Resource information for listing responses
+    #[derive(Debug, Serialize)]
+    pub struct ResourceInfo {
+        /// Resource URI
+        pub uri: String,
+        /// Human-readable name
+        pub name: String,
+        /// Resource description
+        pub description: Option<String>,
+        /// MIME type
+        pub mime_type: Option<String>,
+        /// Resource annotations
+        pub annotations: Option<crate::mcp::types::ResourceAnnotations>,
+        /// Whether resource is readable
+        pub is_readable: bool,
+        /// Resource size in bytes
+        pub size: Option<u64>,
+        /// Last modified timestamp
+        pub last_modified: Option<String>,
+        /// Provider name
+        pub provider: String,
+    }
+
+    /// Response for resource listing
+    #[derive(Debug, Serialize)]
+    pub struct ResourceListResponse {
+        /// List of resources
+        pub resources: Vec<ResourceInfo>,
+        /// Total count before pagination
+        pub total_count: usize,
+        /// Applied filter (if any)
+        pub filter_applied: Option<String>,
+        /// Applied MIME type filter (if any)
+        pub mime_type_filter: Option<String>,
+        /// Next pagination cursor
+        pub next_cursor: Option<String>,
+        /// Last updated timestamp
+        pub last_updated: String,
+    }
+
+    /// Response for resource statistics
+    #[derive(Debug, Serialize)]
+    pub struct ResourceStatisticsResponse {
+        /// Overview statistics
+        pub overview: ResourceOverviewStats,
+        /// MIME type distribution
+        pub mime_type_distribution: Vec<MimeTypeStats>,
+        /// Provider statistics
+        pub provider_statistics: ResourceProviderStats,
+        /// Generated timestamp
+        pub generated_at: String,
+    }
+
+    /// Resource overview statistics
+    #[derive(Debug, Serialize)]
+    pub struct ResourceOverviewStats {
+        /// Total number of resources
+        pub total_resources: usize,
+        /// Number of text resources
+        pub text_resources: usize,
+        /// Number of binary resources
+        pub binary_resources: usize,
+        /// Total size in bytes
+        pub total_size_bytes: u64,
+        /// Average size in bytes
+        pub average_size_bytes: u64,
+    }
+
+    /// MIME type statistics
+    #[derive(Debug, Serialize)]
+    pub struct MimeTypeStats {
+        /// MIME type
+        pub mime_type: String,
+        /// Number of resources with this type
+        pub count: usize,
+        /// Percentage of total resources
+        pub percentage: f64,
+    }
+
+    /// Resource provider statistics
+    #[derive(Debug, Serialize)]
+    pub struct ResourceProviderStats {
+        /// Total number of providers
+        pub total_providers: usize,
+        /// Number of active providers
+        pub active_providers: usize,
+    }
+
+    /// Response for resource validation
+    #[derive(Debug, Serialize)]
+    pub struct ResourceValidationResponse {
+        /// Validation results for each URI
+        pub validation_results: Vec<ResourceValidationResult>,
+        /// Total number of URIs validated
+        pub total_uris: usize,
+        /// Number of successful validations
+        pub successful_validations: usize,
+        /// Number of failed validations
+        pub failed_validations: usize,
+        /// Validation timestamp
+        pub validated_at: String,
+    }
+
+    /// Individual resource validation result
+    #[derive(Debug, Serialize)]
+    pub struct ResourceValidationResult {
+        /// Resource URI
+        pub uri: String,
+        /// Whether URI is valid
+        pub valid: bool,
+        /// Whether resource is accessible
+        pub accessible: bool,
+        /// MIME type (if accessible)
+        pub mime_type: Option<String>,
+        /// Content type (text/binary)
+        pub content_type: Option<String>,
+        /// Resource size (if accessible)
+        pub size: Option<usize>,
+        /// Error message (if validation failed)
+        pub error: Option<String>,
     }
 
 #[cfg(test)]

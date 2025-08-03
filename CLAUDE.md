@@ -4,7 +4,7 @@
 
 MagicTunnel is an intelligent bridge between MCP (Model Context Protocol) clients and diverse agents/endpoints. It provides a single, smart tool discovery interface that can find the right tool for any request, map parameters, and proxy the call automatically.
 
-**Current Version**: 0.3.0 - **Enterprise Platform Complete** ✅
+**Current Version**: 0.3.2 - **LLM Backend APIs Complete** ✅
 
 ## Quick Start
 
@@ -125,7 +125,7 @@ The system provides **one intelligent tool** (`smart_tool_discovery`) that:
 
 ### Documentation
 - `docs/ROUTING_ARCHITECTURE.md` - Detailed architecture documentation with Phase 4 completion status
-- `CHANGELOG.md` - Version history and changes (current: 0.3.0)
+- `CHANGELOG.md` - Version history and changes (current: 0.3.2)
 - `README.md` - Comprehensive project overview with current status
 - `how_to_run.md` - Quick setup guide with examples
 
@@ -176,7 +176,7 @@ curl -X POST http://localhost:3001/mcp/call \
 
 ## Recent Major Changes
 
-### Version 0.3.0 (Current) - Advanced MCP Platform with LLM Integration ✅
+### Version 0.3.2 (Current) - Advanced MCP Platform with LLM Integration ✅
 
 #### **🚀 MCP 2025-06-18 Specification Compliance (Backend Complete)**
 - **Full MCP 2025-06-18 Implementation**: Complete backend implementation of latest MCP spec with sampling and elicitation services
@@ -193,6 +193,16 @@ curl -X POST http://localhost:3001/mcp/call \
 - **LLM Management CLI**: Unified `magictunnel-llm` tool for all LLM service management with external MCP protection
 - **External MCP Protection**: Automatic detection and protection of external MCP server content with warnings
 - **Performance Optimization**: Multi-level caching, rate limiting, and asynchronous processing for enterprise scale
+
+#### **🎨 LLM Backend Management APIs (Complete)**
+- **Resource Management APIs**: 7 comprehensive REST endpoints for resource browsing, reading, validation, and statistics
+- **Enhancement Pipeline APIs**: 9 complete endpoints for tool enhancement management, job tracking, and cache control
+- **Prompt Management APIs**: Complete backend implementation with full CRUD operations
+- **Sampling Service APIs**: Full management interface for AI-powered tool enhancement with provider health monitoring
+- **Elicitation Service APIs**: Complete metadata extraction and validation management with batch processing
+- **Provider Management APIs**: LLM provider configuration, testing, and health monitoring across OpenAI/Anthropic/Ollama
+- **Statistics and Analytics**: Comprehensive analytics for resource types, provider health, and enhancement metrics
+- **Batch Processing Support**: Enhanced batch operations for tool enhancement and resource management
 
 #### **🔒 Security Features (Backend Complete, UI In Progress)**
 - **Security CLI**: `magictunnel-security` tool for policy management and security validation
@@ -376,6 +386,7 @@ export MAGICTUNNEL_EMBEDDING_MODEL=text-embedding-3-small
 #### **Backend Services Complete ✅**
 - ✅ **MCP 2025-06-18 Backend**: Full specification implementation with sampling and elicitation services
 - ✅ **Automatic LLM Generation**: AI-powered tool enhancement with multi-provider support (backend complete)
+- ✅ **LLM Backend Management APIs**: Complete REST API implementation for all LLM services (25+ endpoints)
 - ✅ **Security Framework**: Backend authentication, policy framework, and audit logging
 - ✅ **Smart Tool Discovery**: Hybrid AI intelligence with MCP 2025-06-18 enhanced metadata integration
 - ✅ **Advanced Configuration**: Enhanced YAML format with comprehensive settings
@@ -393,10 +404,11 @@ export MAGICTUNNEL_EMBEDDING_MODEL=text-embedding-3-small
 
 ## Current Status Summary
 
-### **🎯 Advanced MCP Platform with Backend Services Complete**
+### **🎯 Advanced MCP Platform with Complete Backend APIs**
 MagicTunnel has evolved into a sophisticated MCP platform with:
 - **Complete MCP 2025-06-18 backend compliance** with modern protocol features and services
 - **Automatic LLM generation workflow** backend implementation for intelligent tool enhancement
+- **Comprehensive LLM Backend Management APIs** with 25+ REST endpoints for all LLM services
 - **Security framework** including authentication, policy management, and audit logging
 - **Advanced CLI tooling** for comprehensive system management
 - **Enhanced configuration system** supporting complex deployments

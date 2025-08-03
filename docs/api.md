@@ -229,6 +229,282 @@ curl -X POST http://localhost:3001/dashboard/api/tools/smart_tool_discovery/exec
 
 This integration makes **all MagicTunnel capabilities accessible to ChatGPT users** without requiring MCP client setup, with smart discovery providing natural language access to the entire tool ecosystem while staying under Custom GPT operation limits.
 
+## Management APIs Overview
+
+MagicTunnel provides comprehensive REST APIs for managing and monitoring all aspects of the system. These APIs enable advanced UI development, system integration, and automation.
+
+### API Categories
+
+#### **Resource Management APIs**
+- **Base Path**: `/dashboard/api/resources/management/`
+- **Purpose**: Manage MCP resources, content, and providers
+- **Documentation**: [Complete Resource Management API Reference](prompt-resource-management.md#resource-management-apis)
+
+**Key Endpoints**:
+- `GET /status` - System health and configuration
+- `GET /resources` - List resources with filtering and pagination  
+- `POST /resources/{uri}/read` - Read resource content with options
+- `POST /validate` - Validate resource URIs and accessibility
+- `GET /statistics` - Comprehensive usage analytics
+
+#### **Enhancement Pipeline APIs**
+- **Base Path**: `/dashboard/api/enhancements/pipeline/`
+- **Purpose**: Manage LLM-powered tool enhancement pipeline
+- **Documentation**: [Complete Enhancement Pipeline API Reference](automatic-llm-generation-workflow.md#enhancement-pipeline-management-apis)
+
+**Key Endpoints**:
+- `GET /status` - Pipeline health and configuration
+- `GET /tools` - Enhanced tools listing with metadata
+- `POST /tools/{name}/enhance` - Trigger individual tool enhancement
+- `GET /jobs` - Track enhancement job status and history
+- `POST /batch` - Batch enhancement processing
+- `GET /statistics` - Performance metrics and analytics
+
+#### **Prompt Management APIs**
+- **Base Path**: `/dashboard/api/prompts/management/`
+- **Purpose**: Manage MCP prompts and templates
+- **Features**: CRUD operations, template management, content generation
+
+#### **Provider Management APIs**
+- **Base Path**: `/dashboard/api/providers/`
+- **Purpose**: Manage LLM providers (OpenAI, Anthropic, Ollama)
+- **Features**: Health monitoring, configuration, rate limit tracking
+
+### Authentication Patterns
+
+All Management APIs support multiple authentication methods:
+
+**API Key Authentication**:
+```bash
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+     "http://localhost:3001/dashboard/api/resources/management/status"
+```
+
+**Session Token Authentication**:
+```bash
+curl -H "X-Session-Token: YOUR_SESSION_TOKEN" \
+     "http://localhost:3001/dashboard/api/enhancements/pipeline/status"
+```
+
+**JWT Authentication**:
+```bash
+curl -H "Authorization: JWT YOUR_JWT_TOKEN" \
+     "http://localhost:3001/dashboard/api/prompts/management/list"
+```
+
+### Common Response Patterns
+
+#### Success Response Format
+```json
+{
+  "success": true,
+  "data": {
+    // API-specific data
+  },
+  "metadata": {
+    "timestamp": "2025-08-03T10:30:00Z",
+    "request_id": "req_123456789",
+    "processing_time_ms": 45
+  }
+}
+```
+
+#### Error Response Format
+```json
+{
+  "error": {
+    "code": "RESOURCE_NOT_FOUND",
+    "message": "Resource not found",
+    "details": "The specified resource URI does not exist or is not accessible",
+    "timestamp": "2025-08-03T10:30:00Z",
+    "request_id": "req_123456789",
+    "help_url": "https://docs.example.com/errors/RESOURCE_NOT_FOUND"
+  }
+}
+```
+
+#### Pagination Response Format
+```json
+{
+  "data": [
+    // Array of items
+  ],
+  "pagination": {
+    "total": 150,
+    "returned": 25,
+    "limit": 25,
+    "offset": 50,
+    "has_more": true,
+    "cursor": "eyJvZmZzZXQiOjc1fQ=="
+  }
+}
+```
+
+### Common Query Parameters
+
+Most Management APIs support these standard query parameters:
+
+- `limit` (integer): Maximum results per page (default: 50, max: 1000)
+- `offset` (integer): Skip number of results for pagination
+- `cursor` (string): Pagination cursor for efficient large dataset traversal
+- `filter` (string): Text filter for names, descriptions, or content
+- `sort` (string): Sort field (name, created_at, updated_at)
+- `order` (string): Sort order (asc, desc)
+- `include_metadata` (boolean): Include detailed metadata in responses
+- `format` (string): Response format (json, csv, xml)
+
+### Rate Limiting
+
+Management APIs implement rate limiting to ensure system stability:
+
+**Rate Limit Headers**:
+```
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 995
+X-RateLimit-Reset: 1691067000
+X-RateLimit-Window: 3600
+```
+
+**Rate Limit Exceeded Response**:
+```json
+{
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "API rate limit exceeded",
+    "retry_after_seconds": 300,
+    "limit": 1000,
+    "window_seconds": 3600
+  }
+}
+```
+
+### Management API Quick Start
+
+#### 1. System Health Check
+```bash
+# Check overall system health
+curl -X GET "http://localhost:3001/dashboard/api/resources/management/status"
+curl -X GET "http://localhost:3001/dashboard/api/enhancements/pipeline/status"
+```
+
+#### 2. Resource Management
+```bash
+# List available resources
+curl -X GET "http://localhost:3001/dashboard/api/resources/management/resources?limit=10"
+
+# Read specific resource
+curl -X POST "http://localhost:3001/dashboard/api/resources/management/resources/file%3A%2F%2F%2Fdocs%2Fapi.md/read" \
+     -H "Content-Type: application/json" \
+     -d '{"max_length": 1000}'
+```
+
+#### 3. Enhancement Pipeline
+```bash
+# List enhanced tools
+curl -X GET "http://localhost:3001/dashboard/api/enhancements/pipeline/tools?enhancement_status=enhanced"
+
+# Trigger tool enhancement
+curl -X POST "http://localhost:3001/dashboard/api/enhancements/pipeline/tools/network_ping/enhance" \
+     -H "Content-Type: application/json" \
+     -d '{"force_regenerate": false}'
+```
+
+#### 4. Statistics and Analytics
+```bash
+# Get resource statistics
+curl -X GET "http://localhost:3001/dashboard/api/resources/management/statistics"
+
+# Get enhancement pipeline metrics
+curl -X GET "http://localhost:3001/dashboard/api/enhancements/pipeline/statistics"
+```
+
+### Integration Examples
+
+#### Frontend Dashboard Integration
+```javascript
+// Resource management dashboard
+class ResourceManager {
+  async getResources(filter = '', limit = 50) {
+    const response = await fetch(
+      `/dashboard/api/resources/management/resources?filter=${filter}&limit=${limit}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    return response.json();
+  }
+
+  async readResource(uri, options = {}) {
+    const response = await fetch(
+      `/dashboard/api/resources/management/resources/${encodeURIComponent(uri)}/read`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(options)
+      }
+    );
+    return response.json();
+  }
+}
+```
+
+#### Enhancement Pipeline Monitoring
+```javascript
+// Real-time enhancement monitoring
+class EnhancementMonitor {
+  async monitorEnhancement(toolName) {
+    // Start enhancement
+    const job = await this.startEnhancement(toolName);
+    
+    // Poll job status
+    return new Promise((resolve, reject) => {
+      const pollInterval = setInterval(async () => {
+        const status = await this.getJobStatus(job.job_id);
+        
+        if (status.status === 'completed') {
+          clearInterval(pollInterval);
+          resolve(status.result);
+        } else if (status.status === 'failed') {
+          clearInterval(pollInterval);
+          reject(new Error(status.error));
+        }
+      }, 1000);
+    });
+  }
+}
+```
+
+### Performance and Caching
+
+Management APIs implement multiple levels of caching for optimal performance:
+
+**Response Caching**:
+- Static data cached for 5 minutes
+- Dynamic data cached for 30 seconds
+- Statistics cached for 1 minute
+
+**Cache Headers**:
+```
+Cache-Control: public, max-age=300
+ETag: "a1b2c3d4e5f6g7h8i9j0"
+Last-Modified: Wed, 03 Aug 2025 10:30:00 GMT
+```
+
+**Conditional Requests**:
+```bash
+# Use ETag for conditional requests
+curl -H "If-None-Match: a1b2c3d4e5f6g7h8i9j0" \
+     "http://localhost:3001/dashboard/api/resources/management/resources"
+```
+
+Management APIs provide the foundation for building sophisticated UIs and integrations while maintaining high performance and reliability.
+
 ## MCP Logging and Notifications API
 
 ### MCP Logging System

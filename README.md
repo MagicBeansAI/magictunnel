@@ -1,6 +1,6 @@
 # MagicTunnel
 
-**Smart MCP Proxy** - One intelligent tool that discovers the right tool for any request. Now with **Complete MCP 2025-06-18 Smart Discovery Integration** featuring server-side LLM request generation, external MCP protection, and enterprise-grade enhancement pipeline.
+**Smart MCP Proxy** - One intelligent tool that discovers the right tool for any request. Now with **Complete MCP 2025-06-18 Smart Discovery Integration** featuring server-side LLM request generation, external MCP protection, enterprise-grade enhancement pipeline, and **Complete LLM Backend Management APIs**.
 
 ![MagicTunnel](docs/images/magictunnel-1.png)
 
@@ -15,7 +15,7 @@ MagicTunnel provides **one smart tool** that:
 4. **⚡ Executes** with sub-second response times and graceful degradation
 5. **🛡️ Protects** external MCP tools while respecting their original capabilities
 
-## 🎉 New: Enterprise-Grade Smart Discovery System
+## 🎉 New: Enterprise-Grade Smart Discovery System + Complete LLM Backend APIs
 
 **✅ MCP 2025-06-18 Compliant** with complete sampling/elicitation integration:
 
@@ -26,6 +26,15 @@ MagicTunnel provides **one smart tool** that:
 - **🔧 CLI Management**: Complete visibility management with MCP capability override warnings
 - **📊 Version Management**: Automatic capability file versioning with rollback support
 - **⚠️ Graceful Degradation**: 100% reliability with fallback to base descriptions
+
+**🎨 NEW: Complete LLM Backend Management APIs**:
+
+- **📡 25+ REST Endpoints**: Comprehensive API coverage for all LLM services and resource management
+- **🔧 Resource Management**: 7 endpoints for browsing, reading, validation, and statistics
+- **⚙️ Enhancement Pipeline**: 9 endpoints for tool enhancement, job tracking, and cache control
+- **📝 Prompt & Sampling**: Complete management APIs for AI-powered content generation
+- **🤖 Provider Management**: Multi-provider configuration and health monitoring (OpenAI/Anthropic/Ollama)
+- **📊 Analytics & Statistics**: Real-time metrics and performance monitoring for all services
 
 ## Quick Start
 
@@ -254,6 +263,11 @@ bash tools/release/update-version.sh 0.3.1
 - 🔄 **Dual Transport Support**: HTTP+SSE (deprecated) and Streamable HTTP (MCP 2025-06-18) with graceful migration
 - ✅ **Easy Setup**: Single binary, YAML configuration  
 - ✅ **Extensible**: Add tools without coding
+- 🎨 **Complete LLM Backend APIs**: 25+ REST endpoints for comprehensive LLM service management
+  - **Resource Management**: Full API for resource browsing, reading, validation, and analytics
+  - **Enhancement Pipeline**: Complete tool enhancement management with job tracking
+  - **Provider Management**: Multi-provider configuration and health monitoring
+  - **Statistics & Analytics**: Real-time metrics and performance monitoring
 - 🔒 **Enterprise Security**: Comprehensive security and access control system
   - **Security Sandboxing**: 5-level classification (Safe/Restricted/Privileged/Dangerous/Blocked)
   - **Tool Allowlisting**: Explicit control over tool, resource, and prompt access

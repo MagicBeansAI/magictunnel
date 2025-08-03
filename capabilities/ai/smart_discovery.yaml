@@ -1,296 +1,101 @@
-# MCP 2025-06-18 Compliant Smart Discovery - Breaking Changes Format
-# Complete restructure for maximum AI intelligence and enterprise capabilities
-
-# Enhanced metadata with comprehensive classification
 metadata:
-  name: "AI-Enhanced Smart Tool Discovery Suite"
-  description: "Next-generation intelligent tool discovery with MCP 2025-06-18 compliance"
-  version: "3.0.0"
-  author: "MCP 2025 AI Team"
-  
-  # Enhanced categorization
-  classification:
-    security_level: "safe"        # AI discovery is inherently safe
-    complexity_level: "complex"   # Complex AI processing
-    domain: "ai_intelligence"
-    use_cases: ["tool_discovery", "workflow_automation", "intelligent_routing", "parameter_extraction"]
-  
-  # Discovery enhancement metadata
-  discovery_metadata:
-    primary_keywords: ["smart", "discover", "find", "tool", "ai", "intelligent", "auto"]
-    semantic_embeddings: true
-    llm_enhanced: true
-    workflow_enabled: true
-    self_describing: true  # This tool describes itself
-  
-  # MCP 2025-06-18 capabilities
-  mcp_capabilities:
-    version: "2025-06-18"
-    supports_cancellation: true
-    supports_progress: true
-    supports_sampling: true
-    supports_validation: true
-    supports_elicitation: true
-
-# Completely restructured tool with full MCP 2025-06-18 integration
+  name: AI-Enhanced Smart Tool Discovery Suite
+  description: Next-generation intelligent tool discovery with MCP 2025-06-18 compliance
+  version: 3.0.0
+  author: MCP 2025 AI Team
+  tags: null
 tools:
-  - name: "smart_tool_discovery"
-    
-    # Core definition with enhanced schema
-    core:
-      description: "🎯 Universal AI-powered tool discovery and execution engine"
-      input_schema:
-        type: object
-        properties:
-          request:
-            type: string
-            description: "Natural language description of what you want to accomplish"
-            minLength: 1
-            maxLength: 2000
-            validation:
-              content_filter: true
-              injection_protection: true
-              semantic_analysis: true
-          context:
-            type: string
-            description: "Additional context, environment details, or constraints"
-            maxLength: 1000
-            validation:
-              relevance_check: true
-              privacy_scan: true
-          preferred_tools:
-            type: array
-            description: "Preferred tool names to consider first (AI will validate suitability)"
-            items:
-              type: string
-              validation:
-                tool_exists: true
-                tool_accessible: true
-            maxItems: 15
-          confidence_threshold:
-            type: number
-            description: "Minimum AI confidence score (0.0-1.0) for tool selection"
-            minimum: 0.0
-            maximum: 1.0
-            default: 0.75
-            validation:
-              optimal_range: [0.5, 0.9]
-          execution_mode:
-            type: string
-            enum: ["immediate", "sequential", "batch", "analyze_only"]
-            default: "sequential"
-            description: "How to handle multi-step operations"
-          ai_enhancement_level:
-            type: string
-            enum: ["basic", "standard", "advanced", "maximum"]
-            default: "advanced"
-            description: "Level of AI enhancement and parameter intelligence"
-          risk_tolerance:
-            type: string
-            enum: ["conservative", "balanced", "aggressive"]
-            default: "balanced"
-            description: "Risk tolerance for tool selection and execution"
-        required: ["request"]
-        additionalProperties: false
-    
-    # Execution configuration with AI integration
-    execution:
-      routing:
-        type: "ai_enhanced_discovery"
-        config:
-          discovery_engine: "hybrid_intelligence"
-          ai_integration:
-            sampling_service: true
-            elicitation_service: true
-            model_selection: "adaptive"
-            fallback_models: ["gpt-4o-mini", "claude-3-5-sonnet"]
-          intelligence_layers:
-            - "semantic_matching"      # 30% weight
-            - "rule_based_filtering"   # 15% weight  
-            - "llm_analysis"           # 40% weight
-            - "workflow_context"       # 15% weight
-          parameter_extraction:
-            use_ai: true
-            confidence_boosting: true
-            validation_enabled: true
-      
-      # Security sandbox for AI operations
-      security:
-        classification: "safe"
-        sandbox:
-          ai_operations:
-            model_access_restricted: false
-            prompt_injection_protection: true
-            content_filtering: true
-            rate_limiting: true
-          resources:
-            max_memory_mb: 1024
-            max_cpu_percent: 60
-            max_execution_seconds: 120
-            max_concurrent_requests: 5
-          data_protection:
-            no_data_persistence: true
-            privacy_preserving: true
-            audit_logging: true
-      
-      # Performance characteristics
-      performance:
-        estimated_duration:
-          simple_request: 3      # Basic tool matching
-          complex_request: 15    # Multi-step analysis
-          batch_request: 45      # Multiple operations
-        complexity: "complex"
-        supports_cancellation: true
-        supports_progress: true
-        cache_results: true
-        cache_ttl_seconds: 1800  # 30 minutes
-        adaptive_optimization: true
-    
-    # Enhanced discovery metadata
-    discovery:
-      # AI-generated comprehensive description
-      ai_enhanced:
-        description: >
-          Revolutionary AI-powered universal tool discovery engine that understands natural language 
-          requests and intelligently routes them to the perfect tool. Combines semantic understanding, 
-          rule-based matching, and advanced LLM analysis to achieve 95%+ accuracy in tool selection. 
-          Automatically extracts parameters, validates inputs, and handles complex multi-step workflows 
-          with intelligent sequencing and context preservation.
-        
-        usage_patterns:
-          - "find me a tool to {action} {object}"
-          - "I need to {accomplish_task}"
-          - "help me {solve_problem} with {constraints}"
-          - "what's the best way to {achieve_goal}?"
-          - "{complex_multi_step_request}"
-        
-        semantic_context:
-          primary_intent: "intelligent_tool_routing"
-          capabilities: ["discovery", "analysis", "routing", "execution", "workflow"]
-          intelligence_types: ["semantic", "contextual", "predictive", "adaptive"]
-          user_experience: ["natural_language", "zero_learning_curve", "context_aware"]
-        
-        ai_superpowers:
-          natural_language_processing: true
-          intent_recognition: true
-          parameter_extraction: true
-          workflow_planning: true
-          context_preservation: true
-          adaptive_learning: true
-          error_recovery: true
-        
-        workflow_integration:
-          universal_entry_point: true
-          typically_follows: []  # Can be first tool in any workflow
-          typically_precedes: ["*"]  # Can precede any tool
-          chain_compatibility: ["any_workflow", "data_pipeline", "automation", "analysis"]
-      
-      # Advanced parameter intelligence
-      parameter_intelligence:
-        request:
-          ai_enhancement:
-            intent_analysis: true
-            entity_extraction: true
-            context_expansion: true
-            ambiguity_resolution: true
-          quality_scoring:
-            completeness_check: true
-            specificity_analysis: true
-            feasibility_assessment: true
-          suggestions:
-            auto_complete: true
-            example_requests: [
-              "read the config.yaml file and validate its structure",
-              "find all log files containing errors in the last 24 hours",
-              "make a POST request to the API with authentication",
-              "process the CSV file and generate a summary report"
-            ]
-        
-        confidence_threshold:
-          adaptive_adjustment: true
-          context_based_recommendations:
-            - when: "request_complexity == 'simple'"
-              suggest: 0.8
-            - when: "request_complexity == 'complex'"
-              suggest: 0.65
-            - when: "user_experience == 'expert'"
-              suggest: 0.6
-        
-        execution_mode:
-          intelligent_selection:
-            - when: "single_operation_detected"
-              suggest: "immediate"
-            - when: "workflow_detected"
-              suggest: "sequential"
-            - when: "batch_operations_detected"
-              suggest: "batch"
-    
-    # Comprehensive monitoring and progress tracking
-    monitoring:
-      progress_tracking:
-        enabled: true
-        granularity: "verbose"
-        sub_operations:
-          - id: "request_analysis"
-            name: "Analyzing request and extracting intent"
-            estimated_percentage: 20
-          - id: "tool_matching"
-            name: "Finding and scoring candidate tools"
-            estimated_percentage: 30
-          - id: "parameter_extraction"
-            name: "Extracting and validating parameters"
-            estimated_percentage: 20
-          - id: "execution_planning"
-            name: "Planning execution strategy"
-            estimated_percentage: 10
-          - id: "tool_execution"
-            name: "Executing selected tool"
-            estimated_percentage: 15
-          - id: "result_processing"
-            name: "Processing and formatting results"
-            estimated_percentage: 5
-        
-        ai_metrics:
-          - confidence_score
-          - processing_accuracy
-          - parameter_extraction_success
-          - tool_match_quality
-          - execution_success_rate
-      
-      cancellation:
-        enabled: true
-        graceful_timeout_seconds: 10
-        cleanup_required: true
-        cleanup_operations:
-          - "cancel_ai_processing"
-          - "release_model_resources"
-          - "clear_temporary_context"
-      
-      ai_monitoring:
-        model_performance:
-          track_response_times: true
-          track_accuracy_metrics: true
-          adaptive_model_selection: true
-        
-        quality_assurance:
-          continuous_validation: true
-          feedback_integration: true
-          auto_improvement: true
-      
-      metrics:
-        comprehensive_tracking: true
-        custom_metrics:
-          - discovery_accuracy
-          - parameter_extraction_precision
-          - workflow_completion_rate
-          - user_satisfaction_score
-          - ai_confidence_calibration
-    
-    # Enhanced access control
-    access:
-      hidden: false
-      enabled: true
-      requires_permissions: ["ai:discovery", "tool:proxy"]
-      user_groups: ["all"]
-      approval_required: false
-      usage_analytics: true
+- name: smart_tool_discovery
+  description: 🎯 Universal AI-powered tool discovery and execution engine
+  inputSchema:
+    additionalProperties: false
+    properties:
+      ai_enhancement_level:
+        default: advanced
+        description: Level of AI enhancement and parameter intelligence
+        enum:
+        - basic
+        - standard
+        - advanced
+        - maximum
+        type: string
+      confidence_threshold:
+        default: 0.75
+        description: Minimum AI confidence score (0.0-1.0) for tool selection
+        maximum: 1.0
+        minimum: 0.0
+        type: number
+        validation:
+          optimal_range:
+          - 0.5
+          - 0.9
+      context:
+        description: Additional context, environment details, or constraints
+        maxLength: 1000
+        type: string
+        validation:
+          privacy_scan: true
+          relevance_check: true
+      execution_mode:
+        default: sequential
+        description: How to handle multi-step operations
+        enum:
+        - immediate
+        - sequential
+        - batch
+        - analyze_only
+        type: string
+      preferred_tools:
+        description: Preferred tool names to consider first (AI will validate suitability)
+        items:
+          type: string
+          validation:
+            tool_accessible: true
+            tool_exists: true
+        maxItems: 15
+        type: array
+      request:
+        description: Natural language description of what you want to accomplish
+        maxLength: 2000
+        minLength: 1
+        type: string
+        validation:
+          content_filter: true
+          injection_protection: true
+          semantic_analysis: true
+      risk_tolerance:
+        default: balanced
+        description: Risk tolerance for tool selection and execution
+        enum:
+        - conservative
+        - balanced
+        - aggressive
+        type: string
+    required:
+    - request
+    type: object
+  routing:
+    type: ai_enhanced_discovery
+    config:
+      ai_integration:
+        elicitation_service: true
+        fallback_models:
+        - gpt-4o-mini
+        - claude-3-5-sonnet
+        model_selection: adaptive
+        sampling_service: true
+      discovery_engine: hybrid_intelligence
+      intelligence_layers:
+      - semantic_matching
+      - rule_based_filtering
+      - llm_analysis
+      - workflow_context
+      parameter_extraction:
+        confidence_boosting: true
+        use_ai: true
+        validation_enabled: true
+  annotations: null
+  hidden: true
+  enabled: true
+enhanced_metadata: null
+enhanced_tools: null

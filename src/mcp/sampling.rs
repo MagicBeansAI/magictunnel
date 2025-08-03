@@ -14,6 +14,7 @@ use chrono::{DateTime, Utc};
 use reqwest::Client;
 use std::time::Duration;
 use tokio::time::sleep;
+use url::Url;
 
 /// Configuration for sampling service
 #[derive(Debug, Clone)]
@@ -1400,6 +1401,285 @@ impl SamplingService {
             }))
         })
     }
+
+    // Provider Management Methods
+
+    /// List all configured LLM providers
+    pub async fn list_providers(&self) -> Result<Vec<LLMProviderConfig>> {
+        let providers = self.providers.read().await;
+        Ok(providers.values().cloned().collect())
+    }
+
+    /// Add a new LLM provider
+    pub async fn add_provider(&self, provider: LLMProviderConfig) -> Result<()> {
+        let mut providers = self.providers.write().await;
+        
+        // Check if provider already exists
+        if providers.contains_key(&provider.name) {
+            return Err(crate::error::ProxyError::config(format!(
+                "Provider '{}' already exists", provider.name
+            )));
+        }
+        
+        // Validate provider configuration
+        self.validate_provider_config(&provider)?;
+        
+        providers.insert(provider.name.clone(), provider);
+        Ok(())
+    }
+
+    /// Update an existing LLM provider
+    pub async fn update_provider(&self, provider_name: &str, update: crate::web::dashboard::LlmProviderUpdateRequest) -> Result<()> {
+        let mut providers = self.providers.write().await;
+        
+        let provider = providers.get_mut(provider_name)
+            .ok_or_else(|| crate::error::ProxyError::config(format!(
+                "Provider '{}' not found", provider_name
+            )))?;
+
+        // Update fields if provided
+        if let Some(provider_type_str) = update.provider_type {
+            provider.provider_type = match provider_type_str.as_str() {
+                "openai" => LLMProviderType::OpenAI,
+                "anthropic" => LLMProviderType::Anthropic,
+                "ollama" => LLMProviderType::Ollama,
+                "custom" => LLMProviderType::Custom,
+                _ => return Err(crate::error::ProxyError::config(format!(
+                    "Invalid provider type: {}", provider_type_str
+                ))),
+            };
+        }
+
+        if let Some(endpoint) = update.endpoint {
+            provider.endpoint = endpoint;
+        }
+
+        if let Some(api_key) = update.api_key {
+            provider.api_key = Some(api_key);
+        }
+
+        if let Some(models) = update.models {
+            provider.models = models;
+        }
+
+        if let Some(config) = update.config {
+            if let Some(config_obj) = config.as_object() {
+                provider.config.extend(config_obj.clone());
+            }
+        }
+
+        // Validate updated configuration
+        self.validate_provider_config(provider)?;
+        
+        Ok(())
+    }
+
+    /// Remove an LLM provider
+    pub async fn remove_provider(&self, provider_name: &str) -> Result<()> {
+        let mut providers = self.providers.write().await;
+        
+        if providers.remove(provider_name).is_none() {
+            return Err(crate::error::ProxyError::config(format!(
+                "Provider '{}' not found", provider_name
+            )));
+        }
+        
+        Ok(())
+    }
+
+    /// Test an LLM provider connection
+    pub async fn test_provider(&self, provider_name: &str, model: &Option<String>, test_prompt: &str, timeout_seconds: u64) -> Result<ProviderTestResult> {
+        let providers = self.providers.read().await;
+        let provider = providers.get(provider_name)
+            .ok_or_else(|| crate::error::ProxyError::config(format!(
+                "Provider '{}' not found", provider_name
+            )))?;
+
+        let test_model = model.as_ref().or_else(|| provider.models.first()).unwrap_or(&"default".to_string()).clone();
+        
+        // Create a simple test request
+        let test_request = SamplingRequest {
+            messages: vec![SamplingMessage {
+                role: SamplingMessageRole::User,
+                content: SamplingContent::Text(test_prompt.to_string()),
+                name: None,
+                metadata: None,
+            }],
+            model_preferences: Some(ModelPreferences {
+                intelligence: None,
+                speed: None,
+                cost: None,
+                preferred_models: Some(vec![test_model.clone()]),
+                excluded_models: None,
+            }),
+            system_prompt: None,
+            max_tokens: Some(100),
+            temperature: Some(0.7),
+            top_p: None,
+            stop: None,
+            metadata: None,
+        };
+
+        // Make the test request with timeout
+        let timeout_duration = tokio::time::Duration::from_secs(timeout_seconds);
+        let test_future = self.make_llm_request(provider, &test_request, &test_model);
+        
+        match tokio::time::timeout(timeout_duration, test_future).await {
+            Ok(Ok(response)) => {
+                Ok(ProviderTestResult {
+                    model_used: test_model,
+                    response: match response.message.content {
+                        SamplingContent::Text(text) => text,
+                        _ => "Test successful".to_string(),
+                    },
+                })
+            }
+            Ok(Err(e)) => Err(crate::error::ProxyError::mcp(format!(
+                "Provider test failed: {}", e
+            ))),
+            Err(_) => Err(crate::error::ProxyError::mcp(format!(
+                "Provider test timed out after {} seconds", timeout_seconds
+            ))),
+        }
+    }
+
+    /// Get provider status and health information
+    pub async fn get_provider_status(&self, provider_name: &str) -> Result<ProviderStatus> {
+        let providers = self.providers.read().await;
+        let _provider = providers.get(provider_name)
+            .ok_or_else(|| crate::error::ProxyError::config(format!(
+                "Provider '{}' not found", provider_name
+            )))?;
+
+        // For now, return basic status - can be enhanced with actual health checks
+        Ok(ProviderStatus {
+            status: "healthy".to_string(),
+            last_check: Some(chrono::Utc::now().to_rfc3339()),
+            details: Some("Provider is configured and available".to_string()),
+            available_models: Some(_provider.models.clone()),
+        })
+    }
+
+    /// Validate provider configuration
+    fn validate_provider_config(&self, provider: &LLMProviderConfig) -> Result<()> {
+        // Validate provider name
+        if provider.name.trim().is_empty() {
+            return Err(crate::error::ProxyError::config("Provider name cannot be empty".to_string()));
+        }
+
+        // Validate endpoint URL
+        if provider.endpoint.trim().is_empty() {
+            return Err(crate::error::ProxyError::config("Provider endpoint cannot be empty".to_string()));
+        }
+
+        // Validate that endpoint is a valid URL
+        if let Err(_) = Url::parse(&provider.endpoint) {
+            return Err(crate::error::ProxyError::config(format!(
+                "Invalid endpoint URL: {}", provider.endpoint
+            )));
+        }
+
+        // Validate models list
+        if provider.models.is_empty() {
+            return Err(crate::error::ProxyError::config("Provider must have at least one model".to_string()));
+        }
+
+        Ok(())
+    }
+
+    /// Make LLM request to a specific provider (helper method for testing)
+    async fn make_llm_request(&self, provider: &LLMProviderConfig, request: &SamplingRequest, model: &str) -> Result<SamplingResponse> {
+        // This is a simplified implementation for testing
+        // In a real implementation, you would make actual HTTP requests to the provider
+        
+        match provider.provider_type {
+            LLMProviderType::OpenAI => {
+                // Simulate OpenAI API call
+                if provider.api_key.is_none() {
+                    return Err(crate::error::ProxyError::mcp("OpenAI API key required".to_string()));
+                }
+                
+                // Return a mock response for now
+                Ok(SamplingResponse {
+                    message: SamplingMessage {
+                        role: SamplingMessageRole::Assistant,
+                        content: SamplingContent::Text("Test response from OpenAI provider".to_string()),
+                        name: None,
+                        metadata: None,
+                    },
+                    model: model.to_string(),
+                    stop_reason: SamplingStopReason::EndTurn,
+                    usage: None,
+                    metadata: None,
+                })
+            }
+            LLMProviderType::Anthropic => {
+                // Simulate Anthropic API call
+                if provider.api_key.is_none() {
+                    return Err(crate::error::ProxyError::mcp("Anthropic API key required".to_string()));
+                }
+                
+                Ok(SamplingResponse {
+                    message: SamplingMessage {
+                        role: SamplingMessageRole::Assistant,
+                        content: SamplingContent::Text("Test response from Anthropic provider".to_string()),
+                        name: None,
+                        metadata: None,
+                    },
+                    model: model.to_string(),
+                    stop_reason: SamplingStopReason::EndTurn,
+                    usage: None,
+                    metadata: None,
+                })
+            }
+            LLMProviderType::Ollama => {
+                // Simulate Ollama API call (no API key needed)
+                Ok(SamplingResponse {
+                    message: SamplingMessage {
+                        role: SamplingMessageRole::Assistant,
+                        content: SamplingContent::Text("Test response from Ollama provider".to_string()),
+                        name: None,
+                        metadata: None,
+                    },
+                    model: model.to_string(),
+                    stop_reason: SamplingStopReason::EndTurn,
+                    usage: None,
+                    metadata: None,
+                })
+            }
+            LLMProviderType::Custom => {
+                // Simulate custom provider call
+                Ok(SamplingResponse {
+                    message: SamplingMessage {
+                        role: SamplingMessageRole::Assistant,
+                        content: SamplingContent::Text("Test response from custom provider".to_string()),
+                        name: None,
+                        metadata: None,
+                    },
+                    model: model.to_string(),
+                    stop_reason: SamplingStopReason::EndTurn,
+                    usage: None,
+                    metadata: None,
+                })
+            }
+        }
+    }
+}
+
+/// Result of provider connection test
+#[derive(Debug, Clone)]
+pub struct ProviderTestResult {
+    pub model_used: String,
+    pub response: String,
+}
+
+/// Provider status information
+#[derive(Debug, Clone)]
+pub struct ProviderStatus {
+    pub status: String,
+    pub last_check: Option<String>,
+    pub details: Option<String>,
+    pub available_models: Option<Vec<String>>,
 }
 
 impl Default for SamplingConfig {

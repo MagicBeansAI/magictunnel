@@ -417,15 +417,424 @@ RUST_LOG=debug magictunnel prompts generate --tool test_tool
 magictunnel config validate --section prompt_generation
 ```
 
+## Resource Management APIs
+
+MagicTunnel provides comprehensive REST APIs for managing resources programmatically. These APIs enable UI development and integration with external systems.
+
+### Authentication
+
+All Management APIs require authentication via API key or session token:
+
+```bash
+# Using API key
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+     "http://localhost:3001/dashboard/api/resources/management/status"
+
+# Using session token
+curl -H "X-Session-Token: YOUR_SESSION_TOKEN" \
+     "http://localhost:3001/dashboard/api/resources/management/status"
+```
+
+### Endpoints
+
+#### 1. System Status
+
+**GET** `/dashboard/api/resources/management/status`
+
+Get resource management system health and configuration.
+
+**Request:**
+```bash
+curl -X GET "http://localhost:3001/dashboard/api/resources/management/status"
+```
+
+**Response:**
+```json
+{
+  "enabled": true,
+  "health_status": "healthy",
+  "total_providers": 3,
+  "total_resources": 42,
+  "features": [
+    "resource_listing",
+    "resource_reading",
+    "file_system_access",
+    "multi_provider_support",
+    "mime_type_detection"
+  ]
+}
+```
+
+#### 2. Resource Listing
+
+**GET** `/dashboard/api/resources/management/resources`
+
+List all available resources with filtering and pagination.
+
+**Query Parameters:**
+- `filter` (optional): Filter by name, URI, or description
+- `mime_type_filter` (optional): Filter by MIME type (e.g., "text/markdown")
+- `cursor` (optional): Pagination cursor
+- `limit` (optional): Maximum results per page (default: 50)
+- `offset` (optional): Skip number of results
+
+**Request:**
+```bash
+curl -X GET "http://localhost:3001/dashboard/api/resources/management/resources?filter=docs&limit=10"
+```
+
+**Response:**
+```json
+{
+  "resources": [
+    {
+      "uri": "file:///docs/api.md",
+      "name": "API Documentation",
+      "description": "Complete API reference documentation",
+      "mimeType": "text/markdown",
+      "annotations": {
+        "audience": ["developers"],
+        "priority": "high"
+      }
+    },
+    {
+      "uri": "file:///docs/config.md", 
+      "name": "Configuration Guide",
+      "description": "System configuration documentation",
+      "mimeType": "text/markdown",
+      "annotations": {
+        "audience": ["administrators"],
+        "priority": "medium"
+      }
+    }
+  ],
+  "pagination": {
+    "total": 42,
+    "returned": 10,
+    "cursor": "eyJvZmZzZXQiOjEwfQ==",
+    "has_more": true
+  },
+  "filters_applied": {
+    "filter": "docs",
+    "limit": 10
+  }
+}
+```
+
+#### 3. Resource Details
+
+**GET** `/dashboard/api/resources/management/resources/{uri:.*}`
+
+Get detailed information about a specific resource.
+
+**Request:**
+```bash
+curl -X GET "http://localhost:3001/dashboard/api/resources/management/resources/file%3A%2F%2F%2Fdocs%2Fapi.md"
+```
+
+**Response:**
+```json
+{
+  "uri": "file:///docs/api.md",
+  "name": "API Documentation",
+  "description": "Complete API reference documentation",
+  "mimeType": "text/markdown",
+  "annotations": {
+    "audience": ["developers"],
+    "priority": "high",
+    "last_modified": "2025-08-03T10:30:00Z",
+    "size_bytes": 15420
+  },
+  "accessibility": {
+    "readable": true,
+    "exists": true,
+    "error": null
+  },
+  "provider": "FileSystemProvider"
+}
+```
+
+#### 4. Resource Content Reading
+
+**POST** `/dashboard/api/resources/management/resources/{uri:.*}/read`
+
+Read the content of a specific resource with configurable options.
+
+**Request Body:**
+```json
+{
+  "max_length": 10000,
+  "include_binary": false,
+  "encoding": "utf-8"
+}
+```
+
+**Request:**
+```bash
+curl -X POST "http://localhost:3001/dashboard/api/resources/management/resources/file%3A%2F%2F%2Fdocs%2Fapi.md/read" \
+     -H "Content-Type: application/json" \
+     -d '{"max_length": 5000}'
+```
+
+**Response:**
+```json
+{
+  "content": "# API Reference\n\n## Overview\n\nMagicTunnel provides multiple API interfaces...",
+  "metadata": {
+    "uri": "file:///docs/api.md",
+    "mime_type": "text/markdown",
+    "size_bytes": 15420,
+    "encoding": "utf-8",
+    "last_modified": "2025-08-03T10:30:00Z"
+  },
+  "processing": {
+    "truncated": true,
+    "original_length": 15420,
+    "returned_length": 5000,
+    "processing_time_ms": 12
+  }
+}
+```
+
+#### 5. Provider Information
+
+**GET** `/dashboard/api/resources/management/providers`
+
+List all resource providers and their capabilities.
+
+**Request:**
+```bash
+curl -X GET "http://localhost:3001/dashboard/api/resources/management/providers"
+```
+
+**Response:**
+```json
+{
+  "providers": [
+    {
+      "name": "FileSystemProvider",
+      "type": "file_system",
+      "enabled": true,
+      "capabilities": [
+        "read_files",
+        "list_directories",
+        "mime_detection",
+        "metadata_extraction"
+      ],
+      "configuration": {
+        "base_path": "/",
+        "allowed_extensions": ["*"],
+        "max_file_size_mb": 100
+      },
+      "statistics": {
+        "resources_served": 42,
+        "total_reads": 157,
+        "avg_read_time_ms": 8.5
+      }
+    }
+  ],
+  "total_providers": 1,
+  "active_providers": 1
+}
+```
+
+#### 6. Resource Validation
+
+**POST** `/dashboard/api/resources/management/validate`
+
+Validate resource URIs for accessibility and correctness.
+
+**Request Body:**
+```json
+{
+  "uris": [
+    "file:///docs/api.md",
+    "file:///docs/missing.md",
+    "http://example.com/resource"
+  ]
+}
+```
+
+**Request:**
+```bash
+curl -X POST "http://localhost:3001/dashboard/api/resources/management/validate" \
+     -H "Content-Type: application/json" \
+     -d '{"uris": ["file:///docs/api.md", "file:///docs/missing.md"]}'
+```
+
+**Response:**
+```json
+{
+  "validation_results": [
+    {
+      "uri": "file:///docs/api.md",
+      "valid": true,
+      "accessible": true,
+      "exists": true,
+      "mime_type": "text/markdown",
+      "size_bytes": 15420,
+      "error": null
+    },
+    {
+      "uri": "file:///docs/missing.md",
+      "valid": true,
+      "accessible": false,
+      "exists": false,
+      "mime_type": null,
+      "size_bytes": null,
+      "error": "File not found"
+    }
+  ],
+  "summary": {
+    "total_validated": 2,
+    "valid_count": 2,
+    "accessible_count": 1,
+    "error_count": 1
+  }
+}
+```
+
+#### 7. Resource Statistics
+
+**GET** `/dashboard/api/resources/management/statistics`
+
+Get comprehensive analytics and statistics about resource usage.
+
+**Request:**
+```bash
+curl -X GET "http://localhost:3001/dashboard/api/resources/management/statistics"
+```
+
+**Response:**
+```json
+{
+  "overview": {
+    "total_resources": 42,
+    "total_providers": 1,
+    "total_size_bytes": 2457600,
+    "avg_file_size_bytes": 58514
+  },
+  "by_mime_type": {
+    "text/markdown": {
+      "count": 25,
+      "total_size_bytes": 1536000,
+      "percentage": 62.5
+    },
+    "application/json": {
+      "count": 12,
+      "total_size_bytes": 614400,
+      "percentage": 25.0
+    },
+    "text/plain": {
+      "count": 5,
+      "total_size_bytes": 307200,
+      "percentage": 12.5
+    }
+  },
+  "by_provider": {
+    "FileSystemProvider": {
+      "resources": 42,
+      "reads_today": 157,
+      "avg_response_time_ms": 8.5,
+      "error_rate": 0.01
+    }
+  },
+  "usage_trends": {
+    "reads_last_24h": 157,
+    "reads_last_7d": 1094,
+    "most_accessed": [
+      {
+        "uri": "file:///docs/api.md",
+        "reads": 45,
+        "name": "API Documentation"
+      },
+      {
+        "uri": "file:///docs/config.md",
+        "reads": 32,
+        "name": "Configuration Guide"
+      }
+    ]
+  }
+}
+```
+
+### Error Handling
+
+All APIs return consistent error responses:
+
+**Error Response Format:**
+```json
+{
+  "error": {
+    "code": "RESOURCE_NOT_FOUND",
+    "message": "Resource not found",
+    "details": "The specified resource URI does not exist or is not accessible",
+    "timestamp": "2025-08-03T10:30:00Z",
+    "request_id": "req_123456789"
+  }
+}
+```
+
+**Common Error Codes:**
+- `RESOURCE_NOT_FOUND` (404): Resource does not exist
+- `RESOURCE_ACCESS_DENIED` (403): Access to resource denied
+- `INVALID_URI_FORMAT` (400): Malformed resource URI
+- `PROVIDER_UNAVAILABLE` (503): Resource provider is offline
+- `CONTENT_TOO_LARGE` (413): Resource content exceeds size limits
+- `UNSUPPORTED_MIME_TYPE` (415): MIME type not supported for operation
+
+### Usage Examples
+
+#### Complete Resource Management Workflow
+
+```bash
+# 1. Check system status
+curl -X GET "http://localhost:3001/dashboard/api/resources/management/status"
+
+# 2. List available resources
+curl -X GET "http://localhost:3001/dashboard/api/resources/management/resources?limit=10"
+
+# 3. Get details for specific resource
+curl -X GET "http://localhost:3001/dashboard/api/resources/management/resources/file%3A%2F%2F%2Fdocs%2Fapi.md"
+
+# 4. Read resource content
+curl -X POST "http://localhost:3001/dashboard/api/resources/management/resources/file%3A%2F%2F%2Fdocs%2Fapi.md/read" \
+     -H "Content-Type: application/json" \
+     -d '{"max_length": 1000}'
+
+# 5. Validate multiple resources
+curl -X POST "http://localhost:3001/dashboard/api/resources/management/validate" \
+     -H "Content-Type: application/json" \
+     -d '{"uris": ["file:///docs/api.md", "file:///docs/config.md"]}'
+
+# 6. Get usage statistics
+curl -X GET "http://localhost:3001/dashboard/api/resources/management/statistics"
+```
+
+#### Advanced Filtering and Search
+
+```bash
+# Filter by MIME type
+curl -X GET "http://localhost:3001/dashboard/api/resources/management/resources?mime_type_filter=text/markdown"
+
+# Search by content
+curl -X GET "http://localhost:3001/dashboard/api/resources/management/resources?filter=API&limit=5"
+
+# Paginated listing
+curl -X GET "http://localhost:3001/dashboard/api/resources/management/resources?limit=10&offset=20"
+```
+
 ## Future Enhancements
 
-1. **UI Management Interface**: Web-based prompt/resource management
+1. **UI Management Interface**: Web-based prompt/resource management with React components
 2. **Advanced Caching**: Redis/distributed caching for multi-instance deployments
 3. **Content Templates**: Reusable templates for common prompt patterns
-4. **Analytics Dashboard**: Usage analytics and generation metrics
+4. **Analytics Dashboard**: Usage analytics and generation metrics with real-time charts
 5. **Collaborative Editing**: Multi-user prompt/resource editing with conflict resolution
 6. **Content Marketplace**: Sharing and discovering prompts/resources across organizations
+7. **Advanced Resource APIs**: Content search, bulk operations, and batch processing
+8. **Resource Subscriptions**: WebSocket-based real-time resource change notifications
 
 ---
 
-*This system represents a major advancement in MCP content management, providing enterprise-grade features while maintaining simplicity and reliability.*
+*This system represents a major advancement in MCP content management, providing enterprise-grade features with comprehensive API access for modern application development.*

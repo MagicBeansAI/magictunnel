@@ -69,13 +69,28 @@ impl RegistryLoader {
             ProxyError::registry(format!("Failed to read file {}: {}", path.display(), e))
         })?;
 
-        let capability_file: CapabilityFile = serde_yaml::from_str(&content).map_err(|e| {
-            ProxyError::registry(format!("Failed to parse YAML file {}: {}", path.display(), e))
-        })?;
-
-        // Log format detection (enhanced format detection temporarily disabled)
-        debug!("Loaded capability file: {} (tools: {})", 
-               path.display(), capability_file.tool_count());
+        // Try to parse as enhanced format first, then fall back to legacy format
+        let capability_file = match self.parse_enhanced_capability_file(&content) {
+            Ok(capability_file) => {
+                debug!("Loaded enhanced format capability file: {} (tools: {})", 
+                       path.display(), capability_file.tool_count());
+                capability_file
+            }
+            Err(_enhanced_error) => {
+                // Fall back to legacy format parsing
+                debug!("Enhanced format parsing failed, trying legacy format for: {}", path.display());
+                let capability_file: CapabilityFile = serde_yaml::from_str(&content).map_err(|legacy_error| {
+                    ProxyError::registry(format!(
+                        "Failed to parse YAML file {} (tried both enhanced and legacy formats): {}", 
+                        path.display(), legacy_error
+                    ))
+                })?;
+                
+                debug!("Loaded legacy format capability file: {} (tools: {})", 
+                       path.display(), capability_file.tool_count());
+                capability_file
+            }
+        };
 
         // Validate if strict mode is enabled
         if self.config.validation.strict {
@@ -83,6 +98,83 @@ impl RegistryLoader {
         }
 
         Ok(capability_file)
+    }
+
+    /// Parse enhanced capability file format and convert to legacy format
+    fn parse_enhanced_capability_file(&self, content: &str) -> Result<CapabilityFile> {
+        // First try to detect if this is an enhanced format file
+        if !self.is_enhanced_format(content) {
+            return Err(ProxyError::registry("Not an enhanced format file".to_string()));
+        }
+
+        // Parse as enhanced format
+        let enhanced: EnhancedCapabilityFileRaw = serde_yaml::from_str(content)?;
+        
+        // Convert to legacy format
+        self.convert_enhanced_to_legacy(enhanced)
+    }
+
+    /// Check if content appears to be enhanced format
+    fn is_enhanced_format(&self, content: &str) -> bool {
+        // Look for enhanced format indicators
+        content.contains("core:") && 
+        content.contains("execution:") &&
+        (content.contains("# MCP 2025-06-18") || content.contains("mcp_capabilities:"))
+    }
+
+    /// Convert enhanced format to legacy format for internal processing
+    fn convert_enhanced_to_legacy(&self, enhanced: EnhancedCapabilityFileRaw) -> Result<CapabilityFile> {
+        debug!("Converting enhanced format to legacy format");
+        
+        // Convert enhanced tools to legacy format
+        let legacy_tools = enhanced.tools.into_iter().map(|enhanced_tool| {
+            // Extract routing from execution.routing or use default
+            let routing = if let Some(execution) = &enhanced_tool.execution {
+                if let Some(execution_routing) = &execution.routing {
+                    // Convert enhanced routing to legacy routing
+                    RoutingConfig {
+                        r#type: execution_routing.r#type.clone(),
+                        config: serde_json::to_value(&execution_routing.primary).unwrap_or_else(|_| {
+                            serde_json::json!({})
+                        })
+                    }
+                } else {
+                    enhanced_tool.routing.unwrap_or_else(|| {
+                        RoutingConfig::new("subprocess".to_string(), serde_json::json!({}))
+                    })
+                }
+            } else {
+                enhanced_tool.routing.unwrap_or_else(|| {
+                    RoutingConfig::new("subprocess".to_string(), serde_json::json!({}))
+                })
+            };
+
+            // Extract visibility settings from access section or use tool-level settings
+            let (hidden, enabled) = if let Some(access) = &enhanced_tool.access {
+                (access.hidden.unwrap_or(false), access.enabled.unwrap_or(true))
+            } else {
+                (enhanced_tool.hidden.unwrap_or(false), enhanced_tool.enabled.unwrap_or(true))
+            };
+
+            ToolDefinition {
+                name: enhanced_tool.name,
+                description: enhanced_tool.core.description,
+                input_schema: enhanced_tool.core.input_schema,
+                routing,
+                annotations: enhanced_tool.annotations,
+                hidden,
+                enabled,
+                prompt_refs: enhanced_tool.prompt_refs.unwrap_or_default(),
+                resource_refs: enhanced_tool.resource_refs.unwrap_or_default(),
+            }
+        }).collect();
+
+        Ok(CapabilityFile {
+            metadata: enhanced.metadata,
+            tools: legacy_tools,
+            enhanced_metadata: enhanced.enhanced_metadata,
+            enhanced_tools: None, // We don't preserve enhanced tools in legacy format
+        })
     }
 
     /// Discover and load all YAML files in a directory

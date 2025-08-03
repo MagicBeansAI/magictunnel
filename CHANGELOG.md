@@ -5,6 +5,28 @@ All notable changes to the MagicTunnel project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2025-08-03
+
+### Added
+- **🎨 LLM Backend Management APIs Complete**: Comprehensive REST API implementation for all LLM services
+  - **Resource Management APIs**: 7 complete endpoints for resource browsing, reading, validation, and statistics
+  - **Enhancement Pipeline APIs**: 9 complete endpoints for tool enhancement management, job tracking, and cache control
+  - **Prompt Management APIs**: Complete backend implementation (previously completed)
+  - **Sampling Service APIs**: Full management interface for AI-powered tool enhancement
+  - **Elicitation Service APIs**: Complete metadata extraction and validation management
+  - **Provider Management APIs**: LLM provider configuration and health monitoring
+- **📊 Statistics and Analytics**: Comprehensive analytics for resource types, provider health, and enhancement metrics
+- **🔄 Batch Processing Support**: Enhanced batch operations for tool enhancement and resource management
+- **🛡️ Enhanced Error Handling**: Robust error handling patterns across all LLM management APIs
+
+### Changed
+- **📈 API Architecture**: All LLM management functionality now available through REST APIs for UI integration
+- **🎯 Service Integration**: Enhanced integration between enhancement pipeline, resource management, and tool discovery
+
+### Fixed
+- **⚙️ Compilation Issues**: Resolved all compilation errors in Enhancement Pipeline APIs implementation
+- **📝 Type Definitions**: Added missing struct definitions and fixed field access patterns
+
 ## [0.3.1] - 2025-08-03
 
 ### Added

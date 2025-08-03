@@ -309,7 +309,8 @@ async fn hide_tool(config: &Config, tool_name: &str, file_path: Option<&PathBuf>
         let capability_files = discover_capability_files(config).await?;
         for file_path in &capability_files {
             let capability_file = load_capability_file(file_path)?;
-            if capability_file.get_tool(tool_name).is_some() {
+            // Check both enhanced and legacy tools
+            if capability_file.get_enhanced_tool(tool_name).is_some() || capability_file.get_tool(tool_name).is_some() {
                 return modify_tool_visibility(file_path, tool_name, true).await;
             }
         }
@@ -327,7 +328,8 @@ async fn show_tool(config: &Config, tool_name: &str, file_path: Option<&PathBuf>
         let capability_files = discover_capability_files(config).await?;
         for file_path in &capability_files {
             let capability_file = load_capability_file(file_path)?;
-            if capability_file.get_tool(tool_name).is_some() {
+            // Check both enhanced and legacy tools
+            if capability_file.get_enhanced_tool(tool_name).is_some() || capability_file.get_tool(tool_name).is_some() {
                 return modify_tool_visibility(file_path, tool_name, false).await;
             }
         }
@@ -410,10 +412,78 @@ fn load_capability_file(path: &PathBuf) -> Result<CapabilityFile> {
     let content = fs::read_to_string(path).map_err(|e| {
         ProxyError::registry(format!("Failed to read file {}: {}", path.display(), e))
     })?;
+    
+    // Try to parse as enhanced format first, then fall back to legacy format
+    match parse_enhanced_capability_file(&content) {
+        Ok(capability_file) => Ok(capability_file),
+        Err(_enhanced_error) => {
+            // Fall back to legacy format parsing
+            serde_yaml::from_str(&content).map_err(|legacy_error| {
+                ProxyError::registry(format!(
+                    "Failed to parse YAML file {} (tried both enhanced and legacy formats): {}", 
+                    path.display(), legacy_error
+                ))
+            })
+        }
+    }
+}
 
-    serde_yaml::from_str(&content).map_err(|e| {
-        ProxyError::registry(format!("Failed to parse YAML file {}: {}", path.display(), e))
-    })
+fn parse_enhanced_capability_file(content: &str) -> Result<CapabilityFile> {
+    use serde_yaml::Value;
+    use magictunnel::registry::types::{EnhancedToolDefinition, ToolDefinition, FileMetadata};
+    
+    // Parse as generic YAML first
+    let yaml_value: Value = serde_yaml::from_str(content).map_err(|e| {
+        ProxyError::registry(format!("Failed to parse YAML: {}", e))
+    })?;
+    
+    // Check if this looks like enhanced format by looking for core.description in tools
+    if let Some(Value::Sequence(tools)) = yaml_value.get("tools") {
+        if let Some(first_tool) = tools.first() {
+            if let Some(Value::Mapping(core)) = first_tool.get("core") {
+                if core.get("description").is_some() {
+                    // This looks like enhanced format, try to parse and convert
+                    return parse_and_convert_enhanced_format(&yaml_value);
+                }
+            }
+        }
+    }
+    
+    Err(ProxyError::registry("Not enhanced format".to_string()))
+}
+
+fn parse_and_convert_enhanced_format(yaml_value: &serde_yaml::Value) -> Result<CapabilityFile> {
+    use magictunnel::registry::types::{EnhancedToolDefinition, ToolDefinition, FileMetadata};
+    
+    // Extract metadata if present
+    let metadata = if let Some(metadata_value) = yaml_value.get("metadata") {
+        Some(serde_yaml::from_value(metadata_value.clone()).map_err(|e| {
+            ProxyError::registry(format!("Failed to parse metadata: {}", e))
+        })?)
+    } else {
+        None
+    };
+    
+    // Extract and convert enhanced tools
+    let enhanced_tools: Vec<EnhancedToolDefinition> = if let Some(tools_value) = yaml_value.get("tools") {
+        serde_yaml::from_value(tools_value.clone()).map_err(|e| {
+            ProxyError::registry(format!("Failed to parse enhanced tools: {}", e))
+        })?
+    } else {
+        Vec::new()
+    };
+    
+    // Convert enhanced tools to legacy format
+    let legacy_tools: Vec<ToolDefinition> = enhanced_tools.iter()
+        .map(|enhanced| enhanced.into())
+        .collect();
+    
+    // Create capability file with legacy tools for CLI manipulation
+    if let Some(metadata) = metadata {
+        CapabilityFile::with_metadata(metadata, legacy_tools)
+    } else {
+        CapabilityFile::new(legacy_tools)
+    }
 }
 
 async fn modify_file_visibility(file_path: &PathBuf, hidden: bool) -> Result<bool> {
