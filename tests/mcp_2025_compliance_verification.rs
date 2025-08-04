@@ -102,11 +102,9 @@ async fn test_method_handlers_accessibility() {
             ]
         })),
         ("elicitation/create", json!({
-            "message": "test",
-            "requested_schema": {
-                "type": "object",
-                "properties": {"name": {"type": "string"}}
-            }
+            "prompt": "test",
+            "inputType": "text",
+            "required": false
         })),
         ("roots/list", json!({})),
     ];

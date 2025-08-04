@@ -201,7 +201,7 @@ impl ElicitationService {
             return Err(e);
         }
 
-        // Validate schema
+        // Validate schema (always present in requested_schema)
         if let Err(e) = self.validate_schema(&request.requested_schema).await {
             return Err(e);
         }
@@ -270,7 +270,7 @@ impl ElicitationService {
         match response.action {
             ElicitationAction::Accept => {
                 if let Some(data) = &response.data {
-                    // Validate data against schema
+                    // Validate data against schema (using requested_schema)
                     if let Err(e) = self.validate_data_against_schema(data, &pending.request.requested_schema).await {
                         return Err(e);
                     }
@@ -521,7 +521,7 @@ impl ElicitationService {
                 if regex.is_match(&schema_str) {
                     return Err(ElicitationError {
                         code: ElicitationErrorCode::SecurityViolation,
-                        message: "Schema contains blocked patterns".to_string(),
+                        message: "Requested schema contains blocked patterns".to_string(),
                         details: Some(json!({
                             "pattern": pattern
                         }).as_object().unwrap().clone().into_iter().collect()),

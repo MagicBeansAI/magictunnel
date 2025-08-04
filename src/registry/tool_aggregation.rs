@@ -252,6 +252,8 @@ impl ToolAggregationService {
             enabled: true, // Aggregated tools are enabled by default
             prompt_refs: Vec::new(),
             resource_refs: Vec::new(),
+            sampling_strategy: None,
+            elicitation_strategy: None,
         })
     }
 }

@@ -236,6 +236,7 @@ mod security_tests {
             content_storage: None,
             external_content: None,
             enhancement_storage: None,
+            tool_enhancement: None,
         };
 
         let result = config.validate();

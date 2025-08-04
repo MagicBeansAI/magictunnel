@@ -4,7 +4,7 @@
 
 MagicTunnel is an intelligent bridge between MCP (Model Context Protocol) clients and diverse agents/endpoints. It provides a single, smart tool discovery interface that can find the right tool for any request, map parameters, and proxy the call automatically.
 
-**Current Version**: 0.3.2 - **LLM Backend APIs Complete** ✅
+**Current Version**: 0.3.4 - **Configuration Documentation and Test Infrastructure Complete** ✅
 
 ## Quick Start
 
@@ -76,7 +76,7 @@ MagicTunnel implements a **Smart Tool Discovery and Proxy** system that reduces 
 5. **Smart Tool Discovery System** (`src/discovery/`)
    - **THE CORE INNOVATION**: Single intelligent tool that discovers the right tool for any request
    - **Hybrid AI Intelligence**: Combines semantic search, rule-based matching, and LLM analysis
-   - **MCP 2025-06-18 Enhanced**: Uses sampling service for enhanced tool descriptions and elicitation service for metadata
+   - **MCP 2025-06-18 Enhanced**: Uses tool enhancement service for enhanced tool descriptions and elicitation service for metadata
    - **Parameter mapping**: Uses LLM to extract and map parameters from natural language with elicitation validation
    - **Confidence scoring**: Provides confidence scores for tool matches using enhanced descriptions
    - **Semantic Search**: Embedding-based tool matching using AI-enhanced descriptions
@@ -90,13 +90,13 @@ MagicTunnel implements a **Smart Tool Discovery and Proxy** system that reduces 
 
 The system provides **one intelligent tool** (`smart_tool_discovery`) that:
 1. Analyzes natural language requests using hybrid AI intelligence
-2. Finds the best matching tool using enhanced descriptions from MCP sampling service
+2. Finds the best matching tool using enhanced descriptions from tool enhancement service
 3. Maps parameters from natural language to tool schema with elicitation service validation
 4. Proxies the call to the actual tool
 5. Returns results with discovery metadata and enhancement information
 
 **MCP 2025-06-18 Integration:**
-- **Enhanced Descriptions**: Uses sampling service for AI-improved tool descriptions (better semantic matching)
+- **Enhanced Descriptions**: Uses tool enhancement service for AI-improved tool descriptions (better semantic matching)
 - **Rich Metadata**: Leverages elicitation service for extracted keywords, categories, and use cases
 - **Smart Fallback**: Gracefully degrades to base descriptions when enhancement services are unavailable
 - **Performance Optimization**: Caches enhanced content to maintain sub-second response times
@@ -179,7 +179,7 @@ curl -X POST http://localhost:3001/mcp/call \
 ### Version 0.3.2 (Current) - Advanced MCP Platform with LLM Integration ✅
 
 #### **🚀 MCP 2025-06-18 Specification Compliance (Backend Complete)**
-- **Full MCP 2025-06-18 Implementation**: Complete backend implementation of latest MCP spec with sampling and elicitation services
+- **Full MCP 2025-06-18 Implementation**: Complete backend implementation of latest MCP spec with MCP sampling and elicitation services
 - **OAuth 2.1 Framework**: Backend authentication implementation with PKCE and Resource Indicators (RFC 8707)
 - **Dual Transport Support**: HTTP+SSE (deprecated) and Streamable HTTP (preferred) with graceful migration
 - **Enhanced Security Model**: Backend MCP-specific consent flows and capability validation
@@ -231,6 +231,17 @@ curl -X POST http://localhost:3001/mcp/call \
 - **Enhanced Documentation**: Comprehensive documentation including automatic LLM generation workflow guide
 - **Claude Desktop Compatibility**: Fixed Claude not working issues with full MCP compliance
 - **Sequential Mode**: Enhanced sequential mode functionality
+
+### Version 0.3.4 (Current) - Configuration Documentation and Test Infrastructure ✅
+- **Complete LLM Backend APIs Test Coverage**: 60+ test functions across 6 test suites
+  - **Elicitation Service API Tests**: 10 comprehensive test functions covering metadata extraction and batch processing
+  - **Sampling Service API Tests**: 12 comprehensive test functions covering tool enhancement and content generation
+  - **Enhanced Resource Management API Tests**: 12 detailed test functions with filtering, pagination, and content reading
+  - **Enhanced Prompt Management API Tests**: 14 comprehensive test functions covering CRUD operations and template management
+  - **Enhanced Ranking and Discovery Tests**: 12 advanced test functions for updated ranking algorithms with LLM integration
+  - **LLM Backend APIs Integration Tests**: 5 comprehensive integration test functions across all services
+- **Test Infrastructure**: Complete API testing framework with realistic environments and comprehensive validation
+- **Quality Assurance**: Enterprise-grade test coverage for production deployment
 
 ### Version 0.2.x (Previous Releases)
 - **Smart Tool Discovery Complete**: Hybrid AI intelligence system
@@ -384,7 +395,7 @@ export MAGICTUNNEL_EMBEDDING_MODEL=text-embedding-3-small
 ### Implementation Status Overview
 
 #### **Backend Services Complete ✅**
-- ✅ **MCP 2025-06-18 Backend**: Full specification implementation with sampling and elicitation services
+- ✅ **MCP 2025-06-18 Backend**: Full specification implementation with MCP sampling and elicitation services
 - ✅ **Automatic LLM Generation**: AI-powered tool enhancement with multi-provider support (backend complete)
 - ✅ **LLM Backend Management APIs**: Complete REST API implementation for all LLM services (25+ endpoints)
 - ✅ **Security Framework**: Backend authentication, policy framework, and audit logging

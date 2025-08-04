@@ -140,6 +140,30 @@ external_mcp:
     network_mode: "bridge"          # Container network mode
     run_args: ["--rm", "-i"]        # Additional container run arguments
 
+  # MCP External Routing Configuration (MCP 2025-06-18)
+  # Configuration for routing to external MCP servers for sampling and elicitation requests
+  external_routing:
+    enabled: true                   # Enable MCP external routing for sampling/elicitation (env: EXTERNAL_MCP_ROUTING_ENABLED)
+    
+    # Sampling Request Routing Strategy
+    sampling:
+      strategy: "priority_with_fallback"  # Strategy: priority_with_fallback|round_robin|first_available (env: EXTERNAL_MCP_SAMPLING_STRATEGY)
+      priority_order:               # Priority order for sampling-capable servers (highest to lowest priority)
+        - "claude-mcp-server"       # Example: Premium external MCP server with advanced models
+        - "openai-mcp-server"       # Example: OpenAI-based MCP server
+        - "ollama-local"            # Example: Local Ollama MCP server
+      fallback_to_internal: true   # Fall back to internal sampling service if all external servers fail (env: EXTERNAL_MCP_SAMPLING_FALLBACK)
+      max_retry_attempts: 2         # Maximum retry attempts per server before trying next (env: EXTERNAL_MCP_SAMPLING_MAX_RETRIES)
+      timeout_seconds: 30           # Timeout for each sampling request (env: EXTERNAL_MCP_SAMPLING_TIMEOUT)
+    
+    # Elicitation Request Routing Strategy  
+    elicitation:
+      strategy: "first_available"   # Strategy for elicitation requests (env: EXTERNAL_MCP_ELICITATION_STRATEGY)
+      priority_order: []            # Custom priority order (empty = use discovery order)
+      fallback_to_internal: true   # Fall back to internal elicitation service (env: EXTERNAL_MCP_ELICITATION_FALLBACK)
+      max_retry_attempts: 1         # Elicitation typically needs fewer retries (env: EXTERNAL_MCP_ELICITATION_MAX_RETRIES)
+      timeout_seconds: 60           # Longer timeout for elicitation (may involve user interaction) (env: EXTERNAL_MCP_ELICITATION_TIMEOUT)
+
   # Note: External MCP uses the global conflict_resolution configuration below
 
 # =============================================================================

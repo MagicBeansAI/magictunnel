@@ -18,6 +18,63 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
+/// Strategy for handling sampling and elicitation requests from remote MCP servers
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum SamplingElicitationStrategy {
+    /// MagicTunnel handles the request using its own configured LLMs
+    MagictunnelHandled,
+    /// Forward the request to the original client (Claude Desktop, etc.)
+    ClientForwarded,
+    /// Try MagicTunnel first, fallback to client if MagicTunnel fails
+    MagictunnelFirst,
+    /// Try client first, fallback to MagicTunnel if client fails
+    ClientFirst,
+    /// Send to both simultaneously, return first successful response
+    Parallel,
+    /// Send to both, intelligently combine responses
+    Hybrid,
+}
+
+impl Default for SamplingElicitationStrategy {
+    fn default() -> Self {
+        SamplingElicitationStrategy::ClientForwarded
+    }
+}
+
+/// LLM configuration for MagicTunnel-handled sampling/elicitation requests
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlmConfig {
+    /// LLM provider (openai, anthropic, ollama)
+    pub provider: String,
+    /// Model to use (e.g., gpt-4, claude-3-opus, llama2)
+    pub model: String,
+    /// Environment variable name containing API key
+    pub api_key_env: Option<String>,
+    /// API base URL (for custom endpoints like Ollama)
+    pub api_base_url: Option<String>,
+    /// Maximum tokens for responses
+    pub max_tokens: Option<u32>,
+    /// Temperature for response generation
+    pub temperature: Option<f32>,
+    /// Additional provider-specific parameters
+    pub additional_params: Option<std::collections::HashMap<String, serde_json::Value>>,
+}
+
+impl Default for LlmConfig {
+    fn default() -> Self {
+        Self {
+            provider: "openai".to_string(),
+            model: "gpt-4o-mini".to_string(),
+            api_key_env: Some("OPENAI_API_KEY".to_string()),
+            api_base_url: None,
+            max_tokens: Some(4000),
+            temperature: Some(0.7),
+            additional_params: None,
+        }
+    }
+}
+
 /// Tool visibility configuration for Smart Tool Discovery
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VisibilityConfig {
@@ -70,6 +127,8 @@ pub struct Config {
     pub streamable_http: Option<StreamableHttpTransportConfig>,
     /// MCP 2025-06-18 Sampling service configuration
     pub sampling: Option<SamplingConfig>,
+    /// Tool Enhancement service configuration (renamed from sampling to avoid confusion)
+    pub tool_enhancement: Option<ToolEnhancementConfig>,
     /// MCP 2025-06-18 Elicitation service configuration
     pub elicitation: Option<ElicitationConfig>,
     /// Prompt generation service configuration
@@ -463,9 +522,39 @@ pub struct ExternalMcpConfig {
     pub refresh_interval_minutes: u64,
     /// Container runtime configuration
     pub containers: Option<ContainerConfig>,
+    /// MCP external routing configuration for routing requests to external servers
+    pub external_routing: Option<McpExternalRoutingConfig>,
 }
 
 
+
+/// MCP External Routing Configuration for routing requests to external servers (MCP 2025-06-18)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpExternalRoutingConfig {
+    /// Whether MCP external routing is enabled
+    pub enabled: bool,
+    /// Sampling request routing configuration
+    pub sampling: Option<ExternalRoutingStrategyConfig>,
+    /// Elicitation request routing configuration
+    pub elicitation: Option<ExternalRoutingStrategyConfig>,
+}
+
+/// Configuration for an external routing strategy (sampling or elicitation)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExternalRoutingStrategyConfig {
+    /// Default routing strategy for external MCP servers
+    pub default_strategy: SamplingElicitationStrategy,
+    /// Server-specific routing strategies (overrides default)
+    pub server_strategies: Option<std::collections::HashMap<String, SamplingElicitationStrategy>>,
+    /// Priority order for servers (highest to lowest priority)
+    pub priority_order: Vec<String>,
+    /// Whether to fall back to MagicTunnel LLM if all external servers and client forwarding fail
+    pub fallback_to_magictunnel: bool,
+    /// Maximum retry attempts per server before trying next
+    pub max_retry_attempts: u32,
+    /// Timeout for each request in seconds
+    pub timeout_seconds: u32,
+}
 
 /// Container runtime configuration for External MCP
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -493,6 +582,10 @@ pub struct McpServerConfig {
     pub env: Option<std::collections::HashMap<String, String>>,
     /// Working directory for the process
     pub cwd: Option<String>,
+    /// Sampling strategy for this specific server
+    pub sampling_strategy: Option<SamplingElicitationStrategy>,
+    /// Elicitation strategy for this specific server
+    pub elicitation_strategy: Option<SamplingElicitationStrategy>,
 }
 
 /// External MCP Servers Configuration (Claude Desktop format)
@@ -530,6 +623,10 @@ pub struct HttpServiceConfig {
     /// Retry delay in milliseconds
     #[serde(default = "default_retry_delay")]
     pub retry_delay_ms: u64,
+    /// Sampling strategy for this specific service
+    pub sampling_strategy: Option<SamplingElicitationStrategy>,
+    /// Elicitation strategy for this specific service
+    pub elicitation_strategy: Option<SamplingElicitationStrategy>,
     /// Connection pool max idle connections
     pub max_idle_connections: Option<usize>,
     /// Connection pool idle timeout in seconds
@@ -572,6 +669,10 @@ pub struct SseServiceConfig {
     /// Maximum reconnection delay in milliseconds
     #[serde(default = "default_max_reconnect_delay")]
     pub max_reconnect_delay_ms: u64,
+    /// Sampling strategy for this specific service
+    pub sampling_strategy: Option<SamplingElicitationStrategy>,
+    /// Elicitation strategy for this specific service
+    pub elicitation_strategy: Option<SamplingElicitationStrategy>,
 }
 
 /// WebSocket MCP Service Configuration (future)
@@ -595,6 +696,10 @@ pub struct WebSocketServiceConfig {
     /// Maximum reconnection attempts
     #[serde(default = "default_max_reconnect_attempts")]
     pub max_reconnect_attempts: u32,
+    /// Sampling strategy for this specific service
+    pub sampling_strategy: Option<SamplingElicitationStrategy>,
+    /// Elicitation strategy for this specific service
+    pub elicitation_strategy: Option<SamplingElicitationStrategy>,
 }
 
 /// HTTP Authentication Type
@@ -660,6 +765,7 @@ impl Default for ExternalMcpConfig {
             capabilities_output_dir: "./capabilities/external-mcp".to_string(),
             refresh_interval_minutes: 60,
             containers: Some(ContainerConfig::default()),
+            external_routing: None,
         }
     }
 }
@@ -779,6 +885,7 @@ impl Default for Config {
             security: None,
             streamable_http: None,
             sampling: None,
+            tool_enhancement: None,
             elicitation: None,
             prompt_generation: None,
             resource_generation: None,
@@ -2036,10 +2143,36 @@ impl Config {
             logging.validate()?;
         }
 
-        // Note: Legacy MCP proxy validation removed - use remote_mcp instead
+        // Validate streamable HTTP transport configuration if present
+        if let Some(ref streamable_http) = self.streamable_http {
+            streamable_http.validate()?;
+        }
+
+        // Validate sampling configuration if present
+        if let Some(ref sampling) = self.sampling {
+            sampling.validate()?;
+        }
+
+        // Validate elicitation configuration if present
+        if let Some(ref elicitation) = self.elicitation {
+            elicitation.validate()?;
+        }
+
+        // Validate external MCP configuration and routing if present
+        if let Some(ref external_mcp) = self.external_mcp {
+            if external_mcp.enabled {
+                // Validate external routing configuration
+                if let Some(ref external_routing) = external_mcp.external_routing {
+                    external_routing.validate(Some(external_mcp))?;
+                }
+            }
+        }
 
         // Cross-validation checks
         self.validate_cross_dependencies()?;
+
+        // Validate routing strategy dependencies
+        self.validate_routing_strategy_dependencies()?;
 
         Ok(())
     }
@@ -2091,6 +2224,90 @@ impl Config {
                     AuthType::None => {
                         // No additional validation needed for "none" type
                     }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate routing strategy dependencies and LLM configuration requirements
+    fn validate_routing_strategy_dependencies(&self) -> Result<()> {
+        // Collect all strategies that require LLM configuration
+        let mut requires_llm = false;
+        let mut llm_requiring_configs = Vec::new();
+
+        // Check sampling configuration
+        if let Some(ref sampling) = self.sampling {
+            if sampling.requires_llm_config() {
+                requires_llm = true;
+                llm_requiring_configs.push("sampling service");
+            }
+        }
+
+        // Check elicitation configuration
+        if let Some(ref elicitation) = self.elicitation {
+            if elicitation.requires_llm_config() {
+                requires_llm = true;
+                llm_requiring_configs.push("elicitation service");
+            }
+        }
+
+        // Check external MCP routing configuration
+        if let Some(ref external_mcp) = self.external_mcp {
+            if let Some(ref external_routing) = external_mcp.external_routing {
+                if external_routing.requires_llm_config() {
+                    requires_llm = true;
+                    llm_requiring_configs.push("external MCP routing");
+                }
+            }
+        }
+
+        // If any configuration requires LLM, validate that LLM config is properly set up
+        if requires_llm {
+            // Check if sampling service has LLM config (primary location)
+            let has_sampling_llm = self.sampling
+                .as_ref()
+                .and_then(|s| s.llm_config.as_ref())
+                .is_some();
+
+            // Check if external MCP routing configs have their own LLM fallback
+            let has_external_routing_fallback = self.external_mcp
+                .as_ref()
+                .and_then(|e| e.external_routing.as_ref())
+                .map(|routing| {
+                    routing.sampling.as_ref().map_or(false, |s| s.fallback_to_magictunnel) ||
+                    routing.elicitation.as_ref().map_or(false, |e| e.fallback_to_magictunnel)
+                })
+                .unwrap_or(false);
+
+            if !has_sampling_llm && (requires_llm || has_external_routing_fallback) {
+                return Err(ProxyError::config(format!(
+                    "LLM configuration is required but not provided. Services requiring LLM config: {}. \
+                     Please configure 'sampling.llm_config' section with provider, model, and API key settings.",
+                    llm_requiring_configs.join(", ")
+                )));
+            }
+
+            // Validate the LLM config if present
+            if let Some(ref sampling) = self.sampling {
+                if let Some(ref llm_config) = sampling.llm_config {
+                    llm_config.validate()?;
+                }
+            }
+        }
+
+        // Validate server references in external routing if external MCP is configured
+        if let Some(ref external_mcp) = self.external_mcp {
+            if external_mcp.enabled {
+                if let Some(ref external_routing) = external_mcp.external_routing {
+                    // For now, we'll skip server reference validation since we'd need to
+                    // load the external MCP servers config file. This could be added
+                    // as a future enhancement.
+                    
+                    // Placeholder for future server reference validation:
+                    // let available_servers = self.load_external_server_names(external_mcp)?;
+                    // external_routing.validate_server_references(&available_servers)?;
                 }
             }
         }
@@ -2220,9 +2437,35 @@ pub struct SamplingConfig {
     pub enabled: bool,
     pub default_model: String,
     pub max_tokens_limit: u32,
+    /// Default sampling/elicitation routing strategy for the entire server
+    pub default_sampling_strategy: Option<SamplingElicitationStrategy>,
+    pub default_elicitation_strategy: Option<SamplingElicitationStrategy>,
+    /// LLM configuration for MagicTunnel-handled requests
+    pub llm_config: Option<LlmConfig>,
 }
 
 impl Default for SamplingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            default_model: "gpt-4o-mini".to_string(),
+            max_tokens_limit: 4000,
+            default_sampling_strategy: Some(SamplingElicitationStrategy::ClientForwarded),
+            default_elicitation_strategy: Some(SamplingElicitationStrategy::ClientForwarded),
+            llm_config: None,
+        }
+    }
+}
+
+/// Tool Enhancement service configuration (renamed from sampling to avoid confusion with MCP sampling)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolEnhancementConfig {
+    pub enabled: bool,
+    pub default_model: String,
+    pub max_tokens_limit: u32,
+}
+
+impl Default for ToolEnhancementConfig {
     fn default() -> Self {
         Self {
             enabled: false,
@@ -2238,6 +2481,14 @@ pub struct ElicitationConfig {
     pub enabled: bool,
     pub max_schema_complexity: String,
     pub default_timeout_seconds: u32,
+    /// Default elicitation routing strategy for the entire server
+    pub default_elicitation_strategy: Option<SamplingElicitationStrategy>,
+    /// Whether to respect external MCP server elicitation authority (default: true)
+    pub respect_external_authority: bool,
+    /// Whether to allow per-tool override of elicitation authority (default: true)
+    pub allow_tool_override: bool,
+    /// Whether to enable local elicitation for hybrid tools (default: false)
+    pub enable_hybrid_elicitation: bool,
 }
 
 impl Default for ElicitationConfig {
@@ -2246,6 +2497,412 @@ impl Default for ElicitationConfig {
             enabled: false,
             max_schema_complexity: "WithArrays".to_string(),  
             default_timeout_seconds: 300,
+            default_elicitation_strategy: Some(SamplingElicitationStrategy::ClientForwarded),
+            respect_external_authority: true,  // Respect external MCP servers by default
+            allow_tool_override: true,         // Allow per-tool configuration override
+            enable_hybrid_elicitation: false,  // Disable hybrid elicitation by default
         }
+    }
+}
+
+impl SamplingElicitationStrategy {
+    /// Validate that the strategy is properly configured
+    pub fn validate(&self) -> Result<()> {
+        // All enum variants are valid by definition
+        Ok(())
+    }
+
+    /// Check if this strategy requires MagicTunnel LLM configuration
+    pub fn requires_llm_config(&self) -> bool {
+        matches!(
+            self,
+            SamplingElicitationStrategy::MagictunnelHandled
+                | SamplingElicitationStrategy::MagictunnelFirst
+                | SamplingElicitationStrategy::Parallel
+                | SamplingElicitationStrategy::Hybrid
+        )
+    }
+
+    /// Check if this strategy requires client forwarding capability
+    pub fn requires_client_forwarding(&self) -> bool {
+        matches!(
+            self,
+            SamplingElicitationStrategy::ClientForwarded
+                | SamplingElicitationStrategy::ClientFirst
+                | SamplingElicitationStrategy::Parallel
+                | SamplingElicitationStrategy::Hybrid
+        )
+    }
+}
+
+impl LlmConfig {
+    /// Validate LLM configuration
+    pub fn validate(&self) -> Result<()> {
+        // Validate provider
+        match self.provider.to_lowercase().as_str() {
+            "openai" | "anthropic" | "ollama" => {}
+            _ => {
+                return Err(ProxyError::config(format!(
+                    "Unsupported LLM provider: '{}'. Supported providers: openai, anthropic, ollama",
+                    self.provider
+                )));
+            }
+        }
+
+        // Validate model name is not empty
+        if self.model.is_empty() {
+            return Err(ProxyError::config("LLM model name cannot be empty"));
+        }
+
+        // Validate API key environment variable if provider requires it
+        match self.provider.to_lowercase().as_str() {
+            "openai" | "anthropic" => {
+                if self.api_key_env.is_none() {
+                    return Err(ProxyError::config(format!(
+                        "LLM provider '{}' requires an API key environment variable",
+                        self.provider
+                    )));
+                }
+                if let Some(ref env_var) = self.api_key_env {
+                    if env_var.is_empty() {
+                        return Err(ProxyError::config(
+                            "LLM API key environment variable name cannot be empty"
+                        ));
+                    }
+                }
+            }
+            "ollama" => {
+                // Ollama doesn't require API key, but validate base URL if provided
+                if let Some(ref base_url) = self.api_base_url {
+                    if !base_url.starts_with("http://") && !base_url.starts_with("https://") {
+                        return Err(ProxyError::config(format!(
+                            "LLM API base URL must start with http:// or https://: '{}'",
+                            base_url
+                        )));
+                    }
+                }
+            }
+            _ => {} // Already validated above
+        }
+
+        // Validate max_tokens if provided
+        if let Some(max_tokens) = self.max_tokens {
+            if max_tokens == 0 {
+                return Err(ProxyError::config("LLM max_tokens must be greater than 0"));
+            }
+            if max_tokens > 100_000 {
+                return Err(ProxyError::config(
+                    "LLM max_tokens cannot exceed 100,000 tokens"
+                ));
+            }
+        }
+
+        // Validate temperature if provided
+        if let Some(temperature) = self.temperature {
+            if temperature < 0.0 || temperature > 2.0 {
+                return Err(ProxyError::config(
+                    "LLM temperature must be between 0.0 and 2.0"
+                ));
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl ExternalRoutingStrategyConfig {
+    /// Validate external routing strategy configuration
+    pub fn validate(&self, context: &str) -> Result<()> {
+        // Validate default strategy
+        self.default_strategy.validate()?;
+
+        // Validate server-specific strategies if provided
+        if let Some(ref server_strategies) = self.server_strategies {
+            for (server_name, strategy) in server_strategies {
+                if server_name.is_empty() {
+                    return Err(ProxyError::config(format!(
+                        "{} routing: server name in server_strategies cannot be empty",
+                        context
+                    )));
+                }
+                strategy.validate()?;
+            }
+        }
+
+        // Validate priority order
+        if self.priority_order.is_empty() {
+            return Err(ProxyError::config(format!(
+                "{} routing: priority_order cannot be empty",
+                context
+            )));
+        }
+
+        for (index, server_name) in self.priority_order.iter().enumerate() {
+            if server_name.is_empty() {
+                return Err(ProxyError::config(format!(
+                    "{} routing: server name at priority index {} cannot be empty",
+                    context, index
+                )));
+            }
+        }
+
+        // Check for duplicate servers in priority order
+        let mut seen_servers = std::collections::HashSet::new();
+        for server_name in &self.priority_order {
+            if !seen_servers.insert(server_name) {
+                return Err(ProxyError::config(format!(
+                    "{} routing: duplicate server '{}' found in priority_order",
+                    context, server_name
+                )));
+            }
+        }
+
+        // Validate retry attempts
+        if self.max_retry_attempts > 10 {
+            return Err(ProxyError::config(format!(
+                "{} routing: max_retry_attempts cannot exceed 10",
+                context
+            )));
+        }
+
+        // Validate timeout
+        if self.timeout_seconds == 0 {
+            return Err(ProxyError::config(format!(
+                "{} routing: timeout_seconds must be greater than 0",
+                context
+            )));
+        }
+
+        if self.timeout_seconds > 3600 {
+            return Err(ProxyError::config(format!(
+                "{} routing: timeout_seconds cannot exceed 3600 seconds (1 hour)",
+                context
+            )));
+        }
+
+        Ok(())
+    }
+
+    /// Check if this configuration requires LLM setup
+    pub fn requires_llm_config(&self) -> bool {
+        // Check default strategy
+        if self.default_strategy.requires_llm_config() || self.fallback_to_magictunnel {
+            return true;
+        }
+
+        // Check server-specific strategies
+        if let Some(ref server_strategies) = self.server_strategies {
+            for strategy in server_strategies.values() {
+                if strategy.requires_llm_config() {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
+    /// Validate that referenced servers exist in the given server list
+    pub fn validate_server_references(&self, available_servers: &[String], context: &str) -> Result<()> {
+        // Validate servers in priority order exist
+        for server_name in &self.priority_order {
+            if !available_servers.contains(server_name) {
+                return Err(ProxyError::config(format!(
+                    "{} routing: server '{}' in priority_order is not defined in external MCP servers",
+                    context, server_name
+                )));
+            }
+        }
+
+        // Validate servers in server_strategies exist
+        if let Some(ref server_strategies) = self.server_strategies {
+            for server_name in server_strategies.keys() {
+                if !available_servers.contains(server_name) {
+                    return Err(ProxyError::config(format!(
+                        "{} routing: server '{}' in server_strategies is not defined in external MCP servers",
+                        context, server_name
+                    )));
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl McpExternalRoutingConfig {
+    /// Validate MCP external routing configuration
+    pub fn validate(&self, external_mcp_config: Option<&ExternalMcpConfig>) -> Result<()> {
+        if !self.enabled {
+            return Ok(());
+        }
+
+        // Check if external MCP is enabled when routing is enabled
+        if external_mcp_config.map_or(true, |config| !config.enabled) {
+            return Err(ProxyError::config(
+                "MCP external routing is enabled but external_mcp is not enabled or configured"
+            ));
+        }
+
+        // Validate sampling configuration if present
+        if let Some(ref sampling_config) = self.sampling {
+            sampling_config.validate("Sampling")?;
+        }
+
+        // Validate elicitation configuration if present
+        if let Some(ref elicitation_config) = self.elicitation {
+            elicitation_config.validate("Elicitation")?;
+        }
+
+        Ok(())
+    }
+
+    /// Check if this configuration requires LLM setup
+    pub fn requires_llm_config(&self) -> bool {
+        if !self.enabled {
+            return false;
+        }
+
+        if let Some(ref sampling_config) = self.sampling {
+            if sampling_config.requires_llm_config() {
+                return true;
+            }
+        }
+
+        if let Some(ref elicitation_config) = self.elicitation {
+            if elicitation_config.requires_llm_config() {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Validate server references against available external servers
+    pub fn validate_server_references(&self, available_servers: &[String]) -> Result<()> {
+        if !self.enabled {
+            return Ok(());
+        }
+
+        if let Some(ref sampling_config) = self.sampling {
+            sampling_config.validate_server_references(available_servers, "Sampling")?;
+        }
+
+        if let Some(ref elicitation_config) = self.elicitation {
+            elicitation_config.validate_server_references(available_servers, "Elicitation")?;
+        }
+
+        Ok(())
+    }
+}
+
+impl SamplingConfig {
+    /// Validate sampling configuration
+    pub fn validate(&self) -> Result<()> {
+        if !self.enabled {
+            return Ok(());
+        }
+
+        // Validate default model
+        if self.default_model.is_empty() {
+            return Err(ProxyError::config("Sampling default model cannot be empty"));
+        }
+
+        // Validate max tokens limit
+        if self.max_tokens_limit == 0 {
+            return Err(ProxyError::config("Sampling max tokens limit must be greater than 0"));
+        }
+
+        if self.max_tokens_limit > 100_000 {
+            return Err(ProxyError::config("Sampling max tokens limit cannot exceed 100,000"));
+        }
+
+        // Validate default strategies if provided
+        if let Some(ref strategy) = self.default_sampling_strategy {
+            strategy.validate()?;
+        }
+
+        if let Some(ref strategy) = self.default_elicitation_strategy {
+            strategy.validate()?;
+        }
+
+        // Validate LLM config if provided
+        if let Some(ref llm_config) = self.llm_config {
+            llm_config.validate()?;
+        }
+
+        Ok(())
+    }
+
+    /// Check if this configuration requires LLM setup
+    pub fn requires_llm_config(&self) -> bool {
+        if !self.enabled {
+            return false;
+        }
+
+        if let Some(ref strategy) = self.default_sampling_strategy {
+            if strategy.requires_llm_config() {
+                return true;
+            }
+        }
+
+        if let Some(ref strategy) = self.default_elicitation_strategy {
+            if strategy.requires_llm_config() {
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
+impl ElicitationConfig {
+    /// Validate elicitation configuration
+    pub fn validate(&self) -> Result<()> {
+        if !self.enabled {
+            return Ok(());
+        }
+
+        // Validate max schema complexity
+        match self.max_schema_complexity.as_str() {
+            "Simple" | "WithArrays" | "WithObjects" | "WithNestedObjects" | "Complex" => {}
+            _ => {
+                return Err(ProxyError::config(format!(
+                    "Invalid elicitation max schema complexity: '{}'. Valid values: Simple, WithArrays, WithObjects, WithNestedObjects, Complex",
+                    self.max_schema_complexity
+                )));
+            }
+        }
+
+        // Validate default timeout
+        if self.default_timeout_seconds == 0 {
+            return Err(ProxyError::config("Elicitation default timeout must be greater than 0"));
+        }
+
+        if self.default_timeout_seconds > 3600 {
+            return Err(ProxyError::config("Elicitation default timeout cannot exceed 3600 seconds (1 hour)"));
+        }
+
+        // Validate default strategy if provided
+        if let Some(ref strategy) = self.default_elicitation_strategy {
+            strategy.validate()?;
+        }
+
+        Ok(())
+    }
+
+    /// Check if this configuration requires LLM setup
+    pub fn requires_llm_config(&self) -> bool {
+        if !self.enabled {
+            return false;
+        }
+
+        if let Some(ref strategy) = self.default_elicitation_strategy {
+            if strategy.requires_llm_config() {
+                return true;
+            }
+        }
+
+        false
     }
 }

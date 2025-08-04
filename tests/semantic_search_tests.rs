@@ -52,6 +52,8 @@ fn create_test_tools() -> Vec<ToolDefinition> {
             hidden: false,
             prompt_refs: Vec::new(),
             resource_refs: Vec::new(),
+            sampling_strategy: None,
+            elicitation_strategy: None,
         },
         ToolDefinition {
             name: "search_files".to_string(),
@@ -73,6 +75,8 @@ fn create_test_tools() -> Vec<ToolDefinition> {
             hidden: false,
             prompt_refs: Vec::new(),
             resource_refs: Vec::new(),
+            sampling_strategy: None,
+            elicitation_strategy: None,
         },
         ToolDefinition {
             name: "database_query".to_string(),
@@ -93,6 +97,8 @@ fn create_test_tools() -> Vec<ToolDefinition> {
             hidden: false,
             prompt_refs: Vec::new(),
             resource_refs: Vec::new(),
+            sampling_strategy: None,
+            elicitation_strategy: None,
         },
         ToolDefinition {
             name: "api_request".to_string(),
@@ -114,6 +120,8 @@ fn create_test_tools() -> Vec<ToolDefinition> {
             hidden: true, // Hidden tool
             prompt_refs: Vec::new(),
             resource_refs: Vec::new(),
+            sampling_strategy: None,
+            elicitation_strategy: None,
         },
     ]
 }

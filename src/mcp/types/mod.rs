@@ -1,4 +1,6 @@
-//! MCP protocol types and structures
+//! MCP types and structures
+//!
+//! This module contains all type definitions for MCP protocol implementation
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -6,17 +8,16 @@ use jsonschema::{JSONSchema, ValidationError};
 use crate::error::Result;
 use crate::mcp::errors::McpError;
 
-// Re-export sampling types
 pub mod sampling;
-pub use sampling::*;
-
-// Re-export elicitation types
 pub mod elicitation;
-pub use elicitation::*;
-
-// Re-export roots types
 pub mod roots;
+pub mod tool_enhancement;
+
+// Re-export commonly used types for convenience
+pub use sampling::*;
+pub use elicitation::*;
 pub use roots::*;
+pub use tool_enhancement::*;
 
 /// MCP Tool definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -983,8 +984,6 @@ pub struct McpResponse {
     /// Error (if failed)
     pub error: Option<McpError>,
 }
-
-// MCP Error is now defined in src/mcp/errors.rs for proper MCP compliance
 
 // ============================================================================
 // MCP Logging Types

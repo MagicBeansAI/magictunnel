@@ -53,9 +53,9 @@ async fn test_capabilities_declaration() {
     assert!(caps["logging"].is_object(), "logging capability must be present");
 }
 
-/// Test that sampling service is properly integrated
+/// Test that MCP sampling service is properly integrated
 #[tokio::test]
-async fn test_sampling_service_integration() {
+async fn test_mcp_sampling_service_integration() {
     let server = create_test_server().await.unwrap();
     
     // Create a minimal sampling request to test if the handler is registered
@@ -104,13 +104,9 @@ async fn test_elicitation_service_integration() {
         "id": "test-elicitation-basic",
         "method": "elicitation/create",
         "params": {
-            "message": "Please provide a name",
-            "requested_schema": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string"}
-                }
-            }
+            "prompt": "Please provide a name",
+            "inputType": "text",
+            "required": false
         }
     });
     
@@ -304,7 +300,7 @@ async fn test_complete_workflow() {
     // 2. Test each capability endpoint exists (even if not fully functional without config)
     let endpoints = vec![
         ("sampling/createMessage", json!({"messages": []})),
-        ("elicitation/create", json!({"message": "test", "requested_schema": {"type": "object"}})),
+        ("elicitation/create", json!({"prompt": "test", "inputType": "text", "required": false})),
         ("roots/list", json!({})),
     ];
     

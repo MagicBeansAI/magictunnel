@@ -2,6 +2,7 @@
 
 use crate::mcp::Tool;
 use crate::mcp::types::ToolAnnotations;
+use crate::config::SamplingElicitationStrategy;
 use crate::error::{ProxyError, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -234,6 +235,10 @@ pub struct ToolDefinition {
     /// Generated resource references for this tool
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub resource_refs: Vec<ResourceReference>,
+    /// Sampling strategy override for this specific tool
+    pub sampling_strategy: Option<SamplingElicitationStrategy>,
+    /// Elicitation strategy override for this specific tool
+    pub elicitation_strategy: Option<SamplingElicitationStrategy>,
 }
 
 impl ToolDefinition {
@@ -252,6 +257,8 @@ impl ToolDefinition {
             enabled: true, // Default to enabled
             prompt_refs: Vec::new(), // No prompts initially
             resource_refs: Vec::new(), // No resources initially
+            sampling_strategy: None, // Use server default
+            elicitation_strategy: None, // Use server default
         };
         definition.validate()?;
         Ok(definition)
@@ -275,6 +282,8 @@ impl ToolDefinition {
             enabled: true, // Default to enabled
             prompt_refs: Vec::new(), // No prompts initially
             resource_refs: Vec::new(), // No resources initially
+            sampling_strategy: None, // Use server default
+            elicitation_strategy: None, // Use server default
         };
         definition.validate()?;
         Ok(definition)
@@ -300,6 +309,8 @@ impl ToolDefinition {
             enabled,
             prompt_refs: Vec::new(), // No prompts initially
             resource_refs: Vec::new(), // No resources initially
+            sampling_strategy: None, // Use server default
+            elicitation_strategy: None, // Use server default
         };
         definition.validate()?;
         Ok(definition)
@@ -828,6 +839,10 @@ pub struct EnhancedToolDefinition {
     pub monitoring: MonitoringConfig,
     /// Access control configuration
     pub access: AccessConfig,
+    /// Sampling strategy override for this specific tool
+    pub sampling_strategy: Option<SamplingElicitationStrategy>,
+    /// Elicitation strategy override for this specific tool
+    pub elicitation_strategy: Option<SamplingElicitationStrategy>,
 }
 
 /// Core tool definition
@@ -1126,6 +1141,8 @@ impl EnhancedToolDefinition {
             discovery,
             monitoring,
             access,
+            sampling_strategy: None, // Use server default
+            elicitation_strategy: None, // Use server default
         };
         tool.validate()?;
         Ok(tool)
@@ -1179,6 +1196,8 @@ impl From<&EnhancedToolDefinition> for ToolDefinition {
                 enabled: enhanced.access.enabled,
                 prompt_refs: Vec::new(), // No prompts initially
                 resource_refs: Vec::new(), // No resources initially
+                sampling_strategy: enhanced.sampling_strategy.clone(),
+                elicitation_strategy: enhanced.elicitation_strategy.clone(),
             }
         })
     }
@@ -1342,6 +1361,10 @@ pub struct EnhancedToolDefinitionRaw {
     pub prompt_refs: Option<Vec<PromptReference>>,
     /// Generated resource references for this tool
     pub resource_refs: Option<Vec<ResourceReference>>,
+    /// Sampling strategy override for this specific tool
+    pub sampling_strategy: Option<SamplingElicitationStrategy>,
+    /// Elicitation strategy override for this specific tool
+    pub elicitation_strategy: Option<SamplingElicitationStrategy>,
 }
 
 /// Raw execution configuration for parsing

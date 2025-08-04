@@ -28,8 +28,10 @@ async fn create_test_server_with_2025_capabilities() -> Result<Arc<McpServer>, B
         semantic_search: magictunnel::discovery::SemanticSearchConfig::default(),
         enable_sequential_mode: true,
         tool_metrics_enabled: Some(true),
-        enable_sampling: Some(false),
-        enable_elicitation: Some(false),
+        enable_sampling: Some(true),
+        enable_elicitation: Some(true),
+        default_sampling_strategy: None,
+        default_elicitation_strategy: None,
     });
     
     // Set up registry config
@@ -157,7 +159,7 @@ async fn test_sampling_invalid_parameters() {
 
 /// Test elicitation/create handler with valid schema
 #[tokio::test]
-async fn test_elicitation_create_handler() {
+async fn test_elicitation_request_input_handler() {
     let server = create_test_server_with_2025_capabilities().await.unwrap();
     
     let elicitation_request = json!({
@@ -165,33 +167,9 @@ async fn test_elicitation_create_handler() {
         "id": "test-elicitation-1",
         "method": "elicitation/create",
         "params": {
-            "message": "Please provide your basic information",
-            "requested_schema": {
-                "type": "object",
-                "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "Your full name"
-                    },
-                    "age": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 150
-                    },
-                    "email": {
-                        "type": "string",
-                        "format": "email"
-                    }
-                },
-                "required": ["name"]
-            },
-            "context": {
-                "source": "user_registration",
-                "reason": "Complete user profile",
-                "privacy_level": "internal"
-            },
-            "timeout_seconds": 300,
-            "priority": "normal"
+            "prompt": "Please provide your basic information",
+            "inputType": "text",
+            "required": true
         }
     });
     
@@ -225,8 +203,10 @@ async fn test_elicitation_nested_schema_rejection() {
         "id": "test-elicitation-nested",
         "method": "elicitation/create",
         "params": {
-            "message": "Please provide complex nested data",
-            "requested_schema": {
+            "prompt": "Please provide complex nested data",
+            "inputType": "object",
+            "required": true,
+            "validation": {
                 "type": "object",
                 "properties": {
                     "user": {

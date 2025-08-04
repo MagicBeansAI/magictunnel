@@ -55,6 +55,8 @@ fn create_valid_tool(name: &str, description: &str) -> ToolDefinition {
         enabled: true, // Test tools are enabled by default
         prompt_refs: Vec::new(),
         resource_refs: Vec::new(),
+        sampling_strategy: None, // Use default strategy
+        elicitation_strategy: None, // Use default strategy
     }
 }
 
@@ -78,6 +80,8 @@ fn create_invalid_tool() -> ToolDefinition {
         enabled: true, // Test tools are enabled by default
         prompt_refs: Vec::new(),
         resource_refs: Vec::new(),
+        sampling_strategy: None, // Use default strategy
+        elicitation_strategy: None, // Use default strategy
     }
 }
 

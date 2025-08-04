@@ -2,7 +2,8 @@
 
 use magictunnel::config::{
     Config, ServerConfig, RegistryConfig, ValidationConfig, AuthConfig, LoggingConfig, OAuthConfig,
-    McpServerConfig, McpClientConfig, ExternalMcpConfig
+    McpServerConfig, McpClientConfig, ExternalMcpConfig, SamplingElicitationStrategy, LlmConfig,
+    ExternalRoutingStrategyConfig, McpExternalRoutingConfig, SamplingConfig, ElicitationConfig
 };
 
 use std::env;
@@ -275,6 +276,7 @@ fn test_cross_dependency_validation() {
         security: None,
         streamable_http: None,
         sampling: None,
+        tool_enhancement: None,
         elicitation: None,
         prompt_generation: None,
         resource_generation: None,
@@ -309,6 +311,7 @@ fn test_cross_dependency_validation() {
         security: None,
         streamable_http: None,
         sampling: None,
+        tool_enhancement: None,
         elicitation: None,
         prompt_generation: None,
         resource_generation: None,
@@ -368,6 +371,7 @@ fn test_external_mcp_config_validation() {
         capabilities_output_dir: "./capabilities".to_string(),
         refresh_interval_minutes: 60,
         containers: None,
+        external_routing: None,
     };
     // Note: ExternalMcpConfig doesn't have a validate method in the current implementation
     // Validation is done at the overall Config level
@@ -385,6 +389,7 @@ fn test_external_mcp_config_validation() {
             network_mode: Some("bridge".to_string()),
             run_args: vec!["--rm".to_string()],
         }),
+        external_routing: None,
     };
     // This should be valid
 
@@ -395,6 +400,7 @@ fn test_external_mcp_config_validation() {
         capabilities_output_dir: "./capabilities".to_string(),
         refresh_interval_minutes: 60,
         containers: None,
+        external_routing: None,
     };
     // This should be valid even when disabled
 }
@@ -407,6 +413,8 @@ fn test_mcp_server_config_validation() {
         args: vec!["-y".to_string(), "@modelcontextprotocol/server-filesystem".to_string(), "/tmp".to_string()],
         env: None,
         cwd: None,
+        sampling_strategy: None,
+        elicitation_strategy: None,
     };
     // Note: McpServerConfig doesn't have a validate method in the new format
     // It's validated as part of the overall configuration
@@ -417,6 +425,8 @@ fn test_mcp_server_config_validation() {
         args: vec!["arg1".to_string()],
         env: None,
         cwd: None,
+        sampling_strategy: None,
+        elicitation_strategy: None,
     };
     // This would be caught during configuration validation
 
@@ -429,6 +439,8 @@ fn test_mcp_server_config_validation() {
         args: vec!["server.js".to_string()],
         env: Some(env_vars),
         cwd: Some("/app".to_string()),
+        sampling_strategy: None,
+        elicitation_strategy: None,
     };
     // This should be valid
 
@@ -438,6 +450,8 @@ fn test_mcp_server_config_validation() {
         args: vec!["-m", "mcp_server"].iter().map(|s| s.to_string()).collect(),
         env: None,
         cwd: Some("/home/user/mcp".to_string()),
+        sampling_strategy: None,
+        elicitation_strategy: None,
     };
     // This should be valid
 }
@@ -521,4 +535,194 @@ fn test_mcp_client_config_validation() {
         client_version: "0.3.0".to_string(),
     };
     assert!(invalid_config.validate().is_err());
+}
+
+#[test]
+fn test_sampling_elicitation_strategy_validation() {
+    // Test all strategy variants are valid
+    assert!(SamplingElicitationStrategy::MagictunnelHandled.validate().is_ok());
+    assert!(SamplingElicitationStrategy::ClientForwarded.validate().is_ok());
+    assert!(SamplingElicitationStrategy::MagictunnelFirst.validate().is_ok());
+    assert!(SamplingElicitationStrategy::ClientFirst.validate().is_ok());
+    assert!(SamplingElicitationStrategy::Parallel.validate().is_ok());
+    assert!(SamplingElicitationStrategy::Hybrid.validate().is_ok());
+
+    // Test LLM requirement detection
+    assert!(SamplingElicitationStrategy::MagictunnelHandled.requires_llm_config());
+    assert!(!SamplingElicitationStrategy::ClientForwarded.requires_llm_config());
+    assert!(SamplingElicitationStrategy::MagictunnelFirst.requires_llm_config());
+    assert!(!SamplingElicitationStrategy::ClientFirst.requires_llm_config());
+    assert!(SamplingElicitationStrategy::Parallel.requires_llm_config());
+    assert!(SamplingElicitationStrategy::Hybrid.requires_llm_config());
+
+    // Test client forwarding requirement detection
+    assert!(!SamplingElicitationStrategy::MagictunnelHandled.requires_client_forwarding());
+    assert!(SamplingElicitationStrategy::ClientForwarded.requires_client_forwarding());
+    assert!(!SamplingElicitationStrategy::MagictunnelFirst.requires_client_forwarding());
+    assert!(SamplingElicitationStrategy::ClientFirst.requires_client_forwarding());
+    assert!(SamplingElicitationStrategy::Parallel.requires_client_forwarding());
+    assert!(SamplingElicitationStrategy::Hybrid.requires_client_forwarding());
+}
+
+#[test]
+fn test_llm_config_validation() {
+    // Test valid OpenAI config
+    let valid_openai_config = LlmConfig {
+        provider: "openai".to_string(),
+        model: "gpt-4o-mini".to_string(),
+        api_key_env: Some("OPENAI_API_KEY".to_string()),
+        api_base_url: None,
+        max_tokens: Some(4000),
+        temperature: Some(0.7),
+        additional_params: None,
+    };
+    assert!(valid_openai_config.validate().is_ok());
+
+    // Test invalid provider
+    let invalid_provider_config = LlmConfig {
+        provider: "unsupported_provider".to_string(),
+        model: "some-model".to_string(),
+        api_key_env: Some("API_KEY".to_string()),
+        api_base_url: None,
+        max_tokens: Some(4000),
+        temperature: Some(0.7),
+        additional_params: None,
+    };
+    assert!(invalid_provider_config.validate().is_err());
+
+    // Test empty model name
+    let invalid_model_config = LlmConfig {
+        provider: "openai".to_string(),
+        model: "".to_string(),
+        api_key_env: Some("OPENAI_API_KEY".to_string()),
+        api_base_url: None,
+        max_tokens: Some(4000),
+        temperature: Some(0.7),
+        additional_params: None,
+    };
+    assert!(invalid_model_config.validate().is_err());
+
+    // Test OpenAI without API key
+    let invalid_openai_no_key = LlmConfig {
+        provider: "openai".to_string(),
+        model: "gpt-4o-mini".to_string(),
+        api_key_env: None,
+        api_base_url: None,
+        max_tokens: Some(4000),
+        temperature: Some(0.7),
+        additional_params: None,
+    };
+    assert!(invalid_openai_no_key.validate().is_err());
+}
+
+#[test]
+fn test_external_routing_strategy_config_validation() {
+    // Test valid configuration
+    let valid_config = ExternalRoutingStrategyConfig {
+        default_strategy: SamplingElicitationStrategy::ClientForwarded,
+        server_strategies: Some([
+            ("server1".to_string(), SamplingElicitationStrategy::MagictunnelHandled),
+            ("server2".to_string(), SamplingElicitationStrategy::Parallel),
+        ].into_iter().collect()),
+        priority_order: vec!["server1".to_string(), "server2".to_string()],
+        fallback_to_magictunnel: true,
+        max_retry_attempts: 3,
+        timeout_seconds: 60,
+    };
+    assert!(valid_config.validate("Test").is_ok());
+
+    // Test empty priority order
+    let invalid_empty_priority = ExternalRoutingStrategyConfig {
+        default_strategy: SamplingElicitationStrategy::ClientForwarded,
+        server_strategies: None,
+        priority_order: vec![],
+        fallback_to_magictunnel: false,
+        max_retry_attempts: 3,
+        timeout_seconds: 60,
+    };
+    assert!(invalid_empty_priority.validate("Test").is_err());
+
+    // Test LLM requirement detection
+    let llm_requiring_config = ExternalRoutingStrategyConfig {
+        default_strategy: SamplingElicitationStrategy::MagictunnelHandled,
+        server_strategies: None,
+        priority_order: vec!["server1".to_string()],
+        fallback_to_magictunnel: false,
+        max_retry_attempts: 3,
+        timeout_seconds: 60,
+    };
+    assert!(llm_requiring_config.requires_llm_config());
+}
+
+#[test]
+fn test_routing_strategy_dependencies_validation() {
+    // Test configuration requiring LLM with valid LLM config
+    let valid_config_with_llm = Config {
+        server: ServerConfig::default(),
+        registry: RegistryConfig::default(),
+        auth: None,
+        logging: None,
+        external_mcp: None,
+        mcp_client: None,
+        conflict_resolution: None,
+        visibility: None,
+        smart_discovery: None,
+        security: None,
+        streamable_http: None,
+        sampling: Some(SamplingConfig {
+            enabled: true,
+            default_model: "gpt-4o-mini".to_string(),
+            max_tokens_limit: 4000,
+            default_sampling_strategy: Some(SamplingElicitationStrategy::MagictunnelHandled),
+            default_elicitation_strategy: Some(SamplingElicitationStrategy::ClientForwarded),
+            llm_config: Some(LlmConfig {
+                provider: "openai".to_string(),
+                model: "gpt-4o-mini".to_string(),
+                api_key_env: Some("OPENAI_API_KEY".to_string()),
+                api_base_url: None,
+                max_tokens: Some(4000),
+                temperature: Some(0.7),
+                additional_params: None,
+            }),
+        }),
+        tool_enhancement: None,
+        elicitation: None,
+        prompt_generation: None,
+        resource_generation: None,
+        content_storage: None,
+        external_content: None,
+        enhancement_storage: None,
+    };
+    assert!(valid_config_with_llm.validate().is_ok());
+
+    // Test configuration requiring LLM without LLM config
+    let invalid_config_missing_llm = Config {
+        server: ServerConfig::default(),
+        registry: RegistryConfig::default(),
+        auth: None,
+        logging: None,
+        external_mcp: None,
+        mcp_client: None,
+        conflict_resolution: None,
+        visibility: None,
+        smart_discovery: None,
+        security: None,
+        streamable_http: None,
+        sampling: Some(SamplingConfig {
+            enabled: true,
+            default_model: "gpt-4o-mini".to_string(),
+            max_tokens_limit: 4000,
+            default_sampling_strategy: Some(SamplingElicitationStrategy::MagictunnelHandled),
+            default_elicitation_strategy: Some(SamplingElicitationStrategy::ClientForwarded),
+            llm_config: None, // Missing LLM config
+        }),
+        tool_enhancement: None,
+        elicitation: None,
+        prompt_generation: None,
+        resource_generation: None,
+        content_storage: None,
+        external_content: None,
+        enhancement_storage: None,
+    };
+    assert!(invalid_config_missing_llm.validate().is_err());
 }

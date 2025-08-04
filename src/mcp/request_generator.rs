@@ -104,7 +104,7 @@ pub struct RequestGeneratorService {
     /// Service configuration
     config: RequestGeneratorConfig,
     /// Sampling service for description generation
-    sampling_service: Arc<SamplingService>,
+    sampling_service: Arc<crate::mcp::tool_enhancement::ToolEnhancementService>,
     /// Elicitation service for parameter collection
     elicitation_service: Arc<ElicitationService>,
     /// Cache for generated content
@@ -117,12 +117,12 @@ impl RequestGeneratorService {
     /// Create a new request generator service
     pub fn new(
         config: RequestGeneratorConfig,
-        sampling_service: Arc<SamplingService>,
+        tool_enhancement_service: Arc<crate::mcp::tool_enhancement::ToolEnhancementService>,
         elicitation_service: Arc<ElicitationService>,
     ) -> Self {
         Self {
             config,
-            sampling_service,
+            sampling_service: tool_enhancement_service,
             elicitation_service,
             content_cache: Arc::new(RwLock::new(HashMap::new())),
             active_requests: Arc::new(RwLock::new(HashMap::new())),
@@ -132,7 +132,7 @@ impl RequestGeneratorService {
     /// Create from main config
     pub fn from_config(
         config: &Config,
-        sampling_service: Arc<SamplingService>,
+        sampling_service: Arc<crate::mcp::tool_enhancement::ToolEnhancementService>,
         elicitation_service: Arc<ElicitationService>,
     ) -> Self {
         let generator_config = RequestGeneratorConfig {
@@ -226,7 +226,7 @@ impl RequestGeneratorService {
                 // Execute the request
                 match self.sampling_service.execute_server_generated_request(request).await {
                     Ok(response) => {
-                        let content = self.extract_content_from_sampling_response(&response);
+                        let content = self.extract_content_from_tool_enhancement_response(&response);
                         let generation_time = start_time.elapsed().as_millis() as u64;
                         
                         let metadata = RequestGenerationMetadata {
@@ -438,7 +438,7 @@ impl RequestGeneratorService {
                 // Execute the request
                 match self.sampling_service.execute_server_generated_request(request).await {
                     Ok(response) => {
-                        let content = self.extract_content_from_sampling_response(&response);
+                        let content = self.extract_content_from_tool_enhancement_response(&response);
                         let generation_time = start_time.elapsed().as_millis() as u64;
                         
                         let metadata = RequestGenerationMetadata {
@@ -501,17 +501,17 @@ impl RequestGeneratorService {
     }
 
     /// Extract content from sampling response
-    fn extract_content_from_sampling_response(&self, response: &SamplingResponse) -> String {
-        use crate::mcp::types::sampling::SamplingContent;
+    fn extract_content_from_tool_enhancement_response(&self, response: &crate::mcp::types::tool_enhancement::ToolEnhancementResponse) -> String {
+        use crate::mcp::types::tool_enhancement::ToolEnhancementContent;
         
         match &response.message.content {
-            SamplingContent::Text(text) => text.clone(),
-            SamplingContent::Parts(parts) => {
+            ToolEnhancementContent::Text(text) => text.clone(),
+            ToolEnhancementContent::Parts(parts) => {
                 parts.iter()
                     .filter_map(|part| {
-                        use crate::mcp::types::sampling::SamplingContentPart;
+                        use crate::mcp::types::tool_enhancement::ToolEnhancementContentPart;
                         match part {
-                            SamplingContentPart::Text { text } => Some(text.clone()),
+                            ToolEnhancementContentPart::Text { text } => Some(text.clone()),
                             _ => None,
                         }
                     })

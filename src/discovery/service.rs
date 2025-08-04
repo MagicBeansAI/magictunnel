@@ -9,7 +9,7 @@ use crate::discovery::cache::{DiscoveryCache, DiscoveryCacheConfig, ToolMatchCac
 use crate::discovery::fallback::{FallbackManager, FallbackConfig, ErrorCategory, SmartDiscoveryError};
 use crate::discovery::semantic::{SemanticSearchService, SemanticSearchConfig};
 use crate::discovery::embedding_manager::{EmbeddingManager, EmbeddingManagerConfig};
-use crate::discovery::enhancement::{ToolEnhancementService, ToolEnhancementConfig};
+use crate::discovery::enhancement::{ToolEnhancementPipeline, ToolEnhancementConfig};
 use crate::error::{ProxyError, Result};
 use crate::registry::service::RegistryService;
 use crate::registry::types::ToolDefinition;
@@ -130,6 +130,12 @@ pub struct SmartDiscoveryConfig {
     
     /// Whether to enable tool metrics collection
     pub tool_metrics_enabled: Option<bool>,
+    
+    /// Default sampling routing strategy for tools discovered through smart discovery
+    pub default_sampling_strategy: Option<crate::config::SamplingElicitationStrategy>,
+    
+    /// Default elicitation routing strategy for tools discovered through smart discovery
+    pub default_elicitation_strategy: Option<crate::config::SamplingElicitationStrategy>,
 }
 
 impl Default for SmartDiscoveryConfig {
@@ -151,6 +157,8 @@ impl Default for SmartDiscoveryConfig {
             semantic_search: SemanticSearchConfig::default(),
             enable_sequential_mode: true,
             tool_metrics_enabled: Some(true),
+            default_sampling_strategy: None, // Inherit from server-level config
+            default_elicitation_strategy: None, // Inherit from server-level config
         }
     }
 }
@@ -185,7 +193,7 @@ pub struct SmartDiscoveryService {
     tool_metrics: Option<Arc<ToolMetricsCollector>>,
     
     /// Tool enhancement service for sampling/elicitation pipeline
-    enhancement_service: Option<Arc<ToolEnhancementService>>,
+    enhancement_service: Option<Arc<ToolEnhancementPipeline>>,
 }
 
 impl SmartDiscoveryService {
@@ -204,7 +212,7 @@ impl SmartDiscoveryService {
         registry: Arc<RegistryService>, 
         config: SmartDiscoveryConfig, 
         router: Option<Arc<Router>>,
-        sampling_service: Option<Arc<crate::mcp::sampling::SamplingService>>,
+        tool_enhancement_service: Option<Arc<crate::mcp::tool_enhancement::ToolEnhancementService>>,
         elicitation_service: Option<Arc<crate::mcp::elicitation::ElicitationService>>,
     ) -> Result<Self> {
         let llm_mapper = LlmParameterMapper::new(config.llm_mapper.clone())?;
@@ -224,10 +232,10 @@ impl SmartDiscoveryService {
                 graceful_degradation: true,
             };
             
-            let service = ToolEnhancementService::new(
+            let service = ToolEnhancementPipeline::new(
                 enhancement_config,
                 Arc::clone(&registry),
-                sampling_service,
+                tool_enhancement_service,
                 elicitation_service,
             );
             Some(Arc::new(service))
@@ -1645,7 +1653,7 @@ impl SmartDiscoveryService {
     }
 
     /// Enhanced rule-based matching that leverages elicitation metadata
-    async fn find_matching_tools_rule_based_enhanced(&self, request: &SmartDiscoveryRequest, enhancement_service: &ToolEnhancementService) -> Result<Vec<ToolMatch>> {
+    async fn find_matching_tools_rule_based_enhanced(&self, request: &SmartDiscoveryRequest, enhancement_service: &ToolEnhancementPipeline) -> Result<Vec<ToolMatch>> {
         let mut matches = Vec::new();
         
         // Get enhanced tools
@@ -3390,6 +3398,8 @@ Respond in JSON format:
             semantic_search: SemanticSearchConfig::default(),
             enable_sequential_mode: true,
             tool_metrics_enabled: Some(true),
+            default_sampling_strategy: Some(crate::config::SamplingElicitationStrategy::MagictunnelHandled),
+            default_elicitation_strategy: Some(crate::config::SamplingElicitationStrategy::MagictunnelHandled),
         }
     }
 }

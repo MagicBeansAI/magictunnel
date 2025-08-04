@@ -6,7 +6,7 @@
 use crate::error::{ProxyError, Result};
 use crate::registry::types::ToolDefinition;
 use crate::discovery::types::EnhancedToolDefinition;
-use crate::discovery::enhancement::ToolEnhancementService;
+use crate::discovery::enhancement::ToolEnhancementPipeline;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -282,7 +282,7 @@ pub struct SemanticSearchService {
     model_loaded: Arc<RwLock<bool>>,
     
     /// Optional tool enhancement service for using enhanced descriptions
-    enhancement_service: Option<Arc<ToolEnhancementService>>,
+    enhancement_service: Option<Arc<ToolEnhancementPipeline>>,
 }
 
 impl SemanticSearchService {
@@ -299,7 +299,7 @@ impl SemanticSearchService {
     /// Create a new semantic search service with enhancement support
     pub fn new_with_enhancement(
         config: SemanticSearchConfig,
-        enhancement_service: Arc<ToolEnhancementService>,
+        enhancement_service: Arc<ToolEnhancementPipeline>,
     ) -> Self {
         info!("🌟 Creating semantic search service with sampling/elicitation enhancement support");
         Self {

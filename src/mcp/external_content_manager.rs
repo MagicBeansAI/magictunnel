@@ -27,6 +27,10 @@ pub struct ExternalContentConfig {
     pub cache_external_content: bool,
     /// Maximum cache age in hours
     pub max_cache_age_hours: u64,
+    /// Whether to save external content to persistent storage (NEW)
+    pub save_external_content: bool,
+    /// Whether to version saved external content (NEW)
+    pub version_external_content: bool,
 }
 
 /// External content manager service
@@ -53,11 +57,219 @@ impl ExternalContentManager {
         external_mcp_manager: Option<Arc<ExternalMcpManager>>,
         content_storage: Arc<ContentStorageService>,
     ) -> Self {
-        Self {
+        let manager = Self {
             config,
             external_mcp_manager,
             content_storage,
             external_content_cache: Arc::new(RwLock::new(HashMap::new())),
+        };
+        
+        // Start periodic refresh if auto-fetch is enabled
+        if manager.config.auto_fetch_enabled {
+            manager.start_periodic_refresh();
+        }
+        
+        manager
+    }
+    
+    /// Start periodic refresh of external content (NEW METHOD)
+    fn start_periodic_refresh(&self) {
+        let config = self.config.clone();
+        let external_mcp_manager = self.external_mcp_manager.clone();
+        let cache = self.external_content_cache.clone();
+        let content_storage = self.content_storage.clone();
+        let self_config = self.config.clone();
+        
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(
+                tokio::time::Duration::from_secs(config.refresh_interval_seconds)
+            );
+            
+            loop {
+                interval.tick().await;
+                
+                if let Some(external_manager) = &external_mcp_manager {
+                    debug!("🔄 Starting periodic refresh of external MCP content");
+                    
+                    // Get list of external servers
+                    let all_tools = external_manager.get_all_tools().await;
+                    
+                    for (server_name, _tools) in all_tools {
+                        // Fetch fresh content from each server
+                        match Self::fetch_content_from_server_static(&external_manager, &server_name).await {
+                            Ok((prompts, resources)) => {
+                                // Update cache
+                                {
+                                    let mut cache_guard = cache.write().await;
+                                    cache_guard.insert(server_name.clone(), CachedExternalContent {
+                                        prompts: prompts.clone(),
+                                        resources: resources.clone(),
+                                        last_fetched: chrono::Utc::now(),
+                                    });
+                                }
+                                
+                                // Save to storage if enabled
+                                if self_config.save_external_content {
+                                    Self::save_content_to_storage_static(
+                                        &content_storage, &server_name, &prompts, &resources
+                                    ).await;
+                                }
+                                
+                                debug!("📋 Refreshed {} prompts and {} resources from server '{}'", 
+                                       prompts.len(), resources.len(), server_name);
+                            }
+                            Err(e) => {
+                                warn!("Failed to refresh content from external MCP server '{}': {}", server_name, e);
+                            }
+                        }
+                    }
+                    
+                    info!("✅ Completed periodic refresh of external MCP content");
+                } else {
+                    debug!("No external MCP manager available for periodic refresh");
+                }
+            }
+        });
+        
+        info!("🔄 Started periodic refresh of external content every {} seconds", self.config.refresh_interval_seconds);
+    }
+    
+    /// Static method to fetch content from server (for use in async spawn)
+    async fn fetch_content_from_server_static(
+        external_manager: &Arc<ExternalMcpManager>, 
+        server_name: &str
+    ) -> crate::error::Result<(Vec<PromptTemplate>, Vec<Resource>)> {
+        let prompts = Self::fetch_prompts_from_server_static(external_manager, server_name).await?;
+        let resources = Self::fetch_resources_from_server_static(external_manager, server_name).await?;
+        Ok((prompts, resources))
+    }
+    
+    /// Static method to fetch prompts from server
+    async fn fetch_prompts_from_server_static(
+        external_manager: &Arc<ExternalMcpManager>, 
+        server_name: &str
+    ) -> crate::error::Result<Vec<PromptTemplate>> {
+        let response = external_manager.send_request_to_server(
+            server_name,
+            "prompts/list",
+            None
+        ).await?;
+
+        if let Some(error) = response.error {
+            debug!("External MCP server '{}' returned error for prompts/list: {}", server_name, error.message);
+            return Ok(Vec::new());
+        }
+
+        let prompts_list = match response.result {
+            Some(result) => {
+                match serde_json::from_value::<crate::mcp::types::PromptListResponse>(result) {
+                    Ok(list) => list.prompts,
+                    Err(e) => {
+                        warn!("Failed to parse prompts list from external MCP server '{}': {}", server_name, e);
+                        return Ok(Vec::new());
+                    }
+                }
+            }
+            None => {
+                debug!("No prompts result from external MCP server '{}'", server_name);
+                return Ok(Vec::new());
+            }
+        };
+
+        Ok(prompts_list)
+    }
+    
+    /// Static method to fetch resources from server
+    async fn fetch_resources_from_server_static(
+        external_manager: &Arc<ExternalMcpManager>, 
+        server_name: &str
+    ) -> crate::error::Result<Vec<Resource>> {
+        let response = external_manager.send_request_to_server(
+            server_name,
+            "resources/list",
+            None
+        ).await?;
+
+        if let Some(error) = response.error {
+            debug!("External MCP server '{}' returned error for resources/list: {}", server_name, error.message);
+            return Ok(Vec::new());
+        }
+
+        let resources_list = match response.result {
+            Some(result) => {
+                match serde_json::from_value::<crate::mcp::types::ResourceListResponse>(result) {
+                    Ok(list) => list.resources,
+                    Err(e) => {
+                        warn!("Failed to parse resources list from external MCP server '{}': {}", server_name, e);
+                        return Ok(Vec::new());
+                    }
+                }
+            }
+            None => {
+                debug!("No resources result from external MCP server '{}'", server_name);
+                return Ok(Vec::new());
+            }
+        };
+
+        Ok(resources_list)
+    }
+    
+    /// Static method to save content to storage
+    async fn save_content_to_storage_static(
+        content_storage: &Arc<ContentStorageService>,
+        server_name: &str, 
+        prompts: &[PromptTemplate], 
+        resources: &[Resource]
+    ) {
+        // Save prompts
+        for prompt in prompts {
+            let generation_metadata = Some(GenerationReferenceMetadata {
+                model_used: Some(format!("external_mcp_server_{}", server_name)),
+                confidence_score: Some(1.0),
+                generated_at: Some(chrono::Utc::now().to_rfc3339()),
+                generation_time_ms: Some(0),
+                version: Some(chrono::Utc::now().format("%Y%m%d_%H%M%S").to_string()),
+                external_source: Some(server_name.to_string()),
+            });
+            
+            if let Err(e) = content_storage.store_prompt(
+                &format!("external_{}", server_name),
+                &prompt.name,
+                prompt.clone(),
+                format!("External prompt from MCP server: {}", server_name),
+                generation_metadata
+            ).await {
+                warn!("Failed to save external prompt '{}' from server '{}': {}", prompt.name, server_name, e);
+            }
+        }
+        
+        // Save resources
+        for resource in resources {
+            let generation_metadata = Some(GenerationReferenceMetadata {
+                model_used: Some(format!("external_mcp_server_{}", server_name)),
+                confidence_score: Some(1.0),
+                generated_at: Some(chrono::Utc::now().to_rfc3339()),
+                generation_time_ms: Some(0),
+                version: Some(chrono::Utc::now().format("%Y%m%d_%H%M%S").to_string()),
+                external_source: Some(server_name.to_string()),
+            });
+            
+            let resource_content = crate::mcp::types::ResourceContent {
+                uri: resource.uri.clone(),
+                mime_type: resource.mime_type.clone(),
+                text: Some(format!("External resource from MCP server: {}", server_name)),
+                blob: None,
+            };
+            
+            if let Err(e) = content_storage.store_resource(
+                &format!("external_{}", server_name),
+                &resource.name,
+                resource.clone(),
+                resource_content,
+                generation_metadata
+            ).await {
+                warn!("Failed to save external resource '{}' from server '{}': {}", resource.name, server_name, e);
+            }
         }
     }
 
@@ -392,11 +604,78 @@ impl ExternalContentManager {
     async fn update_cache(&self, server_name: &str, prompts: Vec<PromptTemplate>, resources: Vec<Resource>) {
         let mut cache = self.external_content_cache.write().await;
         cache.insert(server_name.to_string(), CachedExternalContent {
-            prompts,
-            resources,
+            prompts: prompts.clone(),
+            resources: resources.clone(),
             last_fetched: chrono::Utc::now(),
         });
         debug!("Updated cache for external MCP server: {}", server_name);
+        
+        // NEW: Save to persistent storage if enabled
+        if self.config.save_external_content {
+            self.save_external_content_to_storage(server_name, &prompts, &resources).await;
+        }
+    }
+    
+    /// Save external content to persistent storage with versioning (NEW METHOD)
+    async fn save_external_content_to_storage(&self, server_name: &str, prompts: &[PromptTemplate], resources: &[Resource]) {
+        // Save prompts
+        for prompt in prompts {
+            let generation_metadata = Some(GenerationReferenceMetadata {
+                model_used: Some(format!("external_mcp_server_{}", server_name)),
+                confidence_score: Some(1.0), // External content is authoritative
+                generated_at: Some(chrono::Utc::now().to_rfc3339()),
+                generation_time_ms: Some(0), // No generation time for external content
+                version: Some(chrono::Utc::now().format("%Y%m%d_%H%M%S").to_string()),
+                external_source: Some(server_name.to_string()),
+            });
+            
+            if let Err(e) = self.content_storage.store_prompt(
+                &format!("external_{}", server_name),
+                &prompt.name,
+                prompt.clone(),
+                format!("External prompt from MCP server: {}", server_name),
+                generation_metadata
+            ).await {
+                warn!("Failed to save external prompt '{}' from server '{}': {}", prompt.name, server_name, e);
+            } else {
+                debug!("Saved external prompt '{}' from server '{}'", prompt.name, server_name);
+            }
+        }
+        
+        // Save resources
+        for resource in resources {
+            let generation_metadata = Some(GenerationReferenceMetadata {
+                model_used: Some(format!("external_mcp_server_{}", server_name)),
+                confidence_score: Some(1.0), // External content is authoritative
+                generated_at: Some(chrono::Utc::now().to_rfc3339()),
+                generation_time_ms: Some(0), // No generation time for external content
+                version: Some(chrono::Utc::now().format("%Y%m%d_%H%M%S").to_string()),
+                external_source: Some(server_name.to_string()),
+            });
+            
+            // Create dummy resource content since we're just storing metadata
+            let resource_content = crate::mcp::types::ResourceContent {
+                uri: resource.uri.clone(),
+                mime_type: resource.mime_type.clone(),
+                text: Some(format!("External resource from MCP server: {}", server_name)),
+                blob: None,
+            };
+            
+            if let Err(e) = self.content_storage.store_resource(
+                &format!("external_{}", server_name),
+                &resource.name,
+                resource.clone(),
+                resource_content,
+                generation_metadata
+            ).await {
+                warn!("Failed to save external resource '{}' from server '{}': {}", resource.name, server_name, e);
+            } else {
+                debug!("Saved external resource '{}' from server '{}'", resource.name, server_name);
+            }
+        }
+        
+        info!("Saved {} prompts and {} resources from external MCP server '{}' to persistent storage", 
+              prompts.len(), resources.len(), server_name);
     }
 
     /// Clear cache
@@ -433,6 +712,8 @@ impl Default for ExternalContentConfig {
             refresh_interval_seconds: 3600, // 1 hour
             cache_external_content: true,
             max_cache_age_hours: 24, // 24 hours
+            save_external_content: true, // NEW: Save to persistent storage
+            version_external_content: true, // NEW: Version the saved content
         }
     }
 }

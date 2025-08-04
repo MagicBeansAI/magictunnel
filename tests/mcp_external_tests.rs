@@ -33,6 +33,8 @@ mod tests {
             args: vec!["test".to_string()],
             env: None,
             cwd: None,
+            sampling_strategy: None,
+            elicitation_strategy: None,
         };
 
         let client_config = create_test_client_config();
@@ -77,6 +79,7 @@ mod tests {
                 network_mode: Some("bridge".to_string()),
                 run_args: vec!["--rm".to_string(), "-i".to_string()],
             }),
+            external_routing: None,
         };
 
         let client_config = create_test_client_config();
@@ -98,6 +101,8 @@ mod tests {
             args: vec!["test".to_string()],
             env: None,
             cwd: None,
+            sampling_strategy: None,
+            elicitation_strategy: None,
         };
         assert!(utils::validate_server_config(&valid_config).is_ok());
 
@@ -107,6 +112,8 @@ mod tests {
             args: vec!["test".to_string()],
             env: None,
             cwd: None,
+            sampling_strategy: None,
+            elicitation_strategy: None,
         };
         assert!(utils::validate_server_config(&invalid_config).is_err());
 
@@ -116,6 +123,8 @@ mod tests {
             args: vec![],
             env: None,
             cwd: None,
+            sampling_strategy: None,
+            elicitation_strategy: None,
         };
         assert!(utils::validate_server_config(&invalid_config).is_err());
     }
@@ -138,6 +147,8 @@ mod tests {
                 env
             }),
             cwd: Some("${TEST_PATH}".to_string()),
+            sampling_strategy: None,
+            elicitation_strategy: None,
         };
 
         utils::expand_config_env_vars(&mut config);
@@ -174,6 +185,8 @@ mod tests {
             args: vec!["Hello, External MCP!".to_string()],
             env: None,
             cwd: None,
+            sampling_strategy: None,
+            elicitation_strategy: None,
         };
 
         let client_config = create_test_client_config();
@@ -209,6 +222,7 @@ mod tests {
             capabilities_output_dir: "./test-capabilities".to_string(),
             refresh_interval_minutes: 1, // Short interval for testing
             containers: None,
+            external_routing: None,
         };
 
         let client_config = create_test_client_config();
@@ -248,6 +262,7 @@ mod tests {
             capabilities_output_dir: "./test-capabilities".to_string(),
             refresh_interval_minutes: 60,
             containers: None,
+            external_routing: None,
         };
 
         let client_config = create_test_client_config();
@@ -272,6 +287,7 @@ mod tests {
             capabilities_output_dir: "./test-capabilities".to_string(),
             refresh_interval_minutes: 60,
             containers: None,
+            external_routing: None,
         };
 
         let client_config = create_test_client_config();

@@ -46,6 +46,8 @@ fn create_test_tool_definition() -> ToolDefinition {
         enabled: true, // Test tools are enabled by default
         prompt_refs: Vec::new(),
         resource_refs: Vec::new(),
+        elicitation_strategy: None,
+        sampling_strategy: None,
     }
 }
 

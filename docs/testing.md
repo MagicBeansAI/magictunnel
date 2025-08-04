@@ -2,7 +2,7 @@
 
 ## Overview
 
-MagicTunnel includes comprehensive test coverage to ensure reliability and protocol compliance with 457+ tests across multiple test suites.
+MagicTunnel includes comprehensive test coverage to ensure reliability and protocol compliance with 500+ tests across multiple test suites, including complete LLM Backend APIs test coverage.
 
 ## Test Architecture
 
@@ -98,6 +98,14 @@ MagicTunnel includes comprehensive test coverage to ensure reliability and proto
 - Authentication bypass prevention
 - CORS validation
 
+### 11. LLM Backend APIs Test Coverage (60+ tests) - NEW in v0.3.4 ✅
+- **Elicitation Service API Tests** (10 tests) - Metadata extraction, parameter validation, and batch processing
+- **Sampling Service API Tests** (12 tests) - Tool description enhancement and content generation  
+- **Enhanced Resource Management API Tests** (12 tests) - Filtering, pagination, content reading, and provider management
+- **Enhanced Prompt Management API Tests** (14 tests) - CRUD operations, template management, and content generation
+- **Enhanced Ranking and Discovery Tests** (12 tests) - Updated ranking algorithms with LLM integration and hybrid AI intelligence
+- **LLM Backend APIs Integration Tests** (5 tests) - Cross-service workflows and data consistency validation
+
 ## Capability Testing Files
 
 Comprehensive testing capabilities demonstrating all agent routing features:
@@ -145,6 +153,14 @@ cargo test auth --lib
 
 # Smart discovery tests
 cargo test discovery --lib
+
+# LLM Backend APIs tests (v0.3.4)
+cargo test --test elicitation_service_api_test     # 10 elicitation service tests
+cargo test --test tool_enhancement_service_api_test        # 12 tool enhancement service tests
+cargo test --test enhanced_resource_management_api_test  # 12 resource management tests
+cargo test --test enhanced_prompt_management_api_test    # 14 prompt management tests  
+cargo test --test enhanced_ranking_discovery_test        # 12 ranking and discovery tests
+cargo test --test llm_backend_apis_integration_test      # 5 integration tests
 ```
 
 ### Specific Test
@@ -192,7 +208,7 @@ cargo test --all-features
 - **🌐 External MCP Tests** (14 tests) - External server integration
 - **📈 Performance Tests** (Variable) - Load testing and benchmarking
 
-**Total**: 457+ tests with comprehensive coverage across all system components
+**Total**: 500+ tests with comprehensive coverage across all system components including complete LLM Backend APIs coverage
 
 ## Writing Tests
 

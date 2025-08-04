@@ -7,7 +7,7 @@
 //! - Preventing overwrites of user-configured settings
 
 use crate::discovery::semantic::{SemanticSearchService, ToolMetadata};
-use crate::discovery::enhancement::ToolEnhancementService;
+use crate::discovery::enhancement::ToolEnhancementPipeline;
 use crate::error::{ProxyError, Result};
 use crate::registry::service::RegistryService;
 use std::collections::{HashMap, HashSet};
@@ -120,7 +120,7 @@ pub struct EmbeddingManager {
     _file_watcher: Arc<RwLock<Option<Box<dyn Watcher + Send + Sync>>>>,
     
     /// Tool enhancement service for sampling/elicitation pipeline
-    enhancement_service: Option<Arc<ToolEnhancementService>>,
+    enhancement_service: Option<Arc<ToolEnhancementPipeline>>,
 }
 
 impl EmbeddingManager {
@@ -147,7 +147,7 @@ impl EmbeddingManager {
         registry: Arc<RegistryService>,
         semantic_search: Arc<SemanticSearchService>,
         config: EmbeddingManagerConfig,
-        enhancement_service: Arc<ToolEnhancementService>,
+        enhancement_service: Arc<ToolEnhancementPipeline>,
     ) -> Self {
         Self {
             registry,

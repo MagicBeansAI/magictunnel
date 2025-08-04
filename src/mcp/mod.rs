@@ -5,6 +5,7 @@
 
 pub mod server;
 pub mod client;
+pub mod llm_client;
 // Legacy remote MCP modules removed - replaced by external_* modules
 pub mod external_process;
 pub mod external_manager;
@@ -24,6 +25,7 @@ pub mod validation;
 pub mod metrics;
 pub mod health_checker;
 pub mod sampling;
+pub mod tool_enhancement;
 pub mod elicitation;
 pub mod roots;
 pub mod request_generator;
@@ -58,6 +60,7 @@ pub use validation::{McpMessageValidator, ValidationConfig};
 pub use metrics::{McpMetricsCollector, McpServiceMetrics, HealthStatus, HealthCheckResult, McpMetricsSummary};
 pub use health_checker::{McpHealthChecker, HealthCheckConfig};
 pub use sampling::{SamplingService, SamplingConfig};
+pub use tool_enhancement::{ToolEnhancementService, ToolEnhancementConfig};
 pub use elicitation::{ElicitationService, ElicitationConfig};
 pub use roots::{RootsService};
 pub use request_generator::{RequestGeneratorService, RequestGeneratorConfig};

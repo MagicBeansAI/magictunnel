@@ -269,6 +269,32 @@ impl ExternalMcpIntegration {
     pub fn metrics_collector(&self) -> Option<std::sync::Arc<crate::mcp::metrics::McpMetricsCollector>> {
         self.manager.as_ref().map(|manager| manager.metrics_collector())
     }
+
+    /// Get list of external MCP servers that support sampling capability (MCP 2025-06-18)
+    pub async fn get_sampling_capable_servers(&self) -> Vec<String> {
+        if let Some(manager) = &self.manager {
+            manager.get_sampling_capable_servers().await
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// Forward sampling request to external MCP server (MCP 2025-06-18)
+    pub async fn forward_sampling_request(
+        &self,
+        server_name: &str,
+        request: &crate::mcp::types::sampling::SamplingRequest,
+    ) -> std::result::Result<crate::mcp::types::sampling::SamplingResponse, crate::mcp::types::sampling::SamplingError> {
+        if let Some(manager) = &self.manager {
+            manager.forward_sampling_request(server_name, request).await
+        } else {
+            Err(crate::mcp::types::sampling::SamplingError {
+                code: crate::mcp::types::sampling::SamplingErrorCode::InternalError,
+                message: "External MCP manager not initialized".to_string(),
+                details: None,
+            })
+        }
+    }
 }
 
 impl Drop for ExternalMcpIntegration {

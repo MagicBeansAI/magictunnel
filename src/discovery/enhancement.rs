@@ -23,7 +23,7 @@ use crate::discovery::types::{
 use crate::registry::types::ToolDefinition;
 use crate::registry::RegistryService;
 use crate::registry::service::EnhancementCallback;
-use crate::mcp::sampling::SamplingService;
+use crate::mcp::tool_enhancement::ToolEnhancementService;
 use crate::mcp::elicitation::ElicitationService;
 use crate::mcp::request_generator::RequestGeneratorService;
 use crate::discovery::enhancement_storage::EnhancementStorageService;
@@ -69,15 +69,15 @@ impl Default for ToolEnhancementConfig {
 }
 
 /// Service for enhancing tools with sampling and elicitation capabilities
-pub struct ToolEnhancementService {
+pub struct ToolEnhancementPipeline {
     /// Configuration for enhancement behavior
     config: ToolEnhancementConfig,
     
     /// Registry service for accessing base tools
     registry: Arc<RegistryService>,
     
-    /// Sampling service for description enhancement
-    sampling_service: Option<Arc<SamplingService>>,
+    /// Tool Enhancement service for description enhancement 
+    tool_enhancement_service: Option<Arc<crate::mcp::tool_enhancement::ToolEnhancementService>>,
     
     /// Elicitation service for metadata enhancement
     elicitation_service: Option<Arc<ElicitationService>>,
@@ -93,31 +93,35 @@ pub struct ToolEnhancementService {
     
     /// Optional persistent storage service for enhanced tool descriptions
     storage_service: Option<Arc<EnhancementStorageService>>,
+    
+    /// Elicitation configuration for authority management
+    elicitation_config: Option<crate::config::ElicitationConfig>,
 }
 
-impl ToolEnhancementService {
+impl ToolEnhancementPipeline {
     /// Create a new tool enhancement service
     pub fn new(
         config: ToolEnhancementConfig,
         registry: Arc<RegistryService>,
-        sampling_service: Option<Arc<SamplingService>>,
+        tool_enhancement_service: Option<Arc<crate::mcp::tool_enhancement::ToolEnhancementService>>,
         elicitation_service: Option<Arc<ElicitationService>>,
     ) -> Self {
-        Self::new_with_storage(config, registry, sampling_service, elicitation_service, None)
+        Self::new_with_storage(config, registry, tool_enhancement_service, elicitation_service, None, None)
     }
     
     /// Create a new tool enhancement service with persistent storage
     pub fn new_with_storage(
         config: ToolEnhancementConfig,
         registry: Arc<RegistryService>,
-        sampling_service: Option<Arc<SamplingService>>,
+        tool_enhancement_service: Option<Arc<ToolEnhancementService>>,
         elicitation_service: Option<Arc<ElicitationService>>,
         storage_service: Option<Arc<EnhancementStorageService>>,
+        elicitation_config: Option<crate::config::ElicitationConfig>,
     ) -> Self {
-        let request_generator = if sampling_service.is_some() && elicitation_service.is_some() {
+        let request_generator = if tool_enhancement_service.is_some() && elicitation_service.is_some() {
             Some(Arc::new(RequestGeneratorService::new(
                 crate::mcp::request_generator::RequestGeneratorConfig::default(),
-                sampling_service.as_ref().unwrap().clone(),
+                tool_enhancement_service.as_ref().unwrap().clone(),
                 elicitation_service.as_ref().unwrap().clone(),
             )))
         } else {
@@ -132,12 +136,13 @@ impl ToolEnhancementService {
         Self {
             config,
             registry,
-            sampling_service,
+            tool_enhancement_service,
             elicitation_service,
             request_generator,
             enhanced_cache: Arc::new(RwLock::new(HashMap::new())),
             failure_cache: Arc::new(RwLock::new(HashMap::new())),
             storage_service,
+            elicitation_config,
         }
     }
     
@@ -145,7 +150,7 @@ impl ToolEnhancementService {
     pub fn from_config(
         config: &Config,
         registry: Arc<RegistryService>,
-        sampling_service: Option<Arc<SamplingService>>,
+        tool_enhancement_service: Option<Arc<crate::mcp::tool_enhancement::ToolEnhancementService>>,
         elicitation_service: Option<Arc<ElicitationService>>,
     ) -> Self {
         let enhancement_config = config.smart_discovery
@@ -177,12 +182,53 @@ impl ToolEnhancementService {
                 }
             });
         
-        Self::new(enhancement_config, registry, sampling_service, elicitation_service)
+        let elicitation_config = config.elicitation.clone();
+        Self::new_with_storage(enhancement_config, registry, tool_enhancement_service, elicitation_service, None, elicitation_config)
     }
     
     /// Check if a tool comes from external/remote MCP server
     fn is_external_mcp_tool(tool: &ToolDefinition) -> bool {
         matches!(tool.routing.r#type.as_str(), "external_mcp" | "websocket")
+    }
+    
+    /// Check if local elicitation should be used for this tool (respects authority configuration)
+    pub fn should_use_local_elicitation(&self, tool: &ToolDefinition) -> bool {
+        // If elicitation enhancement is disabled, never use local elicitation
+        if !self.config.enable_elicitation_enhancement {
+            return false;
+        }
+        
+        // For non-external tools, always use local elicitation if enabled
+        if !Self::is_external_mcp_tool(tool) {
+            return true;
+        }
+        
+        // For external tools, check authority configuration
+        if let Some(elicit_config) = &self.elicitation_config {
+            let (_, has_elicitation) = Self::has_original_mcp_capabilities(tool);
+            
+            if has_elicitation && elicit_config.respect_external_authority {
+                // Check for per-tool override
+                let tool_override = tool.annotations.as_ref()
+                    .and_then(|ann| ann.get("override_elicitation_authority"))
+                    .map(|v| v == "true")
+                    .unwrap_or(false);
+                
+                if tool_override {
+                    debug!("Tool '{}' has elicitation authority override, using local elicitation", tool.name);
+                    return true;
+                } else {
+                    debug!("Tool '{}' has external elicitation capability and external authority is respected, skipping local elicitation", tool.name);
+                    return false;
+                }
+            } else if has_elicitation && !elicit_config.respect_external_authority {
+                debug!("Tool '{}' has external elicitation capability but external authority is not respected, using local elicitation", tool.name);
+                return true;
+            }
+        }
+        
+        // Default behavior for external tools without explicit configuration
+        true
     }
     
     /// Check if a tool has original sampling/elicitation capabilities from external MCP server
@@ -201,7 +247,7 @@ impl ToolEnhancementService {
     }
     
     /// Check if we would be overwriting original MCP capabilities
-    fn would_overwrite_mcp_capabilities(tool: &ToolDefinition, config: &ToolEnhancementConfig) -> Vec<String> {
+    fn would_overwrite_mcp_capabilities(tool: &ToolDefinition, config: &ToolEnhancementConfig, elicitation_config: Option<&crate::config::ElicitationConfig>) -> Vec<String> {
         let mut warnings = Vec::new();
         
         if !Self::is_external_mcp_tool(tool) {
@@ -218,10 +264,33 @@ impl ToolEnhancementService {
         }
         
         if has_elicitation && config.enable_elicitation_enhancement {
-            warnings.push(format!(
-                "Tool '{}' has original elicitation capabilities from external MCP server but local elicitation enhancement is enabled", 
-                tool.name
-            ));
+            // Check if we should respect external authority
+            if let Some(elicit_config) = elicitation_config {
+                if elicit_config.respect_external_authority {
+                    // Check for per-tool override
+                    let tool_override = tool.annotations.as_ref()
+                        .and_then(|ann| ann.get("override_elicitation_authority"))
+                        .map(|v| v == "true")
+                        .unwrap_or(false);
+                    
+                    if !tool_override {
+                        warnings.push(format!(
+                            "Tool '{}' has original elicitation capabilities from external MCP server but local elicitation enhancement is enabled. Consider setting 'override_elicitation_authority: true' in YAML or disabling local elicitation.", 
+                            tool.name
+                        ));
+                    }
+                } else {
+                    warnings.push(format!(
+                        "Tool '{}' has original elicitation capabilities from external MCP server and will be overridden by local elicitation (respect_external_authority: false)", 
+                        tool.name
+                    ));
+                }
+            } else {
+                warnings.push(format!(
+                    "Tool '{}' has original elicitation capabilities from external MCP server but local elicitation enhancement is enabled", 
+                    tool.name
+                ));
+            }
         }
         
         warnings
@@ -267,7 +336,7 @@ impl ToolEnhancementService {
             }
             
             // Check for potential capability overwrites (for all tools, not just external ones)
-            let warnings = Self::would_overwrite_mcp_capabilities(tool_def, &self.config);
+            let warnings = Self::would_overwrite_mcp_capabilities(tool_def, &self.config, self.elicitation_config.as_ref());
             capability_warnings.extend(warnings);
             
             // Skip external/remote MCP tools - they should get enhancements from their source MCP servers
@@ -627,7 +696,7 @@ impl ToolEnhancementService {
         }
         
         // Step 2: Elicitation enhancement (parameter metadata)
-        if self.config.enable_elicitation_enhancement {
+        if self.should_use_local_elicitation(tool_def) {
             if let Some(request_generator) = &self.request_generator {
                 // Generate keywords for the tool
                 match request_generator.generate_tool_keywords(&tool_name, &tool_def, None).await {
@@ -697,62 +766,32 @@ impl ToolEnhancementService {
         Ok(enhanced_tool)
     }
     
-    /// Enhance tool description using sampling service
-    async fn enhance_with_sampling(
+    /// Enhance tool description using tool enhancement service
+    async fn enhance_with_tool_enhancement(
         &self,
         enhanced_tool: &mut EnhancedToolDefinition,
-        sampling_service: &SamplingService,
+        tool_enhancement_service: &crate::mcp::tool_enhancement::ToolEnhancementService,
         generation_metadata: &mut EnhancementGenerationMetadata,
     ) -> Result<()> {
-        // Create sampling request for tool description enhancement
-        let sampling_request = crate::mcp::types::sampling::SamplingRequest {
-            messages: vec![
-                crate::mcp::types::sampling::SamplingMessage {
-                    role: crate::mcp::types::sampling::SamplingMessageRole::System,
-                    content: crate::mcp::types::sampling::SamplingContent::Text(
-                        "You are an expert at writing clear, concise, and discoverable tool descriptions. \
-                        Enhance the given tool description to make it more searchable and informative while \
-                        preserving accuracy and key functionality details.".to_string()
-                    ),
-                    name: None,
-                    metadata: None,
-                },
-                crate::mcp::types::sampling::SamplingMessage {
-                    role: crate::mcp::types::sampling::SamplingMessageRole::User,
-                    content: crate::mcp::types::sampling::SamplingContent::Text(
-                        format!("Tool Name: {}\nCurrent Description: {}\n\nPlease provide an enhanced description that is more discoverable and informative:",
-                                enhanced_tool.base.name, enhanced_tool.base.description)
-                    ),
-                    name: None,
-                    metadata: None,
-                }
-            ],
-            model_preferences: Some(crate::mcp::types::sampling::ModelPreferences {
-                intelligence: Some(0.8), // High intelligence for quality descriptions
-                speed: Some(0.5),
-                cost: Some(0.7), // Balance cost with quality
-                preferred_models: None,
-                excluded_models: None,
-            }),
-            system_prompt: None,
-            max_tokens: Some(200), // Keep descriptions concise
-            temperature: Some(0.7),
-            top_p: Some(0.9),
-            stop: None,
-            metadata: None,
-        };
+        // Create tool enhancement request for description enhancement
+        let enhancement_request = tool_enhancement_service.generate_enhanced_description_request(
+            &enhanced_tool.base.name,
+            &enhanced_tool.base.description,
+            &serde_json::to_value(&enhanced_tool.base.input_schema).unwrap_or(serde_json::Value::Null)
+        ).await
+        .map_err(|e| ProxyError::mcp(format!("Tool enhancement request generation error: {}", e.message)))?;
         
-        let response = sampling_service.handle_sampling_request(sampling_request, None).await
-            .map_err(|e| ProxyError::mcp(format!("Sampling service error: {}", e.message)))?;
+        let response = tool_enhancement_service.execute_server_generated_request(enhancement_request).await
+            .map_err(|e| ProxyError::mcp(format!("Tool enhancement service error: {}", e.message)))?;
         
         // Extract enhanced description from response
-        if let crate::mcp::types::sampling::SamplingContent::Text(enhanced_description) = &response.message.content {
+        if let crate::mcp::types::tool_enhancement::ToolEnhancementContent::Text(enhanced_description) = &response.message.content {
             enhanced_tool.sampling_enhanced_description = Some(enhanced_description.clone());
             generation_metadata.sampling_model = Some(response.model);
             // Confidence based on stop reason and usage
             generation_metadata.sampling_confidence = Some(match response.stop_reason {
-                crate::mcp::types::sampling::SamplingStopReason::EndTurn => 0.9,
-                crate::mcp::types::sampling::SamplingStopReason::MaxTokens => 0.7,
+                crate::mcp::types::tool_enhancement::ToolEnhancementStopReason::EndTurn => 0.9,
+                crate::mcp::types::tool_enhancement::ToolEnhancementStopReason::MaxTokens => 0.7,
                 _ => 0.6,
             });
         }
@@ -825,9 +864,9 @@ impl ToolEnhancementService {
     }
 }
 
-/// Implement EnhancementCallback trait for ToolEnhancementService
+/// Implement EnhancementCallback trait for ToolEnhancementPipeline
 #[async_trait::async_trait]
-impl EnhancementCallback for ToolEnhancementService {
+impl EnhancementCallback for ToolEnhancementPipeline {
     async fn on_tools_changed(&self, changed_tools: Vec<(String, ToolDefinition)>) -> Result<()> {
         info!("🔔 ToolEnhancementService received notification of {} changed tools", changed_tools.len());
         

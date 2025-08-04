@@ -380,6 +380,8 @@ mod tests {
             enabled: true, // Test tools are enabled by default
             prompt_refs: Vec::new(),
             resource_refs: Vec::new(),
+            sampling_strategy: None,
+            elicitation_strategy: None,
         };
         (name.to_string(), tool_def, source)
     }

@@ -394,6 +394,8 @@ async fn test_service_config_conversion() {
         max_reconnect_attempts: 5,
         reconnect_delay_ms: 500,
         max_reconnect_delay_ms: 15000,
+        sampling_strategy: None,
+        elicitation_strategy: None,
     };
     
     // Convert service config to client config

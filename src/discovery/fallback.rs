@@ -947,6 +947,8 @@ mod tests {
                 enabled: true,
                 prompt_refs: Vec::new(),
                 resource_refs: Vec::new(),
+                sampling_strategy: None,
+                elicitation_strategy: None,
             }),
             ("http_request".to_string(), ToolDefinition {
                 name: "http_request".to_string(),
@@ -961,6 +963,8 @@ mod tests {
                 enabled: true,
                 prompt_refs: Vec::new(),
                 resource_refs: Vec::new(),
+                sampling_strategy: None,
+                elicitation_strategy: None,
             }),
         ]
     }

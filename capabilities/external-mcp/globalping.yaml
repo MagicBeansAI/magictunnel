@@ -46,6 +46,8 @@ tools:
       timeout: 30
       tool_name: ping
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     server: globalping
     original_name: ping
     source: external_mcp
@@ -95,6 +97,8 @@ tools:
       timeout: 30
       tool_name: traceroute
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     source: external_mcp
     server: globalping
     original_name: traceroute
@@ -160,6 +164,8 @@ tools:
       timeout: 30
       tool_name: dns
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     source: external_mcp
     server: globalping
     original_name: dns
@@ -212,6 +218,8 @@ tools:
       timeout: 30
       tool_name: mtr
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     server: globalping
     source: external_mcp
     original_name: mtr
@@ -273,6 +281,8 @@ tools:
       timeout: 30
       tool_name: http
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     original_name: http
     source: external_mcp
     server: globalping
@@ -295,6 +305,8 @@ tools:
       timeout: 30
       tool_name: locations
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     original_name: locations
     source: external_mcp
     server: globalping
@@ -317,6 +329,8 @@ tools:
       timeout: 30
       tool_name: limits
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     source: external_mcp
     original_name: limits
     server: globalping
@@ -344,6 +358,8 @@ tools:
       timeout: 30
       tool_name: getMeasurement
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     original_name: getMeasurement
     source: external_mcp
     server: globalping
@@ -366,6 +382,8 @@ tools:
       timeout: 30
       tool_name: compareLocations
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     source: external_mcp
     server: globalping
     original_name: compareLocations
@@ -388,6 +406,8 @@ tools:
       timeout: 30
       tool_name: help
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     original_name: help
     source: external_mcp
     server: globalping
@@ -410,6 +430,8 @@ tools:
       timeout: 30
       tool_name: authStatus
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     server: globalping
     original_name: authStatus
     source: external_mcp

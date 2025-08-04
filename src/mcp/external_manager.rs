@@ -78,6 +78,8 @@ pub struct ExternalMcpManager {
     processes: Arc<RwLock<HashMap<String, ExternalMcpProcess>>>,
     /// Discovered capabilities from all servers
     capabilities: Arc<RwLock<HashMap<String, Vec<Tool>>>>,
+    /// Server version and capability information
+    version_info: Arc<RwLock<HashMap<String, ServerVersionInfo>>>,
     /// Metrics collector for observability
     metrics_collector: Arc<McpMetricsCollector>,
     /// Health checker for active monitoring
@@ -101,6 +103,7 @@ impl ExternalMcpManager {
             container_config,
             processes: Arc::new(RwLock::new(HashMap::new())),
             capabilities: Arc::new(RwLock::new(HashMap::new())),
+            version_info: Arc::new(RwLock::new(HashMap::new())),
             metrics_collector,
             health_checker,
         }
@@ -439,6 +442,7 @@ mcpServers:
     async fn start_periodic_monitoring(&self) {
         let processes = Arc::clone(&self.processes);
         let capabilities = Arc::clone(&self.capabilities);
+        let version_info = Arc::clone(&self.version_info);
         let metrics_collector = Arc::clone(&self.metrics_collector);
         let health_checker = Arc::clone(&self.health_checker);
         let config = self.config.clone();
@@ -464,6 +468,7 @@ mcpServers:
                             if let Err(e) = Self::discover_server_capabilities_static(
                                 &processes,
                                 &capabilities,
+                                &version_info,
                                 &server_name,
                                 &config,
                             ).await {
@@ -543,6 +548,7 @@ mcpServers:
         Self::discover_server_capabilities_static(
             &self.processes,
             &self.capabilities,
+            &self.version_info,
             server_name,
             &self.config,
         ).await
@@ -552,6 +558,7 @@ mcpServers:
     async fn discover_server_capabilities_static(
         processes: &Arc<RwLock<HashMap<String, ExternalMcpProcess>>>,
         capabilities: &Arc<RwLock<HashMap<String, Vec<Tool>>>>,
+        version_info: &Arc<RwLock<HashMap<String, ServerVersionInfo>>>,
         server_name: &str,
         config: &ExternalMcpConfig,
     ) -> Result<()> {
@@ -616,6 +623,12 @@ mcpServers:
                 info!("Querying MCP 2025-06-18 enhanced capabilities for server '{}'", server_name);
                 Self::enhance_tools_with_2025_capabilities(process, server_name, &mut tools).await;
                 
+                // Step 3: Fetch sampling and elicitation lists if server supports them
+                Self::fetch_2025_capability_lists(process, server_name).await;
+                
+                // Step 4: Fetch prompts and resources if server supports them
+                Self::fetch_prompts_and_resources_lists(process, server_name).await;
+                
                 // Return the enhanced tools
                 tools
             } else {
@@ -638,6 +651,12 @@ mcpServers:
         {
             let mut capabilities_guard = capabilities.write().await;
             capabilities_guard.insert(server_name.to_string(), tools.clone());
+        }
+
+        // Store server version information
+        {
+            let mut version_info_guard = version_info.write().await;
+            version_info_guard.insert(server_name.to_string(), server_version_info.clone());
         }
 
         // Generate capability file with enhanced metadata
@@ -671,93 +690,191 @@ mcpServers:
     }
     
     /// Query a specific tool's sampling capability from external MCP server
+    /// Note: MCP spec doesn't define individual tool capability queries, this is experimental
     async fn query_tool_sampling_capability(
         process: &ExternalMcpProcess,
         server_name: &str,
         tool: &mut Tool,
     ) -> Result<()> {
-        // Create sampling capability query request
-        let params = json!({
-            "tool_name": tool.name,
-            "capability_type": "sampling",
-            "request_enhanced_description": true
-        });
+        debug!("Testing sampling capability for tool '{}' on server '{}'", tool.name, server_name);
         
-        debug!("Querying sampling capability for tool '{}' on server '{}'", tool.name, server_name);
-        
-        match process.send_request("capabilities/sampling/query", Some(params)).await {
-            Ok(response) => {
-                if let Some(error) = response.error {
-                    debug!("Sampling capability query failed for tool '{}': {}", tool.name, error.message);
-                    return Ok(()); // Not an error - server may not support this capability
+        // Since MCP spec doesn't define tool-specific capability queries,
+        // we'll mark tools as sampling-capable if the server supports sampling
+        match process.send_request("sampling/createMessage", Some(json!({
+            "messages": [{
+                "role": "user",
+                "content": {
+                    "type": "text", 
+                    "text": format!("Test sampling for tool: {}", tool.name)
                 }
-                
-                if let Some(result) = response.result {
-                    if let Ok(sampling_capability) = serde_json::from_value::<crate::mcp::types::SamplingCapability>(result) {
-                        // Store sampling capability in tool annotations
-                        if tool.annotations.is_none() {
-                            tool.annotations = Some(crate::mcp::types::ToolAnnotations::default());
-                        }
-                        
-                        if let Some(ref mut annotations) = tool.annotations {
-                            annotations.sampling = Some(sampling_capability);
-                            debug!("✅ Stored sampling capability for tool '{}' from server '{}'", tool.name, server_name);
-                        }
-                    } else {
-                        debug!("Failed to parse sampling capability response for tool '{}'", tool.name);
+            }],
+            "maxTokens": 1
+        }))).await {
+            Ok(response) => {
+                if response.error.is_none() {
+                    // Server supports sampling, mark tool as sampling-capable
+                    if tool.annotations.is_none() {
+                        tool.annotations = Some(crate::mcp::types::ToolAnnotations::default());
+                    }
+                    
+                    if let Some(ref mut annotations) = tool.annotations {
+                        // Create a basic sampling capability indicator
+                        annotations.sampling = Some(crate::mcp::types::SamplingCapability {
+                            supports_description_enhancement: true,
+                            enhanced_description: Some(format!("Tool '{}' supports sampling via server '{}'", tool.name, server_name)),
+                            model_used: Some("external_mcp".to_string()),
+                            confidence_score: Some(1.0),
+                            generated_at: Some(chrono::Utc::now()),
+                        });
+                        debug!("✅ Marked tool '{}' as sampling-capable on server '{}'", tool.name, server_name);
                     }
                 }
             }
             Err(_) => {
-                // Server doesn't support sampling capability query - this is fine
-                debug!("Server '{}' doesn't support sampling capability queries", server_name);
+                debug!("Server '{}' doesn't support sampling for tool '{}'", server_name, tool.name);
             }
         }
         
         Ok(())
     }
     
+    /// Test MCP 2025-06-18 advanced capabilities (sampling and elicitation)  
+    async fn fetch_2025_capability_lists(
+        process: &ExternalMcpProcess,
+        server_name: &str,
+    ) {
+        debug!("Testing MCP 2025-06-18 advanced capabilities for server '{}'", server_name);
+        
+        // Test sampling capability by attempting a simple sampling request
+        match process.send_request("sampling/createMessage", Some(json!({
+            "messages": [{
+                "role": "user", 
+                "content": {
+                    "type": "text",
+                    "text": "test"
+                }
+            }],
+            "maxTokens": 1
+        }))).await {
+            Ok(response) => {
+                if response.error.is_none() {
+                    info!("✅ Server '{}' supports MCP sampling capability", server_name);
+                } else {
+                    debug!("Server '{}' doesn't support sampling: {}", server_name, 
+                           response.error.as_ref().map(|e| e.message.as_str()).unwrap_or("unknown error"));
+                }
+            }
+            Err(_) => {
+                debug!("Server '{}' doesn't support sampling/createMessage endpoint", server_name);
+            }
+        }
+        
+        // Test elicitation capability by attempting a simple elicitation request  
+        match process.send_request("elicitation/create", Some(json!({
+            "prompt": "Test elicitation capability",
+            "inputType": "text",
+            "required": false
+        }))).await {
+            Ok(response) => {
+                if response.error.is_none() {
+                    info!("✅ Server '{}' supports MCP elicitation capability", server_name);
+                } else {
+                    debug!("Server '{}' doesn't support elicitation: {}", server_name,
+                           response.error.as_ref().map(|e| e.message.as_str()).unwrap_or("unknown error"));
+                }
+            }
+            Err(_) => {
+                debug!("Server '{}' doesn't support elicitation/create endpoint", server_name);
+            }
+        }
+    }
+    
+    /// Fetch prompts and resources lists from external MCP server
+    async fn fetch_prompts_and_resources_lists(
+        process: &ExternalMcpProcess,
+        server_name: &str,
+    ) {
+        debug!("Fetching prompts and resources lists for server '{}'", server_name);
+        
+        // Fetch prompts list
+        match process.send_request("prompts/list", Some(json!({}))).await {
+            Ok(response) => {
+                if let Some(error) = response.error {
+                    debug!("Server '{}' doesn't support prompts list: {}", server_name, error.message);
+                } else if let Some(result) = response.result {
+                    if let Ok(prompts_list) = serde_json::from_value::<crate::mcp::types::PromptListResponse>(result) {
+                        info!("✅ Fetched {} prompts from server '{}'", prompts_list.prompts.len(), server_name);
+                        // Store prompts for later use
+                        // TODO: Store in capabilities registry or dedicated storage
+                    } else {
+                        debug!("Failed to parse prompts list from server '{}'", server_name);
+                    }
+                }
+            }
+            Err(_) => {
+                debug!("Server '{}' doesn't support prompts list endpoint", server_name);
+            }
+        }
+        
+        // Fetch resources list
+        match process.send_request("resources/list", Some(json!({}))).await {
+            Ok(response) => {
+                if let Some(error) = response.error {
+                    debug!("Server '{}' doesn't support resources list: {}", server_name, error.message);
+                } else if let Some(result) = response.result {
+                    if let Ok(resources_list) = serde_json::from_value::<crate::mcp::types::ResourceListResponse>(result) {
+                        info!("✅ Fetched {} resources from server '{}'", resources_list.resources.len(), server_name);
+                        // Store resources for later use
+                        // TODO: Store in capabilities registry or dedicated storage
+                    } else {
+                        debug!("Failed to parse resources list from server '{}'", server_name);
+                    }
+                }
+            }
+            Err(_) => {
+                debug!("Server '{}' doesn't support resources list endpoint", server_name);
+            }
+        }
+    }
+    
     /// Query a specific tool's elicitation capability from external MCP server
+    /// Note: MCP spec doesn't define individual tool capability queries, this is experimental
     async fn query_tool_elicitation_capability(
         process: &ExternalMcpProcess,
         server_name: &str,
         tool: &mut Tool,
     ) -> Result<()> {
-        // Create elicitation capability query request
-        let params = json!({
-            "tool_name": tool.name,
-            "capability_type": "elicitation",
-            "request_enhanced_metadata": true
-        });
+        debug!("Testing elicitation capability for tool '{}' on server '{}'", tool.name, server_name);
         
-        debug!("Querying elicitation capability for tool '{}' on server '{}'", tool.name, server_name);
-        
-        match process.send_request("capabilities/elicitation/query", Some(params)).await {
+        // Since MCP spec doesn't define tool-specific capability queries,
+        // we'll mark tools as elicitation-capable if the server supports elicitation
+        match process.send_request("elicitation/create", Some(json!({
+            "prompt": format!("Test elicitation for tool: {}", tool.name),
+            "inputType": "text",
+            "required": false
+        }))).await {
             Ok(response) => {
-                if let Some(error) = response.error {
-                    debug!("Elicitation capability query failed for tool '{}': {}", tool.name, error.message);
-                    return Ok(()); // Not an error - server may not support this capability
-                }
-                
-                if let Some(result) = response.result {
-                    if let Ok(elicitation_capability) = serde_json::from_value::<crate::mcp::types::ElicitationCapability>(result) {
-                        // Store elicitation capability in tool annotations
-                        if tool.annotations.is_none() {
-                            tool.annotations = Some(crate::mcp::types::ToolAnnotations::default());
-                        }
-                        
-                        if let Some(ref mut annotations) = tool.annotations {
-                            annotations.elicitation = Some(elicitation_capability);
-                            debug!("✅ Stored elicitation capability for tool '{}' from server '{}'", tool.name, server_name);
-                        }
-                    } else {
-                        debug!("Failed to parse elicitation capability response for tool '{}'", tool.name);
+                if response.error.is_none() {
+                    // Server supports elicitation, mark tool as elicitation-capable
+                    if tool.annotations.is_none() {
+                        tool.annotations = Some(crate::mcp::types::ToolAnnotations::default());
+                    }
+                    
+                    if let Some(ref mut annotations) = tool.annotations {
+                        // Create a basic elicitation capability indicator
+                        annotations.elicitation = Some(crate::mcp::types::ElicitationCapability {
+                            supports_parameter_elicitation: true,
+                            enhanced_keywords: Some(vec![format!("tool_{}", tool.name), server_name.to_string()]),
+                            usage_patterns: Some(vec![format!("Tool '{}' supports elicitation via server '{}'", tool.name, server_name)]),
+                            parameter_examples: None,
+                            generated_at: Some(chrono::Utc::now()),
+                        });
+                        debug!("✅ Marked tool '{}' as elicitation-capable on server '{}'", tool.name, server_name);
                     }
                 }
             }
             Err(_) => {
-                // Server doesn't support elicitation capability query - this is fine
-                debug!("Server '{}' doesn't support elicitation capability queries", server_name);
+                debug!("Server '{}' doesn't support elicitation for tool '{}'", server_name, tool.name);
             }
         }
         
@@ -834,6 +951,8 @@ mcpServers:
                 enabled, // Preserve user setting or use default
                 prompt_refs: Vec::new(),
                 resource_refs: Vec::new(),
+                sampling_strategy: None,
+                elicitation_strategy: None,
             }
         }).collect();
 
@@ -952,33 +1071,46 @@ mcpServers:
         }
         
         // Try to detect protocol version by testing for specific endpoints
-        // Test for 2025-06-18 sampling support
-        match process.send_request("capabilities/sampling/list", Some(json!({}))).await {
+        // Test for sampling support (MCP advanced capability)
+        match process.send_request("sampling/createMessage", Some(json!({
+            "messages": [{
+                "role": "user",
+                "content": {
+                    "type": "text",
+                    "text": "test"
+                }
+            }],
+            "maxTokens": 1
+        }))).await {
             Ok(response) => {
                 if response.error.is_none() {
                     version_info.supports_sampling = true;
                     version_info.protocol_version = Some("2025-06-18".to_string());
-                    debug!("Server '{}' supports MCP 2025-06-18 sampling", server_name);
+                    debug!("Server '{}' supports MCP sampling capability", server_name);
                 }
             }
             Err(_) => {
-                debug!("Server '{}' doesn't support 2025-06-18 sampling capabilities", server_name);
+                debug!("Server '{}' doesn't support sampling capability", server_name);
             }
         }
         
-        // Test for 2025-06-18 elicitation support
-        match process.send_request("capabilities/elicitation/list", Some(json!({}))).await {
+        // Test for elicitation support (MCP advanced capability)
+        match process.send_request("elicitation/create", Some(json!({
+            "prompt": "Test elicitation capability",
+            "inputType": "text",
+            "required": false
+        }))).await {
             Ok(response) => {
                 if response.error.is_none() {
                     version_info.supports_elicitation = true;
                     if version_info.protocol_version.is_none() {
                         version_info.protocol_version = Some("2025-06-18".to_string());
                     }
-                    debug!("Server '{}' supports MCP 2025-06-18 elicitation", server_name);
+                    debug!("Server '{}' supports MCP elicitation capability", server_name);
                 }
             }
             Err(_) => {
-                debug!("Server '{}' doesn't support 2025-06-18 elicitation capabilities", server_name);
+                debug!("Server '{}' doesn't support elicitation capability", server_name);
             }
         }
         
@@ -1571,6 +1703,104 @@ impl ExternalMcpManager {
             process.send_request(method, params).await
         } else {
             Err(ProxyError::connection(format!("External MCP server '{}' not found", server_name)))
+        }
+    }
+
+    /// Get list of external MCP servers that support sampling capability (MCP 2025-06-18)
+    pub async fn get_sampling_capable_servers(&self) -> Vec<String> {
+        let version_info = self.version_info.read().await;
+        
+        version_info.iter()
+            .filter_map(|(server_name, info)| {
+                if info.supports_sampling {
+                    Some(server_name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// Get list of external MCP servers that support elicitation capability (MCP 2025-06-18)
+    pub async fn get_elicitation_capable_servers(&self) -> Vec<String> {
+        let version_info = self.version_info.read().await;
+        
+        version_info.iter()
+            .filter_map(|(server_name, info)| {
+                if info.supports_elicitation {
+                    Some(server_name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// Forward sampling request to external MCP server (MCP 2025-06-18)
+    pub async fn forward_sampling_request(
+        &self,
+        server_name: &str,
+        request: &crate::mcp::types::sampling::SamplingRequest,
+    ) -> std::result::Result<crate::mcp::types::sampling::SamplingResponse, crate::mcp::types::sampling::SamplingError> {
+        debug!("Forwarding sampling request to external MCP server: {}", server_name);
+        
+        let processes = self.processes.read().await;
+        
+        if let Some(process) = processes.get(server_name) {
+            // Convert SamplingRequest to JSON for MCP transmission
+            let params = serde_json::to_value(request).map_err(|e| {
+                crate::mcp::types::sampling::SamplingError {
+                    code: crate::mcp::types::sampling::SamplingErrorCode::InvalidRequest,
+                    message: format!("Failed to serialize sampling request: {}", e),
+                    details: None,
+                }
+            })?;
+            
+            // Send the sampling/createMessage request to external server
+            match process.send_request("sampling/createMessage", Some(params)).await {
+                Ok(response) => {
+                    // Convert MCP response back to SamplingResponse
+                    if let Some(result) = response.result {
+                        serde_json::from_value(result).map_err(|e| {
+                            crate::mcp::types::sampling::SamplingError {
+                                code: crate::mcp::types::sampling::SamplingErrorCode::InternalError,
+                                message: format!("Failed to deserialize sampling response: {}", e),
+                                details: None,
+                            }
+                        })
+                    } else if let Some(error) = response.error {
+                        Err(crate::mcp::types::sampling::SamplingError {
+                            code: crate::mcp::types::sampling::SamplingErrorCode::InternalError,
+                            message: format!("External server error: {}", error.message),
+                            details: error.data.map(|d| {
+                                d.as_object()
+                                    .map(|obj| obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                                    .unwrap_or_default()
+                            }),
+                        })
+                    } else {
+                        Err(crate::mcp::types::sampling::SamplingError {
+                            code: crate::mcp::types::sampling::SamplingErrorCode::InternalError,
+                            message: "Invalid response from external server".to_string(),
+                            details: None,
+                        })
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to forward sampling request to server '{}': {}", server_name, e);
+                    Err(crate::mcp::types::sampling::SamplingError {
+                        code: crate::mcp::types::sampling::SamplingErrorCode::InternalError,
+                        message: format!("Failed to communicate with external server: {}", e),
+                        details: None,
+                    })
+                }
+            }
+        } else {
+            Err(crate::mcp::types::sampling::SamplingError {
+                code: crate::mcp::types::sampling::SamplingErrorCode::InternalError,
+                message: format!("External MCP server '{}' not found", server_name),
+                details: None,
+            })
         }
     }
 }

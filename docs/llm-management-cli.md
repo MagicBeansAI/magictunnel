@@ -73,8 +73,8 @@ magictunnel-llm sampling generate --tool example_tool [--force] [--provider open
 # List tools with enhanced descriptions
 magictunnel-llm sampling list [--filter pattern] [--show-meta]
 
-# Test sampling service connectivity
-magictunnel-llm sampling test [--all-providers]
+# Test tool enhancement service connectivity
+magictunnel-llm tool-enhancement test [--all-providers]
 ```
 
 **Examples:**

@@ -2,20 +2,21 @@
 //!
 //! Tests sampling, elicitation, and roots services independently
 
-use magictunnel::mcp::sampling::SamplingService;
+use magictunnel::mcp::tool_enhancement::ToolEnhancementService;
 use magictunnel::mcp::elicitation::ElicitationService;
 use magictunnel::mcp::roots::RootsService;
 use magictunnel::mcp::types::*;
+use magictunnel::mcp::types::tool_enhancement::ModelPreferences;
 use magictunnel::config::Config;
 use serde_json::json;
 
-/// Test SamplingService initialization and configuration
+/// Test ToolEnhancementService initialization and configuration
 #[tokio::test]
-async fn test_sampling_service_initialization() {
+async fn test_tool_enhancement_service_initialization() {
     let config = Config::default();
     
     // Test service creation from config
-    let result = SamplingService::from_config(&config);
+    let result = ToolEnhancementService::from_config(&config);
     
     // Service should be created successfully even without LLM config
     assert!(result.is_ok());
@@ -28,9 +29,9 @@ async fn test_sampling_service_initialization() {
     assert!(status["providers"].is_object());
 }
 
-/// Test SamplingService with valid request
+/// Test ToolEnhancementService with valid request
 #[tokio::test]
-async fn test_sampling_service_request_handling() {
+async fn test_tool_enhancement_service_request_handling() {
     let mut config = Config::default();
     
     // Configure with test LLM settings (using rule-based for testing)
@@ -51,14 +52,16 @@ async fn test_sampling_service_request_handling() {
         tool_metrics_enabled: None,
         enable_sampling: Some(false),
         enable_elicitation: Some(false),
+        default_sampling_strategy: None,
+        default_elicitation_strategy: None,
     });
     
-    let service = SamplingService::from_config(&config).unwrap();
+    let service = ToolEnhancementService::from_config(&config).unwrap();
     
-    let request = SamplingRequest {
-        messages: vec![SamplingMessage {
-            role: SamplingMessageRole::User,
-            content: SamplingContent::Text("Hello, world!".to_string()),
+    let request = ToolEnhancementRequest {
+        messages: vec![ToolEnhancementMessage {
+            role: ToolEnhancementMessageRole::User,
+            content: ToolEnhancementContent::Text("Enhance this tool description: A basic tool".to_string()),
             name: None,
             metadata: None,
         }],
@@ -69,7 +72,7 @@ async fn test_sampling_service_request_handling() {
             preferred_models: Some(vec!["gpt-3.5-turbo".to_string()]),
             excluded_models: None,
         }),
-        system_prompt: Some("You are a helpful assistant.".to_string()),
+        system_prompt: Some("You are a helpful assistant for tool enhancement.".to_string()),
         max_tokens: Some(100),
         temperature: Some(0.7),
         top_p: None,
@@ -78,7 +81,7 @@ async fn test_sampling_service_request_handling() {
     };
     
     // Test request handling (may return error without actual LLM config)
-    let result = service.handle_sampling_request(request, Some("test_user")).await;
+    let result = service.handle_enhancement_request(request, Some("test_user")).await;
     
     // Should return a result (either success or known error)
     assert!(result.is_ok() || result.is_err());
@@ -86,10 +89,10 @@ async fn test_sampling_service_request_handling() {
     if let Err(e) = result {
         // Error should be well-formed
         assert!(!e.message.is_empty());
-        assert!(matches!(e.code, SamplingErrorCode::InternalError | 
-                                 SamplingErrorCode::InvalidRequest |
-                                 SamplingErrorCode::RateLimitExceeded |
-                                 SamplingErrorCode::SecurityViolation));
+        assert!(matches!(e.code, ToolEnhancementErrorCode::InternalError | 
+                                 ToolEnhancementErrorCode::InvalidRequest |
+                                 ToolEnhancementErrorCode::RateLimitExceeded |
+                                 ToolEnhancementErrorCode::SecurityViolation));
     }
 }
 
@@ -280,6 +283,8 @@ async fn test_roots_service_list_roots() {
         tool_metrics_enabled: None,
         enable_sampling: Some(false),
         enable_elicitation: Some(false),
+        default_sampling_strategy: None,
+        default_elicitation_strategy: None,
     });
     
     let service = RootsService::from_config(&config).unwrap();
@@ -512,10 +517,10 @@ async fn test_roots_service_security_filtering() {
 async fn test_services_error_handling() {
     let config = Config::default();
     
-    // Test SamplingService error handling
-    let sampling_service = SamplingService::from_config(&config).unwrap();
+    // Test ToolEnhancementService error handling
+    let tool_enhancement_service = ToolEnhancementService::from_config(&config).unwrap();
     
-    let invalid_sampling_request = SamplingRequest {
+    let invalid_enhancement_request = ToolEnhancementRequest {
         messages: vec![], // Empty messages should cause error
         model_preferences: None,
         system_prompt: None,
@@ -526,9 +531,9 @@ async fn test_services_error_handling() {
         metadata: None,
     };
     
-    let sampling_result = sampling_service.handle_sampling_request(invalid_sampling_request, None).await;
-    if sampling_result.is_err() {
-        let error = sampling_result.unwrap_err();
+    let enhancement_result = tool_enhancement_service.handle_enhancement_request(invalid_enhancement_request, None).await;
+    if enhancement_result.is_err() {
+        let error = enhancement_result.unwrap_err();
         assert!(!error.message.is_empty());
     }
     

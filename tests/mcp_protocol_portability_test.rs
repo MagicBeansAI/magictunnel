@@ -288,6 +288,8 @@ async fn test_protocol_portability_config_integration() {
         max_reconnect_attempts: 8,
         reconnect_delay_ms: 750,
         max_reconnect_delay_ms: 25000,
+        sampling_strategy: None,
+        elicitation_strategy: None,
     };
     
     // Convert to SSE client config

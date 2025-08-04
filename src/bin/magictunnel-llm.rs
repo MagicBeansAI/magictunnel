@@ -20,10 +20,11 @@ use magictunnel::config::Config;
 use magictunnel::error::{Result, ProxyError};
 use magictunnel::registry::RegistryService;
 use magictunnel::mcp::{
-    SamplingService, ElicitationService, PromptGeneratorService, ResourceGeneratorService,
-    ContentStorageService, ExternalContentManager, ExternalMcpManager
+    SamplingService, ToolEnhancementService, ElicitationService, PromptGeneratorService, ResourceGeneratorService,
+    ContentStorageService, ExternalContentManager, ExternalMcpManager, ResourceType, ResourceGenerationRequest,
+    PromptType, PromptGenerationRequest, PromptGenerationConfig, is_external_mcp_tool, ResourceGenerationConfig
 };
-use magictunnel::discovery::{ToolEnhancementService, EnhancementStorageService};
+use magictunnel::discovery::{ToolEnhancementPipeline, EnhancementStorageService};
 
 #[derive(Parser)]
 #[command(
@@ -368,7 +369,7 @@ struct LLMServices {
     elicitation: Option<Arc<ElicitationService>>,
     prompt_generator: Option<Arc<PromptGeneratorService>>,
     resource_generator: Option<Arc<ResourceGeneratorService>>,
-    enhancement: Option<Arc<ToolEnhancementService>>,
+    enhancement: Option<Arc<ToolEnhancementPipeline>>,
     enhancement_storage: Option<Arc<EnhancementStorageService>>,
     content_storage: Option<Arc<ContentStorageService>>,
     external_content: Option<Arc<ExternalContentManager>>,
@@ -526,12 +527,13 @@ async fn initialize_services(config: &Config) -> Result<LLMServices> {
             graceful_degradation: true,
         };
         
-        let service = ToolEnhancementService::new_with_storage(
+        let service = ToolEnhancementPipeline::new_with_storage(
             enhancement_config,
             Arc::clone(&registry),
-            sampling.clone(),
+            None, // tool_enhancement_service - we don't have one initialized
             elicitation.clone(),
             enhancement_storage.clone(),
+            config.elicitation.clone(),
         );
         Some(Arc::new(service))
     } else {
@@ -705,7 +707,7 @@ async fn generate_sampling_for_tool(
         .ok_or_else(|| ProxyError::validation(format!("Tool '{}' not found", tool_name)))?;
     
     // Check if it's an external MCP tool
-    if magictunnel::mcp::prompt_generator::is_external_mcp_tool(&tool_def.name, external_mcp).await {
+    if is_external_mcp_tool(&tool_def.name, external_mcp).await {
         warn!("⚠️  Tool '{}' is from external MCP server - enhancements should come from source server", tool_name);
         if !force {
             return Err(ProxyError::validation(
@@ -720,7 +722,7 @@ async fn generate_sampling_for_tool(
 
 async fn check_external_mcp_warning(registry: &RegistryService, tool_name: &str, content_type: &str, external_mcp: Option<&Arc<ExternalMcpManager>>) -> Result<()> {
     if let Some(tool_def) = registry.get_tool(tool_name) {
-        if magictunnel::mcp::prompt_generator::is_external_mcp_tool(&tool_def.name, external_mcp).await {
+        if is_external_mcp_tool(&tool_def.name, external_mcp).await {
             warn!("⚠️  WARNING: Tool '{}' is from external MCP server", tool_name);
             warn!("⚠️  Generated {} may conflict with server-provided content", content_type);
             warn!("⚠️  Consider fetching {} from the external MCP server instead", content_type);
@@ -736,7 +738,7 @@ async fn check_all_external_mcp_tools(registry: &RegistryService, content_type: 
     let mut external_tools = Vec::new();
     
     for (tool_name, tool_def) in all_tools {
-        if magictunnel::mcp::prompt_generator::is_external_mcp_tool(&tool_name, external_mcp).await {
+        if is_external_mcp_tool(&tool_name, external_mcp).await {
             external_tools.push(tool_name);
         }
     }
@@ -788,25 +790,25 @@ async fn generate_prompts_for_tool(prompt_gen: &PromptGeneratorService, registry
         .ok_or_else(|| ProxyError::validation(format!("Tool '{}' not found", tool_name)))?;
     
     // Parse prompt types
-    let prompt_types: Vec<magictunnel::mcp::PromptType> = types
+    let prompt_types: Vec<PromptType> = types
         .split(',')
         .map(|t| match t.trim().to_lowercase().as_str() {
-            "usage" => magictunnel::mcp::PromptType::Usage,
-            "validation" => magictunnel::mcp::PromptType::ParameterValidation,
-            "troubleshooting" => magictunnel::mcp::PromptType::Troubleshooting,
+            "usage" => PromptType::Usage,
+            "validation" => PromptType::ParameterValidation,
+            "troubleshooting" => PromptType::Troubleshooting,
             _ => {
                 warn!("Unknown prompt type '{}', using Usage", t);
-                magictunnel::mcp::PromptType::Usage
+                PromptType::Usage
             }
         })
         .collect();
     
     // Create generation request
-    let request = magictunnel::mcp::PromptGenerationRequest {
+    let request = PromptGenerationRequest {
         tool_name: tool_name.to_string(),
         tool_definition: (*tool_def).clone(),
         prompt_types,
-        config: magictunnel::mcp::PromptGenerationConfig::default(),
+        config: PromptGenerationConfig::default(),
     };
     
     info!("🚀 Generating {} prompt types for tool '{}'", request.prompt_types.len(), tool_name);
@@ -838,13 +840,157 @@ async fn export_prompts_for_tool(_content_storage: &Option<Arc<ContentStorageSer
     Ok(())
 }
 
-async fn generate_resources_for_tool(_resource_gen: &ResourceGeneratorService, _registry: &RegistryService, _tool: &str, _types: &str, _force: bool) -> Result<()> {
-    info!("📋 Generating resources (implementation needed)");
+async fn generate_resources_for_tool(resource_gen: &ResourceGeneratorService, registry: &RegistryService, tool: &str, types: &str, force: bool) -> Result<()> {
+    info!("📋 Generating resources for tool: {}", tool);
+    
+    // Get tool definition
+    let tool_def = registry.get_tool(tool)
+        .ok_or_else(|| ProxyError::validation(format!("Tool '{}' not found", tool)))?;
+    
+    // Parse resource types
+    let resource_types: Vec<ResourceType> = types
+        .split(',')
+        .map(|s| s.trim())
+        .filter_map(|type_str| match type_str.to_lowercase().as_str() {
+            "documentation" => Some(ResourceType::Documentation),
+            "examples" => Some(ResourceType::Examples),
+            "schema" => Some(ResourceType::Schema),
+            "configuration" => Some(ResourceType::Configuration),
+            "openapi" => Some(ResourceType::OpenAPI),
+            _ => {
+                warn!("Unknown resource type: {}", type_str);
+                None
+            }
+        })
+        .collect();
+    
+    if resource_types.is_empty() {
+        return Err(ProxyError::validation("No valid resource types specified. Use: documentation,examples,schema,configuration,openapi".to_string()));
+    }
+    
+    // Create generation request
+    let generation_request = ResourceGenerationRequest {
+        tool_name: tool.to_string(),
+        tool_definition: (*tool_def).clone(),
+        resource_types,
+        config: ResourceGenerationConfig::default(),
+    };
+    
+    // Generate resources
+    info!("🔄 Generating {} resource types for tool '{}'", generation_request.resource_types.len(), tool);
+    let response = resource_gen.generate_resources(generation_request).await?;
+    
+    if response.success {
+        info!("✅ Successfully generated {} resources for tool '{}'", response.resources.len(), tool);
+        
+        // Display generated resources
+        for resource in &response.resources {
+            info!("  📄 {}: {} (confidence: {:.1}%)", 
+                  resource.resource.name, 
+                  resource.resource.description.as_deref().unwrap_or("No description"),
+                  resource.confidence * 100.0);
+        }
+        
+        // Display generation metadata
+        if let Some(metadata) = &response.metadata.model_used {
+            info!("🤖 Generated using model: {}, time: {}ms", 
+                  metadata, response.metadata.generation_time_ms);
+        }
+    } else {
+        error!("❌ Resource generation failed for tool '{}'", tool);
+        if let Some(error) = response.error {
+            error!("   Error: {}", error);
+        }
+    }
+    
     Ok(())
 }
 
-async fn list_generated_resources(_content_storage: &Option<Arc<ContentStorageService>>, _tool: Option<&str>, _format: &str) -> Result<()> {
-    info!("📋 Listing generated resources (implementation needed)");
+async fn list_generated_resources(content_storage: &Option<Arc<ContentStorageService>>, tool: Option<&str>, format: &str) -> Result<()> {
+    info!("📋 Listing generated resources");
+    
+    let storage = content_storage.as_ref()
+        .ok_or_else(|| ProxyError::config("Content storage service not configured".to_string()))?;
+    
+    let (prompts, resources) = if let Some(tool_name) = tool {
+        // List content for specific tool
+        info!("📋 Listing content for tool: {}", tool_name);
+        storage.list_tool_content(tool_name).await?
+    } else {
+        // List all content (would need additional method)
+        warn!("Listing all resources not yet implemented - please specify --tool");
+        return Ok(());
+    };
+    
+    match format.to_lowercase().as_str() {
+        "json" => {
+            let output = serde_json::json!({
+                "tool": tool,
+                "prompts": prompts,
+                "resources": resources,
+                "summary": {
+                    "prompt_count": prompts.len(),
+                    "resource_count": resources.len()
+                }
+            });
+            println!("{}", serde_json::to_string_pretty(&output)?);
+        }
+        "table" | _ => {
+            if let Some(tool_name) = tool {
+                println!("📋 Generated Content for Tool: {}", tool_name);
+            } else {
+                println!("📋 All Generated Content");
+            }
+            println!();
+            
+            if !prompts.is_empty() {
+                println!("🔤 Prompts ({}):", prompts.len());
+                for prompt in &prompts {
+                    println!("  • {} ({})", prompt.name, prompt.prompt_type);
+                    if let Some(desc) = &prompt.description {
+                        println!("    Description: {}", desc);
+                    }
+                    if let Some(gen_meta) = &prompt.generation_metadata {
+                        if let Some(model) = &gen_meta.model_used {
+                            println!("    Generated by: {}", model);
+                        }
+                        if let Some(score) = gen_meta.confidence_score {
+                            println!("    Confidence: {:.1}%", score * 100.0);
+                        }
+                    }
+                    println!();
+                }
+            }
+            
+            if !resources.is_empty() {
+                println!("📄 Resources ({}):", resources.len());
+                for resource in &resources {
+                    println!("  • {} ({})", resource.name, resource.resource_type);
+                    if let Some(desc) = &resource.description {
+                        println!("    Description: {}", desc);
+                    }
+                    println!("    URI: {}", resource.uri);
+                    if let Some(mime_type) = &resource.mime_type {
+                        println!("    MIME Type: {}", mime_type);
+                    }
+                    if let Some(gen_meta) = &resource.generation_metadata {
+                        if let Some(model) = &gen_meta.model_used {
+                            println!("    Generated by: {}", model);
+                        }
+                        if let Some(score) = gen_meta.confidence_score {
+                            println!("    Confidence: {:.1}%", score * 100.0);
+                        }
+                    }
+                    println!();
+                }
+            }
+            
+            if prompts.is_empty() && resources.is_empty() {
+                println!("No generated content found.");
+            }
+        }
+    }
+    
     Ok(())
 }
 
@@ -853,7 +999,7 @@ async fn export_resources_for_tool(_content_storage: &Option<Arc<ContentStorageS
     Ok(())
 }
 
-async fn regenerate_enhancements(_enhancement: &ToolEnhancementService, _registry: &RegistryService, _tool: Option<&str>, _force: bool, _batch_size: usize) -> Result<()> {
+async fn regenerate_enhancements(_enhancement: &ToolEnhancementPipeline, _registry: &RegistryService, _tool: Option<&str>, _force: bool, _batch_size: usize) -> Result<()> {
     info!("🚀 Regenerating enhancements (implementation needed)");
     Ok(())
 }

@@ -104,7 +104,7 @@ smart_discovery:
   enabled: true
   tool_selection_mode: "rule_based"
   default_confidence_threshold: 0.7
-  enable_sampling: false
+  enable_tool_enhancement: false
   enable_elicitation: false
   max_tools_to_consider: 10
   max_high_quality_matches: 3
@@ -477,7 +477,7 @@ smart_discovery:
   enabled: true
   tool_selection_mode: "rule_based"
   default_confidence_threshold: 0.7
-  enable_sampling: true
+  enable_tool_enhancement: true
   enable_elicitation: false
   max_tools_to_consider: 10
   max_high_quality_matches: 3

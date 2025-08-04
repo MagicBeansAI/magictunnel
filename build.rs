@@ -14,7 +14,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn update_version_info() {
     // Get package info from Cargo.toml
     let pkg_name = env::var("CARGO_PKG_NAME").unwrap_or_else(|_| "magictunnel".to_string());
-    let pkg_version = env::var("CARGO_PKG_VERSION").unwrap_or_else(|_| "0.3.0".to_string());
+    let pkg_version = env::var("CARGO_PKG_VERSION").unwrap_or_else(|_| "0.3.4".to_string());
 
     // Update version in key files
     update_json_file("test-resources/info.json", &pkg_name, &pkg_version);

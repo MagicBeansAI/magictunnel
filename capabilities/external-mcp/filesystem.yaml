@@ -36,6 +36,8 @@ tools:
       timeout: 30
       tool_name: read_file
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     source: external_mcp
     server: filesystem
     original_name: read_file
@@ -64,6 +66,8 @@ tools:
       timeout: 30
       tool_name: read_multiple_files
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     source: external_mcp
     server: filesystem
     original_name: read_multiple_files
@@ -93,6 +97,8 @@ tools:
       timeout: 30
       tool_name: write_file
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     original_name: write_file
     source: external_mcp
     server: filesystem
@@ -139,6 +145,8 @@ tools:
       timeout: 30
       tool_name: edit_file
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     original_name: edit_file
     source: external_mcp
     server: filesystem
@@ -165,6 +173,8 @@ tools:
       timeout: 30
       tool_name: create_directory
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     source: external_mcp
     original_name: create_directory
     server: filesystem
@@ -191,6 +201,8 @@ tools:
       timeout: 30
       tool_name: list_directory
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     server: filesystem
     original_name: list_directory
     source: external_mcp
@@ -224,6 +236,8 @@ tools:
       timeout: 30
       tool_name: list_directory_with_sizes
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     server: filesystem
     original_name: list_directory_with_sizes
     source: external_mcp
@@ -250,6 +264,8 @@ tools:
       timeout: 30
       tool_name: directory_tree
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     server: filesystem
     original_name: directory_tree
     source: external_mcp
@@ -279,6 +295,8 @@ tools:
       timeout: 30
       tool_name: move_file
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     original_name: move_file
     source: external_mcp
     server: filesystem
@@ -313,6 +331,8 @@ tools:
       timeout: 30
       tool_name: search_files
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     original_name: search_files
     source: external_mcp
     server: filesystem
@@ -339,6 +359,8 @@ tools:
       timeout: 30
       tool_name: get_file_info
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     server: filesystem
     original_name: get_file_info
     source: external_mcp
@@ -360,6 +382,8 @@ tools:
       timeout: 30
       tool_name: list_allowed_directories
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     source: external_mcp
     server: filesystem
     original_name: list_allowed_directories

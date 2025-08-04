@@ -13,7 +13,7 @@ graph TD
     C -->|Yes| D[Enhancement Pipeline]
     C -->|No| E[Standard Registration]
     
-    D --> F[1. Sampling Service]
+    D --> F[1. Tool Enhancement Service]
     F --> G[2. Elicitation Service]
     G --> H[3. Enhancement Coordination]
     H --> I[Enhanced Tool Available]
@@ -33,9 +33,9 @@ graph TD
 
 ## Core Components
 
-### 1. Sampling Service (`src/mcp/sampling.rs`)
+### 1. Tool Enhancement Service (`src/mcp/tool_enhancement.rs`)
 
-**Purpose**: Enhances tool descriptions using LLM-powered analysis to improve clarity, detail, and usability.
+**Purpose**: Enhances tool descriptions using LLM-powered analysis to improve clarity, detail, and usability. This service was previously called "sampling" but has been renamed to avoid confusion with MCP sampling (server→client LLM requests).
 
 **Key Features**:
 - **Style-based Enhancement**: Supports `detailed`, `concise`, and `technical` styles

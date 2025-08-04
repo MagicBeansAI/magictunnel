@@ -18,5 +18,9 @@ pub use config::{
     ExternalMcpConfig, ContainerConfig, McpServerConfig, ExternalMcpServersConfig,
     // Network MCP service types
     HttpServiceConfig, SseServiceConfig, WebSocketServiceConfig,
-    HttpAuthType, SseAuthType, WebSocketAuthType
+    HttpAuthType, SseAuthType, WebSocketAuthType,
+    // MCP 2025-06-18 feature types
+    SamplingConfig, ElicitationConfig, LlmConfig, SamplingElicitationStrategy,
+    // MCP External Routing types (MCP 2025-06-18)
+    McpExternalRoutingConfig, ExternalRoutingStrategyConfig
 };

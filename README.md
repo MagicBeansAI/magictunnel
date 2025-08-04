@@ -27,7 +27,7 @@ MagicTunnel provides **one smart tool** that:
 - **📊 Version Management**: Automatic capability file versioning with rollback support
 - **⚠️ Graceful Degradation**: 100% reliability with fallback to base descriptions
 
-**🎨 NEW: Complete LLM Backend Management APIs**:
+**🎨 NEW: Complete LLM Backend Management APIs** (v0.3.4):
 
 - **📡 25+ REST Endpoints**: Comprehensive API coverage for all LLM services and resource management
 - **🔧 Resource Management**: 7 endpoints for browsing, reading, validation, and statistics
@@ -35,6 +35,7 @@ MagicTunnel provides **one smart tool** that:
 - **📝 Prompt & Sampling**: Complete management APIs for AI-powered content generation
 - **🤖 Provider Management**: Multi-provider configuration and health monitoring (OpenAI/Anthropic/Ollama)
 - **📊 Analytics & Statistics**: Real-time metrics and performance monitoring for all services
+- **🧪 Comprehensive Test Coverage**: 60+ test functions across 6 test suites providing complete API validation
 
 ## Quick Start
 
@@ -301,6 +302,15 @@ MagicTunnel is **fully compliant** with the latest MCP 2025-06-18 specification:
 - **✅ Granular Progress Tracking**: Real-time monitoring of long-running operations with sub-operations
 - **✅ Runtime Tool Validation**: Security sandboxing with classification-based policies
 
+### 🎯 **"Super-Charged MCP" Hybrid Processing System**
+- **✅ Hybrid Processing Strategies**: Six configurable processing modes (LocalOnly, ProxyOnly, ProxyFirst, LocalFirst, Parallel, Hybrid)
+- **✅ Intelligent Local Processing**: Enhanced context analysis, multimodal support, and schema intelligence
+- **✅ Multi-Hop Proxy Chains**: Forward requests through MagicTunnel server chains with automatic fallback
+- **✅ Parallel Execution**: Simultaneous local and proxy processing with `tokio::select!` for optimal performance
+- **✅ Response Combination**: Intelligent merging of local and proxy responses based on confidence scores
+- **✅ Enhanced Metadata**: Comprehensive processing tracking with fallback reasons and performance metrics
+- **✅ Configurable Timeouts**: Fine-grained control over proxy operations and chain traversal
+
 **Migration Path**: Existing clients continue working with HTTP+SSE while new clients can leverage the enhanced Streamable HTTP transport for better performance and features.
 
 ## Documentation
@@ -325,6 +335,11 @@ MagicTunnel is **fully compliant** with the latest MCP 2025-06-18 specification:
 - [📊 Observability](docs/MCP_OBSERVABILITY_ARCHITECTURE.md) - Metrics and monitoring
 
 ### MCP 2025-06-18 Compliance Documentation
+- [📋 MCP 2025-06-18 Compliance](docs/mcp-2025-06-18-compliance.md) - Complete specification compliance guide
+- [🎯 Hybrid Processing Guide](docs/mcp-hybrid-processing-guide.md) - Comprehensive hybrid processing system documentation  
+- [⚙️ Configuration Examples](docs/mcp-configuration-examples.md) - Practical configuration examples for different use cases
+- [🏗️ Sampling & Elicitation Architecture](docs/mcp-sampling-elicitation-architecture.md) - Architecture overview and implementation details
+- [🔍 Client Compliance Analysis](docs/mcp-client-compliance-analysis.md) - Detailed compliance gap analysis and roadmap
 - [⚡ Cancellation System](docs/mcp-cancellation.md) - Enhanced request cancellation with token management
 - [📊 Progress Tracking](docs/mcp-progress.md) - Granular progress monitoring for long-running operations  
 - [🛡️ Tool Validation](docs/mcp-tool-validation.md) - Runtime security sandboxing and validation

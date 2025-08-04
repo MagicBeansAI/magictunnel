@@ -30,6 +30,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         timeout: 30,
         retry_attempts: 3,
         retry_delay_ms: 1000,
+        sampling_strategy: None, // Use global sampling strategy
+        elicitation_strategy: None, // Use global elicitation strategy
         max_idle_connections: Some(10),
         idle_timeout: Some(60),
     });
@@ -51,6 +53,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         max_reconnect_attempts: 10,
         reconnect_delay_ms: 1000,
         max_reconnect_delay_ms: 30000,
+        sampling_strategy: None, // Use global sampling strategy
+        elicitation_strategy: None, // Use global elicitation strategy
     });
 
     let config = ExternalMcpServersConfig {

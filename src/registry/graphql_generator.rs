@@ -6890,6 +6890,8 @@ impl GraphQLCapabilityGenerator {
             discovery,
             monitoring,
             access,
+            sampling_strategy: None,
+            elicitation_strategy: None,
         })
     }
 
@@ -6963,6 +6965,8 @@ impl GraphQLCapabilityGenerator {
             enabled: true, // GraphQL tools are enabled by default
             prompt_refs: Vec::new(),
             resource_refs: Vec::new(),
+            sampling_strategy: None,
+            elicitation_strategy: None,
         })
     }
 

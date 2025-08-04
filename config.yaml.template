@@ -124,7 +124,7 @@ mcp_client:
   auto_reconnect: true          # Enable automatic reconnection
   protocol_version: "2025-06-18" # MCP protocol version to use
   client_name: "magictunnel"    # Client name for MCP handshake (defaults to package name)
-  client_version: "0.3.0"       # Client version for MCP handshake (defaults to package version)
+  client_version: "0.3.4"       # Client version for MCP handshake (defaults to package version)
 
 # =============================================================================
 # EXTERNAL MCP CONFIGURATION (Claude Desktop Format)
@@ -263,6 +263,36 @@ smart_discovery:
       embedding_cache_size: 1000          # In-memory cache size for embeddings
       parallel_processing: true           # Enable parallel embedding generation
       worker_threads: 4                   # Number of worker threads for parallel processing
+
+# =============================================================================
+# SAMPLING CONFIGURATION
+# =============================================================================
+# Configuration for MCP sampling capabilities - generating sample requests and responses
+sampling:
+  enabled: false                         # Enable sampling capabilities (env: SAMPLING_ENABLED)
+  max_schema_complexity: "medium"        # Maximum schema complexity: simple|medium|complex (env: SAMPLING_MAX_SCHEMA_COMPLEXITY)
+  default_timeout_seconds: 30            # Default timeout for sampling requests (env: SAMPLING_DEFAULT_TIMEOUT)
+
+# =============================================================================
+# ELICITATION CONFIGURATION
+# =============================================================================
+# Configuration for MCP 2025-06-18 elicitation capabilities - interactive parameter collection
+# Elicitation is OPTIONAL per MCP 2025-06-18 specification and enables dynamic user input during tool execution
+elicitation:
+  enabled: false                         # Enable elicitation capabilities (OPTIONAL per MCP spec) (env: ELICITATION_ENABLED)
+  max_schema_complexity: "medium"        # Maximum schema complexity: simple|medium|complex (env: ELICITATION_MAX_SCHEMA_COMPLEXITY)
+                                         # Note: MCP spec only supports primitive types (string, number, boolean)
+  default_timeout_seconds: 30            # Default timeout for elicitation requests (env: ELICITATION_DEFAULT_TIMEOUT)
+  
+  # Authority Management for External MCP Servers
+  # When proxying external MCP servers, respect their elicitation capabilities unless explicitly overridden
+  respect_external_authority: true       # Respect external MCP server elicitation authority (env: ELICITATION_RESPECT_EXTERNAL_AUTHORITY)
+  allow_tool_override: true              # Allow per-tool override of elicitation authority (env: ELICITATION_ALLOW_TOOL_OVERRIDE)
+  enable_hybrid_elicitation: false       # Enable local elicitation for hybrid tools (env: ELICITATION_ENABLE_HYBRID)
+  
+  # MCP 2025-06-18 Compliance Settings
+  # Security: Elicitation must not request sensitive information (PII, credentials, etc.)
+  # User Consent: Clients must provide rejection/cancellation options
 
 # =============================================================================
 # MCP 2025-06-18 ENHANCED FORMAT CONFIGURATION
@@ -575,6 +605,19 @@ logging:
 # export OPENAI_API_KEY="your-openai-api-key"  # For LLM parameter mapping
 # export OLLAMA_BASE_URL="http://localhost:11434"  # For Ollama embedding
 #
+# # Sampling Configuration
+# export SAMPLING_ENABLED="false"
+# export SAMPLING_MAX_SCHEMA_COMPLEXITY="medium"  # simple|medium|complex
+# export SAMPLING_DEFAULT_TIMEOUT="30"
+#
+# # Elicitation Configuration
+# export ELICITATION_ENABLED="false"
+# export ELICITATION_MAX_SCHEMA_COMPLEXITY="medium"  # simple|medium|complex
+# export ELICITATION_DEFAULT_TIMEOUT="30"
+# export ELICITATION_RESPECT_EXTERNAL_AUTHORITY="true"
+# export ELICITATION_ALLOW_TOOL_OVERRIDE="true"
+# export ELICITATION_ENABLE_HYBRID="false"
+#
 # # Tool Visibility
 # export VISIBILITY_HIDE_INDIVIDUAL_TOOLS="false"
 # export VISIBILITY_EXPOSE_SMART_DISCOVERY_ONLY="false" 
@@ -719,6 +762,13 @@ logging:
 #   - magictunnel-visibility show-tool get_weather     # Show specific tool
 #   - magictunnel-visibility hide-file weather.yaml --confirm  # Hide all tools in file
 #   - magictunnel-visibility show-all --confirm        # Show all tools globally
+#
+# Elicitation Authority Override (MCP 2025-06-18):
+# - For external MCP tools, you can override elicitation authority with annotations:
+#   annotations:
+#     override_elicitation_authority: "true"  # Force local elicitation even if external server has elicitation capability
+#     has_elicitation_capability: "true"      # Indicate external tool has elicitation capability (auto-detected)
+#     has_sampling_capability: "true"         # Indicate external tool has sampling capability (auto-detected)
 #
 # API-to-Tool Generation (Always Enhanced Format):
 # - Generate tools from APIs using CLI generators (always produces enhanced format):

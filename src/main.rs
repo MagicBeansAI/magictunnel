@@ -412,14 +412,28 @@ async fn pregenerate_embeddings_and_exit(config: Config) -> Result<()> {
     
     info!("🧠 Using embedding model: {}", smart_discovery_config.semantic_search.model_name);
     
-    // Initialize sampling and elicitation services if enabled
+    // Initialize sampling service for MCP-compliant sampling/createMessage functionality
     let sampling_service = if config.sampling.as_ref().map(|s| s.enabled).unwrap_or(false) ||
                              smart_discovery_config.enable_sampling.unwrap_or(false) {
-        info!("🎯 Initializing sampling service for enhanced descriptions");
+        info!("🎯 Initializing sampling service for MCP-compliant LLM message generation");
         match mcp::sampling::SamplingService::from_config(&config) {
             Ok(service) => Some(Arc::new(service)),
             Err(e) => {
-                warn!("Failed to initialize sampling service: {}. Using base descriptions.", e);
+                warn!("Failed to initialize sampling service: {}. Using fallback.", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+    
+    // Initialize tool enhancement service for description/keyword/example generation (renamed from sampling to avoid MCP spec confusion)
+    let tool_enhancement_service = if config.tool_enhancement.as_ref().map(|s| s.enabled).unwrap_or(false) {
+        info!("🔧 Initializing tool enhancement service for description/keyword/example generation");
+        match mcp::tool_enhancement::ToolEnhancementService::from_config(&config) {
+            Ok(service) => Some(Arc::new(service)),
+            Err(e) => {
+                warn!("Failed to initialize tool enhancement service: {}. Using base descriptions.", e);
                 None
             }
         }
@@ -544,10 +558,10 @@ async fn pregenerate_embeddings_and_exit(config: Config) -> Result<()> {
     };
     
     // Initialize tool enhancement service if sampling/elicitation enabled
-    let enhancement_service = if sampling_service.is_some() || elicitation_service.is_some() {
+    let enhancement_service = if sampling_service.is_some() || tool_enhancement_service.is_some() || elicitation_service.is_some() {
         info!("🚀 Initializing tool enhancement pipeline for embedding generation");
         let enhancement_config = discovery::ToolEnhancementConfig {
-            enable_sampling_enhancement: sampling_service.is_some(),
+            enable_sampling_enhancement: sampling_service.is_some() || tool_enhancement_service.is_some(),
             enable_elicitation_enhancement: elicitation_service.is_some(),
             require_approval: false, // No approval needed for embedding generation
             cache_enhancements: true,
@@ -556,12 +570,16 @@ async fn pregenerate_embeddings_and_exit(config: Config) -> Result<()> {
             graceful_degradation: true,
         };
         
-        let enhancement_service = Arc::new(discovery::ToolEnhancementService::new_with_storage(
+        // Use tool_enhancement_service for the enhancement pipeline (tool descriptions/keywords/examples)
+        let effective_tool_enhancement_service = tool_enhancement_service.clone();
+        
+        let enhancement_service = Arc::new(discovery::ToolEnhancementPipeline::new_with_storage(
             enhancement_config,
             Arc::clone(&registry),
-            sampling_service,
+            effective_tool_enhancement_service,
             elicitation_service,
             enhancement_storage,
+            config.elicitation.clone(),
         ));
         
         // Register enhancement service with registry for tool change notifications

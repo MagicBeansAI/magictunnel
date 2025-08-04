@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-MagicTunnel features a comprehensive **Automatic LLM Generation Workflow** that intelligently enhances tools and capabilities using Large Language Models. This system implements the **MCP 2025-06-18 specification** for sampling and elicitation, providing automated tool enhancement without manual intervention while maintaining full MCP compliance.
+MagicTunnel features a comprehensive **Automatic LLM Generation Workflow** that intelligently enhances tools and capabilities using Large Language Models. This system implements the **MCP 2025-06-18 specification** for MCP sampling and elicitation, providing automated tool enhancement without manual intervention while maintaining full MCP compliance.
 
 ## Architecture Overview
 
@@ -14,7 +14,7 @@ graph TB
     B -->|Yes| C[Enhancement Pipeline Coordinator]
     B -->|No| D[Standard Tool Registration]
     
-    C --> E[1. Sampling Service]
+    C --> E[1. Tool Enhancement Service]
     C --> F[2. Elicitation Service] 
     C --> G[3. Enhancement Storage]
     
@@ -178,15 +178,15 @@ metadata:
 
 ### Phase 4: Enhancement Coordination
 
-**Purpose:** Orchestrate the complete enhancement pipeline, coordinating sampling and elicitation services for optimal results.
+**Purpose:** Orchestrate the complete enhancement pipeline, coordinating tool enhancement and elicitation services for optimal results.
 
 **Coordination Strategies:**
 
 1. **Parallel Processing** (Default):
 ```rust
-// Execute sampling and elicitation concurrently
-let (sampling_result, elicitation_result) = tokio::try_join!(
-    self.sampling_service.enhance_description(tool_name, description, style),
+// Execute tool enhancement and elicitation concurrently
+let (enhancement_result, elicitation_result) = tokio::try_join!(
+    self.tool_enhancement_service.enhance_description(tool_name, description, style),
     self.elicitation_service.extract_metadata(tool_name, description, schema)
 )?;
 ```
@@ -194,7 +194,7 @@ let (sampling_result, elicitation_result) = tokio::try_join!(
 2. **Sequential Processing** (When dependencies exist):
 ```rust
 // Use enhanced description for better elicitation
-let sampling_result = self.sampling_service.enhance_description(tool_name, description, style).await?;
+let enhancement_result = self.tool_enhancement_service.enhance_description(tool_name, description, style).await?;
 let elicitation_result = self.elicitation_service.extract_metadata(
     tool_name, 
     &sampling_result.enhanced_description,  // Use enhanced description
@@ -693,7 +693,7 @@ pub async fn comprehensive_health_check(&self) -> HealthReport {
     let mut checks = Vec::new();
     
     // Service availability checks
-    checks.push(self.check_sampling_service().await);
+    checks.push(self.check_tool_enhancement_service().await);
     checks.push(self.check_elicitation_service().await);
     checks.push(self.check_enhancement_storage().await);
     

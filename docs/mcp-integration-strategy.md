@@ -7,7 +7,7 @@ This document outlines how the new MCP 2025-06-18 compliance features integrate 
 The new compliance features will significantly enhance the existing tool ecosystem:
 
 ### 🎯 **Smart Discovery Enhancement**
-- **Sampling Integration**: Server-initiated LLM interactions to enrich tool capabilities
+- **MCP Sampling Integration**: Server-initiated LLM interactions to enrich tool capabilities
 - **Progress-Aware Selection**: Tool scoring based on execution time and complexity
 - **Security-Based Filtering**: Tool selection influenced by security classifications
 - **Cancellation-Aware Tools**: Priority for tools that support graceful cancellation
@@ -16,7 +16,7 @@ The new compliance features will significantly enhance the existing tool ecosyst
 - **Security Scoring**: Tools classified by security level get different confidence boosts
 - **Performance Scoring**: Progress tracking data influences tool selection
 - **Reliability Scoring**: Cancellation support and failure rates impact scoring
-- **LLM-Enhanced Metadata**: Sampling service enriches tool descriptions and parameters
+- **LLM-Enhanced Metadata**: Tool enhancement service enriches tool descriptions and parameters
 
 ## 1. Enhanced Smart Discovery Architecture
 
@@ -27,12 +27,12 @@ User Request → Smart Discovery → Tool Selection → Parameter Mapping → Ex
 
 ### Enhanced Architecture
 ```
-User Request → Smart Discovery + Sampling → Security Validation → Tool Selection + Progress → Parameter Mapping + Validation → Sandboxed Execution + Cancellation
+User Request → Smart Discovery + MCP Sampling → Security Validation → Tool Selection + Progress → Parameter Mapping + Validation → Sandboxed Execution + Cancellation
 ```
 
 ### Integration Points
 
-#### A. **Sampling-Enhanced Tool Discovery**
+#### A. **MCP Sampling-Enhanced Tool Discovery**
 ```rust
 pub struct EnhancedSmartDiscoveryService {
     // Existing components
@@ -42,7 +42,7 @@ pub struct EnhancedSmartDiscoveryService {
     semantic_search: Arc<SemanticSearchService>,
     
     // New MCP 2025-06-18 components
-    sampling_service: Arc<SamplingService>,
+    mcp_sampling_service: Arc<SamplingService>,
     tool_validator: Arc<RuntimeToolValidator>,
     progress_tracker: Arc<ProgressTracker>,
     cancellation_manager: Arc<CancellationManager>,
@@ -82,7 +82,7 @@ The sampling service can enrich existing tools with LLM-generated metadata:
 
 ```rust
 pub struct ToolEnrichmentService {
-    sampling_service: Arc<SamplingService>,
+    mcp_sampling_service: Arc<SamplingService>,
     registry: Arc<RegistryService>,
 }
 
@@ -695,7 +695,7 @@ impl EnhancedSmartDiscoveryService {
 ### A. **Dynamic Tool Enhancement**
 ```rust
 pub struct LLMToolEnhancer {
-    sampling_service: Arc<SamplingService>,
+    mcp_sampling_service: Arc<SamplingService>,
     registry: Arc<RegistryService>,
 }
 
@@ -828,7 +828,7 @@ impl LLMToolEnhancer {
 ### B. **Workflow Intelligence**
 ```rust
 pub struct WorkflowIntelligenceSystem {
-    sampling_service: Arc<SamplingService>,
+    mcp_sampling_service: Arc<SamplingService>,
     discovery_service: Arc<EnhancedSmartDiscoveryService>,
     execution_history: Arc<RwLock<HashMap<String, Vec<ExecutionRecord>>>>,
 }

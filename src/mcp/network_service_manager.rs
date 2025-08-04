@@ -260,6 +260,8 @@ impl NetworkMcpServiceManager {
                 enabled: true,
                 prompt_refs: Vec::new(),
                 resource_refs: Vec::new(),
+                sampling_strategy: None,
+                elicitation_strategy: None,
             }
         }).collect();
 

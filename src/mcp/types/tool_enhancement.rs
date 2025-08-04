@@ -1,39 +1,41 @@
-//! MCP Sampling types and structures
+//! MCP Tool Enhancement types and structures
 //!
-//! Implements the sampling capability for MCP 2025-06-18 specification
+//! Implements tool enhancement capabilities for improving tool descriptions, keywords, and examples.
+//! This was previously called "sampling" but has been renamed to avoid confusion with
+//! true MCP sampling (server→client LLM requests) which is implemented separately.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Sampling request for LLM message generation
+/// Tool enhancement request for LLM-powered tool description improvement
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SamplingRequest {
-    /// Messages to be used as context for sampling
-    pub messages: Vec<SamplingMessage>,
-    /// Optional model preferences for sampling
+pub struct ToolEnhancementRequest {
+    /// Messages to be used as context for enhancement
+    pub messages: Vec<ToolEnhancementMessage>,
+    /// Optional model preferences for enhancement
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_preferences: Option<ModelPreferences>,
-    /// Optional system prompt to guide sampling
+    /// Optional system prompt to guide enhancement
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_prompt: Option<String>,
     /// Maximum number of tokens to generate
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<u32>,
-    /// Temperature for sampling (0.0 to 2.0)
+    /// Temperature for enhancement (0.0 to 2.0)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
-    /// Top-p sampling parameter
+    /// Top-p parameter for enhancement
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_p: Option<f32>,
-    /// Stop sequences for sampling
+    /// Stop sequences for enhancement
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop: Option<Vec<String>>,
-    /// Additional metadata for sampling
+    /// Additional metadata for enhancement
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<HashMap<String, serde_json::Value>>,
 }
 
-/// Model preferences for sampling
+/// Model preferences for tool enhancement
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelPreferences {
     /// Intelligence/quality priority (0.0 to 1.0)
@@ -53,13 +55,13 @@ pub struct ModelPreferences {
     pub excluded_models: Option<Vec<String>>,
 }
 
-/// Individual message in sampling conversation
+/// Individual message in tool enhancement conversation
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SamplingMessage {
+pub struct ToolEnhancementMessage {
     /// Role of the message sender
-    pub role: SamplingMessageRole,
+    pub role: ToolEnhancementMessageRole,
     /// Content of the message
-    pub content: SamplingContent,
+    pub content: ToolEnhancementContent,
     /// Optional name for the message sender
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -68,10 +70,10 @@ pub struct SamplingMessage {
     pub metadata: Option<HashMap<String, serde_json::Value>>,
 }
 
-/// Role of a sampling message
+/// Role of a tool enhancement message
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum SamplingMessageRole {
+pub enum ToolEnhancementMessageRole {
     /// System message
     System,
     /// User message
@@ -82,20 +84,20 @@ pub enum SamplingMessageRole {
     Tool,
 }
 
-/// Content types for sampling messages
+/// Content types for tool enhancement messages
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum SamplingContent {
+pub enum ToolEnhancementContent {
     /// Simple text content
     Text(String),
     /// Structured content with multiple parts
-    Parts(Vec<SamplingContentPart>),
+    Parts(Vec<ToolEnhancementContentPart>),
 }
 
-/// Individual content part for multimodal messages
+/// Individual content part for multimodal enhancement messages
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
-pub enum SamplingContentPart {
+pub enum ToolEnhancementContentPart {
     /// Text content part
     #[serde(rename = "text")]
     Text {
@@ -160,27 +162,27 @@ pub enum AudioSource {
     },
 }
 
-/// Response from sampling request
+/// Response from tool enhancement request
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SamplingResponse {
-    /// Generated message from sampling
-    pub message: SamplingMessage,
-    /// Model used for sampling
+pub struct ToolEnhancementResponse {
+    /// Generated message from enhancement
+    pub message: ToolEnhancementMessage,
+    /// Model used for enhancement
     pub model: String,
-    /// Stop reason for sampling
-    pub stop_reason: SamplingStopReason,
+    /// Stop reason for enhancement
+    pub stop_reason: ToolEnhancementStopReason,
     /// Usage statistics
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub usage: Option<SamplingUsage>,
-    /// Additional metadata from sampling
+    pub usage: Option<ToolEnhancementUsage>,
+    /// Additional metadata from enhancement
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<HashMap<String, serde_json::Value>>,
 }
 
-/// Reason why sampling stopped
+/// Reason why tool enhancement stopped
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum SamplingStopReason {
+pub enum ToolEnhancementStopReason {
     /// Reached maximum tokens
     MaxTokens,
     /// Hit a stop sequence
@@ -195,9 +197,9 @@ pub enum SamplingStopReason {
     Error,
 }
 
-/// Usage statistics for sampling
+/// Usage statistics for tool enhancement
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SamplingUsage {
+pub struct ToolEnhancementUsage {
     /// Input tokens used
     pub input_tokens: u32,
     /// Output tokens generated
@@ -209,11 +211,11 @@ pub struct SamplingUsage {
     pub cost_usd: Option<f64>,
 }
 
-/// Error in sampling operation
+/// Error in tool enhancement operation
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SamplingError {
+pub struct ToolEnhancementError {
     /// Error code
-    pub code: SamplingErrorCode,
+    pub code: ToolEnhancementErrorCode,
     /// Human-readable error message
     pub message: String,
     /// Additional error details
@@ -221,10 +223,10 @@ pub struct SamplingError {
     pub details: Option<HashMap<String, serde_json::Value>>,
 }
 
-/// Sampling error codes
+/// Tool enhancement error codes
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub enum SamplingErrorCode {
+pub enum ToolEnhancementErrorCode {
     /// Invalid request parameters
     InvalidRequest,
     /// Model not available
@@ -239,16 +241,10 @@ pub enum SamplingErrorCode {
     SecurityViolation,
     /// Internal server error
     InternalError,
-    /// Sampling was cancelled
+    /// Enhancement was cancelled
     Cancelled,
     /// Request timeout
     Timeout,
-}
-
-impl std::fmt::Display for SamplingError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}: {}", self.code, self.message)
-    }
 }
 
 impl Default for ModelPreferences {
@@ -263,18 +259,18 @@ impl Default for ModelPreferences {
     }
 }
 
-impl std::fmt::Display for SamplingErrorCode {
+impl std::fmt::Display for ToolEnhancementErrorCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SamplingErrorCode::InvalidRequest => write!(f, "invalid_request"),
-            SamplingErrorCode::ModelNotAvailable => write!(f, "model_not_available"),
-            SamplingErrorCode::ContentFiltered => write!(f, "content_filtered"),
-            SamplingErrorCode::RateLimitExceeded => write!(f, "rate_limit_exceeded"),
-            SamplingErrorCode::QuotaExceeded => write!(f, "quota_exceeded"),
-            SamplingErrorCode::SecurityViolation => write!(f, "security_violation"),
-            SamplingErrorCode::InternalError => write!(f, "internal_error"),
-            SamplingErrorCode::Cancelled => write!(f, "cancelled"),
-            SamplingErrorCode::Timeout => write!(f, "timeout"),
+            ToolEnhancementErrorCode::InvalidRequest => write!(f, "invalid_request"),
+            ToolEnhancementErrorCode::ModelNotAvailable => write!(f, "model_not_available"),
+            ToolEnhancementErrorCode::ContentFiltered => write!(f, "content_filtered"),
+            ToolEnhancementErrorCode::RateLimitExceeded => write!(f, "rate_limit_exceeded"),
+            ToolEnhancementErrorCode::QuotaExceeded => write!(f, "quota_exceeded"),
+            ToolEnhancementErrorCode::SecurityViolation => write!(f, "security_violation"),
+            ToolEnhancementErrorCode::InternalError => write!(f, "internal_error"),
+            ToolEnhancementErrorCode::Cancelled => write!(f, "cancelled"),
+            ToolEnhancementErrorCode::Timeout => write!(f, "timeout"),
         }
     }
 }
@@ -284,25 +280,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_sampling_request_serialization() {
-        let request = SamplingRequest {
-            messages: vec![SamplingMessage {
-                role: SamplingMessageRole::User,
-                content: SamplingContent::Text("Hello".to_string()),
+    fn test_tool_enhancement_request_serialization() {
+        let request = ToolEnhancementRequest {
+            messages: vec![ToolEnhancementMessage {
+                role: ToolEnhancementMessageRole::User,
+                content: ToolEnhancementContent::Text("Enhance this tool description".to_string()),
                 name: None,
                 metadata: None,
             }],
             model_preferences: Some(ModelPreferences::default()),
-            system_prompt: Some("You are a helpful assistant".to_string()),
-            max_tokens: Some(100),
-            temperature: Some(0.7),
+            system_prompt: Some("You are a tool enhancement expert".to_string()),
+            max_tokens: Some(500),
+            temperature: Some(0.3),
             top_p: Some(0.9),
             stop: None,
             metadata: None,
         };
 
         let json = serde_json::to_string(&request).unwrap();
-        let deserialized: SamplingRequest = serde_json::from_str(&json).unwrap();
+        let deserialized: ToolEnhancementRequest = serde_json::from_str(&json).unwrap();
         
         assert_eq!(request.messages.len(), deserialized.messages.len());
         assert_eq!(request.max_tokens, deserialized.max_tokens);
@@ -311,32 +307,39 @@ mod tests {
 
     #[test]
     fn test_multimodal_content() {
-        let content = SamplingContent::Parts(vec![
-            SamplingContentPart::Text {
-                text: "What do you see in this image?".to_string(),
+        let content = ToolEnhancementContent::Parts(vec![
+            ToolEnhancementContentPart::Text {
+                text: "Analyze this tool schema".to_string(),
             },
-            SamplingContentPart::Image {
+            ToolEnhancementContentPart::Image {
                 source: ImageSource::Url {
-                    url: "https://example.com/image.jpg".to_string(),
+                    url: "https://example.com/schema-diagram.jpg".to_string(),
                 },
-                alt_text: Some("A sample image".to_string()),
+                alt_text: Some("Tool schema diagram".to_string()),
             },
         ]);
 
         let json = serde_json::to_string(&content).unwrap();
-        let deserialized: SamplingContent = serde_json::from_str(&json).unwrap();
+        let deserialized: ToolEnhancementContent = serde_json::from_str(&json).unwrap();
         
         match deserialized {
-            SamplingContent::Parts(parts) => {
+            ToolEnhancementContent::Parts(parts) => {
                 assert_eq!(parts.len(), 2);
                 match &parts[0] {
-                    SamplingContentPart::Text { text } => {
-                        assert_eq!(text, "What do you see in this image?");
+                    ToolEnhancementContentPart::Text { text } => {
+                        assert_eq!(text, "Analyze this tool schema");
                     }
                     _ => panic!("Expected text part"),
                 }
             }
             _ => panic!("Expected parts content"),
         }
+    }
+
+    #[test]
+    fn test_error_code_display() {
+        assert_eq!(ToolEnhancementErrorCode::InvalidRequest.to_string(), "invalid_request");
+        assert_eq!(ToolEnhancementErrorCode::ModelNotAvailable.to_string(), "model_not_available");
+        assert_eq!(ToolEnhancementErrorCode::ContentFiltered.to_string(), "content_filtered");
     }
 }

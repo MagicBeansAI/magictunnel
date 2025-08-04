@@ -166,6 +166,8 @@ impl RegistryLoader {
                 enabled,
                 prompt_refs: enhanced_tool.prompt_refs.unwrap_or_default(),
                 resource_refs: enhanced_tool.resource_refs.unwrap_or_default(),
+                sampling_strategy: enhanced_tool.sampling_strategy,
+                elicitation_strategy: enhanced_tool.elicitation_strategy,
             }
         }).collect();
 

@@ -19,12 +19,12 @@ MagicTunnel features an advanced **Smart Tool Discovery System** that provides a
 - Main orchestration layer
 - Handles tool selection and parameter mapping
 - Manages caching and performance optimization
-- **MCP 2025-06-18 Integration**: Uses enhanced tool descriptions from sampling service
+- **MCP 2025-06-18 Integration**: Uses enhanced tool descriptions from tool enhancement service
 
 ### 2. Multi-Strategy Search Engine
 - **Rule-based Search**: Keyword/fuzzy matching with elicitation metadata
 - **Semantic Search**: Vector similarity using enhanced descriptions and embeddings
-- **LLM-based Search**: AI-powered tool selection with sampling enhancements
+- **LLM-based Search**: AI-powered tool selection with tool enhancement service enhancements
 - **Hybrid Search**: Intelligent combination of all three strategies
 
 ### 3. LLM Parameter Mapper (LlmParameterMapper)
@@ -34,7 +34,7 @@ MagicTunnel features an advanced **Smart Tool Discovery System** that provides a
 - **Enhanced with MCP Elicitation**: Uses elicitation service for parameter validation
 
 ### 4. Tool Enhancement Pipeline
-- **Sampling Service Integration**: Uses AI-enhanced tool descriptions for better discovery
+- **Tool Enhancement Service Integration**: Uses AI-enhanced tool descriptions for better discovery
 - **Elicitation Service Integration**: Leverages extracted metadata for improved matching
 - **Enhancement Storage**: Caches enhanced descriptions to avoid regeneration
 - **Graceful Degradation**: Falls back to base descriptions when enhancement fails
