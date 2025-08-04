@@ -8016,8 +8016,7 @@ pub struct SetEnvVarsRequest {
         pub max_timeout_seconds: Option<u64>,
         /// Rate limiting configuration
         pub rate_limit: Option<ElicitationServiceRateLimit>,
-        /// Security configuration
-        pub security: Option<ElicitationServiceSecurity>,
+        // Security configuration removed - MCP 2025-06-18 security will replace this
     }
 
     #[derive(Deserialize, Serialize)]
@@ -8030,19 +8029,7 @@ pub struct SetEnvVarsRequest {
         pub window_seconds: u64,
     }
 
-    #[derive(Deserialize, Serialize)]
-    pub struct ElicitationServiceSecurity {
-        /// Enable security checks
-        pub enabled: bool,
-        /// Maximum number of fields in schema
-        pub max_fields: u32,
-        /// Minimum privacy level
-        pub min_privacy_level: String,
-        /// Log all elicitation requests for audit
-        pub log_requests: bool,
-        /// Blocked field names
-        pub blocked_field_names: Vec<String>,
-    }
+    // ElicitationServiceSecurity struct removed - MCP 2025-06-18 security will replace this
 
     #[derive(Deserialize)]
     pub struct ElicitationTemplateCreateRequest {
@@ -8216,8 +8203,7 @@ pub struct SetEnvVarsRequest {
         pub max_timeout_seconds: u64,
         /// Rate limiting configuration
         pub rate_limit: Option<ElicitationServiceRateLimit>,
-        /// Security configuration
-        pub security: Option<ElicitationServiceSecurity>,
+        // Security configuration removed - MCP 2025-06-18 security will replace this
         /// Service version
         pub service_version: String,
         /// Configuration last updated

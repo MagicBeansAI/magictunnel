@@ -95,7 +95,9 @@ tools:
         use_ai: true
         validation_enabled: true
   annotations: null
-  hidden: true
+  hidden: false
   enabled: true
+  sampling_strategy: null
+  elicitation_strategy: null
 enhanced_metadata: null
 enhanced_tools: null

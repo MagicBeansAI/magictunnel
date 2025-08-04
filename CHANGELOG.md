@@ -5,6 +5,18 @@ All notable changes to the MagicTunnel project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.5] - 2025-08-04 - Registry Architecture Fix & MCP Security Cleanup
+
+### Fixed
+- **🚨 Core Registry Architecture**: Fixed `RegistryService` bypassing `RegistryLoader`'s enhanced format parsing, restoring MCP 2025-06-18 enhanced format support and CLI tool functionality
+- **🔧 CLI Management Tools**: Restored all management tools (`magictunnel-llm`, `magictunnel-visibility`) that were failing with registry initialization errors
+- **📋 Enhanced Format Parsing**: Complete MCP 2025-06-18 enhanced capability file support with automatic legacy format fallback
+
+### Removed  
+- **🗑️ Non-MCP Security System**: Completely removed confusing `ElicitationSecurityConfig` and related validation logic to prepare clean foundation for proper MCP 2025-06-18 security implementation
+
+---
+
 ## [0.3.4] - 2025-08-04 - Complete MCP Routing Architecture Implementation
 
 ### Added

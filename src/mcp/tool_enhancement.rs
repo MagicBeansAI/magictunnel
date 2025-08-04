@@ -151,7 +151,11 @@ impl ToolEnhancementService {
             enabled: config.smart_discovery.as_ref()
                 .map(|sd| sd.enabled)
                 .unwrap_or(false),
-            default_model: "gpt-4".to_string(), // Default model
+            default_model: config.sampling.as_ref()
+                .and_then(|s| s.llm_config.as_ref())
+                .map(|llm| llm.model.clone())
+                .or_else(|| config.sampling.as_ref().map(|s| s.default_model.clone()))
+                .unwrap_or_else(|| "gpt-4o-mini".to_string()), // Use llm_config.model or fallback
             max_tokens_limit: 4000,
             rate_limit: Some(ToolEnhancementRateLimit {
                 requests_per_minute: 60,
@@ -324,7 +328,7 @@ impl ToolEnhancementService {
         let request = ToolEnhancementRequest {
             messages: vec![user_message],
             model_preferences: Some(ModelPreferences {
-                preferred_models: Some(vec!["gpt-4".to_string(), "claude-3-sonnet-20240229".to_string()]),
+                preferred_models: Some(vec![self.config.default_model.clone()]),
                 intelligence: Some(0.8), // High intelligence for good descriptions
                 speed: Some(0.3),        // Less important
                 cost: Some(0.4),         // Moderate cost consideration
@@ -405,7 +409,7 @@ impl ToolEnhancementService {
         let request = ToolEnhancementRequest {
             messages: vec![user_message],
             model_preferences: Some(ModelPreferences {
-                preferred_models: Some(vec!["gpt-4".to_string(), "claude-3-sonnet-20240229".to_string()]),
+                preferred_models: Some(vec![self.config.default_model.clone()]),
                 intelligence: Some(0.7),
                 speed: Some(0.4),
                 cost: Some(0.5),
@@ -486,7 +490,7 @@ impl ToolEnhancementService {
         let request = ToolEnhancementRequest {
             messages: vec![user_message],
             model_preferences: Some(ModelPreferences {
-                preferred_models: Some(vec!["gpt-4".to_string(), "claude-3-sonnet-20240229".to_string()]),
+                preferred_models: Some(vec![self.config.default_model.clone()]),
                 intelligence: Some(0.6),
                 speed: Some(0.6),
                 cost: Some(0.6),
@@ -714,7 +718,7 @@ impl Default for ToolEnhancementConfig {
     fn default() -> Self {
         Self {
             enabled: false,
-            default_model: "default".to_string(), // Should be overridden in config
+            default_model: "gpt-4o-mini".to_string(), // Reasonable default, should be overridden in config
             max_tokens_limit: 4000,
             rate_limit: Some(ToolEnhancementRateLimit {
                 requests_per_minute: 60,

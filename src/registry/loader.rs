@@ -62,7 +62,7 @@ impl RegistryLoader {
     }
 
     /// Load a single capability file
-    async fn load_file(&self, path: &Path) -> Result<CapabilityFile> {
+    pub async fn load_file(&self, path: &Path) -> Result<CapabilityFile> {
         debug!("Loading capability file: {}", path.display());
         
         let content = tokio::fs::read_to_string(path).await.map_err(|e| {
@@ -76,9 +76,9 @@ impl RegistryLoader {
                        path.display(), capability_file.tool_count());
                 capability_file
             }
-            Err(_enhanced_error) => {
+            Err(enhanced_error) => {
                 // Fall back to legacy format parsing
-                debug!("Enhanced format parsing failed, trying legacy format for: {}", path.display());
+                debug!("Enhanced format parsing failed, trying legacy format for: {}: {}", path.display(), enhanced_error);
                 let capability_file: CapabilityFile = serde_yaml::from_str(&content).map_err(|legacy_error| {
                     ProxyError::registry(format!(
                         "Failed to parse YAML file {} (tried both enhanced and legacy formats): {}", 
@@ -107,8 +107,16 @@ impl RegistryLoader {
             return Err(ProxyError::registry("Not an enhanced format file".to_string()));
         }
 
+        println!("✅ Detected enhanced format, attempting to parse");
+        
         // Parse as enhanced format
-        let enhanced: EnhancedCapabilityFileRaw = serde_yaml::from_str(content)?;
+        let enhanced: EnhancedCapabilityFileRaw = serde_yaml::from_str(content)
+            .map_err(|e| {
+                println!("❌ Enhanced format YAML parsing failed: {}", e);
+                ProxyError::registry(format!("Enhanced format parsing error: {}", e))
+            })?;
+        
+        debug!("Enhanced format parsed successfully, converting to legacy");
         
         // Convert to legacy format
         self.convert_enhanced_to_legacy(enhanced)
@@ -117,9 +125,13 @@ impl RegistryLoader {
     /// Check if content appears to be enhanced format
     fn is_enhanced_format(&self, content: &str) -> bool {
         // Look for enhanced format indicators
-        content.contains("core:") && 
-        content.contains("execution:") &&
-        (content.contains("# MCP 2025-06-18") || content.contains("mcp_capabilities:"))
+        let has_core = content.contains("core:");
+        let has_execution = content.contains("execution:");
+        let has_mcp = content.contains("# MCP 2025-06-18") || content.contains("mcp_capabilities:");
+        
+        println!("🔍 Enhanced format detection - core: {}, execution: {}, mcp: {}", has_core, has_execution, has_mcp);
+        
+        has_core && has_execution && has_mcp
     }
 
     /// Convert enhanced format to legacy format for internal processing
@@ -171,10 +183,23 @@ impl RegistryLoader {
             }
         }).collect();
 
+        // Convert enhanced metadata to legacy FileMetadata
+        let legacy_metadata = if let Some(enhanced_meta) = enhanced.metadata {
+            Some(FileMetadata {
+                name: Some(enhanced_meta.name),
+                description: Some(enhanced_meta.description),
+                version: Some(enhanced_meta.version),
+                author: Some(enhanced_meta.author),
+                tags: None,
+            })
+        } else {
+            None
+        };
+
         Ok(CapabilityFile {
-            metadata: enhanced.metadata,
+            metadata: legacy_metadata,
             tools: legacy_tools,
-            enhanced_metadata: enhanced.enhanced_metadata,
+            enhanced_metadata: None, // Don't preserve enhanced metadata in legacy format for now
             enhanced_tools: None, // We don't preserve enhanced tools in legacy format
         })
     }

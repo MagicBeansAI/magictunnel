@@ -116,7 +116,7 @@ mcp_client:
   auto_reconnect: true          # Enable automatic reconnection
   protocol_version: "2025-06-18" # MCP protocol version to use
   client_name: "magictunnel"    # Client name for MCP handshake (defaults to package name)
-  client_version: "0.3.0"       # Client version for MCP handshake (defaults to package version)
+  client_version: "0.3.5"       # Client version for MCP handshake (defaults to package version)
 
 # =============================================================================
 # EXTERNAL MCP CONFIGURATION (Claude Desktop Format)
@@ -147,20 +147,24 @@ external_mcp:
     
     # Sampling Request Routing Strategy
     sampling:
-      strategy: "priority_with_fallback"  # Strategy: priority_with_fallback|round_robin|first_available (env: EXTERNAL_MCP_SAMPLING_STRATEGY)
+      default_strategy: "magictunnel_first"  # Strategy: magictunnel_handled|client_forwarded|magictunnel_first|client_first|parallel|hybrid (env: EXTERNAL_MCP_SAMPLING_STRATEGY)
+      server_strategies: {}         # Server-specific strategies (optional)
       priority_order:               # Priority order for sampling-capable servers (highest to lowest priority)
         - "claude-mcp-server"       # Example: Premium external MCP server with advanced models
         - "openai-mcp-server"       # Example: OpenAI-based MCP server
         - "ollama-local"            # Example: Local Ollama MCP server
-      fallback_to_internal: true   # Fall back to internal sampling service if all external servers fail (env: EXTERNAL_MCP_SAMPLING_FALLBACK)
+      fallback_to_magictunnel: true # Fall back to internal sampling service if all external servers fail (env: EXTERNAL_MCP_SAMPLING_FALLBACK)
       max_retry_attempts: 2         # Maximum retry attempts per server before trying next (env: EXTERNAL_MCP_SAMPLING_MAX_RETRIES)
       timeout_seconds: 30           # Timeout for each sampling request (env: EXTERNAL_MCP_SAMPLING_TIMEOUT)
     
     # Elicitation Request Routing Strategy  
     elicitation:
-      strategy: "first_available"   # Strategy for elicitation requests (env: EXTERNAL_MCP_ELICITATION_STRATEGY)
-      priority_order: []            # Custom priority order (empty = use discovery order)
-      fallback_to_internal: true   # Fall back to internal elicitation service (env: EXTERNAL_MCP_ELICITATION_FALLBACK)
+      default_strategy: "magictunnel_first"   # Strategy: magictunnel_handled|client_forwarded|magictunnel_first|client_first|parallel|hybrid (env: EXTERNAL_MCP_ELICITATION_STRATEGY)
+      server_strategies: {}         # Server-specific strategies (optional)
+      priority_order:               # Custom priority order (empty = use discovery order)
+        - "claude-mcp-server"       # Example: Premium external MCP server with advanced models
+        - "openai-mcp-server"       # Example: OpenAI-based MCP server
+      fallback_to_magictunnel: true # Fall back to internal elicitation service (env: EXTERNAL_MCP_ELICITATION_FALLBACK)
       max_retry_attempts: 1         # Elicitation typically needs fewer retries (env: EXTERNAL_MCP_ELICITATION_MAX_RETRIES)
       timeout_seconds: 60           # Longer timeout for elicitation (may involve user interaction) (env: EXTERNAL_MCP_ELICITATION_TIMEOUT)
 
@@ -309,90 +313,53 @@ smart_discovery:
 # =============================================================================
 # Configuration for the Sampling service that enables structured LLM message generation
 sampling:
-  enabled: true                           # Enable sampling service (auto-enabled if smart_discovery.enable_sampling is true)
+  enabled: true                          # Enable sampling service (env: SAMPLING_ENABLED)
+  default_model: "gpt-4o-mini"          # Default model for sampling requests
+  max_tokens_limit: 4000                # Maximum tokens allowed per request
+  default_sampling_strategy: "client_forwarded"  # Default sampling routing strategy
   
-  # Default LLM Configuration (inherits from smart_discovery.llm_mapper if not specified)
-  default_model: "gpt-4o-mini"           # Default model for sampling requests
-  max_tokens_limit: 4000                 # Maximum tokens allowed per request
-  
-  # Rate Limiting
-  rate_limit:
-    requests_per_minute: 60              # Requests per minute per user
-    burst_size: 10                       # Burst size for rate limiting
-    window_seconds: 60                   # Rate limiting window in seconds
-  
-  # Content Security
-  content_filter:
-    enabled: true                        # Enable content filtering
-    max_content_length: 50000           # Maximum content length
-    blocked_patterns:                    # Content patterns to block (regex)
-      - "(?i)(password|secret|key|token|credential)"
-      - "(?i)(hack|exploit|vulnerability|injection)"
-    approval_patterns: []                # Patterns requiring approval (empty = none)
-  
-  # LLM Provider Configuration (uses smart_discovery providers by default)
-  providers:
-    - name: "openai"
-      type: "openai"
-      endpoint: "https://api.openai.com/v1"
-      models: ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"]
-    - name: "ollama"
-      type: "ollama" 
-      endpoint: "http://localhost:11434"
-      models: ["llama3.2", "qwen2.5"]
+  # LLM Configuration for MagicTunnel-handled requests
+  llm_config:
+    provider: "openai"                   # LLM provider: openai|anthropic|ollama
+    model: "gpt-4o-mini"                 # Model name to use
+    api_key_env: "OPENAI_API_KEY"        # Environment variable for API key
+    base_url: null                       # Custom base URL (optional)
+    timeout: 30                          # Request timeout in seconds
+    max_retries: 3                       # Maximum retries for failed requests
 
 # =============================================================================
 # MCP 2025-06-18 ELICITATION SERVICE CONFIGURATION
 # =============================================================================
 # Configuration for the Elicitation service that enables structured data collection
 elicitation:
-  enabled: true                          # Enable elicitation service (auto-enabled if smart_discovery.enable_elicitation is true)
-  
-  # Schema Configuration
+  enabled: true                          # Enable elicitation service (env: ELICITATION_ENABLED)
   max_schema_complexity: "WithArrays"    # Maximum schema complexity: Simple|WithArrays|Nested|Complex
   default_timeout_seconds: 300           # Default timeout for elicitation requests (5 minutes)
-  max_timeout_seconds: 1800             # Maximum timeout allowed (30 minutes)
+  default_elicitation_strategy: "client_forwarded"  # Default elicitation routing strategy
   
-  # Rate Limiting
-  rate_limit:
-    requests_per_minute: 10              # Lower limit for elicitation (more resource intensive)
-    burst_size: 3                        # Smaller burst size
-    window_seconds: 60                   # Rate limiting window in seconds
-  
-  # Security Configuration
-  security:
-    enabled: true                        # Enable security checks
-    max_fields: 20                       # Maximum number of fields in schema
-    min_privacy_level: "Internal"        # Minimum privacy level: Public|Internal|Confidential|Restricted
-    log_requests: true                   # Log all elicitation requests for audit
-    blocked_field_names:                 # Field names that are not allowed
-      - "password"
-      - "secret"
-      - "private_key"
-      - "api_key"
-      - "auth_token"
-      - "ssn"
-      - "social_security_number"
-      - "credit_card"
-      - "bank_account"
-    blocked_schema_patterns:             # Schema patterns to block (regex)
-      - "(?i)(password|secret|key|token|credential)"
-      - "(?i)(ssn|social.*security|credit.*card|bank.*account)"
-      - "(?i)(private.*key|api.*key|auth.*token)"
-  
-  # Schema Validation Configuration
-  schema_validation:
-    strict_validation: true              # Enable strict schema validation
-    max_string_length: 1000             # Maximum string field length
-    max_number_value: 1000000000000     # Maximum numeric value (1e12)
-    min_number_value: -1000000000000    # Minimum numeric value (-1e12)
-    allowed_types:                       # JSON schema types allowed
-      - "string"
-      - "number" 
-      - "integer"
-      - "boolean"
-      - "array"
+  # Authority Management for External MCP Servers
+  respect_external_authority: true       # Respect external MCP server elicitation authority (env: ELICITATION_RESPECT_EXTERNAL_AUTHORITY)
+  allow_tool_override: true              # Allow per-tool override of elicitation authority (env: ELICITATION_ALLOW_TOOL_OVERRIDE)
+  enable_hybrid_elicitation: false       # Enable local elicitation for hybrid tools (env: ELICITATION_ENABLE_HYBRID)
 
+# =============================================================================
+# VISIBILITY CONFIGURATION
+# =============================================================================
+visibility:
+  # Hide individual tools when smart discovery is enabled (default: true for Smart Discovery Mode)
+  # When true, only smart_tool_discovery tool is exposed to MCP clients
+  hide_individual_tools: true     # Hide individual tools (env: VISIBILITY_HIDE_INDIVIDUAL_TOOLS)
+
+  # Only expose smart_tool_discovery tool (default: true for Ultimate Smart Discovery Mode)
+  # This is the ultimate Smart Tool Discovery mode - single tool interface
+  expose_smart_discovery_only: true # Smart discovery only (env: VISIBILITY_EXPOSE_SMART_DISCOVERY_ONLY)
+
+  # Allow individual tools to override hidden setting (default: true)
+  # When false, global settings take precedence over tool-level hidden flags
+  allow_override: true            # Allow tool-level overrides (env: VISIBILITY_ALLOW_OVERRIDE)
+
+  # Default hidden state for new tools (default: true in Smart Discovery Mode)
+  default_hidden: true            # Default hidden state for new tools (env: VISIBILITY_DEFAULT_HIDDEN)
 
 # =============================================================================
 # LOGGING CONFIGURATION

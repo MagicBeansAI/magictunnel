@@ -287,11 +287,14 @@ MagicTunnel is **fully compliant** with the latest MCP 2025-06-18 specification:
 - **✅ Enhanced Security Model**: MCP-specific consent flows and capability permissions
 
 ### 🌐 **Transport Layer**
-- **✅ Dual Transport Support**: 
-  - `/mcp/stream` - HTTP+SSE (deprecated, maintained for compatibility)
-  - `/mcp/streamable` - Streamable HTTP (preferred, MCP 2025-06-18)
+- **✅ Triple Transport Support**: 
+  - **WebSocket**: `GET /mcp/ws` - Real-time bidirectional communication (enabled by default)
+  - **HTTP-SSE**: `GET /mcp/stream` - Server-Sent Events (deprecated, backward compatibility)
+  - **Streamable HTTP**: `POST /mcp/streamable` - **MCP 2025-06-18 preferred transport**
 - **✅ Enhanced Batching**: JSON-RPC batch processing with NDJSON streaming
 - **✅ Graceful Migration**: Automatic upgrade recommendations with deprecation headers
+- **✅ Same Port Operation**: All transports run on the same port (default: 3001)
+- **✅ No Configuration Required**: Streamable HTTP enabled by default, ready to use
 
 ### 🛡️ **Advanced Capabilities**
 - **✅ Sampling Capabilities**: Server-initiated LLM interactions

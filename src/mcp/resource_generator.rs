@@ -49,7 +49,7 @@ impl Default for ResourceGenerationConfig {
     fn default() -> Self {
         Self {
             providers: vec![], // Will be populated from main config
-            default_model: "default".to_string(), // Should be overridden in config
+            default_model: "gpt-4o-mini".to_string(), // Reasonable default, should be overridden in config
             max_resources_per_tool: 5,
             include_documentation: true,
             include_examples: true,

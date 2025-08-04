@@ -37,7 +37,7 @@ metadata:
 tools:
 - name: enhanced_so_today_visit_performance
   core:
-    description: AI-enhanced Sales officer's dashboard showing visit related erformance metrics for today with MCP 2025-06-18
+    description: AI-enhanced Sales officer's dashboard showing visit related performance metrics for today with MCP 2025-06-18
       compliance
     input_schema:
       type: object

@@ -272,6 +272,7 @@ sampling:
   enabled: false                         # Enable sampling capabilities (env: SAMPLING_ENABLED)
   max_schema_complexity: "medium"        # Maximum schema complexity: simple|medium|complex (env: SAMPLING_MAX_SCHEMA_COMPLEXITY)
   default_timeout_seconds: 30            # Default timeout for sampling requests (env: SAMPLING_DEFAULT_TIMEOUT)
+  default_sampling_strategy: "client_forwarded"  # Default sampling routing strategy
 
 # =============================================================================
 # ELICITATION CONFIGURATION
@@ -295,47 +296,18 @@ elicitation:
   # User Consent: Clients must provide rejection/cancellation options
 
 # =============================================================================
-# MCP 2025-06-18 ENHANCED FORMAT CONFIGURATION
+# MCP 2025-06-18 ENHANCED FEATURES 
 # =============================================================================
-# Configuration for Enhanced MCP 2025-06-18 format features including
-# AI-enhanced discovery, security sandboxing, and enterprise monitoring
-
-mcp_2025:
-  enabled: true                   # Enable MCP 2025-06-18 enhanced features (env: MCP_2025_ENABLED)
-  
-  # Enhanced Cancellation Support
-  cancellation:
-    enabled: true                 # Enable granular cancellation support (env: MCP_2025_CANCELLATION_ENABLED)
-    timeout_handling: "graceful"  # Timeout handling: graceful|immediate (env: MCP_2025_TIMEOUT_HANDLING)
-    progress_updates: true        # Send progress updates during long operations (env: MCP_2025_PROGRESS_UPDATES)
-    
-  # Runtime Tool Description Validation
-  validation:
-    enabled: true                 # Enable runtime validation (env: MCP_2025_VALIDATION_ENABLED)
-    startup_validation: true      # Validate all tools at startup (env: MCP_2025_STARTUP_VALIDATION)
-    on_demand_validation: true    # Enable on-demand validation via API (env: MCP_2025_ON_DEMAND_VALIDATION)
-    schema_enforcement: "strict"  # Schema enforcement: strict|loose (env: MCP_2025_SCHEMA_ENFORCEMENT)
-    
-  # Security Sandboxing
-  security:
-    enabled: true                 # Enable security sandboxing (env: MCP_2025_SECURITY_ENABLED)
-    default_level: "safe"         # Default security level: safe|restricted|privileged|dangerous|blocked
-    enterprise_mode: false       # Enable enterprise security features (env: MCP_2025_ENTERPRISE_MODE)
-    audit_logging: true           # Enable security audit logging (env: MCP_2025_AUDIT_LOGGING)
-    
-    # Security level definitions:
-    # - safe: Low-risk operations (read-only, info gathering)
-    # - restricted: Medium-risk operations (limited writes, API calls)  
-    # - privileged: High-risk operations (system changes, file operations)
-    # - dangerous: Very high-risk operations (requires explicit approval)
-    # - blocked: Completely blocked operations
-    
-  # Performance Monitoring
-  monitoring:
-    enabled: true                 # Enable performance monitoring (env: MCP_2025_MONITORING_ENABLED)
-    execution_tracking: true      # Track tool execution metrics (env: MCP_2025_EXECUTION_TRACKING)
-    performance_analytics: true   # Collect performance analytics (env: MCP_2025_PERFORMANCE_ANALYTICS)
-    health_checks: true           # Enable health check endpoints (env: MCP_2025_HEALTH_CHECKS)
+# MCP 2025-06-18 enhanced features are ENABLED BY DEFAULT and require no configuration.
+# Features included:
+# - Enhanced Cancellation Support with graceful timeout handling
+# - Runtime Tool Validation with strict schema enforcement  
+# - Security Sandboxing with "safe" default level
+# - Performance Monitoring with execution tracking and health checks
+# - Streamable HTTP Transport (preferred over HTTP-SSE)
+# - Sampling and Elicitation services for bidirectional communication
+#
+# These features can be fine-tuned through individual service configurations below.
 
 # =============================================================================
 # TOOL VISIBILITY CONFIGURATION (Smart Tool Discovery)
@@ -524,6 +496,79 @@ environment_monitoring:
       expected_values: ["json", "text"]
 
 # =============================================================================
+# ENTERPRISE SECURITY CONFIGURATION (Optional)
+# =============================================================================
+# Enterprise MagicTunnel security features (separate from MCP 2025-06-18 protocol security)
+# security:
+#   enabled: true              # Enable enterprise security features
+#   policies:
+#     enabled: true            # Enable organization-wide policy enforcement
+#   allowlist:
+#     enabled: false           # Enable tool allowlisting and access control
+#   rbac:
+#     enabled: false           # Enable role-based access control
+#   sanitization:
+#     enabled: true            # Enable request/response sanitization
+
+# =============================================================================
+# STREAMABLE HTTP TRANSPORT CONFIGURATION (MCP 2025-06-18)
+# =============================================================================
+# streamable_http:
+#   enabled: true              # Enable streamable HTTP transport
+#   endpoint: "/mcp/streamable" # Streamable HTTP endpoint
+#   max_connections: 1000      # Maximum concurrent connections
+#   request_timeout: 30        # Request timeout in seconds
+#   keep_alive_timeout: 60     # Keep-alive timeout in seconds
+
+# =============================================================================
+# TOOL ENHANCEMENT SERVICE CONFIGURATION
+# =============================================================================
+# tool_enhancement:
+#   enabled: true              # Enable tool enhancement service
+#   cache_duration: 3600       # Cache duration in seconds
+#   max_enhancements: 1000     # Maximum number of cached enhancements
+
+# =============================================================================
+# PROMPT GENERATION SERVICE CONFIGURATION
+# =============================================================================
+# prompt_generation:
+#   enabled: true              # Enable prompt generation service
+#   max_prompts: 100           # Maximum number of generated prompts
+#   cache_duration: 1800       # Cache duration in seconds
+
+# =============================================================================
+# RESOURCE GENERATION SERVICE CONFIGURATION
+# =============================================================================
+# resource_generation:
+#   enabled: true              # Enable resource generation service
+#   max_resources: 100         # Maximum number of generated resources
+#   cache_duration: 1800       # Cache duration in seconds
+
+# =============================================================================
+# CONTENT STORAGE SERVICE CONFIGURATION
+# =============================================================================
+# content_storage:
+#   enabled: true              # Enable content storage service
+#   storage_path: "./data/content" # Path to store content
+#   max_size_mb: 100           # Maximum storage size in MB
+
+# =============================================================================
+# EXTERNAL CONTENT MANAGEMENT CONFIGURATION
+# =============================================================================
+# external_content:
+#   enabled: true              # Enable external content management
+#   cache_duration: 3600       # Cache duration in seconds
+#   max_cache_size_mb: 50      # Maximum cache size in MB
+
+# =============================================================================
+# ENHANCEMENT STORAGE CONFIGURATION
+# =============================================================================
+# enhancement_storage:
+#   enabled: true              # Enable enhancement storage
+#   storage_path: "./data/enhancements" # Path to store enhancements
+#   compression: true          # Enable compression for storage
+
+# =============================================================================
 # LOGGING CONFIGURATION
 # =============================================================================
 logging:
@@ -570,14 +615,8 @@ logging:
 # export MCP_REGISTRY_PATHS="./capabilities,./custom-tools"
 # export MCP_HOT_RELOAD="true"
 #
-# # MCP 2025-06-18 Enhanced Format (Always Enabled)
-# export MCP_2025_ENABLED="true"
-# export MCP_2025_CANCELLATION_ENABLED="true"
-# export MCP_2025_VALIDATION_ENABLED="true"
-# export MCP_2025_STARTUP_VALIDATION="true"
-# export MCP_2025_SECURITY_ENABLED="true"
-# export MCP_2025_ENTERPRISE_MODE="false"
-# export MCP_2025_MONITORING_ENABLED="true"
+# # MCP 2025-06-18 Enhanced Features (Always Enabled - No Configuration Required)
+# All MCP 2025-06-18 features are enabled by default in code
 #
 # # Authentication
 # export MCP_AUTH_ENABLED="true"

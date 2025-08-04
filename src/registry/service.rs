@@ -9,9 +9,11 @@
 use crate::config::RegistryConfig;
 use crate::error::{ProxyError, Result};
 use crate::registry::types::*;
+use crate::registry::loader::RegistryLoader;
 use crate::mcp::notifications::McpNotificationManager;
 use arc_swap::ArcSwap;
 use dashmap::DashMap;
+use futures_util::future;
 use globset::{Glob, GlobMatcher};
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use rayon::prelude::*;
@@ -44,6 +46,9 @@ pub struct RegistryService {
 
     /// Configuration
     config: RegistryConfig,
+
+    /// Registry loader for enhanced format support
+    loader: RegistryLoader,
 
     /// File modification times for incremental updates
     file_times: DashMap<PathBuf, SystemTime>,
@@ -129,11 +134,15 @@ impl RegistryService {
             },
         };
         
+        // Create registry loader with the same config
+        let loader = RegistryLoader::new(config.clone());
+        
         let mut service = Self {
             registry: ArcSwap::from_pointee(initial_registry),
             cache: DashMap::new(),
             patterns,
             config,
+            loader,
             file_times: DashMap::new(),
             _watcher: None,
             event_rx: None,
@@ -653,16 +662,19 @@ impl RegistryService {
                file_contents.len(), loading_duration,
                if incremental { "incremental" } else { "full" });
 
-        // Phase 3: Parsing - Parse YAML content in parallel
+        // Phase 3: Parsing - Parse YAML content using loader (handles enhanced format)
         let parsing_start = Instant::now();
-        let parsed_files: Vec<(PathBuf, CapabilityFile)> = file_contents
-            .par_iter()
-            .map(|(path, content)| {
-                let capability_file: CapabilityFile = serde_yaml::from_str(content)
-                    .map_err(|e| ProxyError::registry(format!("Failed to parse YAML file {}: {}", path.display(), e)))?;
-                Ok((path.clone(), capability_file))
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let mut tasks = Vec::new();
+        for (path, _content) in file_contents {
+            let loader = &self.loader;
+            let path_clone = path.clone();
+            tasks.push(async move {
+                let capability_file = loader.load_file(&path_clone).await?;
+                Ok::<(PathBuf, CapabilityFile), ProxyError>((path_clone, capability_file))
+            });
+        }
+        
+        let parsed_files: Vec<(PathBuf, CapabilityFile)> = future::try_join_all(tasks).await?;
         let parsing_duration = parsing_start.elapsed();
         debug!("Phase 3 (Parsing): Parsed {} files in {:?}", parsed_files.len(), parsing_duration);
 
@@ -808,15 +820,10 @@ impl RegistryService {
     pub fn load_capability_file(&self, path: &Path) -> Result<CapabilityFile> {
         use std::fs;
 
-        let content = fs::read_to_string(path)
-            .map_err(|e| ProxyError::registry(format!("Failed to read file {}: {}", path.display(), e)))?;
-
-        let capability_file: CapabilityFile = serde_yaml::from_str(&content)
-            .map_err(|e| ProxyError::registry(format!("Failed to parse YAML file {}: {}", path.display(), e)))?;
-
-        // Validate the capability file
-        capability_file.validate()
-            .map_err(|e| ProxyError::registry(format!("Validation failed for {}: {}", path.display(), e)))?;
+        // Use the loader's load_file method which handles enhanced format
+        let capability_file = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(self.loader.load_file(path))
+        })?;
 
         // Update file modification time
         if let Ok(metadata) = fs::metadata(path) {

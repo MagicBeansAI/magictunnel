@@ -25,8 +25,6 @@ pub struct ElicitationConfig {
     pub max_timeout_seconds: u32,
     /// Rate limiting configuration
     pub rate_limit: Option<ElicitationRateLimit>,
-    /// Security configuration
-    pub security: ElicitationSecurityConfig,
     /// Schema validation configuration
     pub schema_validation: SchemaValidationConfig,
 }
@@ -42,22 +40,6 @@ pub struct ElicitationRateLimit {
     pub window_seconds: u32,
 }
 
-/// Security configuration for elicitation
-#[derive(Debug, Clone)]
-pub struct ElicitationSecurityConfig {
-    /// Whether to enable security checks
-    pub enabled: bool,
-    /// Blocked schema patterns (regex)
-    pub blocked_schema_patterns: Vec<String>,
-    /// Blocked field names
-    pub blocked_field_names: Vec<String>,
-    /// Maximum number of fields allowed
-    pub max_fields: usize,
-    /// Minimum privacy level required
-    pub min_privacy_level: ElicitationPrivacyLevel,
-    /// Whether to log all elicitation requests
-    pub log_requests: bool,
-}
 
 /// Schema validation configuration
 #[derive(Debug, Clone)]
@@ -135,28 +117,6 @@ impl ElicitationService {
                 burst_size: 3,
                 window_seconds: 60,
             }),
-            security: ElicitationSecurityConfig {
-                enabled: true,
-                blocked_schema_patterns: vec![
-                    r"(?i)(password|secret|key|token|credential)".to_string(),
-                    r"(?i)(ssn|social.*security|credit.*card|bank.*account)".to_string(),
-                    r"(?i)(private.*key|api.*key|auth.*token)".to_string(),
-                ],
-                blocked_field_names: vec![
-                    "password".to_string(),
-                    "secret".to_string(),
-                    "private_key".to_string(),
-                    "api_key".to_string(),
-                    "auth_token".to_string(),
-                    "ssn".to_string(),
-                    "social_security_number".to_string(),
-                    "credit_card".to_string(),
-                    "bank_account".to_string(),
-                ],
-                max_fields: 20,
-                min_privacy_level: ElicitationPrivacyLevel::Internal,
-                log_requests: true,
-            },
             schema_validation: SchemaValidationConfig {
                 strict_validation: true,
                 allowed_types: vec![
@@ -227,11 +187,9 @@ impl ElicitationService {
             pending_requests.insert(request_id.clone(), pending);
         }
 
-        // Log the request if configured
-        if self.config.security.log_requests {
-            info!("Elicitation request created: {} for user: {:?}", request_id, user_id);
-            debug!("Elicitation request details: {:?}", request);
-        }
+        // Log the request
+        info!("Elicitation request created: {} for user: {:?}", request_id, user_id);
+        debug!("Elicitation request details: {:?}", request);
 
         Ok(request_id)
     }
@@ -355,28 +313,7 @@ impl ElicitationService {
             }
         }
 
-        // Check privacy level if context is provided
-        if let Some(context) = &request.context {
-            if let Some(privacy_level) = &context.privacy_level {
-                // Ensure privacy level meets minimum requirements
-                match (&self.config.security.min_privacy_level, privacy_level) {
-                    (ElicitationPrivacyLevel::Restricted, ElicitationPrivacyLevel::Public) |
-                    (ElicitationPrivacyLevel::Restricted, ElicitationPrivacyLevel::Internal) |
-                    (ElicitationPrivacyLevel::Restricted, ElicitationPrivacyLevel::Confidential) |
-                    (ElicitationPrivacyLevel::Confidential, ElicitationPrivacyLevel::Public) |
-                    (ElicitationPrivacyLevel::Confidential, ElicitationPrivacyLevel::Internal) |
-                    (ElicitationPrivacyLevel::Internal, ElicitationPrivacyLevel::Public) => {
-                        return Err(ElicitationError {
-                            code: ElicitationErrorCode::SecurityViolation,
-                            message: format!("Privacy level {:?} does not meet minimum requirement {:?}", 
-                                privacy_level, self.config.security.min_privacy_level),
-                            details: None,
-                        });
-                    }
-                    _ => {} // Privacy level is acceptable
-                }
-            }
-        }
+        // Privacy level validation removed - will be handled by MCP 2025-06-18 security when implemented
 
         Ok(())
     }
@@ -448,16 +385,10 @@ impl ElicitationService {
         // Analyze properties
         if let Some(properties) = schema_obj.get("properties") {
             if let Some(props_obj) = properties.as_object() {
-                if props_obj.len() > self.config.security.max_fields {
-                    errors.push(format!("Too many properties: {} (max: {})", 
-                        props_obj.len(), self.config.security.max_fields));
-                }
+                // Max fields validation removed - will be handled by MCP 2025-06-18 security when implemented
 
                 for (field_name, field_schema) in props_obj {
-                    // Check for blocked field names
-                    if self.config.security.blocked_field_names.contains(field_name) {
-                        errors.push(format!("Blocked field name: {}", field_name));
-                    }
+                    // Field name validation removed - will be handled by MCP 2025-06-18 security when implemented
 
                     // Analyze field schema
                     if let Some(field_obj) = field_schema.as_object() {
@@ -509,42 +440,9 @@ impl ElicitationService {
     }
 
     /// Apply security checks to elicitation request
+    /// TODO: Implement MCP 2025-06-18 security checks here
     async fn apply_security_checks(&self, request: &ElicitationRequest) -> std::result::Result<(), ElicitationError> {
-        if !self.config.security.enabled {
-            return Ok(());
-        }
-
-        // Check schema patterns
-        let schema_str = serde_json::to_string(&request.requested_schema).unwrap_or_default();
-        for pattern in &self.config.security.blocked_schema_patterns {
-            if let Ok(regex) = regex::Regex::new(pattern) {
-                if regex.is_match(&schema_str) {
-                    return Err(ElicitationError {
-                        code: ElicitationErrorCode::SecurityViolation,
-                        message: "Requested schema contains blocked patterns".to_string(),
-                        details: Some(json!({
-                            "pattern": pattern
-                        }).as_object().unwrap().clone().into_iter().collect()),
-                    });
-                }
-            }
-        }
-
-        // Check message content
-        for pattern in &self.config.security.blocked_schema_patterns {
-            if let Ok(regex) = regex::Regex::new(pattern) {
-                if regex.is_match(&request.message) {
-                    return Err(ElicitationError {
-                        code: ElicitationErrorCode::SecurityViolation,
-                        message: "Message contains blocked patterns".to_string(),
-                        details: Some(json!({
-                            "pattern": pattern
-                        }).as_object().unwrap().clone().into_iter().collect()),
-                    });
-                }
-            }
-        }
-
+        // Non-MCP security checks removed - MCP 2025-06-18 security will be implemented here
         Ok(())
     }
 
@@ -1059,14 +957,6 @@ impl Default for ElicitationConfig {
                 burst_size: 3,
                 window_seconds: 60,
             }),
-            security: ElicitationSecurityConfig {
-                enabled: true,
-                blocked_schema_patterns: vec![],
-                blocked_field_names: vec![],
-                max_fields: 10,
-                min_privacy_level: ElicitationPrivacyLevel::Internal,
-                log_requests: true,
-            },
             schema_validation: SchemaValidationConfig {
                 strict_validation: true,
                 allowed_types: vec![

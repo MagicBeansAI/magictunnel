@@ -1,0 +1,387 @@
+# Breaking Changes Example - Optimal MCP 2025-06-18 Design
+# Completely redesigned structure for maximum capability
+
+# Enhanced metadata with comprehensive classification
+metadata:
+  name: "Advanced File Operations Suite"
+  description: "Next-generation file operations with AI, security, and progress tracking"
+  version: "3.0.0"
+  author: "MCP 2025 Team"
+  
+  # Enhanced categorization
+  classification:
+    security_level: "mixed"     # safe, restricted, mixed, privileged, dangerous
+    complexity_level: "varied"  # simple, moderate, complex, varied
+    domain: "filesystem"
+    use_cases: ["data_processing", "file_management", "content_analysis"]
+  
+  # Discovery enhancement
+  discovery_metadata:
+    primary_keywords: ["file", "read", "write", "process", "analyze"]
+    semantic_embeddings: true
+    llm_enhanced: true
+    workflow_enabled: true
+  
+  # MCP 2025-06-18 capabilities
+  mcp_capabilities:
+    version: "2025-06-18"
+    supports_cancellation: true
+    supports_progress: true
+    supports_sampling: true
+    supports_validation: true
+    supports_elicitation: false
+
+# Completely restructured tools with full MCP 2025-06-18 integration
+tools:
+  # Simple tool with full MCP integration
+  - name: "read_file_enhanced"
+    
+    # Core definition
+    core:
+      description: "Read file contents with intelligent encoding detection and validation"
+      input_schema:
+        type: object
+        properties:
+          path:
+            type: string
+            description: "File path (supports wildcards and variables)"
+            validation:
+              patterns: ["*.txt", "*.json", "*.yaml", "*.md", "*.log"]
+              max_size_mb: 100
+              security_scan: true
+          encoding:
+            type: string
+            enum: ["auto", "utf-8", "utf-16", "ascii", "latin1"]
+            default: "auto"
+            description: "Encoding (auto-detect if not specified)"
+          validate_content:
+            type: boolean
+            default: true
+            description: "Validate file content for security issues"
+        required: ["path"]
+    
+    # Execution configuration
+    execution:
+      routing:
+        type: "enhanced_subprocess"
+        primary:
+          command: "enhanced_file_reader"
+          args: ["--path", "{path}", "--encoding", "{encoding}", "--validate", "{validate_content}"]
+          timeout_seconds: 60
+        fallback:
+          command: "cat"
+          args: ["{path}"]
+          timeout_seconds: 30
+      
+      # Security sandbox
+      security:
+        classification: "safe"
+        sandbox:
+          filesystem:
+            allowed_read_paths: ["{path}", "/tmp/magictunnel/*"]
+            denied_read_patterns: ["/etc/passwd", "/root/*", "*.private"]
+          network:
+            allowed: false
+          resources:
+            max_memory_mb: 256
+            max_cpu_percent: 50
+            max_execution_seconds: 60
+          
+      # Performance characteristics  
+      performance:
+        estimated_duration:
+          small_files: 2      # < 1MB
+          medium_files: 10    # 1-10MB  
+          large_files: 30     # > 10MB
+        complexity: "simple"
+        supports_cancellation: true
+        supports_progress: false
+        cache_results: true
+        cache_ttl_seconds: 300
+    
+    # Discovery enhancement
+    discovery:
+      # LLM-generated enhanced metadata
+      ai_enhanced:
+        description: >
+          Intelligently reads any text-based file with automatic encoding detection, 
+          content validation, and security scanning. Handles configuration files, 
+          logs, documentation, code, and data files safely and efficiently.
+        
+        usage_patterns:
+          - "read the {filename} file"
+          - "show me contents of {path}"
+          - "what's in the {config_file}?"
+          - "read and validate {document}"
+        
+        semantic_context:
+          primary_intent: "content_retrieval"
+          data_types: ["text", "configuration", "logs", "documentation"]
+          operations: ["read", "display", "retrieve", "examine"]
+          
+        workflow_integration:
+          typically_follows: ["find_files", "list_directory"]
+          typically_precedes: ["parse_config", "analyze_logs", "process_text"]
+          chain_compatibility: ["data_pipeline", "config_management", "log_analysis"]
+      
+      # Enhanced parameter intelligence
+      parameter_intelligence:
+        path:
+          smart_suggestions:
+            - pattern: "config.*"
+              description: "Configuration files"
+              examples: ["config.yaml", "config.json", "app.config"]
+            - pattern: "*.log"
+              description: "Log files"  
+              examples: ["error.log", "access.log", "application.log"]
+          validation:
+            - rule: "file_exists"
+              message: "File must exist and be readable"
+            - rule: "size_limit"
+              max_size_mb: 100
+              message: "File too large (max 100MB)"
+        
+        encoding:
+          smart_default: "auto"
+          recommendations:
+            - when: "path.endswith('.json')"
+              suggest: "utf-8"
+            - when: "path.contains('legacy')"
+              suggest: "latin1"
+    
+    # Progress and cancellation (even for simple operations)
+    monitoring:
+      progress_tracking:
+        enabled: false  # Simple operation doesn't need progress
+        granularity: "basic"
+      
+      cancellation:
+        enabled: true
+        graceful_timeout_seconds: 5
+        cleanup_required: false
+      
+      metrics:
+        track_execution_time: true
+        track_success_rate: true
+        track_error_patterns: true
+    
+    # Visibility and access
+    access:
+      hidden: false
+      enabled: true
+      requires_permissions: ["file:read"]
+      user_groups: ["all"]
+
+  # Complex tool showcasing full MCP 2025-06-18 capabilities
+  - name: "intelligent_data_processor"
+    
+    core:
+      description: "AI-powered data processing with real-time progress and adaptive optimization"
+      input_schema:
+        type: object
+        properties:
+          input_source:
+            oneOf:
+              - type: string
+                description: "File path"
+              - type: object
+                properties:
+                  type: 
+                    enum: ["file", "url", "database"]
+                  location: 
+                    type: string
+          processing_config:
+            type: object
+            properties:
+              operations:
+                type: array
+                items:
+                  enum: ["clean", "transform", "analyze", "validate", "enrich"]
+              batch_size:
+                type: integer
+                default: 1000
+                minimum: 100
+                maximum: 50000
+              optimization_level:
+                enum: ["speed", "balanced", "quality"]
+                default: "balanced"
+              ai_enhancement:
+                type: boolean
+                default: true
+                description: "Use AI for intelligent processing decisions"
+          output_config:
+            type: object
+            properties:
+              format:
+                enum: ["json", "csv", "parquet", "xml"]
+              compression:
+                enum: ["none", "gzip", "brotli"]
+                default: "none"
+              destination:
+                type: string
+        required: ["input_source", "processing_config", "output_config"]
+    
+    execution:
+      routing:
+        type: "ai_enhanced_processor"
+        config:
+          service: "data_processing_engine"
+          ai_integration:
+            sampling_service: true
+            elicitation_service: false
+            model: "gpt-4o-mini"
+          adaptive_optimization: true
+      
+      security:
+        classification: "privileged"  # Requires special permissions
+        requires_approval: true
+        approval_workflow: "data_processing_approval"
+        
+        sandbox:
+          filesystem:
+            allowed_read_paths: ["/data/input/*", "/tmp/processing/*"]
+            allowed_write_paths: ["/data/output/*", "/tmp/processing/*"]
+            denied_patterns: ["/etc/*", "/root/*", "/home/*"]
+          network:
+            allowed_hosts: ["api.dataprocessing.com", "*.trusted-domain.com"]
+            denied_ports: [22, 23, 3389]
+          resources:
+            max_memory_mb: 4096
+            max_cpu_percent: 80
+            max_execution_seconds: 7200
+            max_disk_io_mb: 10240
+          environment:
+            isolated: true
+            readonly_system: true
+            custom_env:
+              PROCESSING_MODE: "sandboxed"
+      
+      performance:
+        estimated_duration:
+          small_dataset: 60    # < 10K records
+          medium_dataset: 300  # 10K-100K records  
+          large_dataset: 1800  # > 100K records
+        complexity: "very_complex"
+        supports_cancellation: true
+        supports_progress: true
+        cache_results: false  # Data processing shouldn't be cached
+        resource_scaling: "adaptive"
+    
+    discovery:
+      ai_enhanced:
+        description: >
+          Advanced AI-powered data processing engine that intelligently handles structured 
+          and semi-structured data. Automatically optimizes processing strategies, provides 
+          real-time progress updates, and adapts to data characteristics. Perfect for ETL 
+          pipelines, data cleaning, analysis, and transformation workflows.
+        
+        usage_patterns:
+          - "process the {dataset} and clean it up"
+          - "transform {data_file} from {format1} to {format2}"
+          - "analyze and enrich the {database_export}"
+          - "run data quality checks on {dataset}"
+        
+        semantic_context:
+          primary_intent: "data_transformation"
+          data_types: ["structured", "semi_structured", "tabular", "analytical"]
+          operations: ["process", "transform", "clean", "analyze", "validate"]
+          scale: ["medium", "large", "enterprise"]
+          
+        ai_capabilities:
+          auto_schema_detection: true
+          intelligent_type_inference: true
+          adaptive_processing_strategy: true
+          quality_assessment: true
+          anomaly_detection: true
+        
+        workflow_integration:
+          typically_follows: ["data_discovery", "schema_analysis", "quality_assessment"]
+          typically_precedes: ["generate_report", "data_visualization", "model_training"]
+          pipeline_compatible: ["etl", "data_science", "analytics", "ml_preprocessing"]
+      
+      parameter_intelligence:
+        input_source:
+          ai_suggestions:
+            - analyze_context: true
+            - suggest_based_on_history: true
+            - validate_accessibility: true
+        
+        processing_config:
+          adaptive_recommendations:
+            batch_size:
+              - rule: "auto_calculate_based_on_file_size_and_memory"
+              - min_value: 100
+              - max_value: 50000
+            operations:
+              - when: "data_type == 'csv'"
+                suggest: ["clean", "validate", "transform"]
+              - when: "data_quality_score < 0.7"
+                suggest: ["clean", "validate", "enrich"]
+            optimization_level:
+              - when: "file_size > 1GB"
+                suggest: "speed"
+              - when: "data_quality_critical == true"
+                suggest: "quality"
+    
+    monitoring:
+      progress_tracking:
+        enabled: true
+        granularity: "verbose"
+        sub_operations:
+          - id: "data_loading"
+            name: "Loading and parsing data"
+            estimated_percentage: 20
+          - id: "schema_analysis"  
+            name: "Analyzing data schema"
+            estimated_percentage: 10
+          - id: "processing"
+            name: "Processing data"
+            estimated_percentage: 60
+          - id: "validation"
+            name: "Validating results"
+            estimated_percentage: 5
+          - id: "output_generation"
+            name: "Generating output"
+            estimated_percentage: 5
+        
+        real_time_metrics:
+          - records_processed
+          - processing_rate
+          - estimated_time_remaining
+          - memory_usage
+          - quality_score
+      
+      cancellation:
+        enabled: true
+        graceful_timeout_seconds: 30
+        cleanup_required: true
+        cleanup_operations:
+          - "delete_temp_files"
+          - "release_resources"
+          - "rollback_partial_changes"
+      
+      ai_monitoring:
+        performance_optimization:
+          enabled: true
+          auto_adjust_batch_size: true
+          adaptive_memory_management: true
+        
+        quality_monitoring:
+          continuous_assessment: true
+          anomaly_detection: true
+          auto_correction: true
+      
+      metrics:
+        comprehensive_tracking: true
+        custom_metrics:
+          - data_quality_score
+          - processing_efficiency
+          - resource_utilization
+          - ai_enhancement_impact
+    
+    access:
+      hidden: false
+      enabled: true
+      requires_permissions: ["data:process", "ai:enhanced", "filesystem:advanced"]
+      user_groups: ["data_engineers", "analysts", "administrators"]
+      approval_required: true

@@ -19,6 +19,9 @@ pub mod supervisor;
 pub mod tls;
 pub mod web;
 
+#[cfg(test)]
+mod test_enhanced_parsing;
+
 pub use config::{Config, ExternalMcpServersConfig, HttpServiceConfig, SseServiceConfig, HttpAuthType, SseAuthType};
 pub use error::{ProxyError, Result};
 

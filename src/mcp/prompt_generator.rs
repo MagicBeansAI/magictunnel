@@ -49,7 +49,7 @@ impl Default for PromptGenerationConfig {
     fn default() -> Self {
         Self {
             providers: vec![], // Will be populated from main config
-            default_model: "default".to_string(), // Should be overridden in config
+            default_model: "gpt-4o-mini".to_string(), // Reasonable default, should be overridden in config
             max_prompts_per_tool: 3,
             include_parameter_validation: true,
             include_usage_examples: true,

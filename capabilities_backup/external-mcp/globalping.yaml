@@ -46,9 +46,11 @@ tools:
       timeout: 30
       tool_name: ping
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     server: globalping
-    source: external_mcp
     original_name: ping
+    source: external_mcp
   hidden: true
   enabled: true
 - name: traceroute_globalping
@@ -95,8 +97,10 @@ tools:
       timeout: 30
       tool_name: traceroute
   annotations:
-    server: globalping
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     source: external_mcp
+    server: globalping
     original_name: traceroute
   hidden: true
   enabled: true
@@ -160,9 +164,11 @@ tools:
       timeout: 30
       tool_name: dns
   annotations:
-    original_name: dns
-    server: globalping
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     source: external_mcp
+    server: globalping
+    original_name: dns
   hidden: true
   enabled: true
 - name: mtr_globalping
@@ -212,9 +218,11 @@ tools:
       timeout: 30
       tool_name: mtr
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     server: globalping
-    original_name: mtr
     source: external_mcp
+    original_name: mtr
   hidden: true
   enabled: true
 - name: http_globalping
@@ -273,6 +281,8 @@ tools:
       timeout: 30
       tool_name: http
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     original_name: http
     source: external_mcp
     server: globalping
@@ -295,8 +305,10 @@ tools:
       timeout: 30
       tool_name: locations
   annotations:
-    source: external_mcp
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     original_name: locations
+    source: external_mcp
     server: globalping
   hidden: true
   enabled: true
@@ -317,9 +329,11 @@ tools:
       timeout: 30
       tool_name: limits
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     source: external_mcp
-    server: globalping
     original_name: limits
+    server: globalping
   hidden: true
   enabled: true
 - name: getMeasurement_globalping
@@ -344,9 +358,11 @@ tools:
       timeout: 30
       tool_name: getMeasurement
   annotations:
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
+    original_name: getMeasurement
     source: external_mcp
     server: globalping
-    original_name: getMeasurement
   hidden: true
   enabled: true
 - name: compareLocations_globalping
@@ -366,9 +382,11 @@ tools:
       timeout: 30
       tool_name: compareLocations
   annotations:
-    original_name: compareLocations
-    server: globalping
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     source: external_mcp
+    server: globalping
+    original_name: compareLocations
   hidden: true
   enabled: true
 - name: help_globalping
@@ -388,9 +406,11 @@ tools:
       timeout: 30
       tool_name: help
   annotations:
-    server: globalping
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     original_name: help
     source: external_mcp
+    server: globalping
   hidden: true
   enabled: true
 - name: authStatus_globalping
@@ -410,8 +430,10 @@ tools:
       timeout: 30
       tool_name: authStatus
   annotations:
-    original_name: authStatus
+    has_elicitation_capability: "false"
+    has_sampling_capability: "false"
     server: globalping
+    original_name: authStatus
     source: external_mcp
   hidden: true
   enabled: true

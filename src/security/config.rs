@@ -27,18 +27,23 @@ pub struct SecurityConfig {
 impl Default for SecurityConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            allowlist: None,
-            sanitization: None,
-            rbac: None,
-            policies: None,
-            audit: None,
-            mcp_2025_security: None,
+            enabled: false,                    // Enterprise security features remain opt-in
+            allowlist: None,                   // Enterprise allowlisting opt-in
+            sanitization: None,                // Enterprise sanitization opt-in
+            rbac: None,                        // Enterprise RBAC opt-in
+            policies: None,                    // Enterprise policies opt-in
+            audit: None,                       // Enterprise audit logging opt-in
+            mcp_2025_security: Some(Mcp2025SecurityConfig::default()), // ✅ MCP protocol security always enabled
         }
     }
 }
 
 impl SecurityConfig {
+    /// Verify that MCP 2025-06-18 security is enabled by default
+    pub fn has_mcp_security(&self) -> bool {
+        self.mcp_2025_security.is_some()
+    }
+
     /// Create a secure default configuration
     pub fn secure_defaults() -> Self {
         Self {

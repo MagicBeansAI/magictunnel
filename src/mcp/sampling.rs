@@ -149,7 +149,11 @@ impl SamplingService {
             enabled: config.smart_discovery.as_ref()
                 .map(|sd| sd.enabled)
                 .unwrap_or(false),
-            default_model: "gpt-4".to_string(), // Default model
+            default_model: config.sampling.as_ref()
+                .and_then(|s| s.llm_config.as_ref())
+                .map(|llm| llm.model.clone())
+                .or_else(|| config.sampling.as_ref().map(|s| s.default_model.clone()))
+                .unwrap_or_else(|| "gpt-4o-mini".to_string()), // Use llm_config.model, fallback to default_model, then fallback
             max_tokens_limit: 4000,
             rate_limit: Some(SamplingRateLimit {
                 requests_per_minute: 60,
@@ -472,9 +476,19 @@ impl SamplingService {
 
         // Simple heuristic: high intelligence = best model, high speed = fastest model, high cost = cheapest model
         if intelligence_priority > 0.7 {
-            // Look for high-intelligence models in order of preference
+            // For high intelligence, prefer the configured default model first
+            let configured_model = &self.config.default_model;
+            
+            // Check if any provider has the configured model
+            for provider in providers.values() {
+                if provider.models.iter().any(|m| m == configured_model) {
+                    return Ok(configured_model.clone());
+                }
+            }
+            
+            // Fall back to provider-specific high-intelligence models
             if let Some(provider) = providers.get("openai") {
-                // Prefer GPT-4 variants if available
+                // Look for GPT-4 variants if available
                 if let Some(model) = provider.models.iter().find(|m| m.contains("gpt-4")) {
                     return Ok(model.clone());
                 }
@@ -484,7 +498,7 @@ impl SamplingService {
                 }
             }
             if let Some(provider) = providers.get("anthropic") {
-                // Prefer Claude-3 Sonnet/Opus if available
+                // Look for Claude-3 variants if available
                 if let Some(model) = provider.models.iter().find(|m| m.contains("claude-3") && (m.contains("sonnet") || m.contains("opus"))) {
                     return Ok(model.clone());
                 }
@@ -616,7 +630,7 @@ impl SamplingService {
         let request = SamplingRequest {
             messages: vec![user_message],
             model_preferences: Some(ModelPreferences {
-                preferred_models: Some(vec!["gpt-4".to_string(), "claude-3-sonnet-20240229".to_string()]),
+                preferred_models: Some(vec![self.config.default_model.clone()]),
                 intelligence: Some(0.8), // High intelligence for good descriptions
                 speed: Some(0.3),        // Less important
                 cost: Some(0.4),         // Moderate cost consideration
@@ -697,7 +711,7 @@ impl SamplingService {
         let request = SamplingRequest {
             messages: vec![user_message],
             model_preferences: Some(ModelPreferences {
-                preferred_models: Some(vec!["gpt-4".to_string(), "claude-3-sonnet-20240229".to_string()]),
+                preferred_models: Some(vec![self.config.default_model.clone()]),
                 intelligence: Some(0.7),
                 speed: Some(0.4),
                 cost: Some(0.5),
@@ -778,7 +792,7 @@ impl SamplingService {
         let request = SamplingRequest {
             messages: vec![user_message],
             model_preferences: Some(ModelPreferences {
-                preferred_models: Some(vec!["gpt-4".to_string(), "claude-3-sonnet-20240229".to_string()]),
+                preferred_models: Some(vec![self.config.default_model.clone()]),
                 intelligence: Some(0.6),
                 speed: Some(0.6),
                 cost: Some(0.6),
@@ -1686,7 +1700,7 @@ impl Default for SamplingConfig {
     fn default() -> Self {
         Self {
             enabled: false,
-            default_model: "default".to_string(), // Should be overridden in config
+            default_model: "gpt-4o-mini".to_string(), // Reasonable default, should be overridden in config
             max_tokens_limit: 4000,
             rate_limit: Some(SamplingRateLimit {
                 requests_per_minute: 60,

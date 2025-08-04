@@ -1326,10 +1326,8 @@ pub struct GenerationReferenceMetadata {
 /// Raw enhanced capability file format for parsing (before conversion to legacy)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnhancedCapabilityFileRaw {
-    /// File metadata
-    pub metadata: Option<FileMetadata>,
-    /// Enhanced file metadata (MCP 2025-06-18 format)
-    pub enhanced_metadata: Option<EnhancedFileMetadata>,
+    /// Enhanced file metadata (unified structure)
+    pub metadata: Option<EnhancedFileMetadata>,
     /// Enhanced tool definitions
     pub tools: Vec<EnhancedToolDefinitionRaw>,
 }
