@@ -4,7 +4,7 @@
 
 MagicTunnel is an intelligent bridge between MCP (Model Context Protocol) clients and diverse agents/endpoints. It provides a single, smart tool discovery interface that can find the right tool for any request, map parameters, and proxy the call automatically.
 
-**Current Version**: 0.3.4 - **Configuration Documentation and Test Infrastructure Complete** ✅
+**Current Version**: 0.3.6 - **Legacy Client Removal & Modern Architecture Migration Complete** ✅
 
 ## Quick Start
 
@@ -72,6 +72,7 @@ MagicTunnel implements a **Smart Tool Discovery and Proxy** system that reduces 
    - Manages external MCP processes and agents
    - Handles websocket and stdio communication
    - Provides process lifecycle management
+   - **Bidirectional Communication**: Complete MCP 2025-06-18 bidirectional routing with modern clients/ architecture
 
 5. **Smart Tool Discovery System** (`src/discovery/`)
    - **THE CORE INNOVATION**: Single intelligent tool that discovers the right tool for any request
@@ -118,14 +119,22 @@ The system provides **one intelligent tool** (`smart_tool_discovery`) that:
 - `src/discovery/service.rs` - Smart discovery implementation with hybrid AI intelligence
 - `src/discovery/semantic.rs` - Semantic search with embedding-based tool matching
 - `src/routing/substitution.rs` - Parameter substitution with array indexing
+- `src/mcp/clients/` - **Modern MCP 2025-06-18 client implementations** ✅
+  - `http_client.rs` - HTTP MCP client with request/response handling
+  - `websocket_client.rs` - WebSocket client with full-duplex communication
+  - `sse_client.rs` - Server-Sent Events client with streaming support
+  - `streamable_http_client.rs` - NDJSON streaming client (MCP 2025-06-18 preferred)
 - `src/mcp/server.rs` - MCP protocol implementation
+- `src/mcp/external_manager.rs` - External MCP server management with bidirectional routing
+- `src/mcp/external_integration.rs` - External MCP integration layer with elicitation support
 - `src/registry/service.rs` - Capability registry management with visibility support
 - `src/bin/magictunnel-visibility.rs` - CLI tool for visibility management
 - `src/main.rs` - Application entry point
 
 ### Documentation
 - `docs/ROUTING_ARCHITECTURE.md` - Detailed architecture documentation with Phase 4 completion status
-- `CHANGELOG.md` - Version history and changes (current: 0.3.2)
+- `docs/BIDIRECTIONAL_COMMUNICATION_FLOW.md` - **Complete MCP 2025-06-18 bidirectional communication flow** ✅
+- `CHANGELOG.md` - Version history and changes (current: 0.3.6)
 - `README.md` - Comprehensive project overview with current status
 - `how_to_run.md` - Quick setup guide with examples
 
@@ -232,7 +241,17 @@ curl -X POST http://localhost:3001/mcp/call \
 - **Claude Desktop Compatibility**: Fixed Claude not working issues with full MCP compliance
 - **Sequential Mode**: Enhanced sequential mode functionality
 
-### Version 0.3.4 (Current) - Configuration Documentation and Test Infrastructure ✅
+### Version 0.3.6 (Current) - Legacy Client Removal & Modern Architecture Migration Complete ✅
+- **Complete Legacy Client Migration**: Successfully migrated from deprecated monolithic `client.rs` to modern modular `clients/` architecture
+  - **Modern Client Architecture**: 4 specialized client implementations (HTTP, WebSocket, SSE, StreamableHTTP)
+  - **Test Migration Complete**: All 4 test files migrated from legacy client to configuration validation
+  - **Legacy Code Removal**: Removed ~2,700 lines of deprecated client.rs code
+  - **Clean Architecture**: Only modern, specialized clients remain with MCP 2025-06-18 compliance
+  - **Configuration-Based Testing**: Replaced routing calls with data structure and configuration validation
+- **Migration Benefits**: Reduced codebase size, eliminated deprecation warnings, better maintainability
+- **Production Readiness**: Clean compilation, all tests passing, modern architecture operational
+
+### Version 0.3.4 - Configuration Documentation and Test Infrastructure ✅
 - **Complete LLM Backend APIs Test Coverage**: 60+ test functions across 6 test suites
   - **Elicitation Service API Tests**: 10 comprehensive test functions covering metadata extraction and batch processing
   - **Sampling Service API Tests**: 12 comprehensive test functions covering tool enhancement and content generation
@@ -254,6 +273,7 @@ curl -X POST http://localhost:3001/mcp/call \
 - **Enhanced keyword matching**: Better networking tool recognition
 
 ### Migration Notes
+- **Legacy Client Removal (v0.3.6)**: Deprecated monolithic `client.rs` removed in favor of modern modular `clients/` architecture
 - External MCP integration replaced remote/local MCP modules
 - Smart discovery replaces individual tool exposure
 - Configuration moved from separate files to unified config structure
@@ -396,6 +416,7 @@ export MAGICTUNNEL_EMBEDDING_MODEL=text-embedding-3-small
 
 #### **Backend Services Complete ✅**
 - ✅ **MCP 2025-06-18 Backend**: Full specification implementation with MCP sampling and elicitation services
+- ✅ **MCP Client Bidirectional Communication**: Complete routing implementation with all 6 ProcessingStrategy variants
 - ✅ **Automatic LLM Generation**: AI-powered tool enhancement with multi-provider support (backend complete)
 - ✅ **LLM Backend Management APIs**: Complete REST API implementation for all LLM services (25+ endpoints)
 - ✅ **Security Framework**: Backend authentication, policy framework, and audit logging

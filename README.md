@@ -1,6 +1,6 @@
 # MagicTunnel
 
-**Smart MCP Proxy** - One intelligent tool that discovers the right tool for any request. Now with **Complete MCP 2025-06-18 Smart Discovery Integration** featuring server-side LLM request generation, external MCP protection, enterprise-grade enhancement pipeline, and **Complete LLM Backend Management APIs**.
+**Smart MCP Proxy** - One intelligent tool that discovers the right tool for any request. Now with **Complete MCP 2025-06-18 Integration** featuring server-side LLM request generation, external MCP protection, enterprise-grade enhancement pipeline, **Complete LLM Backend Management APIs**, and **Full Bidirectional Communication** ✅.
 
 ![MagicTunnel](docs/images/magictunnel-1.png)
 
@@ -323,6 +323,7 @@ MagicTunnel is **fully compliant** with the latest MCP 2025-06-18 specification:
 - [🖥️ Web Dashboard](docs/web-dashboard.md) - Complete web interface guide
 - [🔧 Supervisor System](docs/supervisor.md) - Process management and monitoring
 - [🧠 Smart Discovery](docs/smart-discovery.md) - Intelligent tool discovery
+- [🔄 **Bidirectional Communication**](docs/BIDIRECTIONAL_COMMUNICATION_FLOW.md) - **MCP 2025-06-18 client routing architecture** ✅
 - [🌐 Protocol Compatibility](docs/PROTOCOL_COMPATIBILITY.md) - Network MCP protocol translation
 
 ### Advanced Documentation

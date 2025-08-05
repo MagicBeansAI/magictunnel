@@ -4,7 +4,7 @@
 //! protocol communication with MCP clients.
 
 pub mod server;
-pub mod client;
+// Legacy client removed - use clients/ module instead
 pub mod llm_client;
 // Legacy remote MCP modules removed - replaced by external_* modules
 pub mod external_process;
@@ -37,6 +37,8 @@ pub mod streamable_http;
 pub mod cancellation;
 pub mod progress;
 pub mod tool_validation;
+pub mod request_forwarder;
+pub mod server_request_forwarder;
 
 // Test modules
 
@@ -48,7 +50,7 @@ pub use external_manager::ExternalMcpManager;
 pub use external_process::ExternalMcpProcess;
 pub use network_service_manager::{NetworkMcpServiceManager, NetworkMcpService};
 // Network clients
-pub use clients::{HttpMcpClient, HttpClientConfig, HttpAuthConfig, SseMcpClient, SseClientConfig, SseAuthConfig};
+pub use clients::{HttpMcpClient, HttpClientConfig, HttpAuthConfig, SseMcpClient, SseClientConfig, SseAuthConfig, StreamableHttpMcpClient, StreamableHttpClientConfig, WebSocketMcpClient, WebSocketClientConfig, ConnectionState};
 pub use types::*;
 pub use resources::*;
 pub use prompts::*;
@@ -72,3 +74,4 @@ pub use streamable_http::{StreamableHttpTransport, StreamableHttpConfig, Streama
 pub use cancellation::{CancellationManager, CancellationConfig, CancellationToken, CancellationReason, CancellationEvent, CancellationStats};
 pub use progress::{ProgressTracker, ProgressConfig, ProgressSession, ProgressState, ProgressEvent, ProgressEventType, ProgressUpdate, SubOperation, SubOperationState, ProgressStats, ProgressGranularity};
 pub use tool_validation::{RuntimeToolValidator, ValidationConfig as ToolValidationConfig, ValidationResult, SecurityClassification, SandboxPolicy, ValidationStats};
+pub use request_forwarder::{RequestForwarder, SharedRequestForwarder, ExternalMcpClient};

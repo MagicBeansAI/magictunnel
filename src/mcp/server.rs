@@ -19,6 +19,7 @@ use crate::mcp::validation::McpMessageValidator;
 use crate::mcp::cancellation::{CancellationManager, CancellationConfig};
 use crate::mcp::progress::{ProgressTracker, ProgressConfig};
 use crate::mcp::tool_validation::{RuntimeToolValidator, ValidationConfig as ToolValidationConfig};
+use crate::mcp::request_forwarder::RequestForwarder;
 use crate::registry::service::{RegistryService, EnhancementCallback};
 use crate::routing::{Router, types::AgentResult};
 use crate::web::configure_dashboard_api;
@@ -32,6 +33,7 @@ use uuid;
 use chrono;
 use serde_json::{json, Value};
 use std::sync::Arc;
+use async_trait::async_trait;
 
 /// MCP Server that handles protocol communication
 pub struct McpServer {

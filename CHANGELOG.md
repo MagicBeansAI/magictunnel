@@ -5,6 +5,28 @@ All notable changes to the MagicTunnel project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.6] - 2025-08-04 - Legacy Client Removal & Modern Architecture Migration
+
+### Removed
+- **🗑️ Legacy Client Removal**: Completely removed deprecated monolithic `src/mcp/client.rs` (~2,700 lines)
+  - **Modern Architecture Migration**: Successfully migrated all functionality to specialized `src/mcp/clients/` modules
+  - **Test Migration**: Converted all 4 test files from legacy client usage to configuration validation testing
+  - **Clean Architecture**: Only modern, specialized clients remain (HTTP, WebSocket, SSE, StreamableHTTP)
+
+### Enhanced
+- **🏗️ Modern Client Architecture**: 4 specialized MCP 2025-06-18 compliant client implementations
+  - **WebSocketMcpClient**: Full-duplex WebSocket communication with connection state management
+  - **HttpMcpClient**: HTTP request/response handling with proper error handling
+  - **SseMcpClient**: Server-Sent Events streaming support
+  - **StreamableHttpMcpClient**: NDJSON streaming (preferred MCP 2025-06-18 transport)
+
+### Fixed
+- **🔧 Deprecation Warnings**: Eliminated all legacy client deprecation warnings
+- **📦 Codebase Size**: Reduced codebase by ~2,700 lines while maintaining functionality
+- **🧪 Test Coverage**: Maintained test coverage through configuration-based validation testing
+
+---
+
 ## [0.3.5] - 2025-08-04 - Registry Architecture Fix & MCP Security Cleanup
 
 ### Fixed

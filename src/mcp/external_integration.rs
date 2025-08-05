@@ -19,6 +19,16 @@ pub struct ExternalMcpIntegration {
     manager_handle: Option<JoinHandle<()>>,
 }
 
+impl std::fmt::Debug for ExternalMcpIntegration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExternalMcpIntegration")
+            .field("config", &"<Config>")
+            .field("manager_initialized", &self.manager.is_some())
+            .field("has_background_task", &self.manager_handle.is_some())
+            .finish()
+    }
+}
+
 impl ExternalMcpIntegration {
     /// Create a new External MCP integration manager
     pub fn new(config: Arc<Config>) -> Self {
@@ -293,6 +303,32 @@ impl ExternalMcpIntegration {
                 message: "External MCP manager not initialized".to_string(),
                 details: None,
             })
+        }
+    }
+
+    /// Forward elicitation request to external MCP server (MCP 2025-06-18)
+    pub async fn forward_elicitation_request(
+        &self,
+        server_name: &str,
+        request: &crate::mcp::types::elicitation::ElicitationRequest,
+    ) -> std::result::Result<crate::mcp::types::elicitation::ElicitationResponse, crate::mcp::types::elicitation::ElicitationError> {
+        if let Some(manager) = &self.manager {
+            manager.forward_elicitation_request(server_name, request).await
+        } else {
+            Err(crate::mcp::types::elicitation::ElicitationError {
+                code: crate::mcp::types::elicitation::ElicitationErrorCode::InternalError,
+                message: "External MCP manager not initialized".to_string(),
+                details: None,
+            })
+        }
+    }
+
+    /// Get list of external MCP servers that support elicitation capability (MCP 2025-06-18)
+    pub async fn get_elicitation_capable_servers(&self) -> Vec<String> {
+        if let Some(manager) = &self.manager {
+            manager.get_elicitation_capable_servers().await
+        } else {
+            vec![]
         }
     }
 }

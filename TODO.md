@@ -32,7 +32,29 @@ This document outlines current tasks and future development plans for MagicTunne
 
 **Impact**: Complete API-to-tool generation pipeline for all major API formats
 
-### 2. Frontend Accessibility Improvements 🎯 **HIGH PRIORITY**
+### 2. LLM Services Backend API Completion 🚨 **CRITICAL - BLOCKING**
+**Status**: Missing generation APIs for prompts and resources - blocks UI development
+
+**Critical Missing Endpoints**:
+- [ ] **Prompt Generation APIs** (`src/web/dashboard.rs`)
+  - [ ] `POST /dashboard/api/prompts/service/tools/{tool_name}/generate` - Generate prompts with LLM
+  - [ ] `GET /dashboard/api/prompts/service/health` - Prompt generation service health
+  - [ ] `POST /dashboard/api/prompts/service/batch/generate` - Batch prompt generation
+- [ ] **Resource Generation APIs** (`src/web/dashboard.rs`)
+  - [ ] `POST /dashboard/api/resources/service/tools/{tool_name}/generate` - Generate resources with LLM
+  - [ ] `GET /dashboard/api/resources/service/health` - Resource generation service health
+  - [ ] `POST /dashboard/api/resources/service/batch/generate` - Batch resource generation
+
+**Implementation Required**:
+- [ ] Add the 6 missing generation API endpoints to `src/web/dashboard.rs`
+- [ ] Create handlers that call the LLM services for prompt/resource generation
+- [ ] Add service health checks for prompt and resource generation
+- [ ] Implement batch processing capabilities
+- [ ] Add external MCP server content protection (similar to sampling/elicitation)
+
+**Impact**: **BLOCKING** - Frontend LLM services UI cannot be implemented until these APIs exist
+
+### 3. Frontend Accessibility Improvements 🎯 **HIGH PRIORITY**
 **Status**: Required for production compliance
 
 **Tasks**:
@@ -45,7 +67,77 @@ This document outlines current tasks and future development plans for MagicTunne
 
 **Impact**: Ensure dashboard meets accessibility standards and regulations
 
-### 3. Enhanced Versioning System 📋 **NEW - MEDIUM PRIORITY**
+### 4. LLM Services Frontend UI Implementation 🎨 **HIGH PRIORITY**
+**Status**: Complete frontend UI implementation needed - 0% complete
+
+**Dependencies**: Blocked by Task 2 (Missing Generation APIs)
+
+**UI Components Needed**:
+- [ ] **Provider Management UI** (`frontend/src/routes/llm-services/providers/+page.svelte`)
+  - [ ] Provider health status dashboard (OpenAI, Anthropic, Ollama)
+  - [ ] API key configuration interface
+  - [ ] Provider testing and validation
+  - [ ] Performance metrics display
+  - [ ] Provider selection preferences
+
+- [ ] **Sampling Service UI** (`frontend/src/routes/llm-services/sampling/+page.svelte`)
+  - [ ] Tool enhancement interface (individual and batch)
+  - [ ] Sampling request configuration
+  - [ ] Content generation preview
+  - [ ] Enhancement queue management
+  - [ ] Result validation and approval workflow
+
+- [ ] **Elicitation Service UI** (`frontend/src/routes/llm-services/elicitation/+page.svelte`)
+  - [ ] Metadata extraction interface
+  - [ ] Schema analysis tools
+  - [ ] Parameter validation setup
+  - [ ] Batch elicitation processing
+  - [ ] Extracted metadata review
+
+- [ ] **Prompt Management UI** (`frontend/src/routes/llm-services/prompts/+page.svelte`)
+  - [ ] Prompt generation interface (requires missing APIs)
+  - [ ] Prompt library browser
+  - [ ] Template management system
+  - [ ] Version control for prompts
+  - [ ] Quality scoring and validation
+
+- [ ] **Resource Management UI** (`frontend/src/routes/llm-services/resources/+page.svelte`)
+  - [ ] Resource generation interface (requires missing APIs)
+  - [ ] Resource browser with filtering
+  - [ ] Content validation tools
+  - [ ] External MCP resource fetching
+  - [ ] Resource versioning system
+
+- [ ] **Enhancement Pipeline UI** (`frontend/src/routes/llm-services/enhancements/+page.svelte`)
+  - [ ] Pipeline status dashboard
+  - [ ] Job queue management
+  - [ ] Batch processing controls
+  - [ ] Progress tracking
+  - [ ] Error handling and retry mechanisms
+
+**Navigation Updates Needed**:
+- [ ] Add LLM Services section to main navigation (`frontend/src/lib/navigation.ts`)
+- [ ] Create nested navigation for all 6 service pages
+- [ ] Add appropriate icons and routing
+
+**Advanced Features**:
+- [ ] **Discovery Testing Interface** - Interactive tool discovery testing
+- [ ] **Analytics Dashboard** - LLM usage metrics and enhancement success rates
+- [ ] **Configuration Management** - Visual configuration editor
+
+**Technical Requirements**:
+- [ ] **SvelteKit Framework** integration (matches existing dashboard)
+- [ ] **TypeScript** data models for LLM services
+- [ ] **RESTful API** integration with dashboard endpoints
+- [ ] **Real-time updates** via WebSocket/SSE
+- [ ] **Error handling** and retry logic
+- [ ] **Loading states** and progress indicators
+
+**Estimated Effort**: 2-3 weeks after API dependencies resolved
+
+**Impact**: Complete LLM services management interface for enhanced tool discovery system
+
+### 5. Enhanced Versioning System 📋 **NEW - MEDIUM PRIORITY**
 **Status**: Currently has basic versioning, needs comprehensive version management
 
 **Objective**: Implement robust versioning for prompts, resources, and capability files
@@ -83,60 +175,7 @@ This document outlines current tasks and future development plans for MagicTunne
 
 **Expected Impact**: Robust version management across all MagicTunnel content types with migration support
 
-### 4. MCP Client Bidirectional Communication Implementation 🔄 **NEW - HIGH PRIORITY**
-**Status**: Infrastructure complete, routing logic needs implementation
-
-**Objective**: Complete client.rs TODO implementations for MCP 2025-06-18 bidirectional communication
-
-**Background**: 
-- All infrastructure exists (streamable HTTP, sampling/elicitation services, external routing config)
-- TODOs in client.rs represent implementation gaps, not architectural problems
-- MCP 2025-06-18 supports bidirectional communication through sampling and elicitation services
-
-**Tasks**:
-- [ ] **Sampling Request Routing Implementation**
-  - [ ] Implement `route_sampling_request()` function in client.rs
-  - [ ] Add strategy selection logic for sampling routing (magictunnel_handled, client_forwarded, etc.)
-  - [ ] Implement fallback chain: external MCP → client → MagicTunnel internal
-  - [ ] Add timeout and retry logic for sampling requests
-  - [ ] Create error handling for failed sampling routes
-
-- [ ] **Elicitation Request Routing Implementation**
-  - [ ] Implement `route_elicitation_request()` function in client.rs
-  - [ ] Add strategy selection logic for elicitation routing
-  - [ ] Implement external MCP authority respect mechanism
-  - [ ] Add hybrid elicitation support for complex workflows
-  - [ ] Create structured data validation for elicitation responses
-
-- [ ] **Strategy Decision Engine**
-  - [ ] Implement `ProcessingStrategy` selection algorithm
-  - [ ] Add per-server strategy override support
-  - [ ] Create priority-based routing for multiple external MCP servers (✅ COMPLETE for sampling, ❌ MISSING for elicitation)
-  - [ ] Implement parallel processing strategy for hybrid requests
-  - [ ] Add configuration-driven strategy defaults
-
-- [ ] **Request Forwarding Infrastructure**
-  - [ ] Complete client request forwarding mechanism using streamable HTTP
-  - [ ] Add NDJSON streaming support for batch requests
-  - [ ] Implement request/response correlation tracking
-  - [ ] Add request transformation for different MCP server versions
-  - [ ] Create connection pooling for external MCP servers
-
-- [ ] **Integration and Testing**
-  - [ ] Add comprehensive unit tests for routing logic
-  - [ ] Create integration tests with mock MCP clients
-  - [ ] Add performance testing for bidirectional communication
-  - [ ] Implement monitoring and metrics for routing decisions
-  - [ ] Add debugging and tracing for request flows
-
-**Configuration Integration**:
-- Uses existing `external_mcp.external_routing` configuration
-- Leverages `sampling.default_sampling_strategy` and `elicitation.default_elicitation_strategy`
-- Integrates with conflict resolution and visibility systems
-
-**Expected Impact**: Complete MCP 2025-06-18 bidirectional communication with intelligent routing
-
-### 5. MCP 2025-06-18 Security Compliance Implementation 🔐 **CRITICAL - HIGH PRIORITY**
+### 6. MCP 2025-06-18 Security Compliance Implementation 🔐 **CRITICAL - HIGH PRIORITY**
 **Status**: Configuration exists but enforcement missing - Critical compliance gap
 
 **Objective**: Implement actual enforcement for all MCP 2025-06-18 security features currently defined in config
@@ -238,7 +277,7 @@ This document outlines current tasks and future development plans for MagicTunne
 
 **Impact**: ✅ ACHIEVED - Clean foundation established for proper MCP 2025-06-18 security implementation without interference
 
-### 6. Development Tools Integration 🛠️ **NEW - HIGH VALUE**
+### 7. Development Tools Integration 🛠️ **NEW - HIGH VALUE**
 **Status**: Newly identified enhancement opportunity
 
 **Objective**: Integrate development tools into existing workflows for automatic execution
@@ -406,8 +445,9 @@ make release VERSION=  # Full release workflow
 
 ### 1. Current Sprint Focus
 1. **OpenAPI Generation Completion** (2-3 weeks)
-2. **Accessibility Improvements** (1-2 weeks)
-3. **Development Tools Integration** (2-3 weeks)
+2. **LLM Services Backend API Completion** (1 week) - **CRITICAL BLOCKING**
+3. **LLM Services Frontend UI Implementation** (2-3 weeks after APIs)
+4. **Accessibility Improvements** (1-2 weeks)
 
 ### 2. Next Sprint Planning
 1. **Versioning System Implementation** (2-3 weeks)
@@ -437,7 +477,7 @@ make release VERSION=  # Full release workflow
 
 ---
 
-**Last Updated**: August 2025
+**Last Updated**: August 4, 2025
 **Next Review**: September 2025
 
 For detailed implementation history and completed features, see [TODO_DONE.md](TODO_DONE.md).

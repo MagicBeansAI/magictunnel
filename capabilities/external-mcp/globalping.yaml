@@ -1,0 +1,417 @@
+metadata:
+  name: globalping-external-mcp
+  description: External MCP server capabilities for globalping
+  version: 1.0.0
+  author: Magic Tunnel External MCP Manager
+  tags:
+  - external-mcp
+  - globalping
+  - auto-generated
+  - mcp-server
+tools:
+- name: ping_globalping
+  description: ping (via globalping MCP server)
+  inputSchema:
+    $schema: http://json-schema.org/draft-07/schema#
+    additionalProperties: false
+    properties:
+      limit:
+        description: 'Number of probes to use (default: 3, max: 100)'
+        maximum: 100
+        minimum: 1
+        type: number
+      locations:
+        anyOf:
+        - items:
+            type: string
+          type: array
+        - type: string
+        description: 'Specific locations to run the test from using the magic field syntax. Examples: [''US'', ''Europe'', ''AS13335'', ''London+UK'']. You can also use a previous measurement ID to compare results with the same probes.'
+      packets:
+        description: 'Number of packets to send (default: 3)'
+        type: number
+      target:
+        description: Domain name or IP to test (e.g., 'google.com', '1.1.1.1')
+        type: string
+    required:
+    - target
+    type: object
+  routing:
+    type: external_mcp
+    config:
+      endpoint: globalping
+      method: tools/call
+      retry_count: 2
+      server_name: globalping
+      timeout: 30
+      tool_name: ping
+  annotations:
+    server: globalping
+    source: external_mcp
+    original_name: ping
+  hidden: true
+  enabled: true
+- name: traceroute_globalping
+  description: traceroute (via globalping MCP server)
+  inputSchema:
+    $schema: http://json-schema.org/draft-07/schema#
+    additionalProperties: false
+    properties:
+      limit:
+        description: 'Number of probes to use (default: 3, max: 100)'
+        maximum: 100
+        minimum: 1
+        type: number
+      locations:
+        anyOf:
+        - items:
+            type: string
+          type: array
+        - type: string
+        description: 'Specific locations to run the test from using the magic field syntax. Examples: [''US'', ''Europe'', ''AS13335'', ''London+UK'']. You can also use a previous measurement ID to compare results with the same probes.'
+      port:
+        description: 'Port number for TCP/UDP (default: 80)'
+        type: number
+      protocol:
+        description: 'Protocol to use (default: ICMP)'
+        enum:
+        - ICMP
+        - TCP
+        - UDP
+        type: string
+      target:
+        description: Domain name or IP to test (e.g., 'google.com', '1.1.1.1')
+        type: string
+    required:
+    - target
+    type: object
+  routing:
+    type: external_mcp
+    config:
+      endpoint: globalping
+      method: tools/call
+      retry_count: 2
+      server_name: globalping
+      timeout: 30
+      tool_name: traceroute
+  annotations:
+    server: globalping
+    original_name: traceroute
+    source: external_mcp
+  hidden: true
+  enabled: true
+- name: dns_globalping
+  description: dns (via globalping MCP server)
+  inputSchema:
+    $schema: http://json-schema.org/draft-07/schema#
+    additionalProperties: false
+    properties:
+      limit:
+        description: 'Number of probes to use (default: 3, max: 100)'
+        maximum: 100
+        minimum: 1
+        type: number
+      locations:
+        anyOf:
+        - items:
+            type: string
+          type: array
+        - type: string
+        description: 'Specific locations to run the test from using the magic field syntax. Examples: [''US'', ''Europe'', ''AS13335'', ''London+UK'']. You can also use a previous measurement ID to compare results with the same probes.'
+      queryType:
+        description: 'DNS record type (default: A)'
+        enum:
+        - A
+        - AAAA
+        - ANY
+        - CNAME
+        - DNSKEY
+        - DS
+        - HTTPS
+        - MX
+        - NS
+        - NSEC
+        - PTR
+        - RRSIG
+        - SOA
+        - TXT
+        - SRV
+        - SVCB
+        type: string
+      resolver:
+        description: Custom resolver to use (e.g., '1.1.1.1', '8.8.8.8')
+        type: string
+      target:
+        description: Domain name or IP to test (e.g., 'google.com', '1.1.1.1')
+        type: string
+      trace:
+        description: 'Trace delegation path from root servers (default: false)'
+        type: boolean
+    required:
+    - target
+    type: object
+  routing:
+    type: external_mcp
+    config:
+      endpoint: globalping
+      method: tools/call
+      retry_count: 2
+      server_name: globalping
+      timeout: 30
+      tool_name: dns
+  annotations:
+    server: globalping
+    original_name: dns
+    source: external_mcp
+  hidden: true
+  enabled: true
+- name: mtr_globalping
+  description: mtr (via globalping MCP server)
+  inputSchema:
+    $schema: http://json-schema.org/draft-07/schema#
+    additionalProperties: false
+    properties:
+      limit:
+        description: 'Number of probes to use (default: 3, max: 100)'
+        maximum: 100
+        minimum: 1
+        type: number
+      locations:
+        anyOf:
+        - items:
+            type: string
+          type: array
+        - type: string
+        description: 'Specific locations to run the test from using the magic field syntax. Examples: [''US'', ''Europe'', ''AS13335'', ''London+UK'']. You can also use a previous measurement ID to compare results with the same probes.'
+      packets:
+        description: 'Number of packets to send to each hop (default: 3)'
+        type: number
+      port:
+        description: 'Port number for TCP/UDP (default: 80)'
+        type: number
+      protocol:
+        description: 'Protocol to use (default: ICMP)'
+        enum:
+        - ICMP
+        - TCP
+        - UDP
+        type: string
+      target:
+        description: Domain name or IP to test (e.g., 'google.com', '1.1.1.1')
+        type: string
+    required:
+    - target
+    type: object
+  routing:
+    type: external_mcp
+    config:
+      endpoint: globalping
+      method: tools/call
+      retry_count: 2
+      server_name: globalping
+      timeout: 30
+      tool_name: mtr
+  annotations:
+    original_name: mtr
+    source: external_mcp
+    server: globalping
+  hidden: true
+  enabled: true
+- name: http_globalping
+  description: http (via globalping MCP server)
+  inputSchema:
+    $schema: http://json-schema.org/draft-07/schema#
+    additionalProperties: false
+    properties:
+      limit:
+        description: 'Number of probes to use (default: 3, max: 100)'
+        maximum: 100
+        minimum: 1
+        type: number
+      locations:
+        anyOf:
+        - items:
+            type: string
+          type: array
+        - type: string
+        description: 'Specific locations to run the test from using the magic field syntax. Examples: [''US'', ''Europe'', ''AS13335'', ''London+UK'']. You can also use a previous measurement ID to compare results with the same probes.'
+      method:
+        description: 'HTTP method (default: GET)'
+        enum:
+        - GET
+        - HEAD
+        - OPTIONS
+        type: string
+      path:
+        description: Path component of the URL (e.g., '/api/v1/status')
+        type: string
+      port:
+        description: 'Port number for TCP/UDP (default: 80)'
+        type: number
+      protocol:
+        description: 'Protocol to use (default: auto-detect from URL)'
+        enum:
+        - HTTP
+        - HTTPS
+        type: string
+      query:
+        description: Query string (e.g., 'param=value&another=123')
+        type: string
+      target:
+        description: Domain name or IP to test (e.g., 'google.com', '1.1.1.1')
+        type: string
+    required:
+    - target
+    type: object
+  routing:
+    type: external_mcp
+    config:
+      endpoint: globalping
+      method: tools/call
+      retry_count: 2
+      server_name: globalping
+      timeout: 30
+      tool_name: http
+  annotations:
+    original_name: http
+    source: external_mcp
+    server: globalping
+  hidden: true
+  enabled: true
+- name: locations_globalping
+  description: locations (via globalping MCP server)
+  inputSchema:
+    $schema: http://json-schema.org/draft-07/schema#
+    additionalProperties: false
+    properties: {}
+    type: object
+  routing:
+    type: external_mcp
+    config:
+      endpoint: globalping
+      method: tools/call
+      retry_count: 2
+      server_name: globalping
+      timeout: 30
+      tool_name: locations
+  annotations:
+    server: globalping
+    original_name: locations
+    source: external_mcp
+  hidden: true
+  enabled: true
+- name: limits_globalping
+  description: limits (via globalping MCP server)
+  inputSchema:
+    $schema: http://json-schema.org/draft-07/schema#
+    additionalProperties: false
+    properties: {}
+    type: object
+  routing:
+    type: external_mcp
+    config:
+      endpoint: globalping
+      method: tools/call
+      retry_count: 2
+      server_name: globalping
+      timeout: 30
+      tool_name: limits
+  annotations:
+    server: globalping
+    original_name: limits
+    source: external_mcp
+  hidden: true
+  enabled: true
+- name: getMeasurement_globalping
+  description: getMeasurement (via globalping MCP server)
+  inputSchema:
+    $schema: http://json-schema.org/draft-07/schema#
+    additionalProperties: false
+    properties:
+      id:
+        description: The ID of a previously run measurement (e.g., '01HT4DGF5ZS7B2M93QP5ZTS3DN')
+        type: string
+    required:
+    - id
+    type: object
+  routing:
+    type: external_mcp
+    config:
+      endpoint: globalping
+      method: tools/call
+      retry_count: 2
+      server_name: globalping
+      timeout: 30
+      tool_name: getMeasurement
+  annotations:
+    server: globalping
+    original_name: getMeasurement
+    source: external_mcp
+  hidden: true
+  enabled: true
+- name: compareLocations_globalping
+  description: compareLocations (via globalping MCP server)
+  inputSchema:
+    $schema: http://json-schema.org/draft-07/schema#
+    additionalProperties: false
+    properties: {}
+    type: object
+  routing:
+    type: external_mcp
+    config:
+      endpoint: globalping
+      method: tools/call
+      retry_count: 2
+      server_name: globalping
+      timeout: 30
+      tool_name: compareLocations
+  annotations:
+    source: external_mcp
+    server: globalping
+    original_name: compareLocations
+  hidden: true
+  enabled: true
+- name: help_globalping
+  description: help (via globalping MCP server)
+  inputSchema:
+    $schema: http://json-schema.org/draft-07/schema#
+    additionalProperties: false
+    properties: {}
+    type: object
+  routing:
+    type: external_mcp
+    config:
+      endpoint: globalping
+      method: tools/call
+      retry_count: 2
+      server_name: globalping
+      timeout: 30
+      tool_name: help
+  annotations:
+    server: globalping
+    original_name: help
+    source: external_mcp
+  hidden: true
+  enabled: true
+- name: authStatus_globalping
+  description: authStatus (via globalping MCP server)
+  inputSchema:
+    $schema: http://json-schema.org/draft-07/schema#
+    additionalProperties: false
+    properties: {}
+    type: object
+  routing:
+    type: external_mcp
+    config:
+      endpoint: globalping
+      method: tools/call
+      retry_count: 2
+      server_name: globalping
+      timeout: 30
+      tool_name: authStatus
+  annotations:
+    original_name: authStatus
+    source: external_mcp
+    server: globalping
+  hidden: true
+  enabled: true

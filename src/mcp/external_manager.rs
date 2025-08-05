@@ -1803,4 +1803,78 @@ impl ExternalMcpManager {
             })
         }
     }
+
+    /// Forward elicitation request to external MCP server (MCP 2025-06-18)
+    pub async fn forward_elicitation_request(
+        &self,
+        server_name: &str,
+        request: &crate::mcp::types::elicitation::ElicitationRequest,
+    ) -> std::result::Result<crate::mcp::types::elicitation::ElicitationResponse, crate::mcp::types::elicitation::ElicitationError> {
+        debug!("Forwarding elicitation request to external MCP server: {}", server_name);
+        
+        let processes = self.processes.read().await;
+        
+        if let Some(process) = processes.get(server_name) {
+            // Convert ElicitationRequest to JSON for MCP transmission
+            let params = serde_json::to_value(request).map_err(|e| {
+                crate::mcp::types::elicitation::ElicitationError {
+                    code: crate::mcp::types::elicitation::ElicitationErrorCode::InvalidRequest,
+                    message: format!("Failed to serialize elicitation request: {}", e),
+                    details: None,
+                }
+            })?;
+            
+            // Send the elicitation/create request to external server
+            match process.send_request("elicitation/create", Some(params)).await {
+                Ok(response) => {
+                    if let Some(error) = response.error {
+                        error!("External server '{}' returned elicitation error: {}", server_name, error.message);
+                        return Err(crate::mcp::types::elicitation::ElicitationError {
+                            code: crate::mcp::types::elicitation::ElicitationErrorCode::InternalError,
+                            message: error.message,
+                            details: error.data.map(|v| [("error_data".to_string(), v)].into_iter().collect()),
+                        });
+                    }
+                    
+                    if let Some(result) = response.result {
+                        // Parse the elicitation response
+                        let elicitation_response: crate::mcp::types::elicitation::ElicitationResponse = 
+                            serde_json::from_value(result).map_err(|e| {
+                                error!("Failed to parse elicitation response from server '{}': {}", server_name, e);
+                                crate::mcp::types::elicitation::ElicitationError {
+                                    code: crate::mcp::types::elicitation::ElicitationErrorCode::InvalidRequest,
+                                    message: format!("Failed to parse elicitation response: {}", e),
+                                    details: None,
+                                }
+                            })?;
+                        
+                        debug!("Successfully received elicitation response from external server '{}'", server_name);
+                        Ok(elicitation_response)
+                    } else {
+                        error!("External server '{}' returned no result for elicitation request", server_name);
+                        Err(crate::mcp::types::elicitation::ElicitationError {
+                            code: crate::mcp::types::elicitation::ElicitationErrorCode::InvalidRequest,
+                            message: "No result in elicitation response".to_string(),
+                            details: None,
+                        })
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to forward elicitation request to server '{}': {}", server_name, e);
+                    Err(crate::mcp::types::elicitation::ElicitationError {
+                        code: crate::mcp::types::elicitation::ElicitationErrorCode::InternalError,
+                        message: format!("Request failed: {}", e),
+                        details: None,
+                    })
+                }
+            }
+        } else {
+            error!("External MCP server '{}' not found for elicitation request", server_name);
+            Err(crate::mcp::types::elicitation::ElicitationError {
+                code: crate::mcp::types::elicitation::ElicitationErrorCode::InternalError,
+                message: format!("External MCP server '{}' not found", server_name),
+                details: None,
+            })
+        }
+    }
 }
