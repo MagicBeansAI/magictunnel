@@ -175,90 +175,110 @@ This document outlines current tasks and future development plans for MagicTunne
 
 **Expected Impact**: Robust version management across all MagicTunnel content types with migration support
 
-### 6. MCP 2025-06-18 Security Compliance Implementation 🔐 **CRITICAL - HIGH PRIORITY**
-**Status**: Configuration exists but enforcement missing - Critical compliance gap
-
-**Objective**: Implement actual enforcement for all MCP 2025-06-18 security features currently defined in config
+### 6. MCP 2025-06-18 User Consent System Implementation 🔐 **FUTURE - REQUIRES DESIGN CLARIFICATION**
+**Status**: ❌ REMOVED (August 5, 2025) - All consent implementation removed due to design confusion
 
 **Background**: 
-- All security configuration structs exist (`Mcp2025SecurityConfig`, `McpConsentConfig`, etc.)
-- Security config is loaded but not enforced in workflows
-- Currently defaulting to enabled but no actual security checks performed
+- Previous consent implementation was unclear about when/why consent is needed
+- Confusion between consent for data processing vs. consent for showing requests to users
+- Consent blocking operations incorrectly instead of checking at data processing layer
+- Complete removal performed to establish clean foundation for future implementation
 
-**Tasks**:
-- [ ] **Consent Management Implementation**
-  - [ ] Implement sampling consent flow in `src/mcp/sampling.rs`
-  - [ ] Implement elicitation consent flow in `src/mcp/elicitation.rs`
-  - [ ] Add consent UI components for interactive approval
-  - [ ] Create consent timeout handling and fallback logic
-  - [ ] Add consent audit logging with decision tracking
-  - [ ] Implement consent levels (None/Basic/Explicit/Informed) validation
+**Design Questions to Resolve** (Before Implementation):
+1. **Consent Purpose Clarification**:
+   - Is consent for external data processing (sending data to OpenAI/Anthropic APIs)?
+   - Or is consent for showing elicitation/sampling requests to users?
+   - When exactly should consent be required vs. optional?
 
-- [ ] **Capability Permission System**
-  - [ ] Add permission checks before sampling operations
-  - [ ] Add permission checks before elicitation operations
-  - [ ] Add permission checks for roots capability access
-  - [ ] Implement permission caching with TTL expiration
-  - [ ] Create permission request/approval UI workflow
-  - [ ] Add default permission behavior enforcement (Allow/Deny/Ask)
+2. **Data Processing vs Request Consent**:
+   - **Sampling Service**: Uses external LLM APIs - needs data processing consent for API calls
+   - **Elicitation Service**: Local data collection only - unclear if consent needed
+   - Should consent be checked at API call level, not at service operation level?
 
-- [ ] **Tool Approval Workflow Implementation**
-  - [ ] Create tool risk assessment system (integrate with existing tool classification)
-  - [ ] Implement approval required checks based on regex patterns
-  - [ ] Add multi-step approval for critical operations
-  - [ ] Create approval timeout handling and rejection logic
-  - [ ] Implement approval notification system (InApp/Email/Slack/Webhook)
-  - [ ] Add approval decision audit trail
+3. **User Experience Considerations**:
+   - Can't users choose to respond or not respond to elicitation/sampling requests?
+   - When is explicit consent UI necessary vs. implicit through user interaction?
+   - How to balance security with usability?
 
-- [ ] **OAuth 2.1 Security Enhancements**
-  - [ ] Add PKCE requirement enforcement in OAuth flows
-  - [ ] Implement Resource Indicators validation (RFC 8707)
-  - [ ] Add token binding support for enhanced security
-  - [ ] Implement token rotation with configurable intervals
-  - [ ] Add token lifetime enforcement and validation
-  - [ ] Create OAuth 2.1 compliance validation checks
+**Future Implementation Requirements** (After Design Clarification):
+- [ ] **Consent System Architecture Design**
+  - [ ] Define clear consent scope (data processing vs. operation approval)
+  - [ ] Design consent flow for external LLM service data transmission
+  - [ ] Determine if elicitation operations require consent (no external APIs used)
+  - [ ] Create consent level hierarchy (None/Basic/Explicit/Informed)
 
-- [ ] **Resource Indicators Security**
-  - [ ] Implement resource scope validation for MCP requests
-  - [ ] Add explicit resource requirement enforcement
-  - [ ] Create cross-resource access control system
-  - [ ] Add max resources per request validation
-  - [ ] Implement resource permission checking
+- [ ] **Data Processing Consent Implementation**
+  - [ ] Add consent checks before external API calls (OpenAI, Anthropic, Ollama)
+  - [ ] Implement consent UI for LLM data transmission approval
+  - [ ] Create consent caching with appropriate TTL for user convenience
+  - [ ] Add consent timeout handling and fallback behavior
 
-- [ ] **Security Middleware Integration**
-  - [ ] Integrate MCP security checks into existing security middleware
-  - [ ] Add security check bypass for non-secure operations
-  - [ ] Implement security context propagation through request chain
-  - [ ] Add security failure handling and error responses
-  - [ ] Create security metrics and monitoring
+- [ ] **Consent Configuration System**
+  - [ ] Design consent presets (global_once, session_based, tool_based, operation_based)
+  - [ ] Implement consent modes for external server interactions (proxy, supplement, override)
+  - [ ] Add consent audit logging for compliance and debugging
+  - [ ] Create consent policy management for different data sensitivity levels
 
-- [ ] **Configuration Integration**
-  - [ ] Ensure all security config options are properly loaded and used
-  - [ ] Add configuration validation for security settings
-  - [ ] Implement security config hot-reload support
-  - [ ] Add environment variable overrides for security settings
-  - [ ] Create security configuration testing and validation
+- [ ] **User Interface Components**
+  - [ ] Design consent request UI components
+  - [ ] Create consent history and management interface
+  - [ ] Implement consent preference settings
+  - [ ] Add consent status indicators and controls
 
-- [ ] **Testing and Validation**
-  - [ ] Add comprehensive unit tests for all security enforcement
-  - [ ] Create integration tests with security enabled/disabled
-  - [ ] Add security compliance validation tests
-  - [ ] Implement security penetration testing scenarios
-  - [ ] Create security audit and compliance reporting
+**Files Previously Removed** (August 5, 2025):
+- `src/security/consent.rs` - Complete consent engine implementation
+- Consent-related structs from `src/security/config.rs` (ConsentLevel, ConsentPreset, ConsentMode, etc.)
+- Consent integration from `src/mcp/sampling.rs` and `src/mcp/elicitation.rs`
+- ConsentRequired error codes from sampling and elicitation types
 
-**Implementation Priority Order**:
-1. **Consent Management** (blocks sampling/elicitation compliance)
-2. **Tool Approval Workflow** (integrates with existing tool system)
-3. **Capability Permissions** (required for MCP compliance)
-4. **OAuth 2.1 Enhancements** (extends existing OAuth system)
-5. **Resource Indicators** (advanced security feature)
+**Impact**: Clean foundation established - requires design clarification before re-implementation
 
-**Configuration Files to Update**:
-- Update `config.yaml.template` with comprehensive security examples
-- Add security validation to `src/config/config.rs`
-- Integrate with existing `SecurityMiddleware` in `src/security/middleware.rs`
+### 7. MCP 2025-06-18 Security Configuration System 🔐 **FUTURE - DESIGN CLARIFICATION NEEDED**
+**Status**: ❌ REMOVED (August 5, 2025) - All MCP 2025 security configuration removed due to no implementation
 
-**Impact**: Transform MagicTunnel from security-configured to security-compliant, meeting MCP 2025-06-18 specification requirements
+**Background**:
+- Complex security configuration structures existed (`Mcp2025SecurityConfig`, `McpCapabilityPermissionsConfig`, etc.) but were never actually used
+- OAuth implementation uses its own separate `ResourceIndicatorsConfig`, not `McpResourceIndicatorsConfig`
+- No MCP services (sampling, elicitation, roots) reference or check these security configurations
+- Configuration without implementation - same problem as consent system
+
+**Removed Configuration Structures** (August 5, 2025):
+- `Mcp2025SecurityConfig` - Main MCP security configuration container
+- `McpCapabilityPermissionsConfig` - Permission controls for sampling/elicitation capabilities
+- `McpToolApprovalConfig` - Tool execution approval workflows
+- `McpOAuth21Config` - OAuth 2.1 enhancements (duplicated existing OAuth config)
+- `McpResourceIndicatorsConfig` - Resource indicators (duplicated existing OAuth config)
+- `PermissionBehavior` enum - Permission behavior types (Allow/Deny/Ask)
+- `ApprovalNotificationMethod` enum - Approval notification methods
+
+**Design Questions to Resolve** (Before Implementation):
+1. **Security vs Configuration Duplication**:
+   - OAuth already has complete Resource Indicators implementation - why duplicate?
+   - Should MCP security extend existing OAuth/RBAC systems or replace them?
+   - What specific MCP 2025-06-18 security features are actually required?
+
+2. **Implementation vs Configuration**:
+   - Is complex security configuration needed if no services use it?
+   - Should security be enforced at middleware level vs. service level?
+   - What's the right balance between configurability and simplicity?
+
+3. **Actual MCP 2025-06-18 Requirements**:
+   - Which parts of MCP 2025-06-18 spec actually require security configuration?
+   - Are there specific compliance requirements that need implementation?
+   - Can existing security systems (OAuth, RBAC, allowlisting) cover MCP requirements?
+
+**Future Implementation Options** (After Design Clarification):
+- **Option 1: Extend Existing Systems** - Enhance OAuth/RBAC to cover MCP requirements
+- **Option 2: MCP-Specific Security Layer** - Build targeted MCP security without duplication
+- **Option 3: Minimal Implementation** - Only implement actually required MCP security features
+
+**Files Previously Removed** (August 5, 2025):
+- MCP 2025 security structs from `src/security/config.rs` (~200 lines)
+- MCP 2025 exports from `src/security/mod.rs`
+- MCP 2025 references from `src/bin/magictunnel-security.rs`
+
+**Impact**: Eliminated configuration bloat - requires actual requirements analysis before re-implementation
+
 
 ### 5.1 Remove Non-MCP Security System ✅ **COMPLETED - August 4, 2025**
 **Status**: ✅ COMPLETE - All non-MCP security system removed
@@ -277,7 +297,44 @@ This document outlines current tasks and future development plans for MagicTunne
 
 **Impact**: ✅ ACHIEVED - Clean foundation established for proper MCP 2025-06-18 security implementation without interference
 
-### 7. Development Tools Integration 🛠️ **NEW - HIGH VALUE**
+### 7. Client Capability Tracking & Elicitation Routing ✅ **COMPLETED - v0.3.7**
+**Status**: ✅ COMPLETE - Full MCP 2025-06-18 client capability tracking implemented
+
+**Completed Implementation**:
+
+- [x] **✅ Enhanced Session Management** (`src/mcp/session.rs`)
+  - [x] Added `client_capabilities: Option<ClientCapabilities>` to `ClientInfo` struct
+  - [x] Created `ClientCapabilities` struct with sampling/elicitation support flags
+  - [x] Updated `extract_client_info()` to parse capabilities from initialize request
+  - [x] Store client capabilities in session for routing decisions
+
+- [x] **✅ Client Capability Types** (`src/mcp/types/capabilities.rs` - NEW FILE)
+  - [x] Defined `ClientCapabilities` struct matching MCP spec
+  - [x] Defined `ElicitationCapability` with create/accept/reject/cancel flags
+  - [x] Defined `SamplingCapability` with relevant flags
+  - [x] Added serialization/deserialization support
+
+- [x] **✅ Capability-Based Routing Logic** (`src/mcp/server.rs`)
+  - [x] Updated `check_any_client_supports_elicitation()` to check client capabilities
+  - [x] Implemented session iteration methods for capability checking
+  - [x] Added capability validation before forwarding requests
+  - [x] Enhanced error handling when clients lack elicitation capability
+
+- [x] **✅ Transport Integration Verification** 
+  - [x] Verified capability tracking works across stdio (Claude Desktop, Cursor)
+  - [x] Verified capability tracking works across WebSocket connections
+  - [x] Verified capability tracking works across HTTP connections 
+  - [x] Verified capability tracking works across Streamable HTTP connections
+
+- [x] **✅ Enhanced Tool Discovery Logic Fix** (`src/discovery/enhancement.rs`)
+  - [x] Fixed tool discovery elicitation to only work when smart discovery is disabled
+  - [x] Added smart discovery state tracking to enhancement pipeline
+  - [x] Enhanced logic in `should_use_local_elicitation()` method
+  - [x] Updated all call sites to pass smart discovery enabled state
+
+**Impact**: ✅ ACHIEVED - Complete MCP 2025-06-18 compliance with capability-aware routing and logical elicitation behavior
+
+### 8. Development Tools Integration 🛠️ **NEW - HIGH VALUE**
 **Status**: Newly identified enhancement opportunity
 
 **Objective**: Integrate development tools into existing workflows for automatic execution

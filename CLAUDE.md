@@ -4,7 +4,7 @@
 
 MagicTunnel is an intelligent bridge between MCP (Model Context Protocol) clients and diverse agents/endpoints. It provides a single, smart tool discovery interface that can find the right tool for any request, map parameters, and proxy the call automatically.
 
-**Current Version**: 0.3.6 - **Legacy Client Removal & Modern Architecture Migration Complete** ✅
+**Current Version**: 0.3.7 - **Client Capability Tracking & Elicitation Logic Fix Complete** ✅
 
 ## Quick Start
 
@@ -81,6 +81,7 @@ MagicTunnel implements a **Smart Tool Discovery and Proxy** system that reduces 
    - **Parameter mapping**: Uses LLM to extract and map parameters from natural language with elicitation validation
    - **Confidence scoring**: Provides confidence scores for tool matches using enhanced descriptions
    - **Semantic Search**: Embedding-based tool matching using AI-enhanced descriptions
+   - **Intelligent Elicitation**: Tool discovery elicitation only works when smart discovery is disabled (logical behavior)
 
 6. **Visibility Management System** (`src/bin/magictunnel-visibility.rs`)
    - **CLI Tool**: Complete tool visibility control
@@ -127,6 +128,7 @@ The system provides **one intelligent tool** (`smart_tool_discovery`) that:
 - `src/mcp/server.rs` - MCP protocol implementation
 - `src/mcp/external_manager.rs` - External MCP server management with bidirectional routing
 - `src/mcp/external_integration.rs` - External MCP integration layer with elicitation support
+- `src/mcp/types/capabilities.rs` - Client capability tracking for MCP 2025-06-18 compliance
 - `src/registry/service.rs` - Capability registry management with visibility support
 - `src/bin/magictunnel-visibility.rs` - CLI tool for visibility management
 - `src/main.rs` - Application entry point

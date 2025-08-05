@@ -263,12 +263,27 @@ MagicTunnel provides full compliance with the MCP (Model Context Protocol) 2025-
 }
 ```
 
-### MCP Client Capabilities
+### MCP Client Capabilities (v0.3.7 Enhanced)
+
+MagicTunnel now includes complete client capability tracking as defined in the MCP 2025-06-18 specification:
 
 ```json
 {
   "capabilities": {
+    "tools": {
+      "listChanged": true,
+      "call": true
+    },
+    "resources": {
+      "subscribe": true,
+      "listChanged": true
+    },
+    "prompts": {
+      "listChanged": true,
+      "get": true
+    },
     "sampling": {
+      "createMessage": true,
       "methods": ["sampling/createMessage"],
       "max_messages": 1000,
       "message_types": ["system", "user", "assistant", "tool"],
@@ -279,6 +294,10 @@ MagicTunnel provides full compliance with the MCP (Model Context Protocol) 2025-
       }
     },
     "elicitation": {
+      "create": true,
+      "accept": true,
+      "reject": true,
+      "cancel": true,
       "methods": ["elicitation/create"],
       "max_schema_depth": 20,
       "validation_types": ["structure", "types", "constraints", "semantic", "custom"],
@@ -289,6 +308,67 @@ MagicTunnel provides full compliance with the MCP (Model Context Protocol) 2025-
       }
     }
   }
+}
+```
+
+### Client Capability Tracking Implementation (v0.3.7)
+
+**File: `src/mcp/types/capabilities.rs`**
+```rust
+/// Client capabilities as reported in MCP initialize request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClientCapabilities {
+    pub tools: Option<ToolsCapability>,
+    pub resources: Option<ResourcesCapability>,
+    pub prompts: Option<PromptsCapability>,
+    pub sampling: Option<SamplingCapability>,
+    pub elicitation: Option<ElicitationCapability>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ElicitationCapability {
+    pub create: bool,
+    pub accept: bool,
+    pub reject: bool,
+    pub cancel: bool,
+}
+
+impl ClientCapabilities {
+    pub fn supports_elicitation(&self) -> bool {
+        self.elicitation.as_ref().map(|e| e.create && e.accept).unwrap_or(false)
+    }
+    
+    pub fn supports_sampling(&self) -> bool {
+        self.sampling.as_ref().map(|s| s.create_message).unwrap_or(false)
+    }
+}
+```
+
+**Session Management with Capabilities** (`src/mcp/session.rs`):
+```rust
+pub struct ClientInfo {
+    pub name: String,
+    pub version: String,
+    pub protocol_version: Option<String>,
+    pub capabilities: Option<ClientCapabilities>, // NEW: Full capability tracking
+}
+
+impl SessionManager {
+    pub fn get_elicitation_capable_sessions(&self) -> Vec<McpSession> {
+        self.sessions.iter()
+            .filter(|session| {
+                session.client_info.capabilities
+                    .as_ref()
+                    .map(|caps| caps.supports_elicitation())
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect()
+    }
+    
+    pub fn any_session_supports_elicitation(&self) -> bool {
+        !self.get_elicitation_capable_sessions().is_empty()
+    }
 }
 ```
 

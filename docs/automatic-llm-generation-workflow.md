@@ -333,7 +333,7 @@ magictunnel-llm bulk export --output ./exports/$(date +%Y%m%d)/
 ```bash
 # Service status endpoints
 curl http://localhost:3001/dashboard/api/sampling/status
-curl http://localhost:3001/dashboard/api/elicitation/status
+# curl http://localhost:3001/dashboard/api/elicitation/status    # REMOVED: v0.3.7 - Elicitation APIs removed
 curl http://localhost:3001/dashboard/api/enhancement/status
 ```
 
@@ -349,14 +349,14 @@ curl -X POST http://localhost:3001/dashboard/api/sampling/generate \
     "context": "System administration tool"
   }'
 
-# Extract metadata  
-curl -X POST http://localhost:3001/dashboard/api/elicitation/generate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "tool_name": "execute_command", 
-    "tool_description": "Execute shell commands...",
-    "context": "Development automation"
-  }'
+# Extract metadata (REMOVED in v0.3.7 - use enhancement pipeline instead)
+# curl -X POST http://localhost:3001/dashboard/api/elicitation/generate \
+#   -H "Content-Type: application/json" \
+#   -d '{
+#     "tool_name": "execute_command", 
+#     "tool_description": "Execute shell commands...",
+#     "context": "Development automation"
+#   }'
 
 # Full enhancement pipeline
 curl -X POST http://localhost:3001/dashboard/api/enhancement/generate \
@@ -1390,3 +1390,104 @@ The Automatic LLM Generation Workflow represents a significant advancement in to
 - **Enterprise Safety**: Comprehensive protection against external MCP content conflicts
 
 This system transforms MagicTunnel from a simple MCP proxy into an intelligent tool enhancement platform that continuously improves the user experience while maintaining compatibility and safety standards.
+
+## MCP 2025-06-18 Client Capability Tracking (v0.3.7)
+
+### Enhanced MCP Client Capability Support
+
+The automatic LLM generation workflow now includes complete MCP 2025-06-18 client capability tracking for proper elicitation routing:
+
+**Client Capability Types** (`src/mcp/types/capabilities.rs`):
+```rust
+/// Client capabilities as reported in MCP initialize request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClientCapabilities {
+    pub tools: Option<ToolsCapability>,
+    pub resources: Option<ResourcesCapability>,
+    pub prompts: Option<PromptsCapability>,
+    pub sampling: Option<SamplingCapability>,
+    pub elicitation: Option<ElicitationCapability>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ElicitationCapability {
+    pub create: bool,
+    pub accept: bool,
+    pub reject: bool,
+    pub cancel: bool,
+}
+
+impl ClientCapabilities {
+    pub fn supports_elicitation(&self) -> bool {
+        self.elicitation.as_ref().map(|e| e.create && e.accept).unwrap_or(false)
+    }
+}
+```
+
+**Session Management Enhancement** (`src/mcp/session.rs`):
+```rust
+pub struct ClientInfo {
+    pub name: String,
+    pub version: String,
+    pub protocol_version: Option<String>,
+    pub capabilities: Option<ClientCapabilities>, // NEW: Capability tracking
+}
+
+impl SessionManager {
+    pub fn get_elicitation_capable_sessions(&self) -> Vec<McpSession> {
+        self.sessions.iter()
+            .filter(|session| {
+                session.client_info.capabilities
+                    .as_ref()
+                    .map(|caps| caps.supports_elicitation())
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect()
+    }
+    
+    pub fn any_session_supports_elicitation(&self) -> bool {
+        !self.get_elicitation_capable_sessions().is_empty()
+    }
+}
+```
+
+### Capability-Based Elicitation Routing
+
+The enhancement pipeline now includes capability-aware routing logic:
+
+**Enhanced Tool Discovery Logic** (`src/discovery/enhancement.rs`):
+```rust
+pub struct ToolEnhancementPipeline {
+    // ... existing fields
+    smart_discovery_enabled: bool, // NEW: Smart discovery state tracking
+}
+
+impl ToolEnhancementPipeline {
+    fn should_use_local_elicitation(&self, tool: &ToolDefinition) -> bool {
+        // If smart discovery is enabled, tool discovery elicitation is pointless since all tools are hidden
+        // behind the smart_tool_discovery proxy. Only use elicitation when smart discovery is disabled
+        // so users can directly interact with individual tools.
+        if self.smart_discovery_enabled {
+            debug!("Skipping tool discovery elicitation for '{}' - smart discovery is enabled (tools are hidden)", tool.name);
+            return false;
+        }
+        
+        // Check if any connected client supports elicitation
+        if !self.session_manager.any_session_supports_elicitation() {
+            debug!("Skipping tool discovery elicitation for '{}' - no connected clients support elicitation", tool.name);
+            return false;
+        }
+        
+        true
+    }
+}
+```
+
+### MCP Protocol Compliance Features (v0.3.7)
+
+- **Complete Client Capability Tracking**: Proper parsing and storage of client capabilities from MCP initialize requests
+- **Capability-Based Routing**: Only forward elicitation requests to clients that support the capability
+- **Smart Discovery Integration**: Tool discovery elicitation only works when smart discovery is disabled
+- **Session Iteration**: Full session management with capability checking across all transport methods
+- **Enhanced Error Handling**: Proper error responses when clients lack required capabilities

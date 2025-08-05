@@ -11,8 +11,9 @@ use magictunnel::config::Config;
 use magictunnel::security::{
     SecurityConfig, AllowlistConfig, SanitizationConfig, RbacConfig, PolicyConfig, AuditConfig,
     AllowlistService, RbacService, AuditService,
-    AllowlistContext, PermissionContext, AuditQueryFilters, AuditEventType, AuditOutcome
+    AllowlistContext, PermissionContext, AuditEventType, AuditOutcome
 };
+use magictunnel::security::audit::AuditQueryFilters;
 use serde_json;
 use std::collections::HashMap;
 use chrono::Utc;
@@ -528,10 +529,6 @@ async fn init_security_config(output: &PathBuf, level: &str) -> Result<()> {
                 enabled: true,
                 ..Default::default()
             }),
-            mcp_2025_security: Some(magictunnel::security::Mcp2025SecurityConfig {
-                enabled: true,
-                ..Default::default()
-            }),
         },
         "strict" => SecurityConfig::secure_defaults(),
         _ => SecurityConfig {
@@ -548,10 +545,6 @@ async fn init_security_config(output: &PathBuf, level: &str) -> Result<()> {
             }),
             policies: Some(PolicyConfig::default()),
             audit: Some(AuditConfig {
-                enabled: true,
-                ..Default::default()
-            }),
-            mcp_2025_security: Some(magictunnel::security::Mcp2025SecurityConfig {
                 enabled: true,
                 ..Default::default()
             }),

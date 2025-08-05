@@ -217,30 +217,16 @@ tokio::spawn(async move {
 ## Configuration
 
 ### Basic Configuration
-```yaml
-# magictunnel-config.yaml
-mcp_2025_security:
-  progress:
-    enabled: true
-    max_concurrent_sessions: 1000
-    update_interval_ms: 500
-    session_timeout_seconds: 3600
-    enable_detailed_events: true
-    granularity_level: "Detailed"
-```
+**Configuration Note**: MCP 2025-06-18 security configuration has been removed as of August 2025. Progress tracking functionality is built-in and operates automatically without specific configuration.
 
-### Advanced Configuration
-```yaml
-mcp_2025_security:
-  progress:
-    enabled: true
-    max_concurrent_sessions: 5000
-    update_interval_ms: 100  # Fast updates
-    session_timeout_seconds: 7200  # 2 hours
-    enable_detailed_events: true
-    cleanup_interval_seconds: 300  # 5 minutes
-    granularity_level: "Verbose"  # Most detailed tracking
-```
+Progress tracking operates with these default settings:
+- Maximum concurrent sessions: 1000
+- Update interval: 500ms
+- Session timeout: 3600 seconds (1 hour)
+- Detailed events: enabled
+- Granularity level: Detailed
+
+For enterprise-level progress monitoring, see the main configuration documentation for `security:` and `monitoring:` sections.
 
 ### Granularity Levels
 ```rust

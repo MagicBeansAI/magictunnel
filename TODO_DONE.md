@@ -32,6 +32,17 @@ This document contains all completed phases and achievements from the MagicTunne
 - **Caching System** - Intelligent caching to prevent repeated fetches
 - **External Authority Respect** - External MCP servers remain authoritative
 
+### ✅ Complete MCP 2025-06-18 Client Capability Tracking (August 2025 - v0.3.7)
+- **Client Capability Types** - Complete implementation in `src/mcp/types/capabilities.rs`
+- **Session Management Enhancement** - Enhanced `ClientInfo` with capability tracking in `src/mcp/session.rs`
+- **MCP Initialize Request Parsing** - Proper parsing of client capabilities from initialize requests
+- **Capability-Based Routing Logic** - Only forward elicitation/sampling to capable clients
+- **Session Iteration Methods** - `get_elicitation_capable_sessions()` and `any_session_supports_elicitation()`
+- **Transport Integration** - Works across stdio, WebSocket, HTTP, and Streamable HTTP
+- **Enhanced Error Handling** - Proper error responses when clients lack required capabilities
+- **Smart Discovery Integration** - Tool discovery elicitation only works when smart discovery is disabled
+- **Elicitation Logic Fix** - Fixed fundamental flaw where tool discovery elicitation ran in smart discovery mode
+
 ### ✅ Web Dashboard & Management UI (Completed)
 - **Core Dashboard Infrastructure** - Real-time monitoring and control
 - **Tools & Resources Management UI** - Browse, test, and manage MCP tools

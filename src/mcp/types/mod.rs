@@ -12,12 +12,22 @@ pub mod sampling;
 pub mod elicitation;
 pub mod roots;
 pub mod tool_enhancement;
+pub mod capabilities;
 
 // Re-export commonly used types for convenience
 pub use sampling::*;
 pub use elicitation::*;
 pub use roots::*;
 pub use tool_enhancement::*;
+// Re-export client capabilities with distinct names to avoid conflicts
+pub use capabilities::{
+    ClientCapabilities, 
+    ToolsCapability as ClientToolsCapability,
+    ResourcesCapability as ClientResourcesCapability,
+    PromptsCapability as ClientPromptsCapability,
+    SamplingCapability as ClientSamplingCapability,
+    ElicitationCapability as ClientElicitationCapability,
+};
 
 /// MCP Tool definition
 #[derive(Debug, Clone, Serialize, Deserialize)]

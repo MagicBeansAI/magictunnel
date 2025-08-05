@@ -573,6 +573,7 @@ async fn pregenerate_embeddings_and_exit(config: Config) -> Result<()> {
         // Use tool_enhancement_service for the enhancement pipeline (tool descriptions/keywords/examples)
         let effective_tool_enhancement_service = tool_enhancement_service.clone();
         
+        let smart_discovery_enabled = config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false);
         let enhancement_service = Arc::new(discovery::ToolEnhancementPipeline::new_with_storage(
             enhancement_config,
             Arc::clone(&registry),
@@ -580,6 +581,7 @@ async fn pregenerate_embeddings_and_exit(config: Config) -> Result<()> {
             elicitation_service,
             enhancement_storage,
             config.elicitation.clone(),
+            smart_discovery_enabled,
         ));
         
         // Register enhancement service with registry for tool change notifications

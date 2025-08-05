@@ -98,33 +98,19 @@ tokio::spawn(async move {
 
 ## Configuration
 
-### Basic Configuration
-```yaml
-# magictunnel-config.yaml
-mcp_2025_security:
-  cancellation:
-    enabled: true
-    default_timeout_seconds: 300
-    max_concurrent_operations: 1000
-    cleanup_interval_seconds: 60
-    graceful_timeout_seconds: 30
-    enable_detailed_events: true
-```
+### Configuration Note
 
-### Advanced Configuration
-```yaml
-mcp_2025_security:
-  cancellation:
-    enabled: true
-    default_timeout_seconds: 600
-    max_concurrent_operations: 5000
-    cleanup_interval_seconds: 30
-    graceful_timeout_seconds: 60
-    force_timeout_seconds: 10
-    enable_detailed_events: true
-    enable_cleanup_on_startup: true
-    token_expiry_seconds: 3600
-```
+**Important**: MCP 2025-06-18 security configuration has been removed as of August 2025. Cancellation functionality is built-in and operates automatically with these default settings:
+
+- Default timeout: 300 seconds (5 minutes)
+- Maximum concurrent operations: 1000
+- Cleanup interval: 60 seconds  
+- Graceful timeout: 30 seconds
+- Detailed events: enabled
+- Cleanup on startup: enabled
+- Token expiry: 3600 seconds (1 hour)
+
+For enterprise-level cancellation policies, see the main configuration documentation for `security:` section.
 
 ## Statistics and Monitoring
 

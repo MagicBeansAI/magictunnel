@@ -344,14 +344,14 @@ curl -X POST http://localhost:3001/dashboard/api/sampling/generate \
     "context": "System administration tool"
   }'
 
-# Get elicitation metadata
-curl -X POST http://localhost:3001/dashboard/api/elicitation/generate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "tool_name": "execute_command",
-    "tool_description": "Execute shell commands...",
-    "context": "Development automation"
-  }'
+# Get elicitation metadata (REMOVED in v0.3.7 - use enhancement pipeline instead)  
+# curl -X POST http://localhost:3001/dashboard/api/elicitation/generate \
+#   -H "Content-Type: application/json" \
+#   -d '{
+#     "tool_name": "execute_command",
+#     "tool_description": "Execute shell commands...",
+#     "context": "Development automation"
+#   }'
 
 # Full enhancement pipeline
 curl -X POST http://localhost:3001/dashboard/api/enhancement/generate \

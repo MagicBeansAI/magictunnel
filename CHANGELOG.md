@@ -5,6 +5,45 @@ All notable changes to the MagicTunnel project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.7] - 2025-08-05 - Complete MCP 2025-06-18 Client Capability Tracking & Elicitation Logic Fix
+
+### Added
+- **🎯 Complete MCP 2025-06-18 Client Capability Tracking**: Full implementation of client capability tracking according to the MCP specification
+  - **Client Capability Types** (`src/mcp/types/capabilities.rs`): Complete implementation matching MCP specification with `ClientCapabilities`, `ElicitationCapability`, `SamplingCapability`, and other capability types
+  - **Session Management Enhancement** (`src/mcp/session.rs`): Enhanced `ClientInfo` with capability tracking, added session iteration methods like `get_elicitation_capable_sessions()` and `any_session_supports_elicitation()`
+  - **Capability-Based Routing Logic**: Only forward elicitation/sampling requests to clients that actually support the capability
+  - **Transport Integration**: Works across all transport methods (stdio, WebSocket, HTTP, StreamableHTTP)
+  - **Enhanced Error Handling**: Proper error responses when clients lack required capabilities
+
+### Fixed
+- **🚨 Elicitation Tool Discovery Logic**: Fixed fundamental architectural flaw in tool discovery elicitation
+  - **Smart Discovery Integration**: Tool discovery elicitation now only works when smart discovery is DISABLED (when it actually makes sense)
+  - **State Tracking** (`src/discovery/enhancement.rs`): Added smart discovery state tracking to enhancement pipeline
+  - **Logical Behavior**: Tool discovery elicitation was pointless in smart discovery mode since all tools are hidden behind the smart_tool_discovery proxy
+  - **Debug Logging**: Added detailed debug logging for elicitation decisions
+
+### Removed
+- **🗑️ Useless Elicitation Dashboard APIs**: Removed architectural bloat (~500 lines of code)
+  - **REST API Cleanup**: Removed 13 REST API endpoints (`/elicitation/*` routes) that had no real purpose
+  - **Handler Methods**: Removed 15 handler methods from dashboard service
+  - **Type Definitions**: Removed 15+ request/response struct definitions
+  - **Kept Essential**: Preserved only essential MCP 2025-06-18 JSON-RPC protocol handlers (`elicitation/accept`, `elicitation/reject`, `elicitation/cancel`)
+
+### Enhanced
+- **📚 Comprehensive Documentation Updates**: Updated all elicitation-related documentation with v0.3.7 features
+  - **LLM Generation Workflow** (`docs/automatic-llm-generation-workflow.md`): Added MCP 2025-06-18 client capability tracking section
+  - **MCP Compliance** (`docs/mcp-2025-06-18-compliance.md`): Enhanced client capabilities documentation with implementation details
+  - **Bidirectional Communication** (`docs/BIDIRECTIONAL_COMMUNICATION_FLOW.md`): Added v0.3.7 completed features status
+  - **Task Management**: Updated `TODO.md` and `TODO_DONE.md` with completed implementations
+
+### Technical
+- **✅ Full MCP 2025-06-18 Compliance**: Complete specification implementation with proper client capability negotiation
+- **✅ Architectural Fixes**: Fixed logical flaws in elicitation behavior and removed unnecessary API bloat
+- **✅ Clean Compilation**: Successful build after all changes with no compilation errors
+- **✅ Production Ready**: Ready for continued development and deployment with logical elicitation behavior
+
+---
+
 ## [0.3.6] - 2025-08-04 - Legacy Client Removal & Modern Architecture Migration
 
 ### Removed

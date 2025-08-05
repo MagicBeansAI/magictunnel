@@ -4,7 +4,7 @@
 //! and protocol version negotiation according to the MCP specification.
 
 use crate::error::{Result, ProxyError};
-use crate::mcp::types::McpRequest;
+use crate::mcp::types::{McpRequest, ClientCapabilities};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
@@ -60,6 +60,8 @@ pub struct ClientInfo {
     pub version: String,
     /// Supported protocol version
     pub protocol_version: Option<String>,
+    /// Client capabilities as reported in initialize request
+    pub capabilities: Option<ClientCapabilities>,
 }
 
 /// MCP Session Manager for tracking WebSocket connections and validating requests
@@ -244,10 +246,33 @@ impl McpSessionManager {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
+        // Extract client capabilities from MCP initialize request
+        let capabilities = params.get("capabilities")
+            .map(|caps_value| {
+                match serde_json::from_value::<ClientCapabilities>(caps_value.clone()) {
+                    Ok(caps) => {
+                        debug!("Parsed client capabilities: elicitation={}, sampling={}, tools={}, resources={}, prompts={}", 
+                               caps.supports_elicitation(),
+                               caps.supports_sampling(), 
+                               caps.supports_tools(),
+                               caps.supports_resources(),
+                               caps.supports_prompts());
+                        Some(caps)
+                    }
+                    Err(e) => {
+                        warn!("Failed to parse client capabilities: {}", e);
+                        debug!("Raw capabilities value: {}", caps_value);
+                        None
+                    }
+                }
+            })
+            .unwrap_or(None);
+
         Ok(ClientInfo {
             name,
             version,
             protocol_version,
+            capabilities,
         })
     }
 
@@ -295,6 +320,84 @@ impl McpSessionManager {
             info!("Cleaned up {} expired sessions", removed_count);
         }
         removed_count
+    }
+
+    /// Get client capabilities for a session
+    pub fn get_client_capabilities(&self, session_id: &str) -> Option<ClientCapabilities> {
+        let sessions = self.sessions.read().unwrap();
+        sessions.get(session_id)
+            .and_then(|session| session.client_info.as_ref())
+            .and_then(|client_info| client_info.capabilities.clone())
+    }
+
+    /// Check if client supports elicitation for a session
+    pub fn client_supports_elicitation(&self, session_id: &str) -> bool {
+        self.get_client_capabilities(session_id)
+            .map(|caps| caps.supports_elicitation())
+            .unwrap_or(false)
+    }
+
+    /// Check if client supports sampling for a session
+    pub fn client_supports_sampling(&self, session_id: &str) -> bool {
+        self.get_client_capabilities(session_id)
+            .map(|caps| caps.supports_sampling())
+            .unwrap_or(false)
+    }
+
+    /// Get all active sessions
+    pub fn get_all_sessions(&self) -> Vec<McpSession> {
+        let sessions = self.sessions.read().unwrap();
+        sessions.values().cloned().collect()
+    }
+
+    /// Get all sessions that support elicitation
+    pub fn get_elicitation_capable_sessions(&self) -> Vec<McpSession> {
+        let sessions = self.sessions.read().unwrap();
+        sessions.values()
+            .filter(|session| {
+                session.client_info.as_ref()
+                    .and_then(|info| info.capabilities.as_ref())
+                    .map(|caps| caps.supports_elicitation())
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect()
+    }
+
+    /// Get all sessions that support sampling
+    pub fn get_sampling_capable_sessions(&self) -> Vec<McpSession> {
+        let sessions = self.sessions.read().unwrap();
+        sessions.values()
+            .filter(|session| {
+                session.client_info.as_ref()
+                    .and_then(|info| info.capabilities.as_ref())
+                    .map(|caps| caps.supports_sampling())
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect()
+    }
+
+    /// Check if any active session supports elicitation
+    pub fn any_session_supports_elicitation(&self) -> bool {
+        let sessions = self.sessions.read().unwrap();
+        sessions.values().any(|session| {
+            session.client_info.as_ref()
+                .and_then(|info| info.capabilities.as_ref())
+                .map(|caps| caps.supports_elicitation())
+                .unwrap_or(false)
+        })
+    }
+
+    /// Check if any active session supports sampling
+    pub fn any_session_supports_sampling(&self) -> bool {
+        let sessions = self.sessions.read().unwrap();
+        sessions.values().any(|session| {
+            session.client_info.as_ref()
+                .and_then(|info| info.capabilities.as_ref())
+                .map(|caps| caps.supports_sampling())
+                .unwrap_or(false)
+        })
     }
 
     /// Get session statistics

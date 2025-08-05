@@ -679,6 +679,9 @@ external_mcp:
 - **Streamable HTTP server** implementation in `src/mcp/streamable_http.rs`
 - **Basic external process management** via `ExternalMcpProcess`
 - **HTTP client** for external MCP servers (request/response only)
+- **✅ NEW (v0.3.7): Complete client capability tracking** in `src/mcp/types/capabilities.rs` and `src/mcp/session.rs`
+- **✅ NEW (v0.3.7): Capability-based elicitation routing** - only forward to clients that support elicitation
+- **✅ NEW (v0.3.7): Smart discovery integration** - tool discovery elicitation only works when smart discovery is disabled
 
 ### ❌ What's Broken/Missing
 

@@ -656,7 +656,8 @@ impl McpServer {
         tool_call: &ToolCall, 
         auth_context: Option<&crate::auth::AuthenticationResult>
     ) -> crate::security::SecurityContext {
-        use crate::security::{SecurityContext, SecurityRequest, SecurityTool};
+        use crate::security::{SecurityContext, SecurityRequest};
+        use crate::security::middleware::SecurityTool;
         use std::collections::HashMap;
         use chrono::Utc;
         
@@ -1214,7 +1215,12 @@ impl McpServer {
                 },
                 "completion": {},
                 "sampling": {},
-                "elicitation": {},
+                "elicitation": {
+                    "create": true,
+                    "accept": true,
+                    "reject": true,
+                    "cancel": true
+                },
                 "roots": {}
             },
             "implementation": {
@@ -1744,6 +1750,57 @@ impl McpServer {
                         request.id.as_ref(),
                         McpErrorCode::InvalidParams,
                         &format!("Invalid roots list parameters: {}", e)
+                    ),
+                }
+            }
+            "elicitation/accept" => {
+                let params = request.params.unwrap_or(json!({}));
+                match self.handle_elicitation_accept(params).await {
+                    Ok(response) => {
+                        if let Some(ref id) = request.id {
+                            self.create_success_response(id, json!(response))
+                        } else {
+                            self.create_error_response(None, McpErrorCode::InvalidRequest, "Request must have an ID")
+                        }
+                    }
+                    Err(e) => self.create_error_response(
+                        request.id.as_ref(),
+                        McpErrorCode::InternalError,
+                        &format!("Elicitation accept failed: {}", e)
+                    ),
+                }
+            }
+            "elicitation/reject" => {
+                let params = request.params.unwrap_or(json!({}));
+                match self.handle_elicitation_reject(params).await {
+                    Ok(response) => {
+                        if let Some(ref id) = request.id {
+                            self.create_success_response(id, json!(response))
+                        } else {
+                            self.create_error_response(None, McpErrorCode::InvalidRequest, "Request must have an ID")
+                        }
+                    }
+                    Err(e) => self.create_error_response(
+                        request.id.as_ref(),
+                        McpErrorCode::InternalError,
+                        &format!("Elicitation reject failed: {}", e)
+                    ),
+                }
+            }
+            "elicitation/cancel" => {
+                let params = request.params.unwrap_or(json!({}));
+                match self.handle_elicitation_cancel(params).await {
+                    Ok(response) => {
+                        if let Some(ref id) = request.id {
+                            self.create_success_response(id, json!(response))
+                        } else {
+                            self.create_error_response(None, McpErrorCode::InvalidRequest, "Request must have an ID")
+                        }
+                    }
+                    Err(e) => self.create_error_response(
+                        request.id.as_ref(),
+                        McpErrorCode::InternalError,
+                        &format!("Elicitation cancel failed: {}", e)
                     ),
                 }
             }
@@ -2501,14 +2558,19 @@ impl McpServer {
     async fn forward_sampling_to_client(&self, request: &crate::mcp::types::SamplingRequest) -> Result<crate::mcp::types::SamplingResponse> {
         debug!("Forwarding sampling request to original client");
         
-        // Implementation of client forwarding mechanism
-        // This forwards the sampling request back to the original MCP client that initiated the session
-        // The client (Claude Desktop, Cursor, etc.) will handle the sampling using its configured LLM
-        
-        // For now, we implement this as a notification to the client with a request for sampling
-        // The client should respond with the sampling results
-        
+        // Check if we have a client connection
         if let Some(tx) = &self.client_sender {
+            // Check if any client supports sampling capability
+            let client_supports_sampling = self.check_any_client_supports_sampling().await;
+            
+            if !client_supports_sampling {
+                debug!("No client with sampling capability found");
+                return Err(crate::error::ProxyError::mcp(
+                    "Client does not support sampling capability"
+                ));
+            }
+            
+            debug!("Client supports sampling, forwarding request");
             // Create a sampling request message for the client
             let client_request = serde_json::json!({
                 "jsonrpc": "2.0",
@@ -2562,11 +2624,21 @@ impl McpServer {
     async fn forward_elicitation_to_client(&self, request: &crate::mcp::types::ElicitationRequest) -> Result<crate::mcp::types::ElicitationResponse> {
         debug!("Forwarding elicitation request to original client");
         
-        // Implementation of client forwarding mechanism for elicitation
-        // This forwards the elicitation request back to the original MCP client that initiated the session
-        // The client (Claude Desktop, Cursor, etc.) will handle the elicitation using its configured LLM
-        
+        // Check if we have a client connection
         if let Some(tx) = &self.client_sender {
+            // TODO: In a full implementation, we would need to track the current session ID
+            // For now, we'll get the first session that supports elicitation
+            // This should be enhanced to track the actual session for this request
+            let client_supports_elicitation = self.check_any_client_supports_elicitation().await;
+            
+            if !client_supports_elicitation {
+                debug!("No client with elicitation capability found");
+                return Err(crate::error::ProxyError::mcp(
+                    "Client does not support elicitation capability"
+                ));
+            }
+            
+            debug!("Client supports elicitation, forwarding request");
             // Create an elicitation request message for the client
             let client_request = serde_json::json!({
                 "jsonrpc": "2.0",
@@ -2724,6 +2796,67 @@ impl McpServer {
         crate::config::SamplingElicitationStrategy::MagictunnelHandled
     }
 
+    /// Check if any connected client supports elicitation capability
+    async fn check_any_client_supports_elicitation(&self) -> bool {
+        let has_elicitation_support = self.session_manager.any_session_supports_elicitation();
+        
+        if has_elicitation_support {
+            let elicitation_sessions = self.session_manager.get_elicitation_capable_sessions();
+            debug!("Found {} sessions with elicitation capability", elicitation_sessions.len());
+            
+            // Log details about elicitation-capable sessions
+            for session in elicitation_sessions {
+                if let Some(client_info) = &session.client_info {
+                    debug!("Session '{}' client '{}' v{} supports elicitation", 
+                           session.id, client_info.name, client_info.version);
+                }
+            }
+        } else {
+            let all_sessions = self.session_manager.get_all_sessions();
+            debug!("No elicitation-capable sessions found among {} total sessions", all_sessions.len());
+            
+            // Log details about all sessions for debugging
+            for session in all_sessions {
+                if let Some(client_info) = &session.client_info {
+                    let caps_summary = if let Some(caps) = &client_info.capabilities {
+                        format!("elicitation={}, sampling={}, tools={}", 
+                               caps.supports_elicitation(),
+                               caps.supports_sampling(),
+                               caps.supports_tools())
+                    } else {
+                        "no capabilities reported".to_string()
+                    };
+                    debug!("Session '{}' client '{}' v{}: {}", 
+                           session.id, client_info.name, client_info.version, caps_summary);
+                }
+            }
+        }
+        
+        has_elicitation_support
+    }
+
+    /// Check if any connected client supports sampling capability
+    async fn check_any_client_supports_sampling(&self) -> bool {
+        let has_sampling_support = self.session_manager.any_session_supports_sampling();
+        
+        if has_sampling_support {
+            let sampling_sessions = self.session_manager.get_sampling_capable_sessions();
+            debug!("Found {} sessions with sampling capability", sampling_sessions.len());
+            
+            // Log details about sampling-capable sessions
+            for session in sampling_sessions {
+                if let Some(client_info) = &session.client_info {
+                    debug!("Session '{}' client '{}' v{} supports sampling", 
+                           session.id, client_info.name, client_info.version);
+                }
+            }
+        } else {
+            debug!("No sampling-capable sessions found");
+        }
+        
+        has_sampling_support
+    }
+
     /// Get LLM configuration from server config
     async fn get_server_llm_config(&self) -> Result<crate::config::LlmConfig> {
         if let Some(config) = &self.config {
@@ -2754,6 +2887,140 @@ impl McpServer {
         
         debug!("No server LLM configuration found, using default configuration");
         Ok(crate::config::LlmConfig::default())
+    }
+
+    /// Handle elicitation accept response from client
+    async fn handle_elicitation_accept(&self, params: Value) -> Result<Value> {
+        info!("📝 Handling elicitation/accept");
+        
+        // Extract required parameters
+        let request_id = params.get("request_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ProxyError::mcp("Missing request_id parameter"))?;
+            
+        let data = params.get("data")
+            .ok_or_else(|| ProxyError::mcp("Missing data parameter"))?;
+
+        // Get elicitation service
+        let elicitation_service = self.elicitation_service
+            .as_ref()
+            .ok_or_else(|| ProxyError::mcp("Elicitation service not available"))?;
+
+        // Create elicitation response
+        let response = crate::mcp::types::elicitation::ElicitationResponse::accept(data.clone());
+
+        // Handle the response through the service
+        match elicitation_service.handle_elicitation_response(request_id, response).await {
+            Ok(_) => {
+                info!("✅ Elicitation request {} accepted successfully", request_id);
+                
+                // TODO: Continue with tool execution using the accepted parameters
+                // This is where we would normally:
+                // 1. Extract the collected parameters from 'data'
+                // 2. Continue the original tool execution that was waiting for parameters
+                // 3. Return the tool execution result
+                
+                Ok(json!({
+                    "status": "accepted",
+                    "request_id": request_id,
+                    "message": "Elicitation response accepted and processed"
+                }))
+            }
+            Err(e) => {
+                error!("❌ Failed to handle elicitation accept for {}: {}", request_id, e);
+                Err(ProxyError::mcp(&format!("Failed to process elicitation accept: {}", e)))
+            }
+        }
+    }
+
+    /// Handle elicitation reject response from client
+    async fn handle_elicitation_reject(&self, params: Value) -> Result<Value> {
+        info!("❌ Handling elicitation/reject");
+        
+        // Extract required parameters
+        let request_id = params.get("request_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ProxyError::mcp("Missing request_id parameter"))?;
+            
+        let reason = params.get("reason")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        // Get elicitation service
+        let elicitation_service = self.elicitation_service
+            .as_ref()
+            .ok_or_else(|| ProxyError::mcp("Elicitation service not available"))?;
+
+        // Create elicitation response
+        let response = crate::mcp::types::elicitation::ElicitationResponse::decline(reason.clone());
+
+        // Handle the response through the service
+        match elicitation_service.handle_elicitation_response(request_id, response).await {
+            Ok(_) => {
+                info!("❌ Elicitation request {} rejected: {:?}", request_id, reason);
+                
+                // TODO: Handle rejection appropriately:
+                // 1. Return error to original user request
+                // 2. Suggest alternative approaches
+                // 3. Log rejection for analytics
+                
+                Ok(json!({
+                    "status": "rejected",
+                    "request_id": request_id,
+                    "reason": reason.unwrap_or_else(|| "User declined to provide data".to_string()),
+                    "message": "Elicitation request rejected by user"
+                }))
+            }
+            Err(e) => {
+                error!("❌ Failed to handle elicitation reject for {}: {}", request_id, e);
+                Err(ProxyError::mcp(&format!("Failed to process elicitation reject: {}", e)))
+            }
+        }
+    }
+
+    /// Handle elicitation cancel response from client
+    async fn handle_elicitation_cancel(&self, params: Value) -> Result<Value> {
+        info!("🚫 Handling elicitation/cancel");
+        
+        // Extract required parameters
+        let request_id = params.get("request_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ProxyError::mcp("Missing request_id parameter"))?;
+            
+        let reason = params.get("reason")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        // Get elicitation service
+        let elicitation_service = self.elicitation_service
+            .as_ref()
+            .ok_or_else(|| ProxyError::mcp("Elicitation service not available"))?;
+
+        // Create elicitation response
+        let response = crate::mcp::types::elicitation::ElicitationResponse::cancel(reason.clone());
+
+        // Handle the response through the service
+        match elicitation_service.handle_elicitation_response(request_id, response).await {
+            Ok(_) => {
+                info!("🚫 Elicitation request {} cancelled: {:?}", request_id, reason);
+                
+                // TODO: Handle cancellation appropriately:
+                // 1. Clean up any pending operations
+                // 2. Return cancellation acknowledgment
+                // 3. Log cancellation for analytics
+                
+                Ok(json!({
+                    "status": "cancelled",
+                    "request_id": request_id,
+                    "reason": reason.unwrap_or_else(|| "User cancelled the request".to_string()),
+                    "message": "Elicitation request cancelled by user"
+                }))
+            }
+            Err(e) => {
+                error!("❌ Failed to handle elicitation cancel for {}: {}", request_id, e);
+                Err(ProxyError::mcp(&format!("Failed to process elicitation cancel: {}", e)))
+            }
+        }
     }
 }
 
@@ -3327,7 +3594,7 @@ pub async fn streamable_http_handler(
         StreamableHttpConfig::default()
     };
     
-    let transport = StreamableHttpTransport::new(config);
+    let transport = StreamableHttpTransport::with_server(config, Arc::clone(&server));
     
     match transport.handle_streamable_request(req, body).await {
         Ok(response) => response,

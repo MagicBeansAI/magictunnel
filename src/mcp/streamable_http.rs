@@ -5,6 +5,7 @@
 
 use crate::error::{ProxyError, Result};
 use crate::mcp::types::{McpRequest, McpResponse};
+use crate::mcp::errors::McpError;
 use actix_web::{web, HttpRequest, HttpResponse, HttpMessage};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
@@ -72,6 +73,8 @@ pub struct StreamableHttpTransport {
     batch_queue: Arc<RwLock<Vec<(String, McpRequest)>>>,
     /// Statistics
     stats: Arc<RwLock<StreamableHttpStats>>,
+    /// MCP Server for request processing
+    mcp_server: Option<Arc<crate::mcp::McpServer>>,
 }
 
 /// Transport statistics
@@ -103,6 +106,18 @@ impl StreamableHttpTransport {
             sessions: Arc::new(RwLock::new(HashMap::new())),
             batch_queue: Arc::new(RwLock::new(Vec::new())),
             stats: Arc::new(RwLock::new(StreamableHttpStats::default())),
+            mcp_server: None,
+        }
+    }
+
+    /// Create a new Streamable HTTP Transport with MCP server integration
+    pub fn with_server(config: StreamableHttpConfig, mcp_server: Arc<crate::mcp::McpServer>) -> Self {
+        Self {
+            config,
+            sessions: Arc::new(RwLock::new(HashMap::new())),
+            batch_queue: Arc::new(RwLock::new(Vec::new())),
+            stats: Arc::new(RwLock::new(StreamableHttpStats::default())),
+            mcp_server: Some(mcp_server),
         }
     }
 
@@ -311,24 +326,95 @@ impl StreamableHttpTransport {
         Ok(parsed.is_array())
     }
 
-    /// Process a single MCP request through the router
+    /// Process a single MCP request through the unified MCP handler
     async fn process_single_mcp_request(&self, request: McpRequest) -> Result<McpResponse> {
         info!("Processing MCP request via Streamable HTTP: {}", request.method);
         
-        // For now, return a success response indicating the transport is working
-        // In a full implementation, this would route through the MCP server's router
-        Ok(McpResponse {
-            jsonrpc: "2.0".to_string(),
-            id: request.id.map(|v| v.to_string()).unwrap_or_else(|| "null".to_string()),
-            result: Some(serde_json::json!({
-                "transport": "streamable-http",
-                "version": "2025-06-18",
-                "method": request.method,
-                "status": "completed",
-                "message": format!("Request '{}' processed via MCP 2025-06-18 Streamable HTTP transport", request.method)
-            })),
-            error: None,
-        })
+        // Use the unified MCP handler if available
+        if let Some(ref mcp_server) = self.mcp_server {
+            match mcp_server.handle_mcp_request(request.clone()).await {
+                Ok(Some(response_str)) => {
+                    // Parse the JSON response string back to McpResponse
+                    match serde_json::from_str::<Value>(&response_str) {
+                        Ok(response_json) => {
+                            let id = request.id.map(|v| v.to_string()).unwrap_or_else(|| "null".to_string());
+                            
+                            if let Some(error) = response_json.get("error") {
+                                let mcp_error = serde_json::from_value::<McpError>(error.clone())
+                                    .unwrap_or_else(|_| McpError {
+                                        code: -32603,
+                                        message: "Internal error".to_string(),
+                                        data: None,
+                                    });
+                                Ok(McpResponse {
+                                    jsonrpc: "2.0".to_string(),
+                                    id,
+                                    result: None,
+                                    error: Some(mcp_error),
+                                })
+                            } else {
+                                Ok(McpResponse {
+                                    jsonrpc: "2.0".to_string(),
+                                    id,
+                                    result: response_json.get("result").cloned(),
+                                    error: None,
+                                })
+                            }
+                        }
+                        Err(e) => {
+                            error!("Failed to parse MCP response JSON: {}", e);
+                            Ok(McpResponse {
+                                jsonrpc: "2.0".to_string(),
+                                id: request.id.map(|v| v.to_string()).unwrap_or_else(|| "null".to_string()),
+                                result: None,
+                                error: Some(McpError {
+                                    code: -32603,
+                                    message: "Internal error parsing response".to_string(),
+                                    data: None,
+                                }),
+                            })
+                        }
+                    }
+                }
+                Ok(None) => {
+                    // No response needed (notification)
+                    Ok(McpResponse {
+                        jsonrpc: "2.0".to_string(),
+                        id: request.id.map(|v| v.to_string()).unwrap_or_else(|| "null".to_string()),
+                        result: Some(serde_json::json!({"status": "notification_processed"})),
+                        error: None,
+                    })
+                }
+                Err(e) => {
+                    error!("MCP request processing failed: {}", e);
+                    Ok(McpResponse {
+                        jsonrpc: "2.0".to_string(),
+                        id: request.id.map(|v| v.to_string()).unwrap_or_else(|| "null".to_string()),
+                        result: None,
+                        error: Some(McpError {
+                            code: -32603,
+                            message: format!("Request processing failed: {}", e),
+                            data: None,
+                        }),
+                    })
+                }
+            }
+        } else {
+            // Fallback when no MCP server is available
+            warn!("No MCP server available for Streamable HTTP transport, using fallback response");
+            Ok(McpResponse {
+                jsonrpc: "2.0".to_string(),
+                id: request.id.map(|v| v.to_string()).unwrap_or_else(|| "null".to_string()),
+                result: Some(serde_json::json!({
+                    "transport": "streamable-http",
+                    "version": "2025-06-18",
+                    "method": request.method,
+                    "status": "fallback",
+                    "message": "Request processed via fallback handler - MCP server not available"
+                })),
+                error: None,
+            })
+        }
     }
 
     /// Create a new streaming session

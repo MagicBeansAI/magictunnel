@@ -198,68 +198,22 @@ for (name, result) in results {
 
 ## Configuration
 
-### Basic Configuration
-```yaml
-# magictunnel-config.yaml
-mcp_2025_security:
-  tool_validation:
-    enabled: true
-    strict_mode: false
-    cache_enabled: true
-    cache_max_size: 10000
-    cache_ttl_seconds: 3600
-    default_classification: "Restricted"
-    validation_timeout_seconds: 30
-    enable_parameter_sanitization: true
-    enable_schema_validation: true
-    enable_security_analysis: true
-```
+### Configuration Note
 
-### Advanced Configuration with Custom Policies
-```yaml
-mcp_2025_security:
-  tool_validation:
-    enabled: true
-    strict_mode: true
-    cache_enabled: true
-    cache_max_size: 50000
-    cache_ttl_seconds: 7200
-    default_classification: "Restricted"
-    validation_timeout_seconds: 60
-    enable_parameter_sanitization: true
-    enable_schema_validation: true
-    enable_security_analysis: true
-    
-    # Custom sandbox policies
-    sandbox_policies:
-      Safe:
-        max_execution_time_seconds: 60
-        max_memory_usage_mb: 256
-        max_cpu_usage_percent: 80
-        max_output_size_kb: 512
-        allow_subprocess_execution: false
-        
-      Restricted:
-        max_execution_time_seconds: 300
-        max_memory_usage_mb: 512
-        max_cpu_usage_percent: 60
-        allowed_network_hosts: ["api.internal.com", "safe-api.com"]
-        blocked_network_ports: [22, 23, 3389]
-        allowed_filesystem_paths: ["/tmp/sandbox/", "/data/readonly/"]
-        max_output_size_kb: 1024
-        allow_subprocess_execution: false
-        
-      Dangerous:
-        max_execution_time_seconds: 120
-        max_memory_usage_mb: 128
-        max_cpu_usage_percent: 30
-        allowed_network_hosts: []
-        blocked_network_ports: [1, 65535]  # Block all ports
-        allowed_filesystem_paths: ["/tmp/isolated/"]
-        blocked_filesystem_patterns: ["/*", "*.exe", "*.sh"]
-        max_output_size_kb: 256
-        allow_subprocess_execution: false
-```
+**Important**: MCP 2025-06-18 security configuration has been removed as of August 2025 due to lack of implementation. Tool validation functionality exists but does not require specific configuration - it operates using built-in security classifications and policies.
+
+For enterprise security features, see the main configuration documentation for `security:` section which covers:
+- Tool allowlisting and access control
+- Role-based access control (RBAC)  
+- Request/response sanitization
+- Organization-wide policy enforcement
+
+Tool validation operates automatically based on tool security classifications defined in capability files:
+- `Safe` - Low-risk tools, minimal restrictions
+- `Restricted` - Medium-risk tools, standard restrictions
+- `Privileged` - High-risk tools, elevated permissions required
+- `Dangerous` - High-risk tools, maximum restrictions
+- `Blocked` - Tools that are completely blocked from execution
 
 ## Security Classifications
 

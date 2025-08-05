@@ -155,7 +155,7 @@ cargo test auth --lib
 cargo test discovery --lib
 
 # LLM Backend APIs tests (v0.3.4)
-cargo test --test elicitation_service_api_test     # 10 elicitation service tests
+# cargo test --test elicitation_service_api_test   # REMOVED: Elicitation dashboard APIs were removed in v0.3.7
 cargo test --test tool_enhancement_service_api_test        # 12 tool enhancement service tests
 cargo test --test enhanced_resource_management_api_test  # 12 resource management tests
 cargo test --test enhanced_prompt_management_api_test    # 14 prompt management tests  

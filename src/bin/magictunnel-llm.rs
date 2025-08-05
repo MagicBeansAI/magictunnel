@@ -527,6 +527,7 @@ async fn initialize_services(config: &Config) -> Result<LLMServices> {
             graceful_degradation: true,
         };
         
+        let smart_discovery_enabled = config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false);
         let service = ToolEnhancementPipeline::new_with_storage(
             enhancement_config,
             Arc::clone(&registry),
@@ -534,6 +535,7 @@ async fn initialize_services(config: &Config) -> Result<LLMServices> {
             elicitation.clone(),
             enhancement_storage.clone(),
             config.elicitation.clone(),
+            smart_discovery_enabled,
         );
         Some(Arc::new(service))
     } else {

@@ -232,11 +232,14 @@ impl SmartDiscoveryService {
                 graceful_degradation: true,
             };
             
-            let service = ToolEnhancementPipeline::new(
+            let service = ToolEnhancementPipeline::new_with_storage(
                 enhancement_config,
                 Arc::clone(&registry),
                 tool_enhancement_service,
                 elicitation_service,
+                None, // No storage service here
+                None, // No elicitation config here
+                config.enabled, // Pass smart discovery enabled state
             );
             Some(Arc::new(service))
         } else {

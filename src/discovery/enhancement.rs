@@ -96,6 +96,9 @@ pub struct ToolEnhancementPipeline {
     
     /// Elicitation configuration for authority management
     elicitation_config: Option<crate::config::ElicitationConfig>,
+    
+    /// Whether smart discovery is enabled (affects elicitation tool discovery behavior)
+    smart_discovery_enabled: bool,
 }
 
 impl ToolEnhancementPipeline {
@@ -106,7 +109,7 @@ impl ToolEnhancementPipeline {
         tool_enhancement_service: Option<Arc<crate::mcp::tool_enhancement::ToolEnhancementService>>,
         elicitation_service: Option<Arc<ElicitationService>>,
     ) -> Self {
-        Self::new_with_storage(config, registry, tool_enhancement_service, elicitation_service, None, None)
+        Self::new_with_storage(config, registry, tool_enhancement_service, elicitation_service, None, None, false)
     }
     
     /// Create a new tool enhancement service with persistent storage
@@ -117,6 +120,7 @@ impl ToolEnhancementPipeline {
         elicitation_service: Option<Arc<ElicitationService>>,
         storage_service: Option<Arc<EnhancementStorageService>>,
         elicitation_config: Option<crate::config::ElicitationConfig>,
+        smart_discovery_enabled: bool,
     ) -> Self {
         let request_generator = if tool_enhancement_service.is_some() && elicitation_service.is_some() {
             Some(Arc::new(RequestGeneratorService::new(
@@ -143,6 +147,7 @@ impl ToolEnhancementPipeline {
             failure_cache: Arc::new(RwLock::new(HashMap::new())),
             storage_service,
             elicitation_config,
+            smart_discovery_enabled,
         }
     }
     
@@ -183,7 +188,8 @@ impl ToolEnhancementPipeline {
             });
         
         let elicitation_config = config.elicitation.clone();
-        Self::new_with_storage(enhancement_config, registry, tool_enhancement_service, elicitation_service, None, elicitation_config)
+        let smart_discovery_enabled = config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false);
+        Self::new_with_storage(enhancement_config, registry, tool_enhancement_service, elicitation_service, None, elicitation_config, smart_discovery_enabled)
     }
     
     /// Check if a tool comes from external/remote MCP server
@@ -198,8 +204,17 @@ impl ToolEnhancementPipeline {
             return false;
         }
         
-        // For non-external tools, always use local elicitation if enabled
+        // If smart discovery is enabled, tool discovery elicitation is pointless since all tools are hidden
+        // behind the smart_tool_discovery proxy. Only use elicitation when smart discovery is disabled
+        // so users can directly interact with individual tools.
+        if self.smart_discovery_enabled {
+            debug!("Skipping tool discovery elicitation for '{}' - smart discovery is enabled (tools are hidden)", tool.name);
+            return false;
+        }
+        
+        // For non-external tools, use local elicitation if enabled (only when smart discovery is off)
         if !Self::is_external_mcp_tool(tool) {
+            debug!("Using tool discovery elicitation for '{}' - smart discovery is disabled", tool.name);
             return true;
         }
         
