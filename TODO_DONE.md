@@ -43,6 +43,37 @@ This document contains all completed phases and achievements from the MagicTunne
 - **Smart Discovery Integration** - Tool discovery elicitation only works when smart discovery is disabled
 - **Elicitation Logic Fix** - Fixed fundamental flaw where tool discovery elicitation ran in smart discovery mode
 
+### ✅ Complete External MCP Capability Integration System (August 2025 - v0.3.8)
+- **Client Capabilities Context in External Manager** - Added `client_capabilities_context` field to `ExternalMcpManager` with runtime capability updates
+- **Enhanced External Integration Layer** - Added `start_with_capabilities()` and `update_client_capabilities()` methods for capability-aware operations
+- **Server-Level Capability Integration** - Added `update_external_integration_capabilities()` method to automatically propagate client capabilities through integration chain
+- **Minimum Intersection Capability Advertisement** - Enhanced `get_safe_external_advertisement()` to only advertise capabilities both MagicTunnel AND client support
+- **Comprehensive Logging and Audit Trail** - Added `log_capability_advertisement()` for detailed capability decision tracking and audit trail
+- **Capability Mismatch Prevention** - Prevents critical edge case where external MCP servers send requests to clients that don't support them
+- **Production-Ready Implementation** - Clean compilation, comprehensive error handling, and backward compatibility
+- **Stdio Client Verification** - Confirmed stdio mode has complete MCP 2025-06-18 bidirectional communication support identical to other transports
+
+### ✅ Sampling Dashboard API Cleanup & MCP Architecture Fix (August 2025 - v0.3.8)
+- **12 Unnecessary Sampling APIs Removed** - Cleaned up `/dashboard/api/sampling/*` endpoints that were not required for true MCP protocol-level sampling
+- **API Methods Removed** - `get_sampling_status`, `generate_sampling_request`, `list_sampling_tools`, and 8 service management methods
+- **Helper Methods Cleaned** - Removed `get_tools_with_sampling`, `tool_has_sampling_enhancement`, `get_tool_sampling_enhancement`
+- **Struct Types Removed** - Cleaned up 10+ sampling-related request/response struct types
+- **Route Registrations Removed** - Cleaned up all sampling API route registrations
+- **MCP 2025-06-18 Architecture Fix** - Removed incorrect `sampling/createMessage` and `elicitation/create` handlers from server.rs
+- **Client Architecture Verified** - Confirmed clients (stdio, WebSocket, StreamableHTTP) correctly handle these methods
+- **Proper Flow Established** - External MCP servers → Client handles createMessage → Forward via internal methods → Server routing
+- **RequestForwarder Architecture** - Verified proper internal forwarding via `forward_sampling_request()` and `forward_elicitation_request()`
+- **Documentation Updated** - Updated `docs/automatic-llm-generation-workflow.md` and `docs/llm-workflow.md` to reflect API changes
+
+### ✅ Fix Sampling vs Tool Enhancement Naming Confusion (August 2025 - v0.3.8)
+- **Sampling Service Cleanup** - Removed all tool enhancement functions from `src/mcp/sampling.rs` (lines 575-816)
+- **Service Usage Fix** - Updated `src/mcp/request_generator.rs` to use `tool_enhancement_service`
+- **Web Dashboard Fix** - Updated `src/web/dashboard.rs` to use `tool_enhancement_service`
+- **Clean MCP Sampling** - Added true MCP sampling/createMessage initiation logic
+- **Config-Driven Triggers** - Implemented when MagicTunnel should initiate sampling requests
+- **CLI Tools Updated** - Fixed `magictunnel-llm` to use correct services
+- **Architecture Separation** - Clean separation between MCP sampling and tool enhancement functionality
+
 ### ✅ Web Dashboard & Management UI (Completed)
 - **Core Dashboard Infrastructure** - Real-time monitoring and control
 - **Tools & Resources Management UI** - Browse, test, and manage MCP tools

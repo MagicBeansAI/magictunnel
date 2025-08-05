@@ -572,12 +572,58 @@ impl SamplingService {
         }, 3).await // Retry up to 3 times
     }
 
-    /// Generate sampling request for enhanced tool description (server-side generation)
-    pub async fn generate_enhanced_description_request(
+    /// Config-driven MCP sampling initiation methods
+    /// These are pure MCP sampling/createMessage requests based on configuration
+    /// and application logic, not tool enhancement functions
+    
+    /// Check if sampling should be initiated based on configuration
+    pub async fn should_initiate_sampling(&self, context: &SamplingContext) -> bool {
+        if !self.config.enabled {
+            return false;
+        }
+
+        // TODO: LLM-Assisted Sampling Request Generation (Future Enhancement)
+        // This method will implement intelligent triggers for MagicTunnel-initiated sampling requests
+        // 
+        // Planned implementation approach:
+        // 1. Rule-Based Triggers (no LLM calls):
+        //    - Pattern matching on error messages and execution context
+        //    - Tool execution failures that could benefit from LLM assistance
+        //    - Parameter mapping failures or low confidence results
+        //    - Sequential tool execution chains that need guidance
+        //    - Security-related scenarios requiring LLM guidance
+        //
+        // 2. Smart Discovery Integration:
+        //    - Leverage existing confidence scores and enhancement data
+        //    - Use tool enhancement metadata for trigger decisions
+        //    - Integrate with parameter validation failure patterns
+        //
+        // 3. Template-Based Request Generation:
+        //    - Pre-written templates with variable substitution
+        //    - Context-aware message crafting without LLM calls
+        //    - Error-specific guidance templates
+        //
+        // 4. Configuration-Driven System:
+        //    - Comprehensive trigger configuration system
+        //    - Rate limiting to prevent excessive requests
+        //    - User preference and workflow optimization settings
+        //
+        // Benefits when implemented:
+        // - Proactive assistance: Help users before they get stuck
+        // - Error recovery: Intelligent error resolution with contextual guidance
+        // - Quality improvement: Continuous improvement of tool execution results
+        //
+        // Current status: Proxy-only implementation (external MCP servers can send requests)
+        // Timeline: 2-3 months after core features complete
+        
+        // For now, return false - only external MCP sampling requests are supported
+        false
+    }
+
+    /// Create a config-driven MCP sampling request
+    pub async fn create_sampling_request(
         &self,
-        tool_name: &str,
-        base_description: &str,
-        tool_schema: &Value,
+        context: &SamplingContext,
     ) -> std::result::Result<SamplingRequest, SamplingError> {
         if !self.config.enabled {
             return Err(SamplingError {
@@ -587,286 +633,149 @@ impl SamplingService {
             });
         }
 
-        info!("🎯 Generating sampling request for enhanced description: {}", tool_name);
+        // TODO: LLM-Assisted Sampling Request Creation (Future Enhancement)
+        // This method will generate intelligent sampling requests using templates and context analysis
+        //
+        // Planned features:
+        // 1. Template-Based Generation:
+        //    - Pre-written templates for different error scenarios
+        //    - Context variable substitution (tool names, error messages, parameters)
+        //    - Error-specific guidance templates without LLM calls
+        //
+        // 2. Context Analysis:
+        //    - Parse error messages and execution context
+        //    - Extract relevant information for template substitution
+        //    - Determine appropriate sampling request type and content
+        //
+        // 3. Request Personalization:
+        //    - Adapt request content based on user workflow patterns
+        //    - Include relevant tool enhancement metadata
+        //    - Provide contextual suggestions and guidance
+        //
+        // Current status: Basic implementation exists but not actively used
+        // Timeline: Will be enhanced when MagicTunnel-initiated sampling is implemented
 
-        // Create system prompt for tool description enhancement
-        let system_prompt = format!(
-            "You are an expert technical writer specializing in API documentation. 
-            Your task is to enhance tool descriptions to make them more discoverable and useful 
-            for smart tool discovery systems.
-            
-            Guidelines:
-            1. Expand the description with more specific use cases and examples
-            2. Include relevant keywords that users might search for
-            3. Describe what types of problems this tool solves
-            4. Keep the enhanced description concise but comprehensive
-            5. Maintain technical accuracy
-            6. Focus on practical applications
-            
-            Original tool: {}
-            Original description: {}
-            Tool schema: {}
-            
-            Provide an enhanced description that is 2-3x longer than the original 
-            but maintains clarity and usefulness.",
-            tool_name, base_description, serde_json::to_string_pretty(tool_schema).unwrap_or_default()
-        );
+        info!("🎯 Creating config-driven MCP sampling request for context: {:?}", context.request_type);
 
-        // Create user message
+        // Create MCP sampling request based on context
+        match context.request_type {
+            SamplingRequestType::General => {
+                self.create_general_sampling_request(context).await
+            }
+            SamplingRequestType::ContextualHelp => {
+                self.create_contextual_help_request(context).await
+            }
+            SamplingRequestType::TaskAssistance => {
+                self.create_task_assistance_request(context).await
+            }
+        }
+    }
+
+    /// Create a general sampling request
+    async fn create_general_sampling_request(
+        &self,
+        context: &SamplingContext,
+    ) -> std::result::Result<SamplingRequest, SamplingError> {
+        let system_prompt = "You are a helpful AI assistant. Provide accurate and useful responses.".to_string();
+
         let user_message = SamplingMessage {
             role: SamplingMessageRole::User,
-            content: SamplingContent::Text(
-                format!("Please provide an enhanced description for the '{}' tool.", tool_name)
-            ),
+            content: SamplingContent::Text(context.prompt.clone()),
             name: None,
             metadata: Some(json!({
-                "tool_name": tool_name,
-                "enhancement_type": "description",
-                "original_length": base_description.len()
+                "request_type": "general",
+                "context_id": context.context_id.clone(),
+                "timestamp": Utc::now().to_rfc3339()
             }).as_object().unwrap().clone().into_iter().collect()),
         };
 
-        // Create sampling request
-        let request = SamplingRequest {
+        Ok(SamplingRequest {
             messages: vec![user_message],
-            model_preferences: Some(ModelPreferences {
-                preferred_models: Some(vec![self.config.default_model.clone()]),
-                intelligence: Some(0.8), // High intelligence for good descriptions
-                speed: Some(0.3),        // Less important
-                cost: Some(0.4),         // Moderate cost consideration
-                excluded_models: None,
-            }),
+            model_preferences: context.model_preferences.clone(),
             system_prompt: Some(system_prompt),
-            max_tokens: Some(500), // Reasonable length for enhanced descriptions
-            temperature: Some(0.3), // Lower temperature for consistent quality
+            max_tokens: Some(1000),
+            temperature: Some(0.7),
             top_p: Some(0.9),
             stop: None,
             metadata: Some(json!({
-                "purpose": "tool_description_enhancement",
-                "tool_name": tool_name,
+                "purpose": "config_driven_sampling",
+                "request_type": "general",
                 "generated_by": "magictunnel_sampling_service",
+                "timestamp": Utc::now().to_rfc3339()
+            }).as_object().unwrap().clone().into_iter().collect()),
+        })
+    }
+
+    /// Create a contextual help request
+    async fn create_contextual_help_request(
+        &self,
+        context: &SamplingContext,
+    ) -> std::result::Result<SamplingRequest, SamplingError> {
+        let system_prompt = "You are a helpful assistant that provides contextual help and guidance. 
+                            Focus on being practical and actionable in your responses.".to_string();
+
+        let user_message = SamplingMessage {
+            role: SamplingMessageRole::User,
+            content: SamplingContent::Text(context.prompt.clone()),
+            name: None,
+            metadata: Some(json!({
+                "request_type": "contextual_help",
+                "context_id": context.context_id.clone(),
                 "timestamp": Utc::now().to_rfc3339()
             }).as_object().unwrap().clone().into_iter().collect()),
         };
 
-        debug!("Generated sampling request for tool '{}' description enhancement", tool_name);
-        Ok(request)
-    }
-
-    /// Generate sampling request for tool usage examples
-    pub async fn generate_usage_examples_request(
-        &self,
-        tool_name: &str,
-        tool_description: &str,
-        tool_schema: &Value,
-        example_count: usize,
-    ) -> std::result::Result<SamplingRequest, SamplingError> {
-        if !self.config.enabled {
-            return Err(SamplingError {
-                code: SamplingErrorCode::InvalidRequest,
-                message: "Sampling is not enabled".to_string(),
-                details: None,
-            });
-        }
-
-        info!("📚 Generating sampling request for usage examples: {} (count: {})", tool_name, example_count);
-
-        let system_prompt = format!(
-            "You are an expert in API usage and technical documentation. 
-            Generate {} practical usage examples for the following tool.
-            
-            Guidelines:
-            1. Provide realistic, practical examples
-            2. Show different use cases and parameter combinations
-            3. Include both simple and complex scenarios
-            4. Format examples as natural language requests that users might make
-            5. Ensure examples match the tool's actual capabilities
-            
-            Tool: {}
-            Description: {}
-            Schema: {}
-            
-            Return {} examples in this format:
-            Example 1: [natural language request]
-            Example 2: [natural language request]
-            ...",
-            example_count, tool_name, tool_description, 
-            serde_json::to_string_pretty(tool_schema).unwrap_or_default(),
-            example_count
-        );
-
-        let user_message = SamplingMessage {
-            role: SamplingMessageRole::User,
-            content: SamplingContent::Text(
-                format!("Generate {} usage examples for the '{}' tool.", example_count, tool_name)
-            ),
-            name: None,
-            metadata: Some(json!({
-                "tool_name": tool_name,
-                "enhancement_type": "usage_examples",
-                "example_count": example_count
-            }).as_object().unwrap().clone().into_iter().collect()),
-        };
-
-        let request = SamplingRequest {
+        Ok(SamplingRequest {
             messages: vec![user_message],
-            model_preferences: Some(ModelPreferences {
-                preferred_models: Some(vec![self.config.default_model.clone()]),
-                intelligence: Some(0.7),
-                speed: Some(0.4),
-                cost: Some(0.5),
-                excluded_models: None,
-            }),
+            model_preferences: context.model_preferences.clone(),
             system_prompt: Some(system_prompt),
-            max_tokens: Some(800), // More space for multiple examples
-            temperature: Some(0.4), // Slightly higher for creative examples
+            max_tokens: Some(800),
+            temperature: Some(0.5),
             top_p: Some(0.9),
             stop: None,
             metadata: Some(json!({
-                "purpose": "usage_examples_generation",
-                "tool_name": tool_name,
-                "example_count": example_count,
+                "purpose": "config_driven_sampling",
+                "request_type": "contextual_help",
                 "generated_by": "magictunnel_sampling_service",
                 "timestamp": Utc::now().to_rfc3339()
             }).as_object().unwrap().clone().into_iter().collect()),
-        };
-
-        debug!("Generated sampling request for '{}' usage examples", tool_name);
-        Ok(request)
+        })
     }
 
-    /// Generate sampling request for keyword extraction
-    pub async fn generate_keyword_extraction_request(
+    /// Create a task assistance request
+    async fn create_task_assistance_request(
         &self,
-        tool_name: &str,
-        tool_description: &str,
-        existing_keywords: Option<&[String]>,
+        context: &SamplingContext,
     ) -> std::result::Result<SamplingRequest, SamplingError> {
-        if !self.config.enabled {
-            return Err(SamplingError {
-                code: SamplingErrorCode::InvalidRequest,
-                message: "Sampling is not enabled".to_string(),
-                details: None,
-            });
-        }
-
-        info!("🔍 Generating sampling request for keyword extraction: {}", tool_name);
-
-        let existing_keywords_text = existing_keywords
-            .map(|kw| format!("Existing keywords: {}", kw.join(", ")))
-            .unwrap_or_else(|| "No existing keywords.".to_string());
-
-        let system_prompt = format!(
-            "You are an expert in semantic search and keyword extraction. 
-            Extract relevant keywords and search terms that users might use to find this tool.
-            
-            Guidelines:
-            1. Include technical terms, synonyms, and common phrases
-            2. Consider different ways users might describe the same functionality
-            3. Include both general and specific terms
-            4. Avoid overly generic words unless very relevant
-            5. Focus on action words and domain-specific terminology
-            6. Include abbreviations and acronyms if relevant
-            
-            Tool: {}
-            Description: {}
-            {}
-            
-            Return 10-15 keywords as a comma-separated list.",
-            tool_name, tool_description, existing_keywords_text
-        );
+        let system_prompt = "You are a task-focused assistant that helps users accomplish specific goals. 
+                            Provide step-by-step guidance and practical solutions.".to_string();
 
         let user_message = SamplingMessage {
             role: SamplingMessageRole::User,
-            content: SamplingContent::Text(
-                format!("Extract relevant keywords for the '{}' tool.", tool_name)
-            ),
+            content: SamplingContent::Text(context.prompt.clone()),
             name: None,
             metadata: Some(json!({
-                "tool_name": tool_name,
-                "enhancement_type": "keyword_extraction",
-                "has_existing_keywords": existing_keywords.is_some()
-            }).as_object().unwrap().clone().into_iter().collect()),
-        };
-
-        let request = SamplingRequest {
-            messages: vec![user_message],
-            model_preferences: Some(ModelPreferences {
-                preferred_models: Some(vec![self.config.default_model.clone()]),
-                intelligence: Some(0.6),
-                speed: Some(0.6),
-                cost: Some(0.6),
-                excluded_models: None,
-            }),
-            system_prompt: Some(system_prompt),
-            max_tokens: Some(200), // Keywords are typically shorter
-            temperature: Some(0.2), // Low temperature for consistent keyword extraction
-            top_p: Some(0.8),
-            stop: None,
-            metadata: Some(json!({
-                "purpose": "keyword_extraction",
-                "tool_name": tool_name,
-                "generated_by": "magictunnel_sampling_service",
+                "request_type": "task_assistance",
+                "context_id": context.context_id.clone(),
                 "timestamp": Utc::now().to_rfc3339()
             }).as_object().unwrap().clone().into_iter().collect()),
         };
 
-        debug!("Generated sampling request for '{}' keyword extraction", tool_name);
-        Ok(request)
-    }
-
-    /// Execute a server-generated sampling request and return the response
-    pub async fn execute_server_generated_request(
-        &self,
-        request: SamplingRequest,
-    ) -> std::result::Result<SamplingResponse, SamplingError> {
-        info!("🚀 Executing server-generated sampling request");
-        
-        // Use internal execution without rate limiting for server-generated requests
-        self.execute_sampling_internal(&request).await
-    }
-
-    /// Internal sampling execution (bypasses rate limiting for server requests)
-    async fn execute_sampling_internal(
-        &self,
-        request: &SamplingRequest,
-    ) -> std::result::Result<SamplingResponse, SamplingError> {
-        info!("🚀 Executing internal sampling request (server-generated)");
-        
-        // Use default model for internal requests
-        let model = &self.config.default_model;
-        
-        // Find the provider for the default model
-        let providers = self.providers.read().await;
-        let provider = providers.values()
-            .find(|p| p.models.contains(model))
-            .ok_or_else(|| SamplingError {
-                code: SamplingErrorCode::ModelNotAvailable,
-                message: format!("No provider found for default model: {}", model),
-                details: None,
-            })?;
-
-        // Call the appropriate provider API (same as regular execution)
-        let mut response = match provider.provider_type {
-            LLMProviderType::OpenAI => self.call_openai_api(request, model, provider).await?,
-            LLMProviderType::Anthropic => self.call_anthropic_api(request, model, provider).await?,
-            LLMProviderType::Ollama => self.call_ollama_api(request, model, provider).await?,
-            LLMProviderType::Custom => self.call_custom_api(request, model, provider).await?,
-        };
-
-        // Add server-generation metadata
-        if let Some(ref mut metadata) = response.metadata {
-            metadata.insert("generation_type".to_string(), json!("server_generated"));
-            metadata.insert("internal_request".to_string(), json!(true));
-        } else {
-            response.metadata = Some(json!({
-                "generation_type": "server_generated",
-                "internal_request": true,
-                "request_id": uuid::Uuid::new_v4().to_string()
-            }).as_object().unwrap().clone().into_iter().collect());
-        }
-
-        Ok(response)
+        Ok(SamplingRequest {
+            messages: vec![user_message],
+            model_preferences: context.model_preferences.clone(),
+            system_prompt: Some(system_prompt),
+            max_tokens: Some(1200),
+            temperature: Some(0.3),
+            top_p: Some(0.9),
+            stop: None,
+            metadata: Some(json!({
+                "purpose": "config_driven_sampling",
+                "request_type": "task_assistance",
+                "generated_by": "magictunnel_sampling_service",
+                "timestamp": Utc::now().to_rfc3339()
+            }).as_object().unwrap().clone().into_iter().collect()),
+        })
     }
 
     /// Call OpenAI API for sampling
@@ -1404,11 +1313,11 @@ impl SamplingService {
             "enabled": self.config.enabled,
             "providers": providers.keys().collect::<Vec<_>>(),
             "default_model": self.config.default_model,
-            "server_side_generation": true,
-            "supported_enhancements": [
-                "description_enhancement",
-                "usage_examples",
-                "keyword_extraction"
+            "mcp_sampling": true,
+            "supported_request_types": [
+                "general",
+                "contextual_help",
+                "task_assistance"
             ],
             "rate_limit": self.config.rate_limit.as_ref().map(|rl| json!({
                 "requests_per_minute": rl.requests_per_minute,

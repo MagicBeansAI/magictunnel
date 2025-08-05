@@ -4,7 +4,7 @@ This document outlines current tasks and future development plans for MagicTunne
 
 ## 🚀 Current Status
 
-**MagicTunnel v0.3.5** - **Production Ready** with full MCP 2025-06-18 compliance and comprehensive test coverage
+**MagicTunnel v0.3.8** - **Production Ready** with complete API cleanup and MCP 2025-06-18 architecture fix
 
 ### ✅ Major Achievements Complete
 - **MCP 2025-06-18 Full Compliance** - All specification requirements implemented
@@ -19,6 +19,7 @@ This document outlines current tasks and future development plans for MagicTunne
 ---
 
 ## 🔥 Current High Priority Tasks
+
 
 ### 1. OpenAPI Capability Generation Completion ⚠️ **IN PROGRESS**
 **Status**: Partially complete - needs final implementation
@@ -70,7 +71,7 @@ This document outlines current tasks and future development plans for MagicTunne
 ### 4. LLM Services Frontend UI Implementation 🎨 **HIGH PRIORITY**
 **Status**: Complete frontend UI implementation needed - 0% complete
 
-**Dependencies**: Blocked by Task 2 (Missing Generation APIs)
+**Dependencies**: Blocked by Task 3 (Missing Generation APIs)
 
 **UI Components Needed**:
 - [ ] **Provider Management UI** (`frontend/src/routes/llm-services/providers/+page.svelte`)
@@ -137,7 +138,70 @@ This document outlines current tasks and future development plans for MagicTunne
 
 **Impact**: Complete LLM services management interface for enhanced tool discovery system
 
-### 5. Enhanced Versioning System 📋 **NEW - MEDIUM PRIORITY**
+### 5. MCP-Initiated Sampling & Elicitation Implementation 🤖 **FUTURE ENHANCEMENT**
+**Status**: Proxy-only implementation complete, advanced LLM-assisted initiation planned for future
+
+**Current Implementation Status**:
+- ✅ **Complete Sampling Service** (`src/mcp/sampling.rs`) - 1,800+ lines with full provider support
+- ✅ **Complete Type System** (`src/mcp/types/sampling.rs`) - Full MCP 2025-06-18 compliance
+- ✅ **Bidirectional Communication** - Full infrastructure implemented across all transports
+- ✅ **Request Forwarding** - Complete `RequestForwarder` trait and implementations
+- ✅ **Multi-Provider Support** - OpenAI, Anthropic, Ollama, Custom APIs working
+- ✅ **Strategy-Based Routing** - MagicTunnel vs Client forwarding logic complete
+- ✅ **External MCP Proxy** - External MCP servers can send sampling/elicitation requests through MagicTunnel
+- ✅ **Parameter Validation Elicitation** - Automatic elicitation on tool parameter validation failures
+
+**Current Gaps - MagicTunnel-Initiated Requests**:
+
+#### 5.1. LLM-Assisted Sampling Request Generation 🧠 **FUTURE ENHANCEMENT**
+**Objective**: Enable MagicTunnel to automatically initiate sampling requests based on intelligent analysis
+
+**Planned Triggers**:
+- **Error-Based Triggers**: Tool execution failures that could benefit from LLM assistance
+- **Parameter Ambiguity**: When parameter mapping fails or produces low confidence results  
+- **Workflow Optimization**: During sequential tool execution chains that need guidance
+- **Performance Enhancement**: For improving tool execution quality and results
+- **Security Assistance**: Security-related scenarios requiring LLM guidance
+
+**Implementation Approach**:
+- [ ] **Rule-Based Triggers**: Pattern matching on error messages and execution context (no LLM calls)
+- [ ] **Smart Discovery Integration**: Leverage existing confidence scores and enhancement data
+- [ ] **Template-Based Request Generation**: Pre-written templates with variable substitution
+- [ ] **Configuration-Driven**: Comprehensive trigger configuration system
+- [ ] **Rate Limiting**: Prevent excessive LLM usage with intelligent throttling
+
+**Benefits**:
+- **Proactive Assistance**: Help users before they get stuck with workflow guidance
+- **Error Recovery**: Intelligent error resolution with contextual LLM assistance
+- **Quality Improvement**: Continuous improvement of tool execution results and user experience
+
+#### 5.2. Advanced Elicitation Request Generation 🤖 **FUTURE ENHANCEMENT**  
+**Objective**: Generate contextual elicitation requests beyond parameter validation failures
+
+**Planned Features**:
+- [ ] **Workflow Context Elicitation**: Ask for user preferences during multi-step workflows
+- [ ] **Ambiguity Resolution**: Generate elicitation for unclear user intentions
+- [ ] **Quality Enhancement**: Collect user feedback for continuous improvement
+- [ ] **Smart Parameter Suggestions**: Suggest parameter values based on context
+
+**Timeline**: 2-3 months (after core features complete)
+
+**Impact**: **MEDIUM** - Significant enhancement to user experience but not critical for core functionality
+
+#### 5.3. Current Minor Polish Items 📋 **LOW PRIORITY**
+**Tasks**:
+- [ ] Add sampling/elicitation capability advertisement to MCP server capabilities response
+- [ ] Create end-to-end sampling integration test
+- [ ] Update configuration examples showing sampling setup
+- [ ] Document strategy configuration options
+
+**Key Insight**: The architecture foundation is complete and working. External MCP servers can send `sampling/createMessage` and `elicitation/request` through the complete bidirectional infrastructure. MagicTunnel-initiated advanced features are planned enhancements that will build on this solid foundation.
+
+**Current Focus**: Maintain excellent proxy functionality while planning future intelligent initiation features
+
+---
+
+### 6. Enhanced Versioning System 📋 **MEDIUM PRIORITY**
 **Status**: Currently has basic versioning, needs comprehensive version management
 
 **Objective**: Implement robust versioning for prompts, resources, and capability files
@@ -175,7 +239,7 @@ This document outlines current tasks and future development plans for MagicTunne
 
 **Expected Impact**: Robust version management across all MagicTunnel content types with migration support
 
-### 6. MCP 2025-06-18 User Consent System Implementation 🔐 **FUTURE - REQUIRES DESIGN CLARIFICATION**
+### 7. MCP 2025-06-18 User Consent System Implementation 🔐 **FUTURE - REQUIRES DESIGN CLARIFICATION**
 **Status**: ❌ REMOVED (August 5, 2025) - All consent implementation removed due to design confusion
 
 **Background**: 
@@ -233,7 +297,7 @@ This document outlines current tasks and future development plans for MagicTunne
 
 **Impact**: Clean foundation established - requires design clarification before re-implementation
 
-### 7. MCP 2025-06-18 Security Configuration System 🔐 **FUTURE - DESIGN CLARIFICATION NEEDED**
+### 8. MCP 2025-06-18 Security Configuration System 🔐 **FUTURE - DESIGN CLARIFICATION NEEDED**
 **Status**: ❌ REMOVED (August 5, 2025) - All MCP 2025 security configuration removed due to no implementation
 
 **Background**:
@@ -297,44 +361,8 @@ This document outlines current tasks and future development plans for MagicTunne
 
 **Impact**: ✅ ACHIEVED - Clean foundation established for proper MCP 2025-06-18 security implementation without interference
 
-### 7. Client Capability Tracking & Elicitation Routing ✅ **COMPLETED - v0.3.7**
-**Status**: ✅ COMPLETE - Full MCP 2025-06-18 client capability tracking implemented
 
-**Completed Implementation**:
-
-- [x] **✅ Enhanced Session Management** (`src/mcp/session.rs`)
-  - [x] Added `client_capabilities: Option<ClientCapabilities>` to `ClientInfo` struct
-  - [x] Created `ClientCapabilities` struct with sampling/elicitation support flags
-  - [x] Updated `extract_client_info()` to parse capabilities from initialize request
-  - [x] Store client capabilities in session for routing decisions
-
-- [x] **✅ Client Capability Types** (`src/mcp/types/capabilities.rs` - NEW FILE)
-  - [x] Defined `ClientCapabilities` struct matching MCP spec
-  - [x] Defined `ElicitationCapability` with create/accept/reject/cancel flags
-  - [x] Defined `SamplingCapability` with relevant flags
-  - [x] Added serialization/deserialization support
-
-- [x] **✅ Capability-Based Routing Logic** (`src/mcp/server.rs`)
-  - [x] Updated `check_any_client_supports_elicitation()` to check client capabilities
-  - [x] Implemented session iteration methods for capability checking
-  - [x] Added capability validation before forwarding requests
-  - [x] Enhanced error handling when clients lack elicitation capability
-
-- [x] **✅ Transport Integration Verification** 
-  - [x] Verified capability tracking works across stdio (Claude Desktop, Cursor)
-  - [x] Verified capability tracking works across WebSocket connections
-  - [x] Verified capability tracking works across HTTP connections 
-  - [x] Verified capability tracking works across Streamable HTTP connections
-
-- [x] **✅ Enhanced Tool Discovery Logic Fix** (`src/discovery/enhancement.rs`)
-  - [x] Fixed tool discovery elicitation to only work when smart discovery is disabled
-  - [x] Added smart discovery state tracking to enhancement pipeline
-  - [x] Enhanced logic in `should_use_local_elicitation()` method
-  - [x] Updated all call sites to pass smart discovery enabled state
-
-**Impact**: ✅ ACHIEVED - Complete MCP 2025-06-18 compliance with capability-aware routing and logical elicitation behavior
-
-### 8. Development Tools Integration 🛠️ **NEW - HIGH VALUE**
+### 9. Development Tools Integration 🛠️ **NEW - HIGH VALUE**
 **Status**: Newly identified enhancement opportunity
 
 **Objective**: Integrate development tools into existing workflows for automatic execution
@@ -501,10 +529,11 @@ make release VERSION=  # Full release workflow
 ## 🔄 Development Workflow
 
 ### 1. Current Sprint Focus
-1. **OpenAPI Generation Completion** (2-3 weeks)
-2. **LLM Services Backend API Completion** (1 week) - **CRITICAL BLOCKING**
-3. **LLM Services Frontend UI Implementation** (2-3 weeks after APIs)
-4. **Accessibility Improvements** (1-2 weeks)
+1. **Fix Sampling vs Tool Enhancement Naming Confusion** (2-3 days) - **CRITICAL BLOCKING**
+2. **OpenAPI Generation Completion** (2-3 weeks)
+3. **LLM Services Backend API Completion** (1 week) - **CRITICAL BLOCKING**
+4. **LLM Services Frontend UI Implementation** (2-3 weeks after APIs)
+5. **Accessibility Improvements** (1-2 weeks)
 
 ### 2. Next Sprint Planning
 1. **Versioning System Implementation** (2-3 weeks)
@@ -534,7 +563,7 @@ make release VERSION=  # Full release workflow
 
 ---
 
-**Last Updated**: August 4, 2025
+**Last Updated**: August 5, 2025
 **Next Review**: September 2025
 
 For detailed implementation history and completed features, see [TODO_DONE.md](TODO_DONE.md).

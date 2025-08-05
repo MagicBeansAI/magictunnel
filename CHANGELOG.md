@@ -5,6 +5,43 @@ All notable changes to the MagicTunnel project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.8] - 2025-08-05 - API Converter Custom Validation Extensions & Build Stability
+
+### Added
+- **🔧 Custom Validation Extensions System**: Complete implementation of domain-specific validation rules for API converters
+  - **ValidationExtensions Type System** (`src/registry/types.rs`): Comprehensive validation extensions supporting 12+ validation types including security, range, and tool validation
+  - **OpenAPI Generator Integration**: Enhanced OpenAPI generator with intelligent parameter-based validation detection and schema injection
+  - **JSON Schema Integration**: Support for both `validation` and `x-validation` properties with bidirectional conversion
+  - **Type-Safe Implementation**: Complete serde serialization/deserialization with proper error handling
+
+### Enhanced
+- **📋 API Converter Compatibility**: Verified and enhanced API converter compatibility with latest capability YAML structure
+  - **OpenAPI Generator**: Enhanced with custom validation extensions support and intelligent parameter detection
+  - **GraphQL Generator**: Confirmed compatibility with enhanced YAML format
+  - **gRPC Generator**: Verified support for latest capability structure
+  - **Custom Validation Support**: All converters now support domain-specific validation rules
+
+### Fixed
+- **🔧 Test Compilation Issues**: Resolved all compilation errors in validation and sampling test files
+  - **Test Infrastructure**: Fixed ValidationExtensions and ValidationRule type imports and exports
+  - **SamplingMessage Types**: Corrected sampling integration test type usage and imports
+  - **Module Exports**: Properly exported ValidationExtensions types from registry module
+
+### Technical
+- **✅ Custom Validation Architecture**: Complete implementation of hybrid JSON Schema approach
+  - **12+ Validation Types**: Comprehensive validation system covering security, range, tool, and size validation
+  - **Parameter Detection Logic**: Intelligent validation assignment based on parameter semantics
+  - **Schema Injection Methods**: Support for both MagicTunnel convention and JSON Schema x-extension
+  - **Extraction Methods**: Bidirectional conversion between JSON Schema and ValidationExtensions
+
+### Testing
+- **🧪 Comprehensive Test Coverage**: Complete test suite for custom validation extensions
+  - **7 Validation Extension Tests**: Full coverage of validation creation, serialization, schema injection, and extraction
+  - **5 Sampling Integration Tests**: All sampling capability tests passing
+  - **Integration Testing**: OpenAPI generator validation integration with parameter detection testing
+
+---
+
 ## [0.3.7] - 2025-08-05 - Complete MCP 2025-06-18 Client Capability Tracking & Elicitation Logic Fix
 
 ### Added

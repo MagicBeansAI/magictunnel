@@ -6,7 +6,7 @@
 
 use crate::config::Config;
 use crate::error::{ProxyError, Result};
-use crate::mcp::sampling::SamplingService;
+// SamplingService import removed - now using tool_enhancement::ToolEnhancementService
 use crate::mcp::elicitation::ElicitationService;
 use crate::mcp::types::sampling::{SamplingRequest, SamplingResponse, SamplingError};
 use crate::mcp::types::elicitation::{ElicitationRequest, ElicitationResponse, ElicitationError};
@@ -103,8 +103,8 @@ struct GeneratedContentCache {
 pub struct RequestGeneratorService {
     /// Service configuration
     config: RequestGeneratorConfig,
-    /// Sampling service for description generation
-    sampling_service: Arc<crate::mcp::tool_enhancement::ToolEnhancementService>,
+    /// Tool enhancement service for description generation
+    tool_enhancement_service: Arc<crate::mcp::tool_enhancement::ToolEnhancementService>,
     /// Elicitation service for parameter collection
     elicitation_service: Arc<ElicitationService>,
     /// Cache for generated content
@@ -122,7 +122,7 @@ impl RequestGeneratorService {
     ) -> Self {
         Self {
             config,
-            sampling_service: tool_enhancement_service,
+            tool_enhancement_service,
             elicitation_service,
             content_cache: Arc::new(RwLock::new(HashMap::new())),
             active_requests: Arc::new(RwLock::new(HashMap::new())),
@@ -132,7 +132,7 @@ impl RequestGeneratorService {
     /// Create from main config
     pub fn from_config(
         config: &Config,
-        sampling_service: Arc<crate::mcp::tool_enhancement::ToolEnhancementService>,
+        tool_enhancement_service: Arc<crate::mcp::tool_enhancement::ToolEnhancementService>,
         elicitation_service: Arc<ElicitationService>,
     ) -> Self {
         let generator_config = RequestGeneratorConfig {
@@ -153,7 +153,7 @@ impl RequestGeneratorService {
 
         Self::new(
             generator_config,
-            sampling_service,
+            tool_enhancement_service,
             elicitation_service,
         )
     }
@@ -215,7 +215,7 @@ impl RequestGeneratorService {
         let start_time = std::time::Instant::now();
         self.mark_generation_active(&cache_key).await;
 
-        let result = match self.sampling_service.generate_enhanced_description_request(
+        let result = match self.tool_enhancement_service.generate_enhanced_description_request(
             tool_name,
             &tool_def.description,
             &serde_json::to_value(&tool_def.input_schema).unwrap_or(json!({})),
@@ -224,7 +224,7 @@ impl RequestGeneratorService {
                 info!("🎯 Generated sampling request for enhanced description: {}", tool_name);
                 
                 // Execute the request
-                match self.sampling_service.execute_server_generated_request(request).await {
+                match self.tool_enhancement_service.execute_server_generated_request(request).await {
                     Ok(response) => {
                         let content = self.extract_content_from_tool_enhancement_response(&response);
                         let generation_time = start_time.elapsed().as_millis() as u64;
@@ -427,7 +427,7 @@ impl RequestGeneratorService {
 
         let start_time = std::time::Instant::now();
         
-        match self.sampling_service.generate_keyword_extraction_request(
+        match self.tool_enhancement_service.generate_keyword_extraction_request(
             tool_name,
             &tool_def.description,
             existing_keywords,
@@ -436,7 +436,7 @@ impl RequestGeneratorService {
                 info!("🔍 Generated sampling request for keyword extraction: {}", tool_name);
                 
                 // Execute the request
-                match self.sampling_service.execute_server_generated_request(request).await {
+                match self.tool_enhancement_service.execute_server_generated_request(request).await {
                     Ok(response) => {
                         let content = self.extract_content_from_tool_enhancement_response(&response);
                         let generation_time = start_time.elapsed().as_millis() as u64;

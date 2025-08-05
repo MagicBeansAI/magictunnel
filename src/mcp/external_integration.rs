@@ -39,9 +39,9 @@ impl ExternalMcpIntegration {
         }
     }
 
-    /// Start the External MCP integration
-    pub async fn start(&mut self) -> Result<()> {
-        info!("Starting External MCP integration");
+    /// Start the External MCP integration with client capabilities for safe advertisement
+    pub async fn start_with_capabilities(&mut self, client_capabilities: Option<&crate::mcp::types::ClientCapabilities>) -> Result<()> {
+        info!("Starting External MCP integration with client capability context");
         debug!("Config state: external_mcp present: {}", self.config.external_mcp.is_some());
 
         // Check if External MCP is enabled
@@ -61,26 +61,56 @@ impl ExternalMcpIntegration {
             }
         };
 
-        // Get MCP client configuration or use defaults
-        let client_config = self.config.mcp_client.clone().unwrap_or_default();
+        // Get client configuration with capability context
+        let client_config = self.config.mcp_client.clone().unwrap_or_else(|| {
+            let mut config = crate::config::McpClientConfig::default();
+            config.protocol_version = "2025-06-18".to_string();
+            config.client_name = "MagicTunnel".to_string();
+            config.client_version = "0.3.7".to_string();
+            config
+        });
 
-        // Create and start the External MCP Manager
+        // Create manager
         let manager = Arc::new(ExternalMcpManager::new(external_mcp_config, client_config));
         
-        match manager.start().await {
-            Ok(_) => {
-                info!("External MCP Manager started successfully");
-                self.manager = Some(Arc::clone(&manager));
-                
-                // Start background monitoring task
-                self.start_monitoring_task(Arc::clone(&manager)).await;
-                
+        // Store manager reference
+        self.manager = Some(manager.clone());
+
+        // Set client capabilities context in the manager and start servers
+        if let Some(client_caps) = client_capabilities {
+            client_caps.log_capability_advertisement("external MCP integration startup", 
+                &client_caps.get_safe_external_advertisement());
+            manager.set_client_capabilities_context(Some(client_caps.clone())).await;
+        } else {
+            info!("⚠️  No client capabilities provided - using default capability advertisement");
+        }
+        
+        let start_result = manager.start().await;
+
+        match start_result {
+            Ok(()) => {
+                info!("✅ External MCP integration started successfully");
                 Ok(())
             }
             Err(e) => {
-                error!("Failed to start External MCP Manager: {}", e);
+                error!("❌ Failed to start External MCP integration: {}", e);
                 Err(e)
             }
+        }
+    }
+
+    /// Start the External MCP integration (backward compatibility)
+    pub async fn start(&mut self) -> Result<()> {
+        self.start_with_capabilities(None).await
+    }
+    
+    /// Update client capabilities context in the manager (for runtime updates)
+    pub async fn update_client_capabilities(&self, client_capabilities: Option<crate::mcp::types::ClientCapabilities>) -> Result<()> {
+        if let Some(manager) = &self.manager {
+            manager.set_client_capabilities_context(client_capabilities).await;
+            Ok(())
+        } else {
+            Err(ProxyError::Internal(anyhow::anyhow!("External MCP manager not initialized")))
         }
     }
 

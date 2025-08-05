@@ -331,17 +331,17 @@ magictunnel enhance tool my_tool --force --type sampling_only
 ### REST API Endpoints
 
 ```bash
-# Get sampling service status
-curl -X GET http://localhost:3001/dashboard/api/sampling/status
+# Get service status (UPDATED: v0.3.8 - Use proper endpoints)
+# curl -X GET http://localhost:3001/dashboard/api/sampling/status    # REMOVED: Use /llm/providers/* instead
+curl -X GET http://localhost:3001/dashboard/api/enhancement/status
 
-# Generate enhanced description
-curl -X POST http://localhost:3001/dashboard/api/sampling/generate \
+# Generate enhanced description (UPDATED: v0.3.8 - Use proper tool enhancement)
+curl -X POST http://localhost:3001/dashboard/api/enhancement/generate \
   -H "Content-Type: application/json" \
   -d '{
     "tool_name": "execute_command",
-    "current_description": "Execute command on system",
-    "style": "detailed",
-    "context": "System administration tool"
+    "enable_sampling": true,
+    "enable_elicitation": true
   }'
 
 # Get elicitation metadata (REMOVED in v0.3.7 - use enhancement pipeline instead)  
@@ -596,10 +596,11 @@ pub async fn record_enhancement_metrics(
 ### Health Checks
 
 ```bash
-# Service health endpoints
-curl http://localhost:3001/dashboard/api/sampling/status
-curl http://localhost:3001/dashboard/api/elicitation/status
+# Service health endpoints (UPDATED: v0.3.8)
+# curl http://localhost:3001/dashboard/api/sampling/status       # REMOVED: Use /llm/providers/* instead
+# curl http://localhost:3001/dashboard/api/elicitation/status    # REMOVED: v0.3.7
 curl http://localhost:3001/dashboard/api/enhancement/status
+curl http://localhost:3001/dashboard/api/llm/providers/status
 
 # Response format
 {

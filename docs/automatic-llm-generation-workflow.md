@@ -332,21 +332,20 @@ magictunnel-llm bulk export --output ./exports/$(date +%Y%m%d)/
 **Health Monitoring:**
 ```bash
 # Service status endpoints
-curl http://localhost:3001/dashboard/api/sampling/status
+# curl http://localhost:3001/dashboard/api/sampling/status    # REMOVED: v0.3.8 - Sampling APIs removed (use /llm/providers/* instead)
 # curl http://localhost:3001/dashboard/api/elicitation/status    # REMOVED: v0.3.7 - Elicitation APIs removed
 curl http://localhost:3001/dashboard/api/enhancement/status
 ```
 
 **Enhancement Operations:**
 ```bash
-# Generate enhanced description
-curl -X POST http://localhost:3001/dashboard/api/sampling/generate \
+# Generate enhanced description (use proper tool enhancement endpoints)
+curl -X POST http://localhost:3001/dashboard/api/enhancement/generate \
   -H "Content-Type: application/json" \
   -d '{
     "tool_name": "execute_command",
-    "current_description": "Execute command on system",
-    "style": "detailed",
-    "context": "System administration tool"
+    "enable_sampling": true,
+    "enable_elicitation": true
   }'
 
 # Extract metadata (REMOVED in v0.3.7 - use enhancement pipeline instead)

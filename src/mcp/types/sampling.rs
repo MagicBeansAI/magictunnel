@@ -340,3 +340,30 @@ mod tests {
         }
     }
 }
+
+/// Context for config-driven sampling requests
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SamplingContext {
+    /// Unique identifier for this context
+    pub context_id: String,
+    /// Type of sampling request
+    pub request_type: SamplingRequestType,
+    /// The prompt or input for sampling
+    pub prompt: String,
+    /// Optional model preferences
+    pub model_preferences: Option<ModelPreferences>,
+    /// Additional context metadata
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, serde_json::Value>>,
+}
+
+/// Types of config-driven sampling requests
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SamplingRequestType {
+    /// General purpose sampling request
+    General,
+    /// Request for contextual help
+    ContextualHelp,
+    /// Request for task assistance
+    TaskAssistance,
+}

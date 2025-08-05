@@ -197,53 +197,32 @@ impl ToolEnhancementPipeline {
         matches!(tool.routing.r#type.as_str(), "external_mcp" | "websocket")
     }
     
-    /// Check if local elicitation should be used for this tool (respects authority configuration)
-    pub fn should_use_local_elicitation(&self, tool: &ToolDefinition) -> bool {
-        // If elicitation enhancement is disabled, never use local elicitation
+    /// Check if tool enhancement (keyword generation) should be used for this tool
+    pub fn should_use_tool_enhancement(&self, tool: &ToolDefinition) -> bool {
+        // If elicitation enhancement is disabled, never use tool enhancement
         if !self.config.enable_elicitation_enhancement {
             return false;
         }
         
-        // If smart discovery is enabled, tool discovery elicitation is pointless since all tools are hidden
-        // behind the smart_tool_discovery proxy. Only use elicitation when smart discovery is disabled
-        // so users can directly interact with individual tools.
-        if self.smart_discovery_enabled {
-            debug!("Skipping tool discovery elicitation for '{}' - smart discovery is enabled (tools are hidden)", tool.name);
+        // Tool enhancement should run regardless of smart discovery state
+        // It enhances tools for better semantic search even when tools are hidden behind smart discovery
+        
+        // Only run on enabled tools
+        if !tool.enabled {
+            debug!("Skipping tool enhancement for '{}' - tool is disabled", tool.name);
             return false;
         }
         
-        // For non-external tools, use local elicitation if enabled (only when smart discovery is off)
+        // For non-external tools, use tool enhancement if enabled
         if !Self::is_external_mcp_tool(tool) {
-            debug!("Using tool discovery elicitation for '{}' - smart discovery is disabled", tool.name);
+            debug!("Using tool enhancement for '{}' - local tool with enhancement enabled", tool.name);
             return true;
         }
         
-        // For external tools, check authority configuration
-        if let Some(elicit_config) = &self.elicitation_config {
-            let (_, has_elicitation) = Self::has_original_mcp_capabilities(tool);
-            
-            if has_elicitation && elicit_config.respect_external_authority {
-                // Check for per-tool override
-                let tool_override = tool.annotations.as_ref()
-                    .and_then(|ann| ann.get("override_elicitation_authority"))
-                    .map(|v| v == "true")
-                    .unwrap_or(false);
-                
-                if tool_override {
-                    debug!("Tool '{}' has elicitation authority override, using local elicitation", tool.name);
-                    return true;
-                } else {
-                    debug!("Tool '{}' has external elicitation capability and external authority is respected, skipping local elicitation", tool.name);
-                    return false;
-                }
-            } else if has_elicitation && !elicit_config.respect_external_authority {
-                debug!("Tool '{}' has external elicitation capability but external authority is not respected, using local elicitation", tool.name);
-                return true;
-            }
-        }
-        
-        // Default behavior for external tools without explicit configuration
-        true
+        // For external tools, tool enhancement can always run since it's just keyword generation
+        // This is different from actual elicitation which needs authority checks
+        debug!("Using tool enhancement for external tool '{}' - keyword generation is safe", tool.name);
+        return true
     }
     
     /// Check if a tool has original sampling/elicitation capabilities from external MCP server
@@ -710,8 +689,8 @@ impl ToolEnhancementPipeline {
             }
         }
         
-        // Step 2: Elicitation enhancement (parameter metadata)
-        if self.should_use_local_elicitation(tool_def) {
+        // Step 2: Tool enhancement (keyword generation and metadata)
+        if self.should_use_tool_enhancement(tool_def) {
             if let Some(request_generator) = &self.request_generator {
                 // Generate keywords for the tool
                 match request_generator.generate_tool_keywords(&tool_name, &tool_def, None).await {
@@ -736,18 +715,18 @@ impl ToolEnhancementPipeline {
                                 
                                 enhanced_tool.elicitation_metadata = Some(elicitation_metadata);
                                 generation_metadata.elicitation_template = Some("keyword_extraction".to_string());
-                                debug!("✅ Elicitation enhancement completed for tool: {} ({}ms)", tool_name, result.metadata.generation_time_ms);
+                                debug!("✅ Tool enhancement completed for tool: {} ({}ms)", tool_name, result.metadata.generation_time_ms);
                             }
                         } else {
                             let error_msg = result.error.unwrap_or("Unknown error".to_string());
-                            warn!("❌ Elicitation enhancement failed for tool '{}': {}", tool_name, error_msg);
+                            warn!("❌ Tool enhancement failed for tool '{}': {}", tool_name, error_msg);
                             if !self.config.graceful_degradation {
-                                return Err(ProxyError::validation(format!("Elicitation enhancement failed: {}", error_msg)));
+                                return Err(ProxyError::validation(format!("Tool enhancement failed: {}", error_msg)));
                             }
                         }
                     }
                     Err(e) => {
-                        warn!("❌ Request generator failed for elicitation enhancement of tool '{}': {}", tool_name, e);
+                        warn!("❌ Request generator failed for tool enhancement of tool '{}': {}", tool_name, e);
                         if !self.config.graceful_degradation {
                             return Err(e);
                         }

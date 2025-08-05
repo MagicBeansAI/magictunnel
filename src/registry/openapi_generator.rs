@@ -12,7 +12,8 @@ use crate::registry::types::{
     DiscoveryEnhancement, MonitoringConfig, AccessConfig, ClassificationMetadata,
     DiscoveryMetadata, McpCapabilities, SandboxConfig, PerformanceConfig,
     AiEnhancedDiscovery, ProgressTrackingConfig, CancellationConfig,
-    MetricsConfig, EnhancedRoutingConfig, SemanticContext, WorkflowIntegration
+    MetricsConfig, EnhancedRoutingConfig, SemanticContext, WorkflowIntegration,
+    ValidationExtensions
 };
 use crate::mcp::tool_validation::SecurityClassification;
 use openapiv3::{OpenAPI, Operation, Parameter, RequestBody, Response};
@@ -1457,7 +1458,7 @@ impl OpenAPICapabilityGenerator {
     fn operation_to_enhanced_tool_definition(&self, operation: OpenAPIOperation) -> Result<EnhancedToolDefinition> {
         let tool_name = format!("enhanced_{}", self.generate_tool_name(&operation)?);
         let description = format!("AI-enhanced {} with MCP 2025-06-18 compliance", self.generate_tool_description(&operation));
-        let input_schema = self.generate_input_schema(&operation)?;
+        let input_schema = self.generate_input_schema_with_validation(&operation)?;
 
         let core = CoreDefinition {
             description,
@@ -1685,6 +1686,74 @@ impl OpenAPICapabilityGenerator {
             "properties": properties,
             "required": required
         }))
+    }
+
+    /// Generate input schema with validation extensions for enhanced capability files
+    fn generate_input_schema_with_validation(&self, operation: &OpenAPIOperation) -> Result<Value> {
+        let mut schema = self.generate_input_schema(operation)?;
+        
+        // Add validation extensions to properties based on parameter semantics
+        if let Some(properties) = schema.get_mut("properties").and_then(|p| p.as_object_mut()) {
+            for (param_name, param_schema) in properties {
+                if let Some(validation) = self.get_validation_for_parameter(param_name, param_schema) {
+                    validation.inject_as_validation(param_schema);
+                }
+            }
+        }
+        
+        Ok(schema)
+    }
+
+    /// Get appropriate validation extensions for a parameter based on its name and schema
+    fn get_validation_for_parameter(&self, param_name: &str, _param_schema: &Value) -> Option<ValidationExtensions> {
+        match param_name.to_lowercase().as_str() {
+            // URL parameters
+            name if name.contains("url") || name.contains("endpoint") || name.contains("uri") => {
+                Some(ValidationExtensions {
+                    injection_protection: Some(true),
+                    content_filter: Some(true),
+                    security_scan: Some(true),
+                    ..Default::default()
+                })
+            },
+            
+            // API key and authentication parameters
+            name if name.contains("key") || name.contains("token") || name.contains("auth") || name.contains("credential") => {
+                Some(ValidationExtensions {
+                    privacy_scan: Some(true),
+                    security_scan: Some(true),
+                    content_filter: Some(true),
+                    ..Default::default()
+                })
+            },
+            
+            // File path parameters
+            name if name.contains("path") || name.contains("file") || name.contains("directory") => {
+                Some(ValidationExtensions::with_file_path_validation())
+            },
+            
+            // Content and body parameters
+            name if name.contains("body") || name.contains("content") || name.contains("data") || name.contains("payload") => {
+                Some(ValidationExtensions {
+                    content_filter: Some(true),
+                    injection_protection: Some(true),
+                    max_size_mb: Some(10), // 10MB default limit
+                    ..Default::default()
+                })
+            },
+            
+            // Query and search parameters
+            name if name.contains("query") || name.contains("search") || name.contains("filter") => {
+                Some(ValidationExtensions {
+                    injection_protection: Some(true),
+                    semantic_analysis: Some(true),
+                    ..Default::default()
+                })
+            },
+            
+            // No specific validation for other parameters
+            _ => None,
+        }
     }
 
     /// Create routing configuration for HTTP request

@@ -4,7 +4,7 @@
 
 MagicTunnel is an intelligent bridge between MCP (Model Context Protocol) clients and diverse agents/endpoints. It provides a single, smart tool discovery interface that can find the right tool for any request, map parameters, and proxy the call automatically.
 
-**Current Version**: 0.3.7 - **Client Capability Tracking & Elicitation Logic Fix Complete** ✅
+**Current Version**: 0.3.8 - **API Cleanup & MCP Architecture Fix Complete** ✅
 
 ## Quick Start
 
@@ -128,7 +128,7 @@ The system provides **one intelligent tool** (`smart_tool_discovery`) that:
 - `src/mcp/server.rs` - MCP protocol implementation
 - `src/mcp/external_manager.rs` - External MCP server management with bidirectional routing
 - `src/mcp/external_integration.rs` - External MCP integration layer with elicitation support
-- `src/mcp/types/capabilities.rs` - Client capability tracking for MCP 2025-06-18 compliance
+- `src/mcp/types/capabilities.rs` - Client capability tracking with minimum intersection capability advertisement
 - `src/registry/service.rs` - Capability registry management with visibility support
 - `src/bin/magictunnel-visibility.rs` - CLI tool for visibility management
 - `src/main.rs` - Application entry point
@@ -136,7 +136,7 @@ The system provides **one intelligent tool** (`smart_tool_discovery`) that:
 ### Documentation
 - `docs/ROUTING_ARCHITECTURE.md` - Detailed architecture documentation with Phase 4 completion status
 - `docs/BIDIRECTIONAL_COMMUNICATION_FLOW.md` - **Complete MCP 2025-06-18 bidirectional communication flow** ✅
-- `CHANGELOG.md` - Version history and changes (current: 0.3.6)
+- `CHANGELOG.md` - Version history and changes (current: 0.3.8)
 - `README.md` - Comprehensive project overview with current status
 - `how_to_run.md` - Quick setup guide with examples
 
@@ -187,7 +187,35 @@ curl -X POST http://localhost:3001/mcp/call \
 
 ## Recent Major Changes
 
-### Version 0.3.2 (Current) - Advanced MCP Platform with LLM Integration ✅
+### Version 0.3.8 (Current) - API Cleanup & MCP Architecture Fix Complete ✅
+
+#### **🧹 Sampling Dashboard API Cleanup**
+- **12 Unnecessary APIs Removed**: Cleaned up all `/dashboard/api/sampling/*` endpoints that were not required for true MCP protocol-level sampling
+- **API Methods Removed**: `get_sampling_status`, `generate_sampling_request`, `list_sampling_tools`, and 8 service management methods
+- **Helper Methods Cleaned**: Removed `get_tools_with_sampling`, `tool_has_sampling_enhancement`, `get_tool_sampling_enhancement`
+- **Struct Types Removed**: Cleaned up 10+ sampling-related request/response struct types
+- **Route Registrations Removed**: Cleaned up all sampling API route registrations
+- **Documentation Updated**: Updated `docs/automatic-llm-generation-workflow.md` and `docs/llm-workflow.md` to reflect API changes
+
+#### **🏗️ MCP 2025-06-18 Architecture Fix**
+- **Incorrect Server Handlers Removed**: Removed `sampling/createMessage` and `elicitation/create` handlers from `server.rs`
+- **Client Architecture Verified**: Confirmed clients (stdio, WebSocket, StreamableHTTP) correctly handle these methods
+- **Proper Flow Established**: External MCP servers → Client handles createMessage → Forward via internal methods → Server routing
+- **RequestForwarder Architecture**: Verified proper internal forwarding via `forward_sampling_request()` and `forward_elicitation_request()`
+
+#### **🔧 Tool Enhancement Pipeline Fix**
+- **Method Renaming**: Renamed `should_use_local_elicitation()` to `should_use_tool_enhancement()` in `src/discovery/enhancement.rs`
+- **Logic Fix**: Removed smart discovery dependency - tool enhancement now runs on all enabled tools
+- **External Tool Protection**: Simplified external tool logic with proper enabled tool checking
+- **Architecture Clarification**: Clear separation between tool enhancement and MCP elicitation services
+
+#### **🚀 Future Enhancement Planning**
+- **LLM-Assisted Sampling**: Added comprehensive TODO comments for MagicTunnel-initiated sampling requests
+- **Advanced Elicitation**: Added TODO comments for context-aware elicitation beyond parameter validation
+- **Proxy-Only Strategy**: Current implementation focuses on proxy functionality with intelligent enhancement planned
+- **Documentation Updates**: Updated sampling and elicitation documentation with future enhancement roadmap
+
+### Version 0.3.2 - Advanced MCP Platform with LLM Integration ✅
 
 #### **🚀 MCP 2025-06-18 Specification Compliance (Backend Complete)**
 - **Full MCP 2025-06-18 Implementation**: Complete backend implementation of latest MCP spec with MCP sampling and elicitation services

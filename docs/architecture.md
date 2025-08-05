@@ -62,6 +62,15 @@ MagicTunnel is an intelligent bridge between MCP (Model Context Protocol) client
 - **Comprehensive Error Handling**: Timeout management, retry logic, and graceful failure recovery
 - **Performance Optimization**: Concurrent execution with resource management and monitoring
 
+### 4a. MCP 2025-06-18 Client Capability Integration - Advanced Compatibility Management
+- **Minimum Intersection Capability Advertisement**: Only advertises capabilities that both MagicTunnel AND the client support to prevent capability mismatch failures
+- **Client Capability Tracking**: Complete parsing and tracking of client capabilities from MCP initialize requests (`src/mcp/types/capabilities.rs`)
+- **External MCP Capability Integration**: Automatic propagation of client capabilities to external MCP servers through the entire integration chain
+- **Comprehensive Audit Logging**: Detailed logging of capability advertisement decisions with `log_capability_advertisement()` for debugging and compliance
+- **Transport Agnostic**: Works across all transport mechanisms (stdio, WebSocket, HTTP-SSE, Streamable HTTP) through unified server handler
+- **Production Safety**: Prevents external MCP servers from sending sampling/elicitation requests to clients that don't support them
+- **Capability Flow**: `Client Initialize → Server Captures Capabilities → External Integration → External Manager → External MCP Servers`
+
 ### 5. Streaming Protocol Support
 - **WebSocket**: Full-duplex real-time communication for interactive tools
 - **Server-Sent Events**: One-way streaming for progress updates and notifications

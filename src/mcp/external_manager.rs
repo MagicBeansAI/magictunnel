@@ -84,6 +84,8 @@ pub struct ExternalMcpManager {
     metrics_collector: Arc<McpMetricsCollector>,
     /// Health checker for active monitoring
     health_checker: Arc<McpHealthChecker>,
+    /// Client capabilities context for safe advertisement
+    client_capabilities_context: Arc<RwLock<Option<crate::mcp::types::ClientCapabilities>>>,
 }
 
 impl ExternalMcpManager {
@@ -106,6 +108,21 @@ impl ExternalMcpManager {
             version_info: Arc::new(RwLock::new(HashMap::new())),
             metrics_collector,
             health_checker,
+            client_capabilities_context: Arc::new(RwLock::new(None)),
+        }
+    }
+
+    /// Set client capabilities context for safe advertisement to external servers
+    pub async fn set_client_capabilities_context(&self, client_capabilities: Option<crate::mcp::types::ClientCapabilities>) {
+        let mut context = self.client_capabilities_context.write().await;
+        *context = client_capabilities;
+        
+        if let Some(ref caps) = *context {
+            info!("🔧 Client capabilities context set for external MCP manager");
+            caps.log_capability_advertisement("external MCP manager context", 
+                &caps.get_safe_external_advertisement());
+        } else {
+            info!("⚠️  Client capabilities context cleared - using default advertisement");
         }
     }
 
@@ -381,20 +398,56 @@ mcpServers:
 
     /// Initialize MCP server with handshake
     async fn initialize_server(&self, process: &ExternalMcpProcess) -> Result<Value> {
+        self.initialize_server_with_capabilities(process, None).await
+    }
+    
+    /// Initialize MCP server with handshake using client capabilities for safe advertisement
+    async fn initialize_server_with_capabilities(
+        &self, 
+        process: &ExternalMcpProcess, 
+        client_capabilities: Option<&crate::mcp::types::ClientCapabilities>
+    ) -> Result<Value> {
         debug!("Initializing External MCP server: {} with protocol version: {}, client: {}@{}",
                process.name,
                self.client_config.protocol_version,
                self.client_config.client_name,
                self.client_config.client_version);
 
-        let params = json!({
-            "protocolVersion": self.client_config.protocol_version,
-            "capabilities": {
+        // Use provided capabilities or fall back to context
+        let context_capabilities;
+        let effective_capabilities = if let Some(caps) = client_capabilities {
+            Some(caps)
+        } else {
+            // Check if we have client capabilities in our context
+            context_capabilities = self.client_capabilities_context.read().await.clone();
+            context_capabilities.as_ref()
+        };
+
+        // Generate safe capability advertisement based on effective client capabilities
+        let capabilities = if let Some(client_caps) = effective_capabilities {
+            let safe_caps = client_caps.get_safe_external_advertisement();
+            
+            // Log the capability advertisement
+            client_caps.log_capability_advertisement(
+                &format!("external MCP server '{}'", process.name),
+                &safe_caps
+            );
+            
+            safe_caps
+        } else {
+            // Fallback: advertise basic capabilities when client is unknown
+            debug!("⚠️  Client capabilities unknown for external server '{}' - using basic capabilities", process.name);
+            json!({
                 "roots": {
                     "listChanged": true
                 },
                 "sampling": {}
-            },
+            })
+        };
+
+        let params = json!({
+            "protocolVersion": self.client_config.protocol_version,
+            "capabilities": capabilities,
             "clientInfo": {
                 "name": self.client_config.client_name,
                 "version": self.client_config.client_version

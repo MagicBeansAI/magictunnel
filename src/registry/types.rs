@@ -6,6 +6,7 @@ use crate::config::SamplingElicitationStrategy;
 use crate::error::{ProxyError, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 
 /// Default value for the enabled field
 fn default_enabled() -> bool {
@@ -1402,4 +1403,161 @@ pub struct AccessConfigRaw {
     pub user_groups: Option<Vec<String>>,
     /// Whether approval is required
     pub approval_required: Option<bool>,
+}
+
+// ================================================================================================
+// Custom Validation Extensions
+// ================================================================================================
+
+/// Custom validation extensions for MagicTunnel capability schemas
+/// These extend standard JSON Schema with domain-specific validation rules
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct ValidationExtensions {
+    // Range validation
+    /// Optimal range for numeric values [min, max]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub optimal_range: Option<[f64; 2]>,
+    
+    // Security validation
+    /// Enable privacy scanning for content
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub privacy_scan: Option<bool>,
+    /// Enable content filtering for malicious content
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_filter: Option<bool>,
+    /// Enable injection protection for user input
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub injection_protection: Option<bool>,
+    /// Enable semantic analysis of content
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub semantic_analysis: Option<bool>,
+    /// Enable path traversal protection for file paths
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path_traversal_protection: Option<bool>,
+    /// Enable general security scanning
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub security_scan: Option<bool>,
+    /// Enable relevance checking for context
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relevance_check: Option<bool>,
+    
+    // Tool validation
+    /// Verify tool accessibility before use
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_accessible: Option<bool>,
+    /// Verify tool existence before use
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_exists: Option<bool>,
+    
+    // Size validation
+    /// Maximum size in megabytes
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_size_mb: Option<u64>,
+    
+    // Rule-based validation
+    /// List of validation rules with messages
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rules: Option<Vec<ValidationRule>>,
+}
+
+/// A validation rule with a specific rule type and error message
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ValidationRule {
+    /// Rule type (e.g., "required_validation", "format_validation")
+    pub rule: String,
+    /// Error message to display when validation fails
+    pub message: String,
+}
+
+impl ValidationExtensions {
+    /// Create a new empty ValidationExtensions
+    pub fn new() -> Self {
+        Self::default()
+    }
+    
+    /// Create ValidationExtensions with security validation enabled
+    pub fn with_security() -> Self {
+        Self {
+            privacy_scan: Some(true),
+            content_filter: Some(true),
+            injection_protection: Some(true),
+            security_scan: Some(true),
+            ..Default::default()
+        }
+    }
+    
+    /// Create ValidationExtensions with file path validation
+    pub fn with_file_path_validation() -> Self {
+        Self {
+            path_traversal_protection: Some(true),
+            security_scan: Some(true),
+            ..Default::default()
+        }
+    }
+    
+    /// Create ValidationExtensions with tool validation
+    pub fn with_tool_validation() -> Self {
+        Self {
+            tool_accessible: Some(true),
+            tool_exists: Some(true),
+            ..Default::default()
+        }
+    }
+    
+    /// Create ValidationExtensions with range validation
+    pub fn with_range_validation(min: f64, max: f64) -> Self {
+        Self {
+            optimal_range: Some([min, max]),
+            ..Default::default()
+        }
+    }
+    
+    /// Check if any validation extensions are enabled
+    pub fn has_validations(&self) -> bool {
+        self.optimal_range.is_some() ||
+        self.privacy_scan.is_some() ||
+        self.content_filter.is_some() ||
+        self.injection_protection.is_some() ||
+        self.semantic_analysis.is_some() ||
+        self.path_traversal_protection.is_some() ||
+        self.security_scan.is_some() ||
+        self.relevance_check.is_some() ||
+        self.tool_accessible.is_some() ||
+        self.tool_exists.is_some() ||
+        self.max_size_mb.is_some() ||
+        self.rules.is_some()
+    }
+}
+
+/// Utility functions for working with validation extensions in JSON Schema
+impl ValidationExtensions {
+    /// Extract validation extensions from a JSON Schema value
+    pub fn from_schema(schema: &Value) -> Option<Self> {
+        schema.get("validation")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+    }
+    
+    /// Extract validation extensions from x-validation property (JSON Schema convention)
+    pub fn from_x_validation(schema: &Value) -> Option<Self> {
+        schema.get("x-validation")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+    }
+    
+    /// Inject validation extensions into a JSON Schema as x-validation property
+    pub fn inject_into_schema(&self, schema: &mut Value) {
+        if self.has_validations() {
+            if let Some(obj) = schema.as_object_mut() {
+                obj.insert("x-validation".to_string(), serde_json::to_value(self).unwrap());
+            }
+        }
+    }
+    
+    /// Inject validation extensions into a JSON Schema as validation property (MagicTunnel convention)
+    pub fn inject_as_validation(&self, schema: &mut Value) {
+        if self.has_validations() {
+            if let Some(obj) = schema.as_object_mut() {
+                obj.insert("validation".to_string(), serde_json::to_value(self).unwrap());
+            }
+        }
+    }
 }

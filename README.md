@@ -342,7 +342,8 @@ MagicTunnel is **fully compliant** with the latest MCP 2025-06-18 specification:
 - [📋 MCP 2025-06-18 Compliance](docs/mcp-2025-06-18-compliance.md) - Complete specification compliance guide
 - [🎯 Hybrid Processing Guide](docs/mcp-hybrid-processing-guide.md) - Comprehensive hybrid processing system documentation  
 - [⚙️ Configuration Examples](docs/mcp-configuration-examples.md) - Practical configuration examples for different use cases
-- [🏗️ Sampling & Elicitation Architecture](docs/mcp-sampling-elicitation-architecture.md) - Architecture overview and implementation details
+- [🤖 **Sampling Implementation**](docs/mcp-sampling-implementation.md) - **Complete MCP Sampling service implementation with LLM integration** ✅
+- [📝 **Elicitation Implementation**](docs/mcp-elicitation-implementation.md) - **Complete MCP Elicitation service implementation with bidirectional communication** ✅
 - [🔍 Client Compliance Analysis](docs/mcp-client-compliance-analysis.md) - Detailed compliance gap analysis and roadmap
 - [⚡ Cancellation System](docs/mcp-cancellation.md) - Enhanced request cancellation with token management
 - [📊 Progress Tracking](docs/mcp-progress.md) - Granular progress monitoring for long-running operations  

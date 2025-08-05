@@ -603,6 +603,34 @@ impl ElicitationService {
             });
         }
 
+        // TODO: LLM-Assisted Elicitation Request Generation (Future Enhancement)
+        // This method currently generates elicitation requests for parameter validation failures.
+        // Future enhancements will add MagicTunnel-initiated elicitation capabilities:
+        //
+        // Planned features beyond parameter validation:
+        // 1. Workflow Context Elicitation:
+        //    - Ask for user preferences during multi-step workflows
+        //    - Collect workflow optimization feedback
+        //    - Request clarification for ambiguous user intentions
+        //
+        // 2. Quality Enhancement Elicitation:
+        //    - Collect user feedback for continuous improvement
+        //    - Request validation of tool execution results
+        //    - Ask for quality scoring and enhancement suggestions
+        //
+        // 3. Smart Parameter Suggestions:
+        //    - Generate intelligent parameter value suggestions based on context
+        //    - Provide contextual help for complex parameter schemas
+        //    - Offer workflow-aware parameter recommendations
+        //
+        // 4. Ambiguity Resolution:
+        //    - Generate elicitation for unclear user intentions
+        //    - Request additional context for improved tool selection
+        //    - Ask for clarification on ambiguous requests
+        //
+        // Current status: Parameter validation elicitation working (this method)
+        // Timeline: Advanced elicitation features planned after core sampling implementation
+
         info!("📝 Generating elicitation request for missing parameters: {} (missing: {:?})", 
               tool_name, missing_parameters);
 

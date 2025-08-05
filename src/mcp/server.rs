@@ -1190,6 +1190,11 @@ impl McpServer {
 
     /// Get complete MCP initialize response
     pub fn get_capabilities(&self) -> Value {
+        self.get_capabilities_for_client(None)
+    }
+    
+    /// Get MCP capabilities tailored for a specific client (using minimum intersection)
+    pub fn get_capabilities_for_client(&self, client_capabilities: Option<&crate::mcp::types::ClientCapabilities>) -> Value {
         let notification_caps = self.notification_manager.capabilities();
         
         // Get protocol version from config, fallback to 2025-06-18 (latest)
@@ -1199,9 +1204,31 @@ impl McpServer {
             .map(|mc| mc.protocol_version.clone())
             .unwrap_or_else(|| "2025-06-18".to_string());
 
-        json!({
-            "protocolVersion": protocol_version,
-            "capabilities": {
+        // Determine capabilities based on client intersection
+        let capabilities = if let Some(client_caps) = client_capabilities {
+            // Use safe intersection when we know client capabilities
+            let mut safe_caps = client_caps.get_safe_external_advertisement();
+            
+            // Add notification capabilities based on what we support
+            if safe_caps.get("resources").is_some() {
+                safe_caps["resources"]["subscribe"] = json!(notification_caps.resource_subscriptions);
+                safe_caps["resources"]["listChanged"] = json!(notification_caps.resources_list_changed);
+            }
+            if safe_caps.get("prompts").is_some() {
+                safe_caps["prompts"]["listChanged"] = json!(notification_caps.prompts_list_changed);
+            }
+            if safe_caps.get("tools").is_some() {
+                safe_caps["tools"]["listChanged"] = json!(notification_caps.tools_list_changed);
+            }
+            
+            // Log the capability advertisement decision
+            client_caps.log_capability_advertisement("direct client connection", &safe_caps);
+            
+            safe_caps
+        } else {
+            // Fallback: advertise all capabilities when client is unknown (backward compatibility)
+            debug!("⚠️  Client capabilities unknown - advertising all MagicTunnel capabilities (backward compatibility mode)");
+            json!({
                 "logging": {},
                 "resources": {
                     "subscribe": notification_caps.resource_subscriptions,
@@ -1222,14 +1249,19 @@ impl McpServer {
                     "cancel": true
                 },
                 "roots": {}
-            },
+            })
+        };
+
+        json!({
+            "protocolVersion": protocol_version,
+            "capabilities": capabilities,
             "implementation": {
                 "name": "MagicTunnel",
-                "version": "0.3.0"
+                "version": "0.3.7"
             },
             "serverInfo": {
                 "name": "magictunnel",
-                "version": "0.3.0"
+                "version": "0.3.7"
             },
             "instructions": "MagicTunnel server providing access to GraphQL, REST, and gRPC endpoints as MCP tools"
         })
@@ -1238,6 +1270,35 @@ impl McpServer {
     /// Get resource manager for advanced operations
     pub fn resource_manager(&self) -> &Arc<ResourceManager> {
         &self.resource_manager
+    }
+    
+    /// Extract session ID from MCP request metadata or headers
+    fn extract_session_id_from_request(&self, request: &McpRequest) -> Option<String> {
+        // Try to extract session ID from request metadata or params
+        if let Some(params) = &request.params {
+            if let Some(session_id) = params.get("session_id").and_then(|v| v.as_str()) {
+                return Some(session_id.to_string());
+            }
+        }
+        
+        // Session ID extraction logic could be enhanced based on transport
+        // For now, return None (which means we'll use fallback capability advertisement)
+        None
+    }
+    
+    /// Update external MCP integration with client capabilities context
+    pub async fn update_external_integration_capabilities(&self, session_id: &str) -> Result<()> {
+        if let Some(external_integration) = &self.external_integration {
+            let client_capabilities = self.session_manager.get_client_capabilities(session_id);
+            
+            let integration_guard = external_integration.read().await;
+            if let Err(e) = integration_guard.update_client_capabilities(client_capabilities).await {
+                warn!("Failed to update external integration client capabilities: {}", e);
+            } else {
+                debug!("✅ Updated external integration with client capabilities for session {}", session_id);
+            }
+        }
+        Ok(())
     }
 
     /// Get prompt manager for advanced operations
@@ -1472,8 +1533,13 @@ impl McpServer {
         // Route to appropriate handler based on method
         let response = match request.method.as_str() {
             "initialize" => {
-                // MCP initialization handshake
-                let capabilities = self.get_capabilities();
+                // MCP initialization handshake - get client capabilities from session if available
+                let session_id = self.extract_session_id_from_request(&request);
+                let client_capabilities = session_id
+                    .and_then(|sid| self.session_manager.get_client_capabilities(&sid));
+                
+                let capabilities = self.get_capabilities_for_client(client_capabilities.as_ref());
+                
                 if let Some(ref id) = request.id {
                     self.create_success_response(id, capabilities)
                 } else {
@@ -1675,58 +1741,8 @@ impl McpServer {
                     ),
                 }
             }
-            "sampling/createMessage" => {
-                let params = request.params.unwrap_or(json!({}));
-                match serde_json::from_value::<SamplingRequest>(params) {
-                    Ok(sampling_request) => {
-                        match self.handle_sampling_request(sampling_request).await {
-                            Ok(response) => {
-                                if let Some(ref id) = request.id {
-                                    self.create_success_response(id, json!(response))
-                                } else {
-                                    self.create_error_response(None, McpErrorCode::InvalidRequest, "Request must have an ID")
-                                }
-                            }
-                            Err(e) => self.create_error_response(
-                                request.id.as_ref(),
-                                McpErrorCode::InternalError,
-                                &format!("Sampling failed: {}", e)
-                            ),
-                        }
-                    }
-                    Err(e) => self.create_error_response(
-                        request.id.as_ref(),
-                        McpErrorCode::InvalidParams,
-                        &format!("Invalid sampling parameters: {}", e)
-                    ),
-                }
-            }
-            "elicitation/create" => {
-                let params = request.params.unwrap_or(json!({}));
-                match serde_json::from_value::<ElicitationRequest>(params) {
-                    Ok(elicitation_request) => {
-                        match self.handle_elicitation_request(elicitation_request).await {
-                            Ok(request_id) => {
-                                if let Some(ref id) = request.id {
-                                    self.create_success_response(id, json!({"request_id": request_id}))
-                                } else {
-                                    self.create_error_response(None, McpErrorCode::InvalidRequest, "Request must have an ID")
-                                }
-                            }
-                            Err(e) => self.create_error_response(
-                                request.id.as_ref(),
-                                McpErrorCode::InternalError,
-                                &format!("Elicitation failed: {}", e)
-                            ),
-                        }
-                    }
-                    Err(e) => self.create_error_response(
-                        request.id.as_ref(),
-                        McpErrorCode::InvalidParams,
-                        &format!("Invalid elicitation parameters: {}", e)
-                    ),
-                }
-            }
+            // REMOVED: sampling/createMessage - Handled by clients (stdio/WebSocket/StreamableHTTP) and forwarded via internal methods
+            // REMOVED: elicitation/create - Handled by clients (stdio/WebSocket/StreamableHTTP) and forwarded via internal methods
             "roots/list" => {
                 let params = request.params.unwrap_or(json!({}));
                 match serde_json::from_value::<RootsListRequest>(params) {
@@ -3447,9 +3463,14 @@ async fn handle_websocket_session(
                     match server.session_manager.handle_initialize(&session_id, &request) {
                         Ok(negotiated_version) => {
                             info!("Session {} initialized with protocol version {}", session_id, negotiated_version);
-                            // Update server capabilities with negotiated version
-                            let mut capabilities = server.get_capabilities();
+                            
+                            // Get client capabilities from session and generate safe advertisement
+                            let client_capabilities = server.session_manager.get_client_capabilities(&session_id);
+                            let mut capabilities = server.get_capabilities_for_client(client_capabilities.as_ref());
                             capabilities["protocolVersion"] = Value::String(negotiated_version);
+
+                            // Update external integration with client capabilities
+                            let _ = server.update_external_integration_capabilities(&session_id).await;
 
                             let response = server.create_success_response(
                                 request.id.as_ref().unwrap(),
