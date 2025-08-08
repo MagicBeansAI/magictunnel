@@ -666,6 +666,9 @@ fn init_logging(level: &str) -> Result<()> {
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(level));
 
+    // Initialize the global log buffer (keep last 1000 log entries)
+    let log_buffer = web::initialize_global_log_buffer(1000);
+
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::fmt::layer()
@@ -675,6 +678,7 @@ fn init_logging(level: &str) -> Result<()> {
                 .with_line_number(true)
                 .with_writer(std::io::stderr) // Send logs to stderr for stdio mode
         )
+        .with(web::LogBufferLayer::new(log_buffer)) // Add our custom layer to capture logs
         .with(env_filter)
         .init();
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, type SystemStatus, type ToolsResponse, type Tool, type MakefileCommandsResponse, type MakefileCommand, type MakefileExecuteResponse, type CustomCommandSpec, type CustomRestartRequest, type ExecuteCommandRequest, type McpExecuteResponse, type MonitoringSystemMetrics, type MonitoringHealthStatus, type MonitoringSystemAlerts } from '$lib/api';
+  import { api, type SystemStatus, type ToolsResponse, type Tool, type MakefileCommandsResponse, type MakefileCommand, type MakefileExecuteResponse, type CustomCommandSpec, type CustomRestartRequest, type ExecuteCommandRequest, type McpExecuteResponse, type MonitoringHealthStatus, type MonitoringSystemAlerts } from '$lib/api';
+  import { systemMetrics, systemMetricsLoading, systemMetricsService } from '$lib/stores/systemMetrics';
   import ToolExecutionModal from '$lib/components/ToolExecutionModal.svelte';
   import SmartDiscoveryVisualizer from '$lib/components/SmartDiscoveryVisualizer.svelte';
   import SystemMetricsCard from '$lib/components/SystemMetricsCard.svelte';
@@ -14,7 +15,6 @@
   let nextRefreshIn = 30;
   
   // Monitoring data
-  let monitoringMetrics: MonitoringSystemMetrics | null = null;
   let healthStatus: MonitoringHealthStatus | null = null;
   let systemAlerts: MonitoringSystemAlerts | null = null;
   let monitoringLoading = false;
@@ -133,14 +133,12 @@
     monitoringLoading = true;
     
     try {
-      // Load monitoring data in parallel
-      const [metrics, health, alerts] = await Promise.all([
-        api.getSystemMetrics().catch(() => null),
+      // Load monitoring data in parallel (system metrics now come from shared store)
+      const [health, alerts] = await Promise.all([
         api.getHealthStatus().catch(() => null),
         api.getSystemAlerts().catch(() => null)
       ]);
       
-      monitoringMetrics = metrics;
       healthStatus = health;
       systemAlerts = alerts;
     } catch (err) {
@@ -589,6 +587,7 @@
     loadDashboardData();
     loadMakefileCommands();
     loadMonitoringData(); // Load monitoring data
+    systemMetricsService.start(); // Start shared metrics service
     
     // Countdown timer - updates every second
     const countdownInterval = setInterval(() => {
@@ -604,6 +603,7 @@
     return () => {
       clearInterval(countdownInterval);
       clearInterval(refreshInterval);
+      systemMetricsService.stop(); // Stop shared metrics service
     };
   });
 </script>
@@ -775,9 +775,9 @@
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- System Metrics -->
         <SystemMetricsCard 
-          metrics={monitoringMetrics} 
-          loading={monitoringLoading}
-          uptime={monitoringMetrics ? `${Math.floor(monitoringMetrics.uptime_seconds / 3600)}h ${Math.floor((monitoringMetrics.uptime_seconds % 3600) / 60)}m` : null}
+          metrics={$systemMetrics} 
+          loading={$systemMetricsLoading}
+          uptime={$systemMetrics ? `${Math.floor($systemMetrics.uptime_seconds / 3600)}h ${Math.floor(($systemMetrics.uptime_seconds % 3600) / 60)}m` : null}
         />
         
         <!-- Health Status -->
@@ -864,7 +864,7 @@
       <!-- MCP Protocol Management -->
       <div class="mt-6">
         <h4 class="text-lg font-medium text-gray-700 mb-3">MCP Protocol Management</h4>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           <a href="/resources" class="btn-secondary text-center">
             📁 MCP Resources
           </a>
@@ -879,6 +879,9 @@
           </a>
           <a href="/llm-services" class="btn-secondary text-center">
             🧠 LLM Services
+          </a>
+          <a href="/security" class="btn-secondary text-center bg-red-50 border-red-200 text-red-700 hover:bg-red-100">
+            🔒 Command Center
           </a>
         </div>
       </div>

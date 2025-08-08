@@ -529,6 +529,7 @@ async fn init_security_config(output: &PathBuf, level: &str) -> Result<()> {
                 enabled: true,
                 ..Default::default()
             }),
+            emergency_lockdown: Some(magictunnel::security::emergency::EmergencyLockdownConfig::default()),
         },
         "strict" => SecurityConfig::secure_defaults(),
         _ => SecurityConfig {
@@ -543,11 +544,12 @@ async fn init_security_config(output: &PathBuf, level: &str) -> Result<()> {
                 enabled: true,
                 ..Default::default()
             }),
-            policies: Some(PolicyConfig::default()),
+            policies: None,
             audit: Some(AuditConfig {
                 enabled: true,
                 ..Default::default()
             }),
+            emergency_lockdown: Some(magictunnel::security::emergency::EmergencyLockdownConfig::default()),
         },
     };
     

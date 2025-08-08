@@ -1,5 +1,6 @@
 <script lang="ts">
   import MonitoringDashboard from '$lib/components/MonitoringDashboard.svelte';
+  import ToolMetricsDashboard from '$lib/components/ToolMetricsDashboard.svelte';
   
   // Page metadata
   let title = 'System Monitoring - MagicTunnel';
@@ -52,6 +53,15 @@
     showHealthStatus={true}
     showServiceMetrics={true}
   />
+  
+  <!-- Tool Metrics Dashboard -->
+  <div class="border-t border-gray-200 bg-gray-50">
+    <ToolMetricsDashboard 
+      showDetailedAnalytics={true}
+      showPerformanceTrends={true}
+      showUsagePatterns={true}
+    />
+  </div>
 </div>
 
 <style>

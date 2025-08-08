@@ -5,8 +5,11 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use regex::Regex;
+use chrono::{DateTime, Utc};
 use tracing::{debug, warn};
+use super::statistics::{SecurityServiceStatistics, HealthMonitor, ServiceHealth, HealthStatus, SanitizationStatistics, PolicyTrigger, PerformanceMetrics};
 
 /// Configuration for request sanitization
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -217,11 +220,26 @@ pub struct SanitizationDetail {
     pub method: String,
 }
 
+/// Statistics tracking for sanitization service
+#[derive(Debug, Clone)]
+struct SanitizationStats {
+    start_time: DateTime<Utc>,
+    total_requests: u64,
+    sanitized_requests: u64,
+    blocked_requests: u64,
+    alerts_generated: u64,
+    secrets_detected: u64,
+    policy_triggers: HashMap<String, u64>,
+    last_error: Option<String>,
+    total_processing_time_ms: u64,
+}
+
 /// Request sanitization service
 pub struct SanitizationService {
     config: SanitizationConfig,
     secret_patterns: HashMap<SecretType, Regex>,
     policy_patterns: HashMap<String, Vec<Regex>>,
+    stats: Arc<Mutex<SanitizationStats>>,
 }
 
 impl Default for SanitizationConfig {
@@ -327,10 +345,23 @@ impl SanitizationService {
             }
         }
         
+        let stats = SanitizationStats {
+            start_time: Utc::now(),
+            total_requests: 0,
+            sanitized_requests: 0,
+            blocked_requests: 0,
+            alerts_generated: 0,
+            secrets_detected: 0,
+            policy_triggers: HashMap::new(),
+            last_error: None,
+            total_processing_time_ms: 0,
+        };
+
         Ok(Self {
             config,
             secret_patterns,
             policy_patterns,
+            stats: Arc::new(Mutex::new(stats)),
         })
     }
     
@@ -640,6 +671,170 @@ impl SanitizationService {
             }
         }
     }
+    
+    /// Get all sanitization policies for API display
+    pub fn get_policies_for_api(&self) -> serde_json::Value {
+        use serde_json::json;
+        
+        let policies: Vec<serde_json::Value> = self.config.policies.iter().enumerate().map(|(index, policy)| {
+            let trigger_types: Vec<String> = policy.triggers.iter().map(|trigger| {
+                match trigger {
+                    SanitizationTrigger::SecretDetection { .. } => "secret_detection".to_string(),
+                    SanitizationTrigger::ContentFilter { .. } => "content_filter".to_string(),
+                    SanitizationTrigger::SizeLimit { .. } => "size_limit".to_string(),
+                    SanitizationTrigger::ToolFilter { .. } => "tool_filter".to_string(),
+                }
+            }).collect();
+            
+            json!({
+                "id": (index + 1).to_string(),
+                "name": policy.name,
+                "enabled": policy.enabled,
+                "priority": policy.priority,
+                "trigger_types": trigger_types,
+                "action_type": match &policy.action {
+                    SanitizationAction::Block { .. } => "block",
+                    SanitizationAction::LogAndAllow { .. } => "log_and_allow",
+                    SanitizationAction::Sanitize { .. } => "sanitize",
+                    SanitizationAction::RequireApproval { .. } => "require_approval",
+                },
+                "created_at": Utc::now(),
+                "updated_at": Utc::now(),
+                "description": format!("Policy with {} trigger(s)", policy.triggers.len())
+            })
+        }).collect();
+        
+        json!(policies)
+    }
+    
+    /// Get secret detection rules from configured patterns
+    pub fn get_secret_detection_rules(&self) -> serde_json::Value {
+        use serde_json::json;
+        
+        let mut rules = Vec::new();
+        let mut rule_id = 1;
+        
+        // Add predefined secret detection rules based on configured patterns
+        for (secret_type, pattern) in &self.secret_patterns {
+            rules.push(json!({
+                "id": rule_id.to_string(),
+                "name": format!("{:?} Detection", secret_type),
+                "enabled": true,
+                "pattern": pattern.as_str(),
+                "severity": "high",
+                "description": format!("Detects {} patterns in content", format!("{:?}", secret_type).to_lowercase()),
+                "created_at": chrono::Utc::now(),
+                "updated_at": chrono::Utc::now()
+            }));
+            rule_id += 1;
+        }
+        
+        // Add custom patterns from policies
+        for policy in &self.config.policies {
+            for trigger in &policy.triggers {
+                if let SanitizationTrigger::SecretDetection { custom_patterns: Some(patterns), .. } = trigger {
+                    for pattern in patterns {
+                        rules.push(json!({
+                            "id": rule_id.to_string(),
+                            "name": format!("Custom Secret Rule {}", rule_id),
+                            "enabled": policy.enabled,
+                            "pattern": pattern,
+                            "severity": "medium",
+                            "description": "Custom secret detection pattern",
+                            "policy_name": policy.name,
+                            "created_at": chrono::Utc::now(),
+                            "updated_at": chrono::Utc::now()
+                        }));
+                        rule_id += 1;
+                    }
+                }
+            }
+        }
+        
+        json!(rules)
+    }
+    
+    /// Get content filter rules from configured policies
+    pub fn get_content_filter_rules(&self) -> serde_json::Value {
+        use serde_json::json;
+        
+        let mut rules = Vec::new();
+        let mut rule_id = 1;
+        
+        for policy in &self.config.policies {
+            for trigger in &policy.triggers {
+                if let SanitizationTrigger::ContentFilter { patterns, case_sensitive, target_fields } = trigger {
+                    for pattern in patterns {
+                        rules.push(json!({
+                            "id": rule_id.to_string(),
+                            "name": format!("Content Filter: {}", pattern.chars().take(50).collect::<String>()),
+                            "enabled": policy.enabled,
+                            "pattern": pattern,
+                            "case_sensitive": case_sensitive,
+                            "target_fields": target_fields.as_ref().unwrap_or(&vec!["all".to_string()]),
+                            "action": match &policy.action {
+                                SanitizationAction::Block { .. } => "block",
+                                SanitizationAction::Sanitize { .. } => "sanitize",
+                                SanitizationAction::LogAndAllow { .. } => "log_and_allow",
+                                SanitizationAction::RequireApproval { .. } => "require_approval",
+                            },
+                            "policy_name": policy.name,
+                            "description": format!("Content filtering rule from policy: {}", policy.name),
+                            "created_at": chrono::Utc::now(),
+                            "updated_at": chrono::Utc::now()
+                        }));
+                        rule_id += 1;
+                    }
+                }
+            }
+        }
+        
+        json!(rules)
+    }
+    
+    /// Get security alerts related to sanitization events
+    pub fn get_security_alerts(&self, query_params: &serde_json::Value) -> serde_json::Value {
+        use serde_json::json;
+        
+        let stats = self.stats.lock().unwrap();
+        let mut alerts = Vec::new();
+        
+        // Generate alerts based on statistics
+        if stats.secrets_detected > 0 {
+            alerts.push(json!({
+                "id": "sanitization_secrets",
+                "severity": "high",
+                "category": "sanitization",
+                "title": "Secrets Detected in Content",
+                "description": format!("Detected {} potential secrets in content", stats.secrets_detected),
+                "timestamp": stats.start_time,
+                "count": stats.secrets_detected,
+                "status": "active"
+            }));
+        }
+        
+        if stats.blocked_requests > stats.total_requests / 10 { // More than 10% blocked
+            alerts.push(json!({
+                "id": "sanitization_high_block_rate",
+                "severity": "warning",
+                "category": "sanitization", 
+                "title": "High Content Block Rate",
+                "description": format!("High rate of blocked requests: {}/{}", stats.blocked_requests, stats.total_requests),
+                "timestamp": chrono::Utc::now(),
+                "count": stats.blocked_requests,
+                "status": "active"
+            }));
+        }
+        
+        // Filter by severity if requested
+        if let Some(severity) = query_params.get("severity").and_then(|v| v.as_str()) {
+            alerts.retain(|alert| {
+                alert.get("severity").and_then(|s| s.as_str()) == Some(severity)
+            });
+        }
+        
+        json!(alerts)
+    }
 }
 
 #[cfg(test)]
@@ -672,5 +867,159 @@ mod tests {
         let result = service.sanitize_request(&mut request_data, Some("test_tool"));
         assert!(result.should_block);
         assert!(!result.matched_policies.is_empty());
+    }
+}
+
+// Implementation of SecurityServiceStatistics trait for SanitizationService
+impl SecurityServiceStatistics for SanitizationService {
+    type Statistics = SanitizationStatistics;
+    
+    async fn get_statistics(&self) -> Self::Statistics {
+        let stats = match self.stats.lock() {
+            Ok(stats) => stats.clone(),
+            Err(_) => {
+                // If mutex is poisoned, return default stats
+                SanitizationStats {
+                    start_time: Utc::now(),
+                    total_requests: 0,
+                    sanitized_requests: 0,
+                    blocked_requests: 0,
+                    alerts_generated: 0,
+                    secrets_detected: 0,
+                    policy_triggers: HashMap::new(),
+                    last_error: Some("Mutex poisoned".to_string()),
+                    total_processing_time_ms: 0,
+                }
+            }
+        };
+        let service_health = self.get_health().await;
+        
+        // Get top triggered policies
+        let mut policy_triggers: Vec<PolicyTrigger> = stats.policy_triggers.iter()
+            .map(|(policy_name, count)| PolicyTrigger {
+                policy_name: policy_name.clone(),
+                policy_type: "content_filter".to_string(), // Simplified
+                trigger_count: *count,
+                action: "sanitize".to_string(), // Simplified
+                effectiveness_rate: 1.0, // Would need actual tracking
+            })
+            .collect();
+        policy_triggers.sort_by(|a, b| b.trigger_count.cmp(&a.trigger_count));
+        policy_triggers.truncate(10); // Top 10 policies
+        
+        let detection_rate = if stats.total_requests > 0 {
+            (stats.secrets_detected as f64 / stats.total_requests as f64)
+        } else { 0.0 };
+        
+        SanitizationStatistics {
+            health: service_health,
+            total_policies: self.config.policies.len() as u32,
+            active_policies: self.config.policies.iter().filter(|p| p.enabled).count() as u32,
+            total_requests: stats.total_requests,
+            sanitized_requests: stats.sanitized_requests,
+            blocked_requests: stats.blocked_requests,
+            alerts_generated: stats.alerts_generated,
+            secrets_detected: stats.secrets_detected,
+            detection_rate,
+            top_policies: policy_triggers,
+        }
+    }
+    
+    async fn get_health(&self) -> ServiceHealth {
+        let stats = match self.stats.lock() {
+            Ok(stats) => stats.clone(),
+            Err(_) => {
+                // If mutex is poisoned, return default stats
+                SanitizationStats {
+                    start_time: Utc::now(),
+                    total_requests: 0,
+                    sanitized_requests: 0,
+                    blocked_requests: 0,
+                    alerts_generated: 0,
+                    secrets_detected: 0,
+                    policy_triggers: HashMap::new(),
+                    last_error: Some("Mutex poisoned".to_string()),
+                    total_processing_time_ms: 0,
+                }
+            }
+        };
+        let uptime_seconds = (Utc::now() - stats.start_time).num_seconds() as u64;
+        
+        let avg_response_time_ms = if stats.total_requests > 0 {
+            stats.total_processing_time_ms as f64 / stats.total_requests as f64
+        } else {
+            0.0
+        };
+        
+        let error_rate = if stats.total_requests > 0 {
+            stats.blocked_requests as f64 / stats.total_requests as f64
+        } else {
+            0.0
+        };
+        
+        let requests_per_second = if uptime_seconds > 0 {
+            stats.total_requests as f64 / uptime_seconds as f64
+        } else {
+            0.0
+        };
+        
+        let health_status = if stats.last_error.is_some() {
+            HealthStatus::Error
+        } else if self.config.enabled {
+            HealthStatus::Healthy
+        } else {
+            HealthStatus::Disabled
+        };
+        
+        ServiceHealth {
+            status: health_status.clone(),
+            is_healthy: matches!(health_status, HealthStatus::Healthy),
+            last_checked: Utc::now(),
+            error_message: stats.last_error.clone(),
+            uptime_seconds,
+            performance: PerformanceMetrics {
+                avg_response_time_ms,
+                requests_per_second,
+                error_rate,
+                memory_usage_bytes: 0, // Would need actual memory tracking
+            },
+        }
+    }
+    
+    async fn reset_statistics(&self) -> Result<(), Box<dyn std::error::Error>> {
+        match self.stats.lock() {
+            Ok(mut stats) => {
+                *stats = SanitizationStats {
+                    start_time: Utc::now(),
+                    total_requests: 0,
+                    sanitized_requests: 0,
+                    blocked_requests: 0,
+                    alerts_generated: 0,
+                    secrets_detected: 0,
+                    policy_triggers: HashMap::new(),
+                    last_error: None,
+                    total_processing_time_ms: 0,
+                };
+                Ok(())
+            }
+            Err(_) => Err("Mutex poisoned".into())
+        }
+    }
+}
+
+impl HealthMonitor for SanitizationService {
+    async fn is_healthy(&self) -> bool {
+        self.config.enabled && 
+        self.stats.lock().map(|stats| stats.last_error.is_none()).unwrap_or(false)
+    }
+    
+    async fn health_check(&self) -> ServiceHealth {
+        self.get_health().await
+    }
+    
+    fn get_uptime(&self) -> u64 {
+        self.stats.lock()
+            .map(|stats| (Utc::now() - stats.start_time).num_seconds() as u64)
+            .unwrap_or(0)
     }
 }

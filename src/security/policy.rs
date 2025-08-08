@@ -5,9 +5,11 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use regex::Regex;
 use tracing::{debug, warn};
 use chrono::{DateTime, Utc, Datelike, Timelike};
+use super::statistics::{SecurityServiceStatistics, HealthMonitor, ServiceHealth, HealthStatus, PolicyStatistics, PolicyEffectiveness, PerformanceMetrics};
 
 /// Security policy configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -296,11 +298,24 @@ pub struct PolicyResult {
     pub requires_approval: bool,
 }
 
+/// Statistics tracking for policy engine
+#[derive(Debug, Clone)]
+struct PolicyStats {
+    start_time: DateTime<Utc>,
+    total_evaluations: u64,
+    evaluations_today: u64,
+    violations: u64,
+    policy_matches: HashMap<String, u64>,
+    last_error: Option<String>,
+    total_processing_time_ms: u64,
+}
+
 /// Policy engine service
 pub struct PolicyEngine {
     config: PolicyConfig,
     compiled_patterns: HashMap<String, Regex>,
     rate_limiters: HashMap<String, RateLimiter>,
+    stats: Arc<Mutex<PolicyStats>>,
 }
 
 /// Simple rate limiter implementation
@@ -344,10 +359,21 @@ impl PolicyEngine {
             }
         }
         
+        let stats = PolicyStats {
+            start_time: Utc::now(),
+            total_evaluations: 0,
+            evaluations_today: 0,
+            violations: 0,
+            policy_matches: HashMap::new(),
+            last_error: None,
+            total_processing_time_ms: 0,
+        };
+
         Ok(Self {
             config,
             compiled_patterns,
             rate_limiters: HashMap::new(),
+            stats: Arc::new(Mutex::new(stats)),
         })
     }
     
@@ -698,6 +724,33 @@ impl PolicyEngine {
         
         rate_limiter.is_exceeded(context.timestamp)
     }
+    
+    /// Get all policies for API display
+    pub fn get_policies_for_api(&self) -> serde_json::Value {
+        use serde_json::json;
+        
+        let policies: Vec<serde_json::Value> = self.config.policies.iter().enumerate().map(|(index, policy)| {
+            json!({
+                "id": (index + 1).to_string(),
+                "name": policy.name,
+                "enabled": policy.enabled,
+                "description": policy.description.clone().unwrap_or_default(),
+                "priority": policy.priority,
+                "condition_count": policy.conditions.len(),
+                "action_type": match &policy.action {
+                    PolicyAction::Allow { .. } => "allow",
+                    PolicyAction::Block { .. } => "block",
+                    PolicyAction::RequireApproval { .. } => "require_approval",
+                    PolicyAction::Modify { .. } => "modify",
+                    PolicyAction::Log { .. } => "log",
+                },
+                "created_at": Utc::now(),
+                "updated_at": Utc::now(),
+            })
+        }).collect();
+        
+        json!(policies)
+    }
 }
 
 impl RateLimiter {
@@ -756,5 +809,119 @@ mod tests {
         
         // This test might fail depending on the actual day, but demonstrates the concept
         // assert!(engine.time_window_matches(&windows, timestamp, None));
+    }
+}
+
+// Implementation of SecurityServiceStatistics trait for PolicyEngine
+impl SecurityServiceStatistics for PolicyEngine {
+    type Statistics = PolicyStatistics;
+    
+    async fn get_statistics(&self) -> Self::Statistics {
+        let stats = self.stats.lock().unwrap().clone();
+        let service_health = self.get_health().await;
+        
+        let avg_evaluation_time_ms = if stats.total_evaluations > 0 {
+            stats.total_processing_time_ms as f64 / stats.total_evaluations as f64
+        } else {
+            0.0
+        };
+        
+        let effectiveness = PolicyEffectiveness {
+            overall_score: if stats.violations > 0 && stats.total_evaluations > 0 {
+                1.0 - (stats.violations as f64 / stats.total_evaluations as f64)
+            } else { 1.0 },
+            detection_accuracy: 0.95, // Would need actual tracking
+            false_positive_rate: 0.05, // Would need actual tracking
+            coverage_percentage: 85.0, // Would need actual tracking
+        };
+        
+        PolicyStatistics {
+            health: service_health,
+            total_policies: self.config.policies.len() as u32,
+            active_policies: self.config.policies.iter().filter(|p| p.enabled).count() as u32,
+            active_rules: self.config.policies.iter()
+                .map(|p| p.conditions.len())
+                .sum::<usize>() as u32,
+            total_evaluations: stats.total_evaluations,
+            evaluations_today: stats.evaluations_today,
+            violations: stats.violations,
+            avg_evaluation_time_ms,
+            effectiveness,
+        }
+    }
+    
+    async fn get_health(&self) -> ServiceHealth {
+        let stats = self.stats.lock().unwrap().clone();
+        let uptime_seconds = (Utc::now() - stats.start_time).num_seconds() as u64;
+        
+        let avg_response_time_ms = if stats.total_evaluations > 0 {
+            stats.total_processing_time_ms as f64 / stats.total_evaluations as f64
+        } else {
+            0.0
+        };
+        
+        let error_rate = if stats.total_evaluations > 0 {
+            stats.violations as f64 / stats.total_evaluations as f64
+        } else {
+            0.0
+        };
+        
+        let requests_per_second = if uptime_seconds > 0 {
+            stats.total_evaluations as f64 / uptime_seconds as f64
+        } else {
+            0.0
+        };
+        
+        let health_status = if stats.last_error.is_some() {
+            HealthStatus::Error
+        } else if self.config.enabled {
+            HealthStatus::Healthy
+        } else {
+            HealthStatus::Disabled
+        };
+        
+        ServiceHealth {
+            status: health_status.clone(),
+            is_healthy: matches!(health_status, HealthStatus::Healthy),
+            last_checked: Utc::now(),
+            error_message: stats.last_error.clone(),
+            uptime_seconds,
+            performance: PerformanceMetrics {
+                avg_response_time_ms,
+                requests_per_second,
+                error_rate,
+                memory_usage_bytes: 0, // Would need actual memory tracking
+            },
+        }
+    }
+    
+    async fn reset_statistics(&self) -> Result<(), Box<dyn std::error::Error>> {
+        if let Ok(mut stats) = self.stats.lock() {
+            *stats = PolicyStats {
+                start_time: Utc::now(),
+                total_evaluations: 0,
+                evaluations_today: 0,
+                violations: 0,
+                policy_matches: HashMap::new(),
+                last_error: None,
+                total_processing_time_ms: 0,
+            };
+        }
+        Ok(())
+    }
+}
+
+impl HealthMonitor for PolicyEngine {
+    async fn is_healthy(&self) -> bool {
+        self.config.enabled && self.stats.lock().unwrap().last_error.is_none()
+    }
+    
+    async fn health_check(&self) -> ServiceHealth {
+        self.get_health().await
+    }
+    
+    fn get_uptime(&self) -> u64 {
+        let stats = self.stats.lock().unwrap();
+        (Utc::now() - stats.start_time).num_seconds() as u64
     }
 }

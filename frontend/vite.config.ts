@@ -12,6 +12,12 @@ export default defineConfig({
 				changeOrigin: true,
 				secure: false
 			},
+			// Proxy security API calls to the Rust backend
+			'/api/security': {
+				target: 'http://localhost:3001',
+				changeOrigin: true,
+				secure: false
+			},
 			// Also proxy health check
 			'/health': {
 				target: 'http://localhost:3001',

@@ -3,7 +3,7 @@
 //! Unified configuration structure for all security components
 
 use serde::{Deserialize, Serialize};
-use super::{AllowlistConfig, SanitizationConfig, RbacConfig, PolicyConfig, AuditConfig};
+use super::{AllowlistConfig, SanitizationConfig, RbacConfig, PolicyConfig, AuditConfig, EmergencyLockdownConfig};
 
 /// Comprehensive security configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,6 +20,8 @@ pub struct SecurityConfig {
     pub policies: Option<PolicyConfig>,
     /// Audit logging configuration
     pub audit: Option<AuditConfig>,
+    /// Emergency lockdown configuration
+    pub emergency_lockdown: Option<EmergencyLockdownConfig>,
 }
 
 impl Default for SecurityConfig {
@@ -31,6 +33,7 @@ impl Default for SecurityConfig {
             rbac: None,                        // Enterprise RBAC opt-in
             policies: None,                    // Enterprise policies opt-in
             audit: None,                       // Enterprise audit logging opt-in
+            emergency_lockdown: None,          // Enterprise emergency lockdown opt-in
         }
     }
 }
@@ -62,6 +65,10 @@ impl SecurityConfig {
                 enabled: true,
                 ..Default::default()
             }),
+            emergency_lockdown: Some(EmergencyLockdownConfig {
+                enabled: true,
+                ..Default::default()
+            }),
         }
     }
     
@@ -76,7 +83,7 @@ impl SecurityConfig {
         self.rbac.as_ref().map_or(false, |c| c.enabled) ||
         self.policies.as_ref().map_or(false, |c| c.enabled) ||
         self.audit.as_ref().map_or(false, |c| c.enabled) ||
-        false // MCP 2025-06-18 security removed - see TODO.md
+        self.emergency_lockdown.as_ref().map_or(false, |c| c.enabled)
     }
 }
 

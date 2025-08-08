@@ -1,13 +1,146 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="%sveltekit.theme%">
 	<head>
 		<meta charset="utf-8" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.svg" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>MagicTunnel Dashboard</title>
+		<meta name="description" content="MagicTunnel - Command Center for MCP Protocol Management" />
+		<meta name="keywords" content="MCP, security, enterprise, protocol, management, audit, sanitization" />
+		<meta name="author" content="MagicTunnel Team" />
+		
+		<!-- Open Graph / Facebook -->
+		<meta property="og:type" content="website" />
+		<meta property="og:title" content="MagicTunnel - Command Center" />
+		<meta property="og:description" content="Comprehensive security management for MCP protocol systems" />
+		<meta property="og:url" content="%sveltekit.url%" />
+		
+		<!-- Twitter -->
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content="MagicTunnel - Command Center" />
+		<meta name="twitter:description" content="Comprehensive security management for MCP protocol systems" />
+		
+		<!-- Theme -->
+		<meta name="theme-color" content="#3B82F6" />
+		<meta name="msapplication-TileColor" content="#3B82F6" />
+		
+		<!-- Preload critical fonts and resources -->
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		
+		<!-- Title -->
+		<title>MagicTunnel - Command Center</title>
+		
 		%sveltekit.head%
 	</head>
-	<body data-sveltekit-preload-data="hover">
+	<body data-sveltekit-preload-data="hover" class="antialiased">
 		<div style="display: contents">%sveltekit.body%</div>
+		
+		<!-- Global styles for better cross-browser compatibility -->
+		<style>
+			/* Reset and normalize */
+			*, *::before, *::after {
+				box-sizing: border-box;
+			}
+			
+			html {
+				scroll-behavior: smooth;
+			}
+			
+			body {
+				margin: 0;
+				padding: 0;
+				font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+				line-height: 1.6;
+				background-color: #f9fafb;
+				color: #111827;
+				overflow-x: hidden;
+			}
+			
+			/* Dark mode */
+			.dark body {
+				background-color: #111827;
+				color: #f9fafb;
+			}
+			
+			/* Focus styles for accessibility */
+			:focus-visible {
+				outline: 2px solid #3B82F6;
+				outline-offset: 2px;
+			}
+			
+			/* Selection styles */
+			::selection {
+				background-color: #3B82F6;
+				color: white;
+			}
+			
+			/* Scrollbar styles */
+			::-webkit-scrollbar {
+				width: 8px;
+				height: 8px;
+			}
+			
+			::-webkit-scrollbar-track {
+				background: transparent;
+			}
+			
+			::-webkit-scrollbar-thumb {
+				background-color: rgba(156, 163, 175, 0.5);
+				border-radius: 4px;
+			}
+			
+			::-webkit-scrollbar-thumb:hover {
+				background-color: rgba(156, 163, 175, 0.8);
+			}
+			
+			.dark ::-webkit-scrollbar-thumb {
+				background-color: rgba(75, 85, 99, 0.5);
+			}
+			
+			.dark ::-webkit-scrollbar-thumb:hover {
+				background-color: rgba(75, 85, 99, 0.8);
+			}
+			
+			/* Print styles */
+			@media print {
+				body {
+					background: white !important;
+					color: black !important;
+				}
+				
+				* {
+					box-shadow: none !important;
+					text-shadow: none !important;
+				}
+			}
+			
+			/* High contrast mode support */
+			@media (prefers-contrast: high) {
+				body {
+					background: white;
+					color: black;
+				}
+				
+				.dark body {
+					background: black;
+					color: white;
+				}
+			}
+			
+			/* Reduced motion support */
+			@media (prefers-reduced-motion: reduce) {
+				*,
+				*::before,
+				*::after {
+					animation-duration: 0.01ms !important;
+					animation-iteration-count: 1 !important;
+					transition-duration: 0.01ms !important;
+				}
+				
+				html {
+					scroll-behavior: auto !important;
+				}
+			}
+		</style>
 	</body>
 </html>

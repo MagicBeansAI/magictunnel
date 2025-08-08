@@ -4,9 +4,12 @@
 //! by different users and API keys. Similar to MCP Manager's allowlist filtering.
 
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
-use tracing::{debug, warn};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use tracing::debug;
 use regex::Regex;
+use chrono::{DateTime, Utc, Timelike};
+use super::statistics::{SecurityServiceStatistics, HealthMonitor, ServiceHealth, HealthStatus, AllowlistStatistics, HourlyMetric, RuleMatch, PerformanceMetrics};
 
 /// Configuration for tool allowlisting
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -175,10 +178,34 @@ pub struct AllowlistResult {
     pub requires_approval: bool,
 }
 
+/// Statistics tracking for allowlist service
+#[derive(Debug, Clone)]
+struct AllowlistStats {
+    /// Service start time
+    start_time: DateTime<Utc>,
+    /// Total requests processed
+    total_requests: u64,
+    /// Requests that were allowed
+    allowed_requests: u64,
+    /// Requests that were blocked
+    blocked_requests: u64,
+    /// Requests that required approval
+    approval_required_requests: u64,
+    /// Rule match counts
+    rule_matches: HashMap<String, u64>,
+    /// Last error message (if any)
+    last_error: Option<String>,
+    /// Performance tracking
+    total_processing_time_ms: u64,
+    /// Hourly request patterns (last 24 hours)
+    hourly_stats: Vec<HourlyMetric>,
+}
+
 /// Tool allowlist service
 pub struct AllowlistService {
     config: AllowlistConfig,
     compiled_patterns: HashMap<String, Regex>,
+    stats: Arc<Mutex<AllowlistStats>>,
 }
 
 impl Default for AllowlistConfig {
@@ -219,10 +246,84 @@ impl AllowlistService {
             }
         }
         
+        let stats = AllowlistStats {
+            start_time: Utc::now(),
+            total_requests: 0,
+            allowed_requests: 0,
+            blocked_requests: 0,
+            approval_required_requests: 0,
+            rule_matches: HashMap::new(),
+            last_error: None,
+            total_processing_time_ms: 0,
+            hourly_stats: Vec::new(),
+        };
+
         Ok(Self {
             config,
             compiled_patterns,
+            stats: Arc::new(Mutex::new(stats)),
         })
+    }
+    
+    /// Create a result and update statistics
+    fn create_result_with_stats(&self, result: AllowlistResult, start_time: std::time::Instant) -> AllowlistResult {
+        let processing_time_ms = start_time.elapsed().as_millis() as u64;
+        self.update_stats(&result, processing_time_ms);
+        result
+    }
+    
+    /// Update statistics for a request
+    fn update_stats(&self, result: &AllowlistResult, processing_time_ms: u64) {
+        if let Ok(mut stats) = self.stats.lock() {
+            stats.total_requests += 1;
+            stats.total_processing_time_ms += processing_time_ms;
+            
+            match result.action {
+                AllowlistAction::Allow => stats.allowed_requests += 1,
+                AllowlistAction::Deny => stats.blocked_requests += 1,
+                AllowlistAction::RequireApproval => stats.approval_required_requests += 1,
+            }
+            
+            if let Some(rule_name) = &result.matched_rule {
+                *stats.rule_matches.entry(rule_name.clone()).or_insert(0) += 1;
+            }
+            
+            // Update hourly stats (simplified - just track current hour)
+            let current_hour = Utc::now().date_naive().and_hms_opt(Utc::now().hour(), 0, 0)
+                .unwrap_or_default().and_utc();
+            
+            if let Some(last_metric) = stats.hourly_stats.last_mut() {
+                if last_metric.hour == current_hour {
+                    // Update existing hour
+                    last_metric.request_count += 1;
+                    match result.action {
+                        AllowlistAction::Allow => last_metric.allowed_count += 1,
+                        AllowlistAction::Deny => last_metric.blocked_count += 1,
+                        AllowlistAction::RequireApproval => {} // Could track separately
+                    }
+                } else {
+                    // New hour
+                    stats.hourly_stats.push(HourlyMetric {
+                        hour: current_hour,
+                        request_count: 1,
+                        blocked_count: if matches!(result.action, AllowlistAction::Deny) { 1 } else { 0 },
+                        allowed_count: if matches!(result.action, AllowlistAction::Allow) { 1 } else { 0 },
+                    });
+                }
+            } else {
+                // First metric
+                stats.hourly_stats.push(HourlyMetric {
+                    hour: current_hour,
+                    request_count: 1,
+                    blocked_count: if matches!(result.action, AllowlistAction::Deny) { 1 } else { 0 },
+                    allowed_count: if matches!(result.action, AllowlistAction::Allow) { 1 } else { 0 },
+                });
+            }
+            
+            // Keep only last 24 hours of stats
+            let cutoff = Utc::now() - chrono::Duration::hours(24);
+            stats.hourly_stats.retain(|metric| metric.hour >= cutoff);
+        }
     }
     
     /// Check if a tool access is allowed
@@ -232,14 +333,18 @@ impl AllowlistService {
         parameters: &HashMap<String, serde_json::Value>,
         context: &AllowlistContext,
     ) -> AllowlistResult {
+        let start_time = std::time::Instant::now();
         if !self.config.enabled {
-            return AllowlistResult {
+            let result = AllowlistResult {
                 allowed: true,
                 action: AllowlistAction::Allow,
                 matched_rule: None,
                 reason: "Allowlist disabled".to_string(),
                 requires_approval: false,
             };
+            let processing_time_ms = start_time.elapsed().as_millis() as u64;
+            self.update_stats(&result, processing_time_ms);
+            return result;
         }
         
         debug!("Checking tool access for: {} with context: {:?}", tool_name, context);
@@ -328,13 +433,19 @@ impl AllowlistService {
         }
         
         // Apply default action
-        AllowlistResult {
+        let result = AllowlistResult {
             allowed: matches!(self.config.default_action, AllowlistAction::Allow),
             action: self.config.default_action.clone(),
             matched_rule: None,
             reason: "No matching rule, applied default action".to_string(),
             requires_approval: matches!(self.config.default_action, AllowlistAction::RequireApproval),
-        }
+        };
+        
+        // Track statistics
+        let processing_time_ms = start_time.elapsed().as_millis() as u64;
+        self.update_stats(&result, processing_time_ms);
+        
+        result
     }
     
     /// Check if resource access is allowed
@@ -389,6 +500,68 @@ impl AllowlistService {
         }
     }
     
+    /// Get all configured rules for API display
+    pub fn get_configured_rules(&self) -> serde_json::Value {
+        use serde_json::json;
+        
+        let mut rules = Vec::new();
+        let mut rule_id = 1;
+        
+        // Add tool rules
+        for (pattern, rule) in &self.config.tools {
+            rules.push(json!({
+                "id": rule_id.to_string(),
+                "name": rule.name.clone(),
+                "enabled": true, // ToolAllowlistRule doesn't have enabled field, assume true if configured
+                "rule_type": "tool",
+                "pattern": pattern,
+                "action": format!("{:?}", rule.action).to_lowercase(),
+                "priority": 50, // Default priority
+                "created_at": Utc::now(),
+                "updated_at": Utc::now(),
+                "description": format!("Tool allowlist rule for {}", rule.name),
+                "required_permissions": rule.required_permissions
+            }));
+            rule_id += 1;
+        }
+        
+        // Add resource rules
+        for (pattern, rule) in &self.config.resources {
+            rules.push(json!({
+                "id": rule_id.to_string(),
+                "name": format!("Resource: {}", pattern),
+                "enabled": true, // ResourceAllowlistRule doesn't have enabled field
+                "rule_type": "resource",
+                "pattern": pattern,
+                "action": format!("{:?}", rule.action).to_lowercase(),
+                "priority": 50, // Default priority since no priority field
+                "created_at": Utc::now(),
+                "updated_at": Utc::now(),
+                "description": format!("Resource allowlist rule for {}", pattern)
+            }));
+            rule_id += 1;
+        }
+        
+        // Add prompt rules  
+        for (pattern, rule) in &self.config.prompts {
+            rules.push(json!({
+                "id": rule_id.to_string(),
+                "name": format!("Prompt: {}", pattern),
+                "enabled": true, // PromptAllowlistRule doesn't have enabled field
+                "rule_type": "prompt", 
+                "pattern": pattern,
+                "action": format!("{:?}", rule.action).to_lowercase(),
+                "priority": 50, // Default priority since no priority field
+                "created_at": Utc::now(),
+                "updated_at": Utc::now(),
+                "description": format!("Prompt allowlist rule for {}", pattern)
+            }));
+            rule_id += 1;
+        }
+        
+        json!(rules)
+    }
+
     /// Check if prompt access is allowed
     pub fn check_prompt_access(
         &self,
@@ -532,6 +705,123 @@ impl AllowlistService {
         }
         
         Ok(())
+    }
+}
+
+// Implementation of SecurityServiceStatistics trait for AllowlistService
+impl SecurityServiceStatistics for AllowlistService {
+    type Statistics = AllowlistStatistics;
+    
+    async fn get_statistics(&self) -> Self::Statistics {
+        let stats = self.stats.lock().unwrap().clone();
+        let service_health = self.get_health().await;
+        
+        // Get top matched rules (sorted by frequency)
+        let mut rule_matches: Vec<RuleMatch> = stats.rule_matches.iter()
+            .map(|(rule_name, count)| RuleMatch {
+                rule_name: rule_name.clone(),
+                match_count: *count,
+                action: "unknown".to_string(), // Would need to track this per rule
+                last_matched: Utc::now(), // Would need to track this per rule
+            })
+            .collect();
+        rule_matches.sort_by(|a, b| b.match_count.cmp(&a.match_count));
+        rule_matches.truncate(10); // Top 10 rules
+        
+        AllowlistStatistics {
+            health: service_health,
+            total_rules: (self.config.tools.len() + 
+                         self.config.resources.len() + 
+                         self.config.prompts.len() + 
+                         self.config.global_rules.len()) as u32,
+            active_rules: (self.config.tools.len() + 
+                          self.config.resources.len() + 
+                          self.config.prompts.len() + 
+                          self.config.global_rules.len()) as u32, // All rules are considered active
+            total_requests: stats.total_requests,
+            allowed_requests: stats.allowed_requests,
+            blocked_requests: stats.blocked_requests,
+            approval_required_requests: stats.approval_required_requests,
+            top_matched_rules: rule_matches,
+            hourly_patterns: stats.hourly_stats,
+        }
+    }
+    
+    async fn get_health(&self) -> ServiceHealth {
+        let stats = self.stats.lock().unwrap().clone();
+        let uptime_seconds = (Utc::now() - stats.start_time).num_seconds() as u64;
+        
+        let avg_response_time_ms = if stats.total_requests > 0 {
+            stats.total_processing_time_ms as f64 / stats.total_requests as f64
+        } else {
+            0.0
+        };
+        
+        let error_rate = if stats.total_requests > 0 {
+            stats.blocked_requests as f64 / stats.total_requests as f64
+        } else {
+            0.0
+        };
+        
+        let requests_per_second = if uptime_seconds > 0 {
+            stats.total_requests as f64 / uptime_seconds as f64
+        } else {
+            0.0
+        };
+        
+        let health_status = if stats.last_error.is_some() {
+            HealthStatus::Error
+        } else if self.config.enabled {
+            HealthStatus::Healthy
+        } else {
+            HealthStatus::Disabled
+        };
+        
+        ServiceHealth {
+            status: health_status.clone(),
+            is_healthy: matches!(health_status, HealthStatus::Healthy),
+            last_checked: Utc::now(),
+            error_message: stats.last_error.clone(),
+            uptime_seconds,
+            performance: PerformanceMetrics {
+                avg_response_time_ms,
+                requests_per_second,
+                error_rate,
+                memory_usage_bytes: 0, // Would need actual memory tracking
+            },
+        }
+    }
+    
+    async fn reset_statistics(&self) -> Result<(), Box<dyn std::error::Error>> {
+        if let Ok(mut stats) = self.stats.lock() {
+            *stats = AllowlistStats {
+                start_time: Utc::now(),
+                total_requests: 0,
+                allowed_requests: 0,
+                blocked_requests: 0,
+                approval_required_requests: 0,
+                rule_matches: HashMap::new(),
+                last_error: None,
+                total_processing_time_ms: 0,
+                hourly_stats: Vec::new(),
+            };
+        }
+        Ok(())
+    }
+}
+
+impl HealthMonitor for AllowlistService {
+    async fn is_healthy(&self) -> bool {
+        self.config.enabled && self.stats.lock().unwrap().last_error.is_none()
+    }
+    
+    async fn health_check(&self) -> ServiceHealth {
+        self.get_health().await
+    }
+    
+    fn get_uptime(&self) -> u64 {
+        let stats = self.stats.lock().unwrap();
+        (Utc::now() - stats.start_time).num_seconds() as u64
     }
 }
 

@@ -5,7 +5,9 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use chrono::{DateTime, Utc};
+use std::sync::{Arc, Mutex};
+use chrono::{DateTime, Utc, Timelike};
+use super::statistics::{SecurityServiceStatistics, HealthMonitor, ServiceHealth, HealthStatus, RbacStatistics, RoleUsage, PerformanceMetrics};
 
 /// RBAC configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -130,11 +132,36 @@ pub struct PermissionResult {
     pub conditions_evaluated: Vec<String>,
 }
 
+/// Statistics tracking for RBAC service
+#[derive(Debug, Clone)]
+struct RbacStats {
+    /// Service start time
+    start_time: DateTime<Utc>,
+    /// Total authentication attempts
+    total_auth_attempts: u64,
+    /// Successful authentications
+    successful_auth: u64,
+    /// Failed authentications
+    failed_auth: u64,
+    /// Permission evaluation attempts
+    permission_evaluations: u64,
+    /// Currently active sessions (tracked separately)
+    active_sessions: u32,
+    /// Role usage tracking
+    role_usage: HashMap<String, u64>,
+    /// Last error message (if any)
+    last_error: Option<String>,
+    /// Performance tracking
+    total_processing_time_ms: u64,
+}
+
 /// RBAC service for managing roles and permissions
 pub struct RbacService {
     config: RbacConfig,
     /// Compiled permission conditions
     compiled_conditions: HashMap<String, CompiledCondition>,
+    /// Statistics tracking
+    stats: Arc<Mutex<RbacStats>>,
 }
 
 /// Compiled condition for faster evaluation
@@ -237,9 +264,22 @@ impl RbacService {
             // but this could be extended
         }
         
+        let stats = RbacStats {
+            start_time: Utc::now(),
+            total_auth_attempts: 0,
+            successful_auth: 0,
+            failed_auth: 0,
+            permission_evaluations: 0,
+            active_sessions: 0,
+            role_usage: HashMap::new(),
+            last_error: None,
+            total_processing_time_ms: 0,
+        };
+
         Ok(Self {
             config,
             compiled_conditions,
+            stats: Arc::new(Mutex::new(stats)),
         })
     }
     
@@ -546,6 +586,46 @@ impl RbacService {
         &self.config.roles
     }
     
+    /// Get roles formatted for API display
+    pub fn get_roles_for_api(&self) -> serde_json::Value {
+        use serde_json::json;
+        
+        let roles: Vec<serde_json::Value> = self.config.roles.iter().enumerate().map(|(index, (role_name, role))| {
+            json!({
+                "id": (index + 1).to_string(),
+                "name": role_name,
+                "enabled": role.active, // Role uses 'active' field, not 'enabled'
+                "description": role.description.clone().unwrap_or_default(),
+                "permissions": role.permissions,
+                "created_at": Utc::now(),
+                "updated_at": Utc::now(),
+                "user_count": self.config.user_roles.values().filter(|roles| roles.contains(role_name)).count(),
+                "priority": 50 // Role doesn't have priority field, use default
+            })
+        }).collect();
+        
+        json!(roles)
+    }
+    
+    /// Get users for API display 
+    pub fn get_users_for_api(&self) -> serde_json::Value {
+        use serde_json::json;
+        
+        let users: Vec<serde_json::Value> = self.config.user_roles.iter().enumerate().map(|(index, (user_id, roles))| {
+            json!({
+                "id": format!("user{}", index + 1),
+                "username": user_id,
+                "email": format!("{}@example.com", user_id),
+                "roles": roles,
+                "status": "active",
+                "last_login": Utc::now(),
+                "created_at": Utc::now()
+            })
+        }).collect();
+        
+        json!(users)
+    }
+    
     /// Get role by name
     pub fn get_role(&self, name: &str) -> Option<&Role> {
         self.config.roles.get(name)
@@ -559,6 +639,275 @@ impl RbacService {
     /// Get API key roles
     pub fn get_api_key_roles(&self, api_key: &str) -> Vec<String> {
         self.config.api_key_roles.get(api_key).cloned().unwrap_or_default()
+    }
+    
+    /// Get all permissions from all roles
+    pub fn get_all_permissions(&self) -> serde_json::Value {
+        use serde_json::json;
+        use std::collections::HashSet;
+        
+        let mut all_permissions: HashSet<String> = HashSet::new();
+        
+        // Collect all unique permissions from all roles
+        for role in self.config.roles.values() {
+            for permission in &role.permissions {
+                all_permissions.insert(permission.clone());
+            }
+        }
+        
+        // Convert to structured permission list
+        let permissions: Vec<serde_json::Value> = all_permissions.iter().map(|perm| {
+            let (category, description) = if perm.starts_with("tool:") {
+                ("tools", "Tool-related permissions")
+            } else if perm.starts_with("resource:") {
+                ("resources", "Resource access permissions")
+            } else if perm.starts_with("prompt:") {
+                ("prompts", "Prompt management permissions")
+            } else if perm == "admin" {
+                ("administrative", "Administrative permissions")
+            } else {
+                ("basic", "Basic permissions")
+            };
+            
+            json!({
+                "id": perm,
+                "name": Self::to_title_case(&perm.replace(':', " ").replace('_', " ")),
+                "description": description,
+                "category": category
+            })
+        }).collect();
+        
+        json!(permissions)
+    }
+    
+    /// Get permission categories
+    pub fn get_permission_categories(&self) -> serde_json::Value {
+        use serde_json::json;
+        
+        let categories = json!([
+            {
+                "id": "basic",
+                "name": "Basic Permissions",
+                "description": "Basic read/write permissions",
+                "permission_count": self.count_permissions_in_category("basic")
+            },
+            {
+                "id": "tools",
+                "name": "Tool Permissions",
+                "description": "Permissions related to tool access and execution",
+                "permission_count": self.count_permissions_in_category("tools")
+            },
+            {
+                "id": "resources",
+                "name": "Resource Permissions",
+                "description": "Permissions for accessing resources and files",
+                "permission_count": self.count_permissions_in_category("resources")
+            },
+            {
+                "id": "prompts",
+                "name": "Prompt Permissions",
+                "description": "Permissions for prompt management",
+                "permission_count": self.count_permissions_in_category("prompts")
+            },
+            {
+                "id": "administrative",
+                "name": "Administrative",
+                "description": "Administrative and management permissions",
+                "permission_count": self.count_permissions_in_category("administrative")
+            }
+        ]);
+        
+        categories
+    }
+    
+    /// Count permissions in a specific category
+    fn count_permissions_in_category(&self, category: &str) -> usize {
+        let mut count = 0;
+        for role in self.config.roles.values() {
+            for permission in &role.permissions {
+                let perm_category = if permission.starts_with("tool:") {
+                    "tools"
+                } else if permission.starts_with("resource:") {
+                    "resources"
+                } else if permission.starts_with("prompt:") {
+                    "prompts"
+                } else if permission == "admin" {
+                    "administrative"
+                } else {
+                    "basic"
+                };
+                
+                if perm_category == category {
+                    count += 1;
+                }
+            }
+        }
+        count
+    }
+    
+    /// Convert string to title case
+    fn to_title_case(s: &str) -> String {
+        s.split_whitespace()
+            .map(|word| {
+                let mut chars = word.chars();
+                match chars.next() {
+                    None => String::new(),
+                    Some(first) => first.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase(),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+}
+
+// Implementation of SecurityServiceStatistics trait for RbacService
+impl SecurityServiceStatistics for RbacService {
+    type Statistics = RbacStatistics;
+    
+    async fn get_statistics(&self) -> Self::Statistics {
+        let stats = match self.stats.lock() {
+            Ok(stats) => stats.clone(),
+            Err(_) => {
+                // If mutex is poisoned, return default stats
+                RbacStats {
+                    start_time: Utc::now(),
+                    total_auth_attempts: 0,
+                    successful_auth: 0,
+                    failed_auth: 0,
+                    permission_evaluations: 0,
+                    active_sessions: 0,
+                    role_usage: HashMap::new(),
+                    last_error: Some("Mutex poisoned".to_string()),
+                    total_processing_time_ms: 0,
+                }
+            }
+        };
+        let service_health = self.get_health().await;
+        
+        // Get top active roles
+        let mut role_usage: Vec<RoleUsage> = stats.role_usage.iter()
+            .map(|(role_name, usage_count)| RoleUsage {
+                role_name: role_name.clone(),
+                user_count: 0, // Would need to track this separately
+                active_sessions: 0, // Would need to track this separately  
+                last_used: Utc::now(), // Would need to track this per role
+            })
+            .collect();
+        role_usage.sort_by(|a, b| a.user_count.cmp(&b.user_count));
+        role_usage.truncate(10); // Top 10 roles
+        
+        RbacStatistics {
+            health: service_health,
+            total_roles: self.config.roles.len() as u32,
+            total_users: self.config.user_roles.len() as u32,
+            total_permissions: self.config.roles.values()
+                .map(|role| role.permissions.len())
+                .sum::<usize>() as u32,
+            active_sessions: stats.active_sessions,
+            total_auth_attempts: stats.total_auth_attempts,
+            successful_auth: stats.successful_auth,
+            failed_auth: stats.failed_auth,
+            permission_evaluations: stats.permission_evaluations,
+            top_roles: role_usage,
+        }
+    }
+    
+    async fn get_health(&self) -> ServiceHealth {
+        let stats = match self.stats.lock() {
+            Ok(stats) => stats.clone(),
+            Err(_) => {
+                // If mutex is poisoned, return default stats
+                RbacStats {
+                    start_time: Utc::now(),
+                    total_auth_attempts: 0,
+                    successful_auth: 0,
+                    failed_auth: 0,
+                    permission_evaluations: 0,
+                    active_sessions: 0,
+                    role_usage: HashMap::new(),
+                    last_error: Some("Mutex poisoned".to_string()),
+                    total_processing_time_ms: 0,
+                }
+            }
+        };
+        let uptime_seconds = (Utc::now() - stats.start_time).num_seconds() as u64;
+        
+        let avg_response_time_ms = if stats.permission_evaluations > 0 {
+            stats.total_processing_time_ms as f64 / stats.permission_evaluations as f64
+        } else {
+            0.0
+        };
+        
+        let error_rate = if stats.total_auth_attempts > 0 {
+            stats.failed_auth as f64 / stats.total_auth_attempts as f64
+        } else {
+            0.0
+        };
+        
+        let requests_per_second = if uptime_seconds > 0 {
+            stats.permission_evaluations as f64 / uptime_seconds as f64
+        } else {
+            0.0
+        };
+        
+        let health_status = if stats.last_error.is_some() {
+            HealthStatus::Error
+        } else if self.config.enabled {
+            HealthStatus::Healthy
+        } else {
+            HealthStatus::Disabled
+        };
+        
+        ServiceHealth {
+            status: health_status.clone(),
+            is_healthy: matches!(health_status, HealthStatus::Healthy),
+            last_checked: Utc::now(),
+            error_message: stats.last_error.clone(),
+            uptime_seconds,
+            performance: PerformanceMetrics {
+                avg_response_time_ms,
+                requests_per_second,
+                error_rate,
+                memory_usage_bytes: 0, // Would need actual memory tracking
+            },
+        }
+    }
+    
+    async fn reset_statistics(&self) -> Result<(), Box<dyn std::error::Error>> {
+        match self.stats.lock() {
+            Ok(mut stats) => {
+                *stats = RbacStats {
+                    start_time: Utc::now(),
+                    total_auth_attempts: 0,
+                    successful_auth: 0,
+                    failed_auth: 0,
+                    permission_evaluations: 0,
+                    active_sessions: 0,
+                    role_usage: HashMap::new(),
+                    last_error: None,
+                    total_processing_time_ms: 0,
+                };
+                Ok(())
+            }
+            Err(_) => Err("Mutex poisoned".into())
+        }
+    }
+}
+
+impl HealthMonitor for RbacService {
+    async fn is_healthy(&self) -> bool {
+        self.config.enabled && 
+        self.stats.lock().map(|stats| stats.last_error.is_none()).unwrap_or(false)
+    }
+    
+    async fn health_check(&self) -> ServiceHealth {
+        self.get_health().await
+    }
+    
+    fn get_uptime(&self) -> u64 {
+        self.stats.lock()
+            .map(|stats| (Utc::now() - stats.start_time).num_seconds() as u64)
+            .unwrap_or(0)
     }
 }
 

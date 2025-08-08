@@ -86,6 +86,23 @@ pub struct SessionConfig {
     pub strict_version_validation: bool,
 }
 
+/// Connection statistics for system monitoring
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ConnectionStats {
+    /// Total active connections
+    pub total_active: usize,
+    /// Number of initialized connections
+    pub initialized: usize,
+    /// Connections with recent activity (last 5 minutes)
+    pub recent_activity: usize,
+    /// Protocol version distribution
+    pub protocol_versions: HashMap<String, usize>,
+    /// Connection type distribution (stdio, http, websocket, etc.)
+    pub connection_types: HashMap<String, usize>,
+    /// Average session duration in seconds
+    pub average_session_duration: f64,
+}
+
 impl Default for SessionConfig {
     fn default() -> Self {
         Self {
@@ -348,6 +365,74 @@ impl McpSessionManager {
     pub fn get_all_sessions(&self) -> Vec<McpSession> {
         let sessions = self.sessions.read().unwrap();
         sessions.values().cloned().collect()
+    }
+
+    /// Get the count of active connections/sessions
+    pub fn get_active_connection_count(&self) -> usize {
+        let sessions = self.sessions.read().unwrap();
+        sessions.len()
+    }
+
+    /// Get connection statistics
+    pub fn get_connection_stats(&self) -> ConnectionStats {
+        let sessions = self.sessions.read().unwrap();
+        let now = Instant::now();
+        
+        let mut stats = ConnectionStats {
+            total_active: sessions.len(),
+            initialized: 0,
+            recent_activity: 0, // Active in last 5 minutes
+            protocol_versions: HashMap::new(),
+            connection_types: HashMap::new(),
+            average_session_duration: 0.0,
+        };
+
+        let mut total_duration_secs = 0.0;
+        let five_minutes_ago = now - Duration::from_secs(5 * 60);
+
+        for session in sessions.values() {
+            if session.initialized {
+                stats.initialized += 1;
+            }
+            
+            if session.last_activity > five_minutes_ago {
+                stats.recent_activity += 1;
+            }
+
+            // Track protocol versions
+            *stats.protocol_versions.entry(session.protocol_version.clone())
+                .or_insert(0) += 1;
+
+            // Track connection types based on client info
+            let connection_type = session.client_info.as_ref()
+                .map(|info| &info.name)
+                .map(|name| {
+                    if name.contains("Claude") || name.contains("Desktop") {
+                        "stdio".to_string()
+                    } else if name.contains("Web") || name.contains("Browser") {
+                        "http".to_string()
+                    } else if name.contains("Streaming") {
+                        "streamable_http".to_string()
+                    } else if name.contains("WebSocket") {
+                        "websocket".to_string()
+                    } else {
+                        "unknown".to_string()
+                    }
+                })
+                .unwrap_or_else(|| "unknown".to_string());
+            
+            *stats.connection_types.entry(connection_type).or_insert(0) += 1;
+
+            // Calculate session duration
+            let duration_secs = (now - session.created_at).as_secs_f64();
+            total_duration_secs += duration_secs;
+        }
+
+        if !sessions.is_empty() {
+            stats.average_session_duration = total_duration_secs / sessions.len() as f64;
+        }
+
+        stats
     }
 
     /// Get all sessions that support elicitation

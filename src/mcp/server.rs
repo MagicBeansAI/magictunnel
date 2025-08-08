@@ -711,6 +711,14 @@ impl McpServer {
             None
         };
 
+        // Initialize security API with proper async initialization
+        let security_config = Arc::new(crate::security::SecurityConfig::secure_defaults());
+        let mut security_api_instance = crate::web::SecurityApi::new(security_config);
+        if let Err(e) = security_api_instance.initialize_async_services().await {
+            warn!("Failed to initialize security API async services: {}", e);
+        }
+        let security_api_data = web::Data::new(security_api_instance);
+
         let server_data = web::Data::new(Arc::clone(&self.registry));
         let mcp_server_data = web::Data::new(Arc::new(self));
 
@@ -769,6 +777,12 @@ impl McpServer {
                     let prompt_manager = mcp_server.prompt_manager.clone();
                     let discovery = mcp_server.smart_discovery.clone();
                     move |cfg| configure_dashboard_api(cfg, registry, mcp_server, external_mcp, resource_manager, prompt_manager, discovery)
+                })
+
+                // Security API routes
+                .configure({
+                    let security_api = security_api_data.clone();
+                    move |cfg| crate::web::configure_security_api(cfg, security_api)
                 })
 
                 // TODO: Add gRPC endpoints (will need separate gRPC server)
@@ -2299,6 +2313,16 @@ impl McpServer {
     /// Get progress tracker statistics  
     pub async fn get_progress_stats(&self) -> crate::mcp::ProgressStats {
         self.progress_tracker.get_stats().await
+    }
+
+    /// Get connection statistics from the session manager
+    pub fn get_connection_stats(&self) -> crate::mcp::session::ConnectionStats {
+        self.session_manager.get_connection_stats()
+    }
+
+    /// Get active connection count
+    pub fn get_active_connection_count(&self) -> usize {
+        self.session_manager.get_active_connection_count()
     }
 
     /// Create progress session

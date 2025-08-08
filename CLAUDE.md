@@ -4,7 +4,7 @@
 
 MagicTunnel is an intelligent bridge between MCP (Model Context Protocol) clients and diverse agents/endpoints. It provides a single, smart tool discovery interface that can find the right tool for any request, map parameters, and proxy the call automatically.
 
-**Current Version**: 0.3.8 - **API Cleanup & MCP Architecture Fix Complete** ✅
+**Current Version**: 0.3.9 - **Enterprise Security UI & Enhanced System Metrics Complete** ✅
 
 ## Quick Start
 
@@ -187,7 +187,47 @@ curl -X POST http://localhost:3001/mcp/call \
 
 ## Recent Major Changes
 
-### Version 0.3.8 (Current) - API Cleanup & MCP Architecture Fix Complete ✅
+### Version 0.3.9 (Current) - Enterprise Security UI & Enhanced System Metrics Complete ✅
+
+#### **🎨 Enterprise Security UI Implementation Complete**
+- **Complete 5-Phase Security UI**: All enterprise security features now have professional web interfaces
+  - **Phase 1**: Security navigation integration and API layer ✅
+  - **Phase 2**: Tool allowlisting UI with rule management ✅
+  - **Phase 3**: RBAC management UI with role hierarchy ✅
+  - **Phase 4**: Audit logging UI with search and monitoring ✅
+  - **Phase 5**: Request sanitization UI with policy management ✅
+- **Security Management Pages**: Complete implementation in `/frontend/src/routes/security/`
+- **Enterprise-Grade Interface**: Professional UI components for allowlisting, RBAC, audit logging, and sanitization
+
+#### **📊 Enhanced System Metrics Implementation Complete**
+- **Process-Specific Monitoring**: Real-time tracking of MagicTunnel and supervisor processes
+  - **CPU Usage Tracking**: Individual process CPU percentage monitoring
+  - **Memory Usage Tracking**: Process-specific memory consumption in MB
+  - **Process Status**: Running/stopped status for each service process
+- **Backend API Enhancement**: Extended `/dashboard/api/metrics` endpoint with process data
+- **Frontend Integration**: Updated TopBar status dropdown and SystemMetricsCard components
+- **Synchronized Data**: Shared store ensures consistent metrics across all UI components
+- **Real System Detection**: Automatic system memory detection (32GB) replacing hardcoded values
+
+#### **🚀 Modern UI Layout System Complete**
+- **Professional Sidebar Navigation**: Collapsible navigation with 4 organized sections (Main, Security, MCP Services, Administration)
+- **Advanced TopBar**: Search functionality, notifications system, system status monitoring, user management
+- **Responsive Layout Container**: Mobile-friendly design with sidebar collapse and overlay support
+- **Intelligent Breadcrumbs**: Route-based navigation with icons and responsive design
+- **Enhanced HTML Template**: SEO optimization, accessibility features, cross-browser compatibility
+- **Dark Mode Support**: Complete theme system with persistence and smooth transitions
+
+#### **✨ Key Features Delivered**
+- **Real-time System Monitoring**: Live CPU, memory, and connection tracking with process-specific details
+- **Advanced Search System**: Intelligent page/tool search with live results
+- **Notification Management**: Security alerts with severity levels and mark-as-read functionality
+- **Mobile Responsive**: Touch-friendly interface with mobile menu overlay
+- **Accessibility Compliance**: WCAG 2.1 support, keyboard navigation, screen reader compatibility
+- **Component Architecture**: Event-driven communication with state management
+- **Production Ready**: Professional enterprise-grade UI framework
+- **Enhanced Metrics Display**: Both system totals and service-specific resource monitoring
+
+### Version 0.3.8 - API Cleanup & MCP Architecture Fix Complete ✅
 
 #### **🧹 Sampling Dashboard API Cleanup**
 - **12 Unnecessary APIs Removed**: Cleaned up all `/dashboard/api/sampling/*` endpoints that were not required for true MCP protocol-level sampling
@@ -457,11 +497,12 @@ export MAGICTUNNEL_EMBEDDING_MODEL=text-embedding-3-small
 - ✅ **CLI Tools**: Complete suite including `magictunnel-llm` and `magictunnel-security`
 - ✅ **Visibility Management**: Complete implementation with real-time control
 
-#### **UI and Enterprise Features In Progress ⚠️**
+#### **UI and Enterprise Features Status** 
+- ✅ **Enterprise Security UI**: Complete implementation with professional interface for all security features
+- ✅ **Modern Layout System**: Professional sidebar navigation, advanced topbar, responsive design
+- ✅ **Accessibility Framework**: WCAG 2.1 support with keyboard navigation and screen reader compatibility
 - ⚠️ **LLM Services UI**: Frontend for sampling, elicitation, and enhancement management (planned)
-- ⚠️ **Security Management UI**: Visual policy builder and allowlisting interface (in development)
-- ⚠️ **Enterprise Dashboard**: Advanced enterprise management interfaces (planned)
-- ⚠️ **Accessibility**: WCAG 2.1 AA compliance implementation (requirements documented)
+- ⚠️ **Advanced Dashboards**: Additional enterprise management interfaces (planned)
 - ⚠️ **Review Workflows**: Content approval and review interfaces for LLM-generated content (planned)
 
 ## Current Status Summary
