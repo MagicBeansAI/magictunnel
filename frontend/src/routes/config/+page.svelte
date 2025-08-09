@@ -475,7 +475,6 @@
         </div>
         
         <div class="flex gap-2">
-          <a href="/" class="btn-secondary">← Back to Dashboard</a>
           <button 
             class="btn-secondary" 
             on:click={loadConfigurationData}

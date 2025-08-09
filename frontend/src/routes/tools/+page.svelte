@@ -190,10 +190,7 @@
     <header class="mb-8">
       <div class="flex items-center justify-between">
         <div>
-          <div class="flex items-center gap-4 mb-2">
-            <a href="/" class="btn-secondary text-sm">
-              ← Back to Dashboard
-            </a>
+          <div class="mb-2">
             <h1 class="text-4xl font-bold text-primary-700">Tools Management</h1>
           </div>
           <p class="text-gray-600">Manage and test available tools in your MagicTunnel instance</p>
@@ -211,7 +208,6 @@
             </div>
           {/if}
         </div>
-        <a href="/" class="btn-secondary">← Back to Dashboard</a>
       </div>
       
       {#if loading}
@@ -224,83 +220,89 @@
     </header>
 
     {#if toolsData}
-      <!-- Stats, Execution Mode, and Search -->
-      <div class="card mb-6">
-        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div class="flex items-center gap-6">
-            <div>
-              <span class="text-2xl font-bold text-primary-600">{toolsData.total}</span>
-              <span class="text-gray-600 ml-2">Total Tools</span>
-            </div>
-            <div>
-              <span class="text-2xl font-bold text-green-600">{filteredTools.length}</span>
-              <span class="text-gray-600 ml-2">Filtered</span>
-            </div>
-            
-            <!-- Execution Mode Selector -->
-            <div class="flex items-center gap-2">
-              <label class="text-sm font-medium text-gray-700">Execution Mode:</label>
-              <select
-                bind:value={executionMode}
-                class="px-3 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              >
-                <option value="http">🌐 HTTP API</option>
-                <option value="mcp">⚡ MCP Client</option>
-                <option value="stdio">🤖 Simulate Claude</option>
-              </select>
-            </div>
+      <!-- Stats Section -->
+      <div class="card mb-4">
+        <div class="flex flex-wrap items-center gap-6">
+          <div>
+            <span class="text-3xl font-bold text-primary-600">{toolsData.total}</span>
+            <span class="text-gray-600 ml-2">Total Tools</span>
+          </div>
+          <div>
+            <span class="text-3xl font-bold text-green-600">{filteredTools.length}</span>
+            <span class="text-gray-600 ml-2">Filtered</span>
           </div>
           
-          <div class="flex flex-col sm:flex-row gap-3">
-            <!-- Search -->
+          <!-- Execution Mode Selector -->
+          <div class="flex items-center gap-3 ml-auto">
+            <label class="text-sm font-medium text-gray-700">Execution Mode:</label>
+            <select
+              bind:value={executionMode}
+              class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="http">🌐 HTTP API</option>
+              <option value="mcp">⚡ MCP Client</option>
+              <option value="stdio">🤖 Simulate Claude</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search and Filters Section -->
+      <div class="card mb-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <!-- Search -->
+          <div class="sm:col-span-2 lg:col-span-2 xl:col-span-2">
             <input
               type="text"
               placeholder="Search tools..."
               bind:value={searchTerm}
-              class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
-            
-            <!-- Category Filter -->
-            <select
-              bind:value={selectedCategory}
-              class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            >
-              {#each categories as category}
-                <option value={category}>
-                  {category === 'all' ? 'All Categories' : category.charAt(0).toUpperCase() + category.slice(1)}
-                </option>
-              {/each}
-            </select>
-            
-            <!-- Status Filter -->
-            <select
-              bind:value={selectedStatus}
-              class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            >
-              {#each statuses as status}
-                <option value={status.value}>
-                  {status.label}
-                </option>
-              {/each}
-            </select>
-
-            <!-- Service Filter -->
-            <select
-              bind:value={selectedService}
-              class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            >
-              <option value="all">All Services</option>
-              {#each availableServices as service}
-                <option value={service}>
-                  {service.charAt(0).toUpperCase() + service.slice(1)} Service
-                </option>
-              {/each}
-            </select>
-            
-            <button class="btn-secondary" on:click={loadTools} disabled={loading}>
-              {loading ? '🔄 Loading...' : '🔄 Refresh'}
-            </button>
           </div>
+          
+          <!-- Category Filter -->
+          <select
+            bind:value={selectedCategory}
+            class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          >
+            {#each categories as category}
+              <option value={category}>
+                {category === 'all' ? 'All Categories' : category.charAt(0).toUpperCase() + category.slice(1)}
+              </option>
+            {/each}
+          </select>
+          
+          <!-- Status Filter -->
+          <select
+            bind:value={selectedStatus}
+            class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          >
+            {#each statuses as status}
+              <option value={status.value}>
+                {status.label}
+              </option>
+            {/each}
+          </select>
+
+          <!-- Service Filter -->
+          <select
+            bind:value={selectedService}
+            class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          >
+            <option value="all">All Services</option>
+            {#each availableServices as service}
+              <option value={service}>
+                {service.charAt(0).toUpperCase() + service.slice(1)} Service
+              </option>
+            {/each}
+          </select>
+        </div>
+        
+        <!-- Refresh Button Row -->
+        <div class="mt-4 flex justify-end">
+          <button class="btn-secondary" on:click={loadTools} disabled={loading}>
+            {loading ? '🔄 Loading...' : '🔄 Refresh'}
+          </button>
         </div>
       </div>
 

@@ -5,6 +5,69 @@ All notable changes to the MagicTunnel project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.10] - 2025-08-09 - Multi-Mode Service Architecture & Enterprise Security UI Complete ✅
+
+### Fixed - Critical Architecture & UI Issues ✅ **MAJOR STABILITY IMPROVEMENT**
+
+#### **🏗️ Tool Enhancement Service Migration Complete**
+- **Service Architecture Cleanup**: Removed all remaining references to tool enhancement from AdvancedServices after successful migration to core services
+- **Clean Service Boundaries**: Tool enhancement (sampling, elicitation) now properly categorized as core functionality available in both proxy and advanced modes
+- **Enhanced Documentation Updates**: Updated CLAUDE.md and project documentation to reflect accurate service architecture
+
+#### **🎯 Runtime Mode Detection Fix Complete**
+- **Mode API Architecture Fix**: Fixed fundamental issue where Mode API endpoints weren't registered in server, causing frontend to show incorrect "Advanced" mode detection
+- **Dashboard API Mode Detection**: Completely rewrote mode detection logic in `/dashboard/api/mode` to read actual `service_container.runtime_mode` instead of unreliable heuristics
+- **Environment Variable Support**: Fixed and validated environment variable syntax for runtime mode control (`MAGICTUNNEL_RUNTIME_MODE=proxy ./magictunnel`)
+- **Configuration Resolution**: Properly implemented ConfigResolution passing with Clone traits for Arc sharing across service architecture
+
+#### **⚙️ Enterprise Security Service Visibility Complete**
+- **Advanced Services Initialization**: Completely rewrote AdvancedServices to always show all 7 available enterprise security services regardless of configuration status
+- **Service Status Logic**: Enhanced status reporting to show "Running" for configured services and "Warning" for available but unconfigured services
+- **Configuration Analysis**: Added proper security framework detection with meaningful status messages explaining configuration requirements
+
+#### **🧹 API Architecture Cleanup**
+- **Endpoint Consolidation**: Successfully reverted from new `/api/*` endpoints back to existing `/dashboard/api/*` pattern for consistency
+- **Removed Temporary Code**: Cleaned up experimental Mode API registration code after determining existing dashboard API was the correct approach
+- **Pure Service Container Logic**: Eliminated heuristic-based mode detection in favor of direct service container runtime mode reading
+
+### Enhanced - Service Architecture & User Experience ✅ **FULLY IMPLEMENTED**
+
+#### **📊 Enterprise Security Services Dashboard**
+- **Complete Service Visibility**: All 7 enterprise security services now properly displayed in advanced mode service status:
+  - Tool Allowlisting, RBAC, Request Sanitization, Audit Logging, Security Policies, Emergency Lockdown, MagicTunnel Authentication
+- **Configuration Status Reporting**: Clear messaging for each service showing whether it's running, available but not configured, or requires security framework
+- **User Experience**: Users now see exactly which enterprise features are available and what configuration is needed to activate them
+
+#### **🔧 Configuration System Improvements**
+- **Security Configuration Analysis**: Confirmed security services require `security:` section in configuration file to become active
+- **Status Message Clarity**: Enhanced status messages to guide users on exactly what configuration is needed for each service
+- **Framework Dependencies**: Clear indication that all security services require the security framework to be enabled first
+
+### Technical - Infrastructure & Code Quality ✅ **FULLY IMPLEMENTED**
+
+#### **Service Container Architecture**
+- **Pure Runtime Mode Detection**: Mode detection now relies solely on `service_container.runtime_mode` without fallback heuristics
+- **Clone Trait Implementation**: Added proper `#[derive(Clone)]` to ConfigResolution and ValidationResult for Arc sharing
+- **Service Status Integrity**: Service status reporting now accurately reflects actual service availability and configuration state
+
+#### **Code Quality Improvements**
+- **Removed Dead Code**: Cleaned up unused Mode API registration code and experimental endpoint handlers
+- **Consistent API Patterns**: Maintained existing `/dashboard/api/*` endpoint pattern for frontend compatibility
+- **Error Handling**: Proper error handling when service container is unavailable, indicating critical configuration errors
+
+### Testing - Validation & Quality Assurance ✅ **FULLY VALIDATED**
+- **Service Status Validation**: Verified all 7 enterprise security services show correctly with proper status indicators
+- **Mode Detection Testing**: Confirmed accurate runtime mode detection in both proxy and advanced modes
+- **Configuration Testing**: Validated security services show "warning" status when security framework is not configured
+- **Environment Variable Testing**: Confirmed proper runtime mode switching via `MAGICTUNNEL_RUNTIME_MODE` environment variable
+
+### Next Phase - UI Adaptation & Service Availability
+- **UI Service Adaptation**: Planned implementation to hide/invalidate UI pages when corresponding services are not available
+- **Proxy Mode UI Filtering**: Planned hiding of advanced services menu, pages, and auth-related UI elements when running in proxy mode
+- **Progressive Enhancement**: Service-aware UI that adapts based on actual service availability and runtime mode
+
+---
+
 ## [0.3.8] - 2025-08-05 - API Converter Custom Validation Extensions & Build Stability
 
 ### Added

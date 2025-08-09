@@ -75,7 +75,7 @@ tools:
     - request
     type: object
   routing:
-    type: ai_enhanced_discovery
+    type: smart_discovery
     config:
       ai_integration:
         elicitation_service: true

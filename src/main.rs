@@ -15,6 +15,8 @@ mod openai;
 mod registry;
 mod routing;
 mod security;
+mod services;
+mod startup;
 mod supervisor;
 mod tls;
 mod web;
@@ -22,6 +24,7 @@ mod web;
 use config::Config;
 use mcp::{McpServer, McpErrorCode, ExternalMcpIntegration};
 use grpc::McpGrpcServer;
+use services::{ServiceLoader, ServiceContainer};
 use std::sync::Arc;
 use tonic::transport::Server;
 
@@ -82,16 +85,32 @@ async fn main() -> Result<()> {
     // Initialize logging
     init_logging(&cli.log_level)?;
     
-    info!("Starting Magictunnel v{}", env!("CARGO_PKG_VERSION"));
+    // Display startup banner
+    startup::display_startup_banner(env!("CARGO_PKG_VERSION"));
     
-    // Load configuration
-    let config = Config::load(&cli.config, cli.host, cli.port)
-        .map_err(|e| {
-            error!("Failed to load configuration: {}", e);
-            e
-        })?;
+    // Load configuration with full resolution
+    let resolution = Config::load_with_resolution(
+        Some(&cli.config),
+        cli.host,
+        cli.port,
+    ).map_err(|e| {
+        error!("Failed to load configuration: {}", e);
+        e
+    })?;
     
-    info!("Configuration loaded successfully");
+    let config = resolution.config.clone();
+    
+    // Display comprehensive startup information
+    let startup_info = startup::StartupAdditionalInfo::new(
+        config.server.host.clone(),
+        config.server.port,
+    );
+    
+    startup::StartupLogger::display_startup_info(
+        &resolution,
+        env!("CARGO_PKG_VERSION"),
+        Some(&startup_info),
+    );
 
     if cli.discover_local {
         // Run external MCP discovery once and exit
@@ -115,54 +134,116 @@ async fn main() -> Result<()> {
         info!("Starting Magictunnel in stdio mode");
         run_stdio_mode(config).await?;
     } else {
-        // Run in HTTP server mode (existing implementation)
-        info!("HTTP server will bind to {}:{}", config.server.host, config.server.port);
+        // Run in HTTP server mode with new service loading strategy
+        run_http_server_mode(&resolution).await?;
+    }
+    
+    Ok(())
+}
 
-        // Calculate gRPC port (HTTP port + 1000)
-        let grpc_port = config.server.port + 1000;
-        info!("gRPC server will bind to {}:{}", config.server.host, grpc_port);
-
-        // Initialize MCP HTTP server with full configuration
-        let http_server = McpServer::with_config(&config).await?;
-
-        // Get registry from the server for gRPC server
-        let registry = http_server.registry().clone();
-
-        // Initialize gRPC server with registry
-        let grpc_server = McpGrpcServer::new(registry.clone());
-
-        info!("Starting Magictunnel servers...");
-
-        // Start gRPC server in background task
-        let grpc_addr = format!("{}:{}", config.server.host, grpc_port).parse()?;
-
-        let _grpc_task = tokio::spawn(async move {
-            info!("Starting gRPC server on {}", grpc_addr);
-
-            // Import the generated service
-            use grpc::mcp_service_server::McpServiceServer;
-
-            let service = McpServiceServer::new(grpc_server);
-
-            if let Err(e) = Server::builder()
-                .add_service(service)
-                .serve(grpc_addr)
-                .await
-            {
-                error!("gRPC server failed: {}", e);
-            }
-        });
-
-        info!("gRPC server started in background");
-
-        // Start HTTP server in main thread (this will block until completion)
-        info!("Starting HTTP server on {}:{}", config.server.host, config.server.port);
-        if let Err(e) = http_server.start_with_config(&config.server.host, config.server.port, config.server.tls.clone()).await {
-            error!("HTTP server failed: {}", e);
-            return Err(e.into());
+/// Run in HTTP server mode with new service loading strategy
+async fn run_http_server_mode(resolution: &config::ConfigResolution) -> Result<()> {
+    info!("🚀 Starting MagicTunnel in HTTP server mode");
+    
+    let config = &resolution.config;
+    let runtime_mode = resolution.get_runtime_mode();
+    
+    info!("HTTP server will bind to {}:{}", config.server.host, config.server.port);
+    
+    // Load services based on runtime mode
+    let service_loading_start = std::time::Instant::now();
+    let service_container = ServiceLoader::load_services(resolution).await?;
+    let loading_time = service_loading_start.elapsed();
+    
+    // Get service loading summary
+    let mut loading_summary = ServiceLoader::get_loading_summary(&service_container);
+    loading_summary.loading_time_ms = loading_time.as_millis() as u64;
+    
+    // Log service loading results
+    info!("📊 Service Loading Summary:");
+    info!("   Mode: {}", loading_summary.runtime_mode);
+    info!("   Total services: {}", loading_summary.total_services);
+    info!("   Loading time: {}ms", loading_summary.loading_time_ms);
+    info!("   Proxy services: {}", loading_summary.proxy_services.join(", "));
+    if let Some(ref advanced) = loading_summary.advanced_services {
+        if !advanced.is_empty() {
+            info!("   Advanced services: {}", advanced.join(", "));
         }
-
-        info!("MCP Proxy servers completed");
+    }
+    
+    // Create MCP server for main.rs to own and start
+    // This avoids the Arc ownership issue since we get an owned server
+    let mcp_server = service_container.create_mcp_server_for_main()?;
+    
+    let registry = service_container.get_registry()
+        .ok_or_else(|| anyhow::anyhow!("Registry not available from service container"))?;
+    
+    // Initialize gRPC server with registry (if enabled)
+    let grpc_port = config.server.port + 1000;
+    info!("gRPC server will bind to {}:{}", config.server.host, grpc_port);
+    
+    let grpc_server = McpGrpcServer::new(Arc::clone(registry));
+    
+    info!("Starting MagicTunnel servers...");
+    
+    // Start gRPC server in background task
+    let grpc_addr = format!("{}:{}", config.server.host, grpc_port).parse()?;
+    let grpc_host = config.server.host.clone();
+    
+    let _grpc_task = tokio::spawn(async move {
+        info!("Starting gRPC server on {}", grpc_addr);
+        
+        // Import the generated service
+        use grpc::mcp_service_server::McpServiceServer;
+        
+        let service = McpServiceServer::new(grpc_server);
+        
+        if let Err(e) = Server::builder()
+            .add_service(service)
+            .serve(grpc_addr)
+            .await
+        {
+            error!("gRPC server failed: {}", e);
+        }
+    });
+    
+    info!("gRPC server started in background");
+    
+    // Start HTTP server in main thread (this will block until completion)
+    info!("Starting HTTP server on {}:{}", config.server.host, config.server.port);
+    
+    // Create Arc for service container so it can be shared
+    let service_container_arc = Arc::new(service_container);
+    
+    // Start the MCP server with service container reference and config resolution
+    if let Err(e) = mcp_server.start_with_config_and_services(
+        &config.server.host, 
+        config.server.port, 
+        config.server.tls.clone(),
+        Some(service_container_arc.clone()),
+        Some(Arc::new(resolution.clone()))
+    ).await {
+        error!("HTTP server failed: {}", e);
+        
+        // Attempt graceful shutdown of services
+        if let Some(container) = Arc::try_unwrap(service_container_arc).ok() {
+            if let Err(shutdown_err) = container.shutdown().await {
+                error!("Failed to shutdown services gracefully: {}", shutdown_err);
+            }
+        }
+        
+        return Err(e.into());
+    }
+    
+    info!("✅ MCP Proxy servers completed");
+    
+    // Graceful shutdown when server completes
+    if let Some(service_container) = Arc::try_unwrap(service_container_arc).ok() {
+        if let Err(e) = service_container.shutdown().await {
+            warn!("Service shutdown had errors: {}", e);
+        }
+    } else {
+        warn!("Could not unwrap ServiceContainer Arc for shutdown - some references still exist");
     }
     
     Ok(())
@@ -270,14 +351,6 @@ async fn handle_stdio_message(server: &McpServer, message: &str) -> Result<Optio
     server.handle_mcp_request(request).await.map_err(|e| e.into())
 }
 
-/// Create a successful JSON-RPC response
-fn create_success_response(id: &serde_json::Value, result: serde_json::Value) -> String {
-    serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": id,
-        "result": result
-    }).to_string()
-}
 
 /// Create an error JSON-RPC response
 fn create_error_response(id: Option<&serde_json::Value>, code: McpErrorCode, message: &str) -> String {
@@ -486,8 +559,8 @@ async fn pregenerate_embeddings_and_exit(config: Config) -> Result<()> {
         None
     };
     
-    // Initialize prompt generation service
-    let prompt_generator = if let Some(prompt_config) = &config.prompt_generation {
+    // Initialize prompt generation service (not used in embedding generation)
+    let _prompt_generator = if let Some(prompt_config) = &config.prompt_generation {
         info!("📝 Initializing prompt generation service");
         match mcp::PromptGeneratorService::new(
             prompt_config.clone(),
@@ -504,8 +577,8 @@ async fn pregenerate_embeddings_and_exit(config: Config) -> Result<()> {
         None
     };
     
-    // Initialize resource generation service
-    let resource_generator = if let Some(resource_config) = &config.resource_generation {
+    // Initialize resource generation service (not used in embedding generation)
+    let _resource_generator = if let Some(resource_config) = &config.resource_generation {
         info!("📋 Initializing resource generation service");
         match mcp::ResourceGeneratorService::new(
             resource_config.clone(),
@@ -521,8 +594,8 @@ async fn pregenerate_embeddings_and_exit(config: Config) -> Result<()> {
         None
     };
     
-    // Initialize external content manager
-    let external_content_manager = if let Some(external_config) = &config.external_content {
+    // Initialize external content manager (not used in embedding generation)
+    let _external_content_manager = if let Some(external_config) = &config.external_content {
         info!("🔗 Initializing external content manager");
         let manager = mcp::ExternalContentManager::new(
             external_config.clone(),

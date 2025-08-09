@@ -1,9 +1,17 @@
-# MagicTunnel Configuration Template
-# Copy this file to config.yaml and customize for your environment
+# MagicTunnel Production Configuration
+# This is the default configuration file (magictunnel-config.yaml)
 # All settings can be overridden via environment variables
 #
 # IMPORTANT: Legacy mcp_proxy, mcp_servers, and remote_mcp configurations have been removed.
 # Use the new external_mcp system for connecting to external MCP servers.
+
+# =============================================================================
+# DEPLOYMENT CONFIGURATION (v0.3.10)
+# =============================================================================
+# Multi-mode architecture configuration - defaults to advanced mode for production
+deployment:
+  runtime_mode: "advanced"       # Runtime mode: "proxy"|"advanced" (env: MAGICTUNNEL_RUNTIME_MODE)
+                                  # Advanced mode provides full enterprise features
 
 # =============================================================================
 # SERVER CONFIGURATION

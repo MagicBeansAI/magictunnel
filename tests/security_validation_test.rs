@@ -211,6 +211,7 @@ mod security_tests {
                 timeout: 30,
                 tls: None,
             },
+            deployment: None,
             registry: RegistryConfig {
                 r#type: "file".to_string(),
                 paths: vec!["../../../etc/passwd".to_string()], // Path traversal attempt
@@ -313,13 +314,13 @@ fn validate_tool_call_security(tool_call: &ToolCall) -> Result<()> {
 
     // Basic validation - ensure tool call has required fields
     if tool_call.name.is_empty() {
-        return Err(ProxyError::validation("Tool name cannot be empty".to_string()));
+        return Err(ProxyError::config("Tool name cannot be empty".to_string()));
     }
 
     // Check input size limits (basic implementation)
     let serialized = serde_json::to_string(&tool_call.arguments).unwrap_or_default();
     if serialized.len() > 10_000_000 { // 10MB limit for demo
-        return Err(ProxyError::validation(
+        return Err(ProxyError::config(
             "Input too large, exceeds size limit".to_string()
         ));
     }

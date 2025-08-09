@@ -80,7 +80,7 @@ build:
 
 # Build for release
 build-release:
-	MAGICTUNNEL_ENV=development cargo build --release && sleep 2 && cp target/release/magictunnel . && cp target/release/magictunnel-supervisor .
+	export MAGICTUNNEL_ENV=development cargo build --release && sleep 2 && cp target/release/magictunnel . && cp target/release/magictunnel-supervisor .
 
 # Update version across all files
 update-version:
@@ -96,7 +96,7 @@ set-version:
 	cargo run --bin version-manager -- set $(VERSION)
 
 # Build for release with semantic search environment variables
-build-release-semantic:
+build-release-ollama:
 	MAGICTUNNEL_ENV=development \
 	MAGICTUNNEL_SEMANTIC_MODEL="ollama:nomic-embed-text" \
 	MAGICTUNNEL_DISABLE_SEMANTIC="false" \
@@ -149,16 +149,19 @@ run-dev:
 
 # Run with custom config
 run-release:
+	MAGICTUNNEL_ENV=development \
 	cargo run --bin magictunnel --release -- --config magictunnel-config.yaml --log-level info
 
 # Run with OpenAI API key for smart discovery
 run-release-openai:
 	@if [ -z "$(OPENAI_API_KEY)" ]; then \
 		echo "Error: OPENAI_API_KEY environment variable is not set"; \
-		echo "Usage: make run-openai OPENAI_API_KEY=sk-your-key-here"; \
+		echo "Usage: make run-release-openai OPENAI_API_KEY=sk-your-key-here"; \
 		exit 1; \
 	fi
-	OPENAI_API_KEY="$(OPENAI_API_KEY)" cargo run --bin magictunnel -- --config magictunnel-config.yaml --log-level info
+	OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+	MAGICTUNNEL_ENV=development \
+	cargo run --bin magictunnel -- --config magictunnel-config.yaml --log-level info
 
 # Run with semantic search environment variables override (OpenAI)
 run-release-semantic:
@@ -173,6 +176,7 @@ run-release-semantic:
 	OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 	MAGICTUNNEL_SEMANTIC_MODEL="openai:text-embedding-3-small" \
 	MAGICTUNNEL_DISABLE_SEMANTIC="false" \
+	MAGICTUNNEL_ENV=development \
 	cargo run --bin magictunnel --release -- --config magictunnel-config.yaml --log-level info
 
 # Run with local transformer models (fallback embeddings - limited functionality)
@@ -183,6 +187,7 @@ run-release-local:
 	@echo "   - RECOMMENDED: Use 'make run-release-ollama' instead for real embeddings"
 	MAGICTUNNEL_SEMANTIC_MODEL="all-MiniLM-L6-v2" \
 	MAGICTUNNEL_DISABLE_SEMANTIC="false" \
+	MAGICTUNNEL_ENV=development \
 	cargo run --bin magictunnel --release -- --config magictunnel-config.yaml --log-level info
 
 # Run with high-quality local model (fallback embeddings - limited functionality)
@@ -193,6 +198,7 @@ run-release-hq:
 	@echo "   - RECOMMENDED: Use 'make run-release-ollama' instead for real embeddings"
 	MAGICTUNNEL_SEMANTIC_MODEL="all-mpnet-base-v2" \
 	MAGICTUNNEL_DISABLE_SEMANTIC="false" \
+	MAGICTUNNEL_ENV=development \
 	cargo run --bin magictunnel --release -- --config magictunnel-config.yaml --log-level info
 
 # Run with Ollama (local LLM server)
@@ -203,6 +209,7 @@ run-release-ollama:
 	OLLAMA_BASE_URL="http://localhost:11434" \
 	MAGICTUNNEL_SEMANTIC_MODEL="ollama:nomic-embed-text" \
 	MAGICTUNNEL_DISABLE_SEMANTIC="false" \
+	MAGICTUNNEL_ENV=development \
 	cargo run --bin magictunnel --release -- --config magictunnel-config.yaml --log-level info
 
 # Run with custom external API
@@ -218,6 +225,7 @@ run-release-external:
 	EMBEDDING_API_URL="$(EMBEDDING_API_URL)" \
 	MAGICTUNNEL_SEMANTIC_MODEL="external:api" \
 	MAGICTUNNEL_DISABLE_SEMANTIC="false" \
+	MAGICTUNNEL_ENV=development \
 	cargo run --bin magictunnel --release -- --config magictunnel-config.yaml --log-level info
 
 # Pre-generate embeddings for all enabled capabilities
@@ -231,6 +239,7 @@ pregenerate-embeddings:
 	@echo "   - Model: configured in magictunnel-config.yaml"
 	@echo "   - This will make server startup much faster!"
 	OPENAI_API_KEY="$(OPENAI_API_KEY)" \
+	MAGICTUNNEL_ENV=development \
 	cargo run --bin magictunnel --release -- --config magictunnel-config.yaml --log-level info --pregenerate-embeddings
 
 # Pre-generate embeddings with OpenAI model override
@@ -246,6 +255,7 @@ pregenerate-embeddings-openai:
 	OPENAI_API_KEY="$(OPENAI_API_KEY)" \
 	MAGICTUNNEL_SEMANTIC_MODEL="openai:text-embedding-3-small" \
 	MAGICTUNNEL_DISABLE_SEMANTIC="false" \
+	MAGICTUNNEL_ENV=development \
 	cargo run --bin magictunnel --release -- --config magictunnel-config.yaml --log-level info --pregenerate-embeddings
 
 # Pre-generate embeddings with fallback models (limited functionality)
@@ -256,6 +266,7 @@ pregenerate-embeddings-local:
 	@echo "   - RECOMMENDED: Use 'make pregenerate-embeddings-ollama' instead"
 	MAGICTUNNEL_SEMANTIC_MODEL="all-MiniLM-L6-v2" \
 	MAGICTUNNEL_DISABLE_SEMANTIC="false" \
+	MAGICTUNNEL_ENV=development \
 	cargo run --bin magictunnel --release -- --config magictunnel-config.yaml --log-level info --pregenerate-embeddings
 
 # Pre-generate embeddings with fallback models (limited functionality)
@@ -266,6 +277,7 @@ pregenerate-embeddings-hq:
 	@echo "   - RECOMMENDED: Use 'make pregenerate-embeddings-ollama' instead"
 	MAGICTUNNEL_SEMANTIC_MODEL="all-mpnet-base-v2" \
 	MAGICTUNNEL_DISABLE_SEMANTIC="false" \
+	MAGICTUNNEL_ENV=development \
 	cargo run --bin magictunnel --release -- --config magictunnel-config.yaml --log-level info --pregenerate-embeddings
 
 # Pre-generate embeddings with Ollama (local LLM server)
@@ -276,6 +288,7 @@ pregenerate-embeddings-ollama:
 	OLLAMA_BASE_URL="http://localhost:11434" \
 	MAGICTUNNEL_SEMANTIC_MODEL="ollama:nomic-embed-text" \
 	MAGICTUNNEL_DISABLE_SEMANTIC="false" \
+	MAGICTUNNEL_ENV=development \
 	cargo run --bin magictunnel --release -- --config magictunnel-config.yaml --log-level info --pregenerate-embeddings
 
 # Pre-generate embeddings with custom external API
@@ -291,6 +304,7 @@ pregenerate-embeddings-external:
 	EMBEDDING_API_URL="$(EMBEDDING_API_URL)" \
 	MAGICTUNNEL_SEMANTIC_MODEL="external:api" \
 	MAGICTUNNEL_DISABLE_SEMANTIC="false" \
+	MAGICTUNNEL_ENV=development \
 	cargo run --bin magictunnel --release -- --config magictunnel-config.yaml --log-level info --pregenerate-embeddings
 
 

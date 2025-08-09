@@ -10,7 +10,7 @@ metadata:
   - mcp-server
 tools:
 - name: read_file_filesystem
-  description: 'Read the complete contents of a file as text. DEPRECATED: Use read_text_file instead.'
+  description: Read the complete contents of a file from the file system. Handles various text encodings and provides detailed error messages if the file cannot be read. Use this tool when you need to examine the contents of a single file. Use the 'head' parameter to read only the first N lines of a file, or the 'tail' parameter to read only the last N lines of a file. Only works within allowed directories.
   inputSchema:
     $schema: http://json-schema.org/draft-07/schema#
     additionalProperties: false
@@ -36,69 +36,7 @@ tools:
       timeout: 30
       tool_name: read_file
   annotations:
-    source: external_mcp
-    server: filesystem
     original_name: read_file
-  hidden: true
-  enabled: true
-  sampling_strategy: null
-  elicitation_strategy: null
-- name: read_text_file_filesystem
-  description: Read the complete contents of a file from the file system as text. Handles various text encodings and provides detailed error messages if the file cannot be read. Use this tool when you need to examine the contents of a single file. Use the 'head' parameter to read only the first N lines of a file, or the 'tail' parameter to read only the last N lines of a file. Operates on the file as text regardless of extension. Only works within allowed directories.
-  inputSchema:
-    $schema: http://json-schema.org/draft-07/schema#
-    additionalProperties: false
-    properties:
-      head:
-        description: If provided, returns only the first N lines of the file
-        type: number
-      path:
-        type: string
-      tail:
-        description: If provided, returns only the last N lines of the file
-        type: number
-    required:
-    - path
-    type: object
-  routing:
-    type: external_mcp
-    config:
-      endpoint: filesystem
-      method: tools/call
-      retry_count: 2
-      server_name: filesystem
-      timeout: 30
-      tool_name: read_text_file
-  annotations:
-    server: filesystem
-    source: external_mcp
-    original_name: read_text_file
-  hidden: true
-  enabled: true
-  sampling_strategy: null
-  elicitation_strategy: null
-- name: read_media_file_filesystem
-  description: Read an image or audio file. Returns the base64 encoded data and MIME type. Only works within allowed directories.
-  inputSchema:
-    $schema: http://json-schema.org/draft-07/schema#
-    additionalProperties: false
-    properties:
-      path:
-        type: string
-    required:
-    - path
-    type: object
-  routing:
-    type: external_mcp
-    config:
-      endpoint: filesystem
-      method: tools/call
-      retry_count: 2
-      server_name: filesystem
-      timeout: 30
-      tool_name: read_media_file
-  annotations:
-    original_name: read_media_file
     source: external_mcp
     server: filesystem
   hidden: true
@@ -128,9 +66,9 @@ tools:
       timeout: 30
       tool_name: read_multiple_files
   annotations:
+    source: external_mcp
     original_name: read_multiple_files
     server: filesystem
-    source: external_mcp
   hidden: true
   enabled: true
   sampling_strategy: null
@@ -160,8 +98,8 @@ tools:
       tool_name: write_file
   annotations:
     original_name: write_file
-    server: filesystem
     source: external_mcp
+    server: filesystem
   hidden: true
   enabled: true
   sampling_strategy: null
@@ -207,9 +145,9 @@ tools:
       timeout: 30
       tool_name: edit_file
   annotations:
-    server: filesystem
-    original_name: edit_file
     source: external_mcp
+    original_name: edit_file
+    server: filesystem
   hidden: true
   enabled: true
   sampling_strategy: null
@@ -235,8 +173,8 @@ tools:
       timeout: 30
       tool_name: create_directory
   annotations:
-    source: external_mcp
     server: filesystem
+    source: external_mcp
     original_name: create_directory
   hidden: true
   enabled: true
@@ -263,9 +201,9 @@ tools:
       timeout: 30
       tool_name: list_directory
   annotations:
-    source: external_mcp
     original_name: list_directory
     server: filesystem
+    source: external_mcp
   hidden: true
   enabled: true
   sampling_strategy: null
@@ -298,9 +236,9 @@ tools:
       timeout: 30
       tool_name: list_directory_with_sizes
   annotations:
-    original_name: list_directory_with_sizes
     source: external_mcp
     server: filesystem
+    original_name: list_directory_with_sizes
   hidden: true
   enabled: true
   sampling_strategy: null
@@ -393,9 +331,9 @@ tools:
       timeout: 30
       tool_name: search_files
   annotations:
+    original_name: search_files
     server: filesystem
     source: external_mcp
-    original_name: search_files
   hidden: true
   enabled: true
   sampling_strategy: null
@@ -422,14 +360,14 @@ tools:
       tool_name: get_file_info
   annotations:
     source: external_mcp
-    server: filesystem
     original_name: get_file_info
+    server: filesystem
   hidden: true
   enabled: true
   sampling_strategy: null
   elicitation_strategy: null
 - name: list_allowed_directories_filesystem
-  description: 'Returns the list of root directories that this server is allowed to access. Use this to understand which directories are available before trying to access files. '
+  description: Returns the list of directories that this server is allowed to access. Use this to understand which directories are available before trying to access files.
   inputSchema:
     properties: {}
     required: []
@@ -444,9 +382,9 @@ tools:
       timeout: 30
       tool_name: list_allowed_directories
   annotations:
-    server: filesystem
-    original_name: list_allowed_directories
     source: external_mcp
+    original_name: list_allowed_directories
+    server: filesystem
   hidden: true
   enabled: true
   sampling_strategy: null

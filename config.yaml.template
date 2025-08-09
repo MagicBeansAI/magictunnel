@@ -6,6 +6,32 @@
 # Use the new external_mcp system for connecting to external MCP servers.
 
 # =============================================================================
+# DEPLOYMENT CONFIGURATION (v0.3.10)
+# =============================================================================
+# Multi-mode architecture configuration controls runtime behavior
+deployment:
+  # Runtime mode determines which services are loaded and available
+  runtime_mode: "proxy"          # Runtime mode: "proxy"|"advanced" (env: MAGICTUNNEL_RUNTIME_MODE)
+                                  # 
+                                  # PROXY MODE (Default):
+                                  # - Zero-config setup with minimal dependencies
+                                  # - Fast startup and low resource usage
+                                  # - Core MCP proxy functionality
+                                  # - Basic web dashboard
+                                  # - Smart tool discovery (if configured)
+                                  #
+                                  # ADVANCED MODE:
+                                  # - Full enterprise features
+                                  # - Security management and RBAC
+                                  # - LLM services and enhancement pipeline
+                                  # - Complete web dashboard
+                                  # - Audit logging and monitoring
+                                  # - OAuth 2.1 authentication
+                                  #
+                                  # Environment variable override takes precedence:
+                                  # export MAGICTUNNEL_RUNTIME_MODE=advanced
+
+# =============================================================================
 # SERVER CONFIGURATION
 # =============================================================================
 server:

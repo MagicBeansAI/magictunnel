@@ -193,11 +193,26 @@ impl MagicTunnelProcess {
         info!("Starting MagicTunnel with args: {:?}", self.current_args);
 
         let mut cmd = Command::new(&self.config.magictunnel_binary);
-        cmd.args(&self.current_args)
-            .env("MAGICTUNNEL_ENV", "development")
-            .env("OLLAMA_BASE_URL", "http://localhost:11434")
-            .env("MAGICTUNNEL_SEMANTIC_MODEL", "ollama:nomic-embed-text")
-            .env("MAGICTUNNEL_DISABLE_SEMANTIC", "false")
+        cmd.args(&self.current_args);
+        
+        // Set default environment variables only if they're not already set
+        if std::env::var("MAGICTUNNEL_ENV").is_err() {
+            cmd.env("MAGICTUNNEL_ENV", "development");
+        }
+        if std::env::var("MAGICTUNNEL_RUNTIME_MODE").is_err() {
+            cmd.env("MAGICTUNNEL_RUNTIME_MODE", "advanced");
+        }
+        if std::env::var("OLLAMA_BASE_URL").is_err() {
+            cmd.env("OLLAMA_BASE_URL", "http://localhost:11434");
+        }
+        if std::env::var("MAGICTUNNEL_SEMANTIC_MODEL").is_err() {
+            cmd.env("MAGICTUNNEL_SEMANTIC_MODEL", "ollama:nomic-embed-text");
+        }
+        if std::env::var("MAGICTUNNEL_DISABLE_SEMANTIC").is_err() {
+            cmd.env("MAGICTUNNEL_DISABLE_SEMANTIC", "false");
+        }
+        
+        cmd
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());

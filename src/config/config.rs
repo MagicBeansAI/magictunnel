@@ -99,9 +99,63 @@ impl Default for VisibilityConfig {
     }
 }
 
+/// Runtime mode for MagicTunnel deployment
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeMode {
+    /// Proxy mode - Core MCP proxy features only (default)
+    Proxy,
+    /// Advanced mode - All proxy features plus enterprise security and management
+    Advanced,
+}
+
+impl Default for RuntimeMode {
+    fn default() -> Self {
+        RuntimeMode::Proxy
+    }
+}
+
+impl std::fmt::Display for RuntimeMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RuntimeMode::Proxy => write!(f, "proxy"),
+            RuntimeMode::Advanced => write!(f, "advanced"),
+        }
+    }
+}
+
+impl std::str::FromStr for RuntimeMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "proxy" => Ok(RuntimeMode::Proxy),
+            "advanced" => Ok(RuntimeMode::Advanced),
+            _ => Err(format!("Invalid runtime mode: '{}'. Valid options: proxy, advanced", s)),
+        }
+    }
+}
+
+/// Deployment configuration for multi-mode architecture
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeploymentConfig {
+    /// Runtime mode - controls which features are enabled
+    pub runtime_mode: RuntimeMode,
+}
+
+impl Default for DeploymentConfig {
+    fn default() -> Self {
+        Self {
+            runtime_mode: RuntimeMode::default(),
+        }
+    }
+}
+
 /// Main configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
+    /// Deployment configuration - controls runtime mode and feature loading
+    pub deployment: Option<DeploymentConfig>,
     /// Server configuration
     pub server: ServerConfig,
     /// Registry configuration
@@ -872,6 +926,7 @@ impl Default for ContainerConfig {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            deployment: Some(DeploymentConfig::default()),
             server: ServerConfig::default(),
             registry: RegistryConfig::default(),
             auth: None,
@@ -1768,35 +1823,38 @@ impl Config {
         host_override: Option<String>,
         port_override: Option<u16>,
     ) -> Result<Self> {
+        // Load with new resolver system
+        let resolution = Self::load_with_resolution(Some(path.as_ref()), host_override, port_override)?;
+        Ok(resolution.config)
+    }
+
+    /// Load configuration with full resolution information (new method)
+    pub fn load_with_resolution<P: AsRef<Path>>(
+        path: Option<P>,
+        host_override: Option<String>,
+        port_override: Option<u16>,
+    ) -> Result<crate::config::ConfigResolution> {
+        use crate::config::ConfigResolver;
+
         // Load .env files in order of precedence: .env → .env.{environment} → .env.local
         Self::load_env_files()?;
 
-        let mut config = if path.as_ref().exists() {
-            let content = std::fs::read_to_string(&path).map_err(|e| {
-                ProxyError::config(format!("Failed to read config file: {}", e))
-            })?;
-
-            serde_yaml::from_str(&content).map_err(|e| {
-                ProxyError::config(format!("Failed to parse config file: {}", e))
-            })?
-        } else {
-            tracing::warn!("Config file not found, using defaults");
-            Self::default()
-        };
-
-        // Apply environment variable overrides (precedence: .env < file < env < CLI)
-        config.apply_environment_overrides()?;
+        // Use new resolver system
+        let resolver = ConfigResolver::new()?;
+        let mut resolution = resolver.resolve_config(path.as_ref().map(|p| p.as_ref()))?;
 
         // Apply CLI overrides (highest precedence)
         if let Some(host) = host_override {
-            config.server.host = host;
+            resolution.config.server.host = host;
         }
         if let Some(port) = port_override {
-            config.server.port = port;
+            resolution.config.server.port = port;
         }
 
-        config.validate()?;
-        Ok(config)
+        // Validate final configuration
+        resolution.config.validate()?;
+        
+        Ok(resolution)
     }
 
     /// Apply environment variable overrides to configuration

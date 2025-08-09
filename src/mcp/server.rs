@@ -1,7 +1,8 @@
 //! MCP Server implementation
 
 use crate::auth::AuthenticationMiddleware;
-use crate::config::{RegistryConfig, AuthConfig, TlsConfig, TlsMode};
+use crate::config::{RegistryConfig, AuthConfig, TlsConfig, TlsMode, ConfigResolution};
+use crate::services::ServiceContainer;
 use crate::error::{Result, ProxyError};
 
 
@@ -22,7 +23,7 @@ use crate::mcp::tool_validation::{RuntimeToolValidator, ValidationConfig as Tool
 use crate::mcp::request_forwarder::RequestForwarder;
 use crate::registry::service::{RegistryService, EnhancementCallback};
 use crate::routing::{Router, types::AgentResult};
-use crate::web::configure_dashboard_api;
+use crate::web::{configure_dashboard_api};
 use actix_web::{web, App, HttpServer, HttpResponse, middleware::Logger, HttpRequest};
 use actix_ws::Message;
 use futures_util::{StreamExt, stream};
@@ -626,6 +627,22 @@ impl McpServer {
         }
         Ok(self)
     }
+
+    /// Configure smart discovery service for the MCP server
+    pub fn with_smart_discovery_service(mut self, smart_discovery: Arc<crate::discovery::SmartDiscoveryService>) -> Self {
+        self.smart_discovery = Some(smart_discovery);
+        
+        // Also update the router to include smart discovery
+        let registry = self.registry.clone();
+        if let Some(ref discovery_service) = self.smart_discovery {
+            self.router = Arc::new(crate::routing::Router::with_registry_and_smart_discovery(
+                registry,
+                discovery_service.clone()
+            ));
+        }
+        
+        self
+    }
     
     /// Configure security for the MCP server
     pub async fn with_security(mut self, security_config: crate::security::SecurityConfig) -> Result<Self> {
@@ -698,8 +715,12 @@ impl McpServer {
         }
     }
 
-    /// Start the MCP server with TLS configuration
+
     pub async fn start_with_config(self, host: &str, port: u16, tls_config: Option<TlsConfig>) -> Result<()> {
+        self.start_with_config_and_services(host, port, tls_config, None, None).await
+    }
+
+    pub async fn start_with_config_and_services(self, host: &str, port: u16, tls_config: Option<TlsConfig>, service_container: Option<Arc<crate::services::ServiceContainer>>, config_resolution: Option<Arc<crate::config::ConfigResolution>>) -> Result<()> {
         // Determine the actual TLS mode and log startup info
         let (effective_mode, protocol) = Self::determine_tls_mode_static(tls_config.as_ref(), host)?;
         info!("Starting MCP server on {}:{} with TLS mode: {:?} ({})", host, port, effective_mode, protocol);
@@ -776,7 +797,8 @@ impl McpServer {
                     let resource_manager = mcp_server.resource_manager.clone();
                     let prompt_manager = mcp_server.prompt_manager.clone();
                     let discovery = mcp_server.smart_discovery.clone();
-                    move |cfg| configure_dashboard_api(cfg, registry, mcp_server, external_mcp, resource_manager, prompt_manager, discovery)
+                    let service_container_clone = service_container.clone();
+                    move |cfg| configure_dashboard_api(cfg, registry, mcp_server, external_mcp, resource_manager, prompt_manager, discovery, service_container_clone)
                 })
 
                 // Security API routes
@@ -784,6 +806,7 @@ impl McpServer {
                     let security_api = security_api_data.clone();
                     move |cfg| crate::web::configure_security_api(cfg, security_api)
                 })
+
 
                 // TODO: Add gRPC endpoints (will need separate gRPC server)
         });
@@ -896,6 +919,28 @@ impl McpServer {
 
         info!("TLS configuration loaded successfully");
         Ok(config)
+    }
+
+    /// Start the MCP server with TLS configuration from an Arc
+    pub async fn start_with_config_arc(server: Arc<Self>, host: &str, port: u16, tls_config: Option<TlsConfig>) -> Result<()> {
+        // Try to unwrap the Arc to get owned instance
+        match Arc::try_unwrap(server) {
+            Ok(owned_server) => {
+                // Successfully unwrapped - use the existing method
+                owned_server.start_with_config(host, port, tls_config).await
+            }
+            Err(arc_server) => {
+                // Arc still has multiple references - we need a different approach
+                warn!("Cannot unwrap Arc<McpServer> for start_with_config - multiple references exist");
+                warn!("This indicates a design issue where the server is shared when it should be owned");
+                
+                // For now, return an error to highlight the issue
+                Err(crate::error::ProxyError::config(
+                    "Cannot start server: Arc<McpServer> has multiple references. \
+                     The server should be owned exclusively when starting.".to_string()
+                ))
+            }
+        }
     }
 
     /// Start gRPC server (handled separately in main.rs)
@@ -2301,6 +2346,7 @@ impl McpServer {
     pub fn has_elicitation_service(&self) -> bool {
         self.elicitation_service.is_some()
     }
+
 
     /// Check if enhancement service is configured
     pub fn has_enhancement_service(&self) -> bool {

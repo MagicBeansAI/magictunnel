@@ -859,6 +859,144 @@ Complete MCP 2025-06-18 bidirectional communication where external MCP servers c
 - ✅ **Better maintainability** - no more confusion between legacy and modern clients
 - ✅ **MCP 2025-06-18 compliance** - modern clients support the latest protocol
 
+### ✅ Multi-Mode Service Architecture & Enterprise Security UI Complete (v0.3.10) ✅ COMPLETE
+**Implementation Complete: August 9, 2025 (v0.3.10)**
+
+#### 🏗️ Tool Enhancement Service Migration Complete ✅ COMPLETE
+- ✅ **Service Architecture Cleanup** - Removed all remaining references to tool enhancement from AdvancedServices after successful migration to core services
+- ✅ **Clean Service Boundaries** - Tool enhancement (sampling, elicitation) now properly categorized as core functionality available in both proxy and advanced modes
+- ✅ **Enhanced Documentation Updates** - Updated CLAUDE.md and project documentation to reflect accurate service architecture
+
+#### 🎯 Runtime Mode Detection Fix Complete ✅ COMPLETE
+- ✅ **Mode API Architecture Fix** - Fixed fundamental issue where Mode API endpoints weren't registered in server, causing frontend to show incorrect "Advanced" mode detection
+- ✅ **Dashboard API Mode Detection** - Completely rewrote mode detection logic in `/dashboard/api/mode` to read actual `service_container.runtime_mode` instead of unreliable heuristics
+- ✅ **Environment Variable Support** - Fixed and validated environment variable syntax for runtime mode control (`MAGICTUNNEL_RUNTIME_MODE=proxy ./magictunnel`)
+- ✅ **Configuration Resolution** - Properly implemented ConfigResolution passing with Clone traits for Arc sharing across service architecture
+
+#### ⚙️ Enterprise Security Service Visibility Complete ✅ COMPLETE
+- ✅ **Advanced Services Initialization** - Completely rewrote AdvancedServices to always show all 7 available enterprise security services regardless of configuration status
+- ✅ **Service Status Logic** - Enhanced status reporting to show "Running" for configured services and "Warning" for available but unconfigured services
+- ✅ **Configuration Analysis** - Added proper security framework detection with meaningful status messages explaining configuration requirements
+
+#### 🧹 API Architecture Cleanup ✅ COMPLETE
+- ✅ **Endpoint Consolidation** - Successfully reverted from experimental `/api/*` endpoints back to existing `/dashboard/api/*` pattern for consistency
+- ✅ **Removed Temporary Code** - Cleaned up experimental Mode API registration code after determining existing dashboard API was the correct approach
+- ✅ **Pure Service Container Logic** - Eliminated heuristic-based mode detection in favor of direct service container runtime mode reading
+
+#### 📊 Enterprise Security Services Dashboard ✅ COMPLETE
+- ✅ **Complete Service Visibility** - All 7 enterprise security services now properly displayed in advanced mode service status:
+  - Tool Allowlisting, RBAC, Request Sanitization, Audit Logging, Security Policies, Emergency Lockdown, MagicTunnel Authentication
+- ✅ **Configuration Status Reporting** - Clear messaging for each service showing whether it's running, available but not configured, or requires security framework
+- ✅ **User Experience** - Users now see exactly which enterprise features are available and what configuration is needed to activate them
+
+#### 🔧 Configuration System Improvements ✅ COMPLETE
+- ✅ **Security Configuration Analysis** - Confirmed security services require `security:` section in configuration file to become active
+- ✅ **Status Message Clarity** - Enhanced status messages to guide users on exactly what configuration is needed for each service
+- ✅ **Framework Dependencies** - Clear indication that all security services require the security framework to be enabled first
+
+#### Service Container Architecture ✅ COMPLETE
+- ✅ **Pure Runtime Mode Detection** - Mode detection now relies solely on `service_container.runtime_mode` without fallback heuristics
+- ✅ **Clone Trait Implementation** - Added proper `#[derive(Clone)]` to ConfigResolution and ValidationResult for Arc sharing
+- ✅ **Service Status Integrity** - Service status reporting now accurately reflects actual service availability and configuration state
+
+#### Code Quality Improvements ✅ COMPLETE
+- ✅ **Removed Dead Code** - Cleaned up unused Mode API registration code and experimental endpoint handlers
+- ✅ **Consistent API Patterns** - Maintained existing `/dashboard/api/*` endpoint pattern for frontend compatibility
+- ✅ **Error Handling** - Proper error handling when service container is unavailable, indicating critical configuration errors
+
+### ✅ Multi-Mode Architecture Implementation (v0.3.10) ✅ COMPLETE
+**Implementation Complete: August 8, 2025 (v0.3.10)**
+
+#### 🏗️ Multi-Mode Architecture Achievement ✅ COMPLETE
+This major architectural enhancement provides two distinct runtime modes to address different deployment scenarios:
+
+**🚀 Proxy Mode (Default)**:
+- Zero-config startup with minimal dependencies
+- Fast startup and low resource usage
+- Core MCP proxy functionality
+- Smart tool discovery (if configured)
+- Basic web dashboard
+
+**🏢 Advanced Mode**:
+- Full enterprise features
+- Enterprise security management and RBAC
+- LLM services and enhancement pipeline
+- Complete web dashboard with security UI
+- Audit logging and monitoring
+- OAuth 2.1 authentication
+
+#### Core Implementation Components ✅ COMPLETE
+- ✅ **Environment Variable Integration** (`src/config/environment.rs`)
+  - ✅ `MAGICTUNNEL_RUNTIME_MODE=proxy|advanced` - Override config file mode
+  - ✅ `MAGICTUNNEL_CONFIG_PATH` - Custom config file path
+  - ✅ `MAGICTUNNEL_SMART_DISCOVERY=true|false` - Override smart discovery
+  - ✅ Environment variable validation and parsing
+
+- ✅ **Default Config Resolution** (`src/config/resolver.rs`)
+  - ✅ Check for `magictunnel-config.yaml` (new default)
+  - ✅ Built-in minimal defaults for proxy mode
+  - ✅ Config file validation and error reporting
+
+- ✅ **Startup Logging System** (`src/startup/logger.rs`)
+  - ✅ Show resolved runtime mode (proxy/advanced)
+  - ✅ Display config source (env var override vs config file)
+  - ✅ Show config file being used (path and validation status)
+  - ✅ List all enabled/disabled features by category
+  - ✅ Environment variable precedence warnings
+  - ✅ Feature dependency validation results
+
+- ✅ **Configuration Validation System** (`src/config/validator.rs`)
+  - ✅ `validate_proxy_mode()` - Check minimal config requirements
+  - ✅ `validate_advanced_mode()` - Check enterprise config requirements
+  - ✅ `generate_missing_defaults()` - Auto-create missing sections
+  - ✅ `suggest_config_fixes()` - Provide helpful error messages
+
+- ✅ **Service Loading Strategy** (`src/services/mod.rs`)
+  - ✅ `ProxyServices` - Core MCP proxy, tool routing, basic web UI
+  - ✅ `AdvancedServices` - Security, authentication, enterprise features
+  - ✅ Runtime mode-aware service initialization
+  - ✅ Service dependency validation and loading order
+  - ✅ Graceful service startup with detailed error reporting
+
+- ✅ **Frontend Mode Awareness** (`frontend/src/lib/stores/mode.ts`)
+  - ✅ Detect current mode via API endpoint
+  - ✅ Hide/show features based on runtime mode
+  - ✅ Progressive enhancement for advanced features
+  - ✅ Clear mode indicators in navigation and status displays
+
+- ✅ **Smart Discovery Environment Integration**
+  - ✅ `MAGICTUNNEL_SMART_DISCOVERY=true|false` environment override
+  - ✅ `smart_discovery.enabled: true/false` in config file (fallback)
+  - ✅ Auto-detection based on LLM provider configuration
+  - ✅ Works in both proxy and advanced modes
+  - ✅ Dependency checking for LLM providers with clear error messages
+
+#### Configuration Architecture ✅ COMPLETE
+- ✅ **Pure Config-Driven**: All behavior controlled via config file and environment variables
+- ✅ **Environment Priority**: Environment variables take precedence over config file
+- ✅ **Default Config**: `magictunnel-config.yaml` as new default filename
+- ✅ **Built-in Defaults**: Minimal proxy mode when no config exists
+
+#### Documentation Updates ✅ COMPLETE
+- ✅ **Configuration Documentation**: Updated config.yaml.template with deployment section
+- ✅ **Usage Documentation**: Updated CLAUDE.md with multi-mode architecture details
+- ✅ **README Updates**: Added multi-mode architecture section with examples
+- ✅ **Comprehensive Guide**: Created `docs/multi-mode-architecture.md` with complete usage guide
+
+#### Technical Benefits Achieved ✅ COMPLETE
+- ✅ **Simplified Onboarding**: Zero-config proxy mode for development
+- ✅ **Enterprise Ready**: Advanced mode with full security and management features
+- ✅ **Clean Separation**: Clear distinction between core and enterprise functionality
+- ✅ **Configuration Flexibility**: Environment variable overrides for deployment scenarios
+- ✅ **Progressive Enhancement**: Upgrade path from simple proxy to full enterprise platform
+
+#### Implementation Statistics ✅ COMPLETE
+- ✅ **Files Modified**: 5 core configuration and documentation files
+- ✅ **New Documentation**: 1 comprehensive multi-mode architecture guide (200+ lines)
+- ✅ **Configuration Examples**: Complete examples for both proxy and advanced modes
+- ✅ **Environment Variables**: 3 new environment variables for runtime control
+- ✅ **Backward Compatibility**: Full compatibility with existing configurations
+
 ---
 
 ## 🎯 Success Metrics Achieved

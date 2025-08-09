@@ -15,6 +15,7 @@ pub mod openai;
 pub mod registry;
 pub mod routing;
 pub mod security;
+pub mod services;
 pub mod supervisor;
 pub mod tls;
 pub mod web;

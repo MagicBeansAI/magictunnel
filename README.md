@@ -1,93 +1,21 @@
 # MagicTunnel
 
-**Smart MCP Proxy** - One intelligent tool that discovers the right tool for any request. Now with **Complete MCP 2025-06-18 Integration** featuring server-side LLM request generation, external MCP protection, enterprise-grade enhancement pipeline, **Complete LLM Backend Management APIs**, and **Full Bidirectional Communication** ✅.
+**Smart MCP Proxy** - One intelligent MCP Proxy server that discovers the right MCP for any request. 
+
+Now with **Elicitation and Sampling : MCP 2025-06-18 Integration** and **Multi-Mode Architecture**
 
 ![MagicTunnel](docs/images/magictunnel-1.png)
 
 ## The Problem
-MCP clients get overwhelmed with 50+ tools. Users can't find the right tool for their task.
+How to seamlessly and securily connect MCP clients to my internal and external systems?
 
 ## The Solution  
 MagicTunnel provides **one smart tool** that:
-1. **🧠 Analyzes** your natural language request with hybrid AI intelligence
-2. **🔍 Discovers** the best tool using pre-generated enhanced descriptions  
-3. **🔧 Maps** parameters automatically with LLM-powered elicitation
-4. **⚡ Executes** with sub-second response times and graceful degradation
-5. **🛡️ Protects** external MCP tools while respecting their original capabilities
-
-## 🎉 New: Enterprise-Grade Smart Discovery System + Complete LLM Backend APIs
-
-**✅ MCP 2025-06-18 Compliant** with complete sampling/elicitation integration:
-
-- **🧠 Server-side LLM Request Generation**: OpenAI, Anthropic, and Ollama integration for enhanced tool descriptions
-- **🔄 Event-driven Enhancement Pipeline**: Real-time tool enhancement with pre-generation at startup
-- **🛡️ External MCP Protection**: Automatic detection and capability inheritance from external MCP servers
-- **⚡ Performance Optimized**: Pre-generated enhancements maintain sub-second response times
-- **🔧 CLI Management**: Complete visibility management with MCP capability override warnings
-- **📊 Version Management**: Automatic capability file versioning with rollback support
-- **⚠️ Graceful Degradation**: 100% reliability with fallback to base descriptions
-
-**🎨 NEW: Complete LLM Backend Management APIs** (v0.3.4):
-
-- **📡 25+ REST Endpoints**: Comprehensive API coverage for all LLM services and resource management
-- **🔧 Resource Management**: 7 endpoints for browsing, reading, validation, and statistics
-- **⚙️ Enhancement Pipeline**: 9 endpoints for tool enhancement, job tracking, and cache control
-- **📝 Prompt & Sampling**: Complete management APIs for AI-powered content generation
-- **🤖 Provider Management**: Multi-provider configuration and health monitoring (OpenAI/Anthropic/Ollama)
-- **📊 Analytics & Statistics**: Real-time metrics and performance monitoring for all services
-- **🧪 Comprehensive Test Coverage**: 60+ test functions across 6 test suites providing complete API validation
-
-## Quick Start
-
-### Full Stack Setup (Recommended)
-```bash
-# Clone and build
-git clone https://github.com/your-org/magictunnel.git
-cd magictunnel
-
-# Quick setup with smart discovery (Ollama + development mode)
-make build-release-semantic && make pregenerate-embeddings-ollama MAGICTUNNEL_ENV=development
-
-# Run MagicTunnel with Web Dashboard & Supervisor
-./magictunnel-supervisor
-
-# Access Web Dashboard
-open http://localhost:5173/dashboard
-
-# Test smart discovery via API
-curl -X POST http://localhost:3001/v1/mcp/call \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "smart_tool_discovery", 
-    "arguments": {"request": "ping google.com"}
-  }'
-```
-
-### Lightweight Setup (MCP Server Only)
-```bash
-# Run standalone MCP server (no web dashboard)
-./magictunnel
-```
-
-### Setup with Smart Discovery (Recommended)
-For the best experience with local semantic searc (Requires Ollama embedding model):
-
-```bash
-# Install Ollama (optional - for local semantic search)
-curl -fsSL https://ollama.ai/install.sh | sh
-ollama pull nomic-embed-text
-
-# Build with semantic search support
-make build-release-semantic
-
-# Pre-generate embeddings for faster startup
-make pregenerate-embeddings-ollama
-
-# Run with smart discovery
-make run-release-ollama
-```
-
-📚 **[Complete Setup Guide](docs/quickstart.md)** - Detailed 5-minute tutorial with web dashboard and all options
+1. **⚡ Converts** your internal apis to MCP tools
+2. **🔍 Seamlessly** connects MCP clients to both external and internal tools, no limits on number of tools
+3. **🔍 Discovers** the right tool for any request, no limits on number of tools
+4. **⚡ Executes** the tool with proper parameters, supports elicitationa and sampling, over stdio | HTTP | WebSocket | Streamable HTTP | SSE
+5. **🛡️ Protects** execuion and data leaks with Role based access, Audits, Security Policies and Sanitization
 
 ## Example Usage
 
@@ -107,47 +35,89 @@ Just describe what you want:
 {"name": "smart_tool_discovery", "arguments": {"request": "get all users from database"}}
 ```
 
-## Configuration
 
-Create `magictunnel-config.yaml`:
-```yaml
-server:
-  host: "127.0.0.1"
-  port: 8080
+## 🎉 New: Multi-Mode Architecture + Enterprise-Grade Security
 
-registry:
-  paths: ["./capabilities"]
+**✅ MCP 2025-06-18 Compliant** with sampling/elicitation proxying integration:
 
-smart_discovery:
-  enabled: true
-  tool_selection_mode: "rule_based"  # or "llm_based"
+- **🧠 Server-side LLM Request Generation**: OpenAI, Anthropic, and Ollama integration for enhanced tool descriptions
+- **🔄 Event-driven Enhancement Pipeline**: Real-time tool enhancement with pre-generation at startup
+- **🛡️ External MCP Capability Inheritance**: Automatic detection and capability inheritance from external MCP servers
+- **⚡ Performance Optimized**: Pre-generated enhancements maintain sub-second response times
+- **🔧 CLI Management**: Complete visibility management with MCP capability override warnings
+- **📊 Version Management**: Automatic capability file versioning with rollback support
+
+## Quick Start
+
+### 🚀 Simple Setup (Proxy Mode without Dashboard)
+
+```bash
+# Clone and build
+git clone https://github.com/your-org/magictunnel.git
+cd magictunnel
+make build-release
 ```
 
-## Web Dashboard
-
-MagicTunnel includes a comprehensive web dashboard for management and monitoring:
-
-### Access Dashboard
 ```bash
-# Start with supervisor (includes web dashboard)
-./target/release/magictunnel-supervisor
+# Zero-config startup - just run it
+export MAGICTUNNEL_RUNTIME_MODE=proxy && export MAGICTUNNEL_SMART_DISCOVERY=false && ./magictunnel 
 
-# Open in browser
+# Test the smart discovery
+curl -X POST http://localhost:3001/v1/mcp/call \
+  -H "Content-Type: application/json" \
+  -d '{"name": "ping_globalping", "arguments": {"request": "ping google.com"}}'
+```
+
+### 🏢 Full Featured (Advanced Mode with dashboard)
+```bash
+# Clone and build
+git clone https://github.com/your-org/magictunnel.git
+cd magictunnel
+make build-release-ollama && make pregenerate-embeddings-ollama MAGICTUNNEL_ENV=development
+```
+
+```bash
+# Run with enterprise features and web dashboard
+export MAGICTUNNEL_RUNTIME_MODE=advanced  && ./magictunnel-supervisor 
+
+# Access the web dashboard
+cd frontend
+npm run dev
 open http://localhost:5173/dashboard
 ```
 
-### Dashboard Features
-- 📊 **Real-time Monitoring**: System status, performance metrics, and uptime tracking
-- 🔧 **Tool Management**: Browse, test, and manage all available MCP tools
-- 📈 **Tool Analytics**: Track tool usage patterns, execution metrics, and discovery rankings
-- 📋 **Configuration Management**: Edit configuration files with validation and backup
-- 📝 **Live Logs**: Real-time log viewer with filtering, search, and export
-- 🔍 **MCP Testing**: Interactive JSON-RPC command testing interface
-- ⚙️ **Service Control**: Start, stop, and restart services via web interface
+📚 **[Complete Setup Guide](docs/quickstart.md)** - Detailed installation, configuration options, and tutorials
+
+## 🏗️ Multi-Mode Architecture (v0.3.10)
+
+MagicTunnel supports **two distinct runtime modes** to address different use cases:
+
+### 🚀 Proxy Mode (Default)
+**Perfect for**: Quick setup, minimal resource usage, headless operation
+- ✅ Core MCP proxy functionality with optional smart discovery
+- ✅ Fast startup and low memory footprint
+- ✅ Minimum logging
+
+### 🏢 Advanced Mode  
+**Perfect for**: Production deployments, enterprise environments
+- ✅ All proxy mode features
+- ✅ Enterprise security management and RBAC
+- ✅ Complete web dashboard with security UI
+- ✅ Audit logging and monitoring  
+
+📚 **[Complete Configuration Guide](docs/config.md)** - Full configuration options and examples
+
+## Web Dashboard
+
+Access the comprehensive web dashboard at `http://localhost:5173/dashboard` for:
+- 📊 Real-time system monitoring and metrics
+- 🔧 Tool management and testing interface  
+- 📝 Live logs and configuration editing
+- 🔒 Enterprise security management (Advanced Mode)
+
+📚 **[Dashboard Guide](docs/web-dashboard.md)** - Complete web interface documentation
 
 ## Add Your Tools
-
-### Manual Tool Creation
 
 Create `capabilities/my-tools.yaml`:
 ```yaml
@@ -166,96 +136,18 @@ tools:
       args: ["-c", "4", "{host}"]
 ```
 
-### Generate Tools from APIs
-
-Automatically generate tools from your existing APIs (always produces Enhanced MCP 2025-06-18 format):
-
+Or generate from existing APIs:
 ```bash
-# Generate Enhanced MCP 2025-06-18 format tools
-./target/release/openapi-generator \
-  --spec https://api.example.com/openapi.json \
-  --output capabilities/api-tools.yaml \
-  --base-url https://api.example.com \
-  --auth-type bearer --auth-token $API_TOKEN
-
-# Generate from gRPC services  
-./target/release/grpc-generator \
-  --proto service.proto \
-  --output capabilities/grpc-tools.yaml \
-  --endpoint localhost:50051
-
-# Generate from GraphQL schemas
-./target/release/graphql-generator \
-  --schema schema.graphql \
-  --endpoint https://api.example.com/graphql \
-  --output capabilities/graphql-tools.yaml
-
-# Unified CLI for all formats (always enhanced)
-./target/release/magictunnel-cli openapi \
-  --spec openapi.json \
-  --base-url https://api.example.com \
-  --output tools.yaml
+# From OpenAPI specs
+./target/release/openapi-generator --spec https://api.example.com/openapi.json --output tools.yaml
 ```
 
-📖 **[Complete API Generation Guide](docs/tools.md#generating-tools-from-apis)** - Detailed CLI documentation with all options and examples
-
-### CLI Management Tools
-
-MagicTunnel includes powerful CLI tools for managing tool visibility and MCP capabilities:
-
-```bash
-# Tool Visibility Management
-./target/release/magictunnel-visibility status --detailed
-./target/release/magictunnel-visibility hide-tool tool_name
-./target/release/magictunnel-visibility show-all --confirm
-
-# MCP Capability Override Warnings (NEW!)
-./target/release/magictunnel-visibility show-mcp-warnings --detailed
-
-# Example output:
-# MCP Capability Override Warnings
-# ================================
-# Total external MCP tools: 15
-# Tools with original capabilities: 8
-# Capability override warnings: 3
-# 
-# File: capabilities/external-server.yaml
-#   🔗 weather_tool (external_mcp)
-#       ✅ Has original sampling capabilities
-#       ❌ No original MCP 2025-06-18 capabilities detected
-#   ⚠️  weather_tool: Tool has original sampling capabilities but local enhancement is enabled
-```
-
-🔧 **[Complete CLI Reference](docs/cli.md)** - All CLI tools and management commands
-
-### Development Tools
-
-MagicTunnel includes comprehensive development and operational tools:
-
-```bash
-# YAML Validation
-python3 tools/validation/validate_yaml_migration.py capabilities/
-bash tools/validation/validate_yaml_migration.sh capabilities/
-
-# Format Migration  
-python3 tools/migration/migrate_yaml_to_enhanced.py input.yaml output.yaml
-
-# External Service Integration
-python3 tools/integrations/google_sheets_tools.py read "spreadsheet_id" "A:D"
-
-# Testing and Development
-python3 tools/testing/test_search.py --query "ping google.com"
-python3 tools/testing/test_rust_semantic.py
-
-# Version Management
-bash tools/release/update-version.sh 0.3.1
-```
-
-🛠️ **[Complete Tools Documentation](tools/README.md)** - All development tools and utilities
+🔧 **[Complete Tools Guide](docs/tools.md)** - Tool creation, API generation, and management
 
 ## Features
 
-- ✨ **Enhanced MCP 2025-06-18 Format**: Latest MCP specification with AI-enhanced discovery, security sandboxing, and enterprise monitoring
+- 🏗️ **Multi-Mode Architecture**: Proxy mode (minimal setup) and Advanced mode (enterprise features) with environment variable control
+- ✨ **Enhanced MCP 2025-06-18 Format**: Latest MCP specification with proxying support for Elicitation and Sampling with AI-enhanced discovery, security sandboxing, and enterprise monitoring
 - ✅ **Smart Discovery**: AI-powered tool selection with natural language interface  
 - 🖥️ **Web Dashboard**: Real-time monitoring, tool management, and configuration
 - 🔧 **Supervisor Architecture**: Process management with automatic restart and health monitoring
@@ -323,6 +215,8 @@ MagicTunnel is **fully compliant** with the latest MCP 2025-06-18 specification:
 - [🖥️ Web Dashboard](docs/web-dashboard.md) - Complete web interface guide
 - [🔧 Supervisor System](docs/supervisor.md) - Process management and monitoring
 - [🧠 Smart Discovery](docs/smart-discovery.md) - Intelligent tool discovery
+- [🏗️ Multi-Mode Architecture](docs/multi-mode-architecture.md) - Complete runtime mode system
+- [⚡ Startup Flow & Service Architecture](CLAUDE.md#startup-flow-and-service-architecture) - Detailed startup sequence and mode-aware UI
 - [🔄 **Bidirectional Communication**](docs/BIDIRECTIONAL_COMMUNICATION_FLOW.md) - **MCP 2025-06-18 client routing architecture** ✅
 - [🌐 Protocol Compatibility](docs/PROTOCOL_COMPATIBILITY.md) - Network MCP protocol translation
 
@@ -351,9 +245,6 @@ MagicTunnel is **fully compliant** with the latest MCP 2025-06-18 specification:
 - [🛡️ Tool Validation](docs/mcp-tool-validation.md) - Runtime security sandboxing and validation
 - [🔐 OAuth 2.1 & Security](docs/mcp-security.md) - Authentication and resource indicators
 - [🌐 Transport Layer](docs/mcp-transport.md) - Streamable HTTP and enhanced batching
-
-### Development Documentation
-- [📋 Frontend Development](docs/frontend_todo.md) - Frontend implementation roadmap
 - [🔢 Version Management](docs/VERSION_MANAGEMENT.md) - Development workflow and versioning
 
 [📚 View All Documentation](docs/)

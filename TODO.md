@@ -4,7 +4,7 @@ This document outlines current tasks and future development plans for MagicTunne
 
 ## 🚀 Current Status
 
-**MagicTunnel v0.3.9** - **Production Ready** with Enterprise Security UI and Enhanced System Metrics
+**MagicTunnel v0.3.10** - **Production Ready** with Multi-Mode Architecture and Enterprise Security UI
 
 ### ✅ Major Achievements Complete
 - **MCP 2025-06-18 Full Compliance** - All specification requirements implemented
@@ -21,9 +21,59 @@ This document outlines current tasks and future development plans for MagicTunne
 
 ---
 
+## 🚨 **CRITICAL: Multi-Mode Architecture Testing Implementation**
+
+**Status**: Phase 9 multi-mode architecture is implemented but **lacks comprehensive testing**
+**Priority**: **URGENT** - Testing required to validate runtime mode functionality before production use
+
+### Multi-Mode Architecture Test Suite Implementation (2-3 days)
+
+#### **Critical Missing Tests**
+- [ ] **Configuration Resolution Testing** (`tests/multi_mode_config_test.rs`)
+  - [ ] Test environment variable override behavior (MAGICTUNNEL_RUNTIME_MODE, CONFIG_PATH, SMART_DISCOVERY)
+  - [ ] Test config file priority resolution (magictunnel-config.yaml > config.yaml > defaults)
+  - [ ] Test built-in proxy mode defaults when no config exists
+  - [ ] Test invalid configuration error handling and helpful error messages
+  - [ ] Test configuration validation for both proxy and advanced modes
+
+- [ ] **Runtime Mode Service Loading Testing** (`tests/multi_mode_services_test.rs`)
+  - [ ] Test proxy mode loads only core services (MCP server, registry, basic web UI)
+  - [ ] Test advanced mode loads all services (security, auth, LLM services, enterprise features)
+  - [ ] Test service dependency validation during startup
+  - [ ] Test graceful service startup failure handling
+  - [ ] Test service status reporting and health checks
+
+- [ ] **Environment Integration Testing** (`tests/multi_mode_environment_test.rs`)
+  - [ ] Test `MAGICTUNNEL_RUNTIME_MODE=proxy` vs `=advanced` behavior
+  - [ ] Test `MAGICTUNNEL_CONFIG_PATH` custom config loading
+  - [ ] Test `MAGICTUNNEL_SMART_DISCOVERY=true|false` override functionality
+  - [ ] Test environment variable validation and parsing
+  - [ ] Test environment override warnings in startup logs
+
+- [ ] **Frontend Mode Awareness Testing** (`tests/multi_mode_frontend_test.rs`)
+  - [ ] Test `/api/mode` endpoint returns correct runtime mode
+  - [ ] Test `/api/config` endpoint returns mode-appropriate configuration
+  - [ ] Test `/api/services/status` shows only loaded services
+  - [ ] Test advanced API endpoints blocked in proxy mode (return "Advanced mode required")
+  - [ ] Test mode detection integration in frontend stores
+
+- [ ] **Startup Logging Testing** (`tests/multi_mode_startup_test.rs`)
+  - [ ] Test comprehensive startup information display
+  - [ ] Test config resolution logging (env overrides, config file path, defaults)
+  - [ ] Test feature status display by runtime mode
+  - [ ] Test environment variable precedence warnings
+  - [ ] Test validation results and dependency checking
+
+**Implementation Notes:**
+- These tests should have been part of the original Phase 9 implementation
+- Without these tests, the multi-mode architecture is not production-ready
+- Testing validates the core architectural decisions and prevents regressions
+
+---
+
 ## 🚨 **CRITICAL: Complete Security System Implementation**
 
-**Status**: Security APIs return mock data - needs full implementation with real services
+**Status**: Security APIs return mock data - needs full implementation with real services  
 **Priority**: **URGENT** - Security system must be fully functional, not mock/stub
 
 ### Phase 1: Security Service Statistics & Health Monitoring (2-3 days)
@@ -544,6 +594,148 @@ make release VERSION=  # Full release workflow
 
 **Impact**: Transform standalone scripts into integrated development workflow tools
 
+### 10. Comprehensive Testing Framework 🧪 **HIGH PRIORITY**
+**Status**: Critical infrastructure needed for production confidence
+**Priority**: **HIGH** - Essential for feature reliability and regression prevention
+
+#### **10.1 Multi-Mode Architecture Testing** (`tests/multi_mode/`)
+- [ ] **Configuration Resolution Testing**
+  - [ ] Test environment variable override behavior
+  - [ ] Test config file priority resolution (magictunnel-config.yaml > config.yaml)
+  - [ ] Test built-in proxy mode defaults
+  - [ ] Test invalid configuration error handling
+  - [ ] Test configuration validation for both modes
+
+- [ ] **Runtime Mode Switching Testing**
+  - [ ] Test proxy mode service loading (core services only)
+  - [ ] Test advanced mode service loading (all services)
+  - [ ] Test mode-aware API endpoint blocking
+  - [ ] Test data preservation during mode switches
+  - [ ] Test frontend feature hiding based on mode
+
+- [ ] **Environment Integration Testing**
+  - [ ] Test `MAGICTUNNEL_RUNTIME_MODE=proxy|advanced`
+  - [ ] Test `MAGICTUNNEL_CONFIG_PATH` custom config loading
+  - [ ] Test `MAGICTUNNEL_SMART_DISCOVERY=true|false`
+  - [ ] Test environment variable validation and parsing
+  - [ ] Test environment override warnings in startup logs
+
+#### **10.2 Security System Testing** (`tests/security/`)
+- [ ] **Security Service Testing**
+  - [ ] Test AllowlistService with real rule enforcement
+  - [ ] Test RbacService with actual user/role management
+  - [ ] Test AuditService with real event logging
+  - [ ] Test SanitizationService with content filtering
+  - [ ] Test PolicyEngine with rule evaluation
+
+- [ ] **Emergency Lockdown Testing**
+  - [ ] Test emergency lockdown activation/deactivation
+  - [ ] Test all tool requests blocked during lockdown
+  - [ ] Test admin bypass during emergency
+  - [ ] Test lockdown state persistence
+  - [ ] Test notification system during emergencies
+
+- [ ] **Security API Integration Testing**
+  - [ ] Test all security APIs with real backend services
+  - [ ] Test security statistics collection and reporting
+  - [ ] Test security health monitoring
+  - [ ] Test audit logging for all security operations
+  - [ ] Test authorization checks for admin-only operations
+
+#### **10.3 MCP Protocol Testing** (`tests/mcp/`)
+- [ ] **MCP 2025-06-18 Compliance Testing**
+  - [ ] Test all transport types (WebSocket, HTTP, SSE, StreamableHTTP)
+  - [ ] Test bidirectional communication flows
+  - [ ] Test sampling and elicitation service integration
+  - [ ] Test capability advertisement and negotiation
+  - [ ] Test protocol version handling and fallbacks
+
+- [ ] **Smart Discovery Testing**
+  - [ ] Test hybrid AI intelligence tool matching
+  - [ ] Test semantic search with various tool catalogs
+  - [ ] Test LLM provider integration (OpenAI, Anthropic, Ollama)
+  - [ ] Test parameter mapping and validation
+  - [ ] Test confidence scoring accuracy
+
+- [ ] **External MCP Integration Testing**
+  - [ ] Test external MCP server proxy functionality
+  - [ ] Test external server lifecycle management
+  - [ ] Test error handling and failover
+  - [ ] Test protocol translation between transports
+  - [ ] Test external server content protection
+
+#### **10.4 Performance and Load Testing** (`tests/performance/`)
+- [ ] **Load Testing Infrastructure**
+  - [ ] Setup Goose load testing framework
+  - [ ] Create WebSocket connection stress tests
+  - [ ] Create HTTP endpoint load tests
+  - [ ] Test smart discovery under high load
+  - [ ] Test system behavior at scale limits
+
+- [ ] **Performance Regression Testing**
+  - [ ] Establish performance baselines
+  - [ ] Create automated performance monitoring
+  - [ ] Test startup time performance
+  - [ ] Test memory usage patterns
+  - [ ] Test response time consistency
+
+#### **10.5 Frontend Testing** (`frontend/src/lib/test/`)
+- [ ] **Component Testing**
+  - [ ] Test mode-aware UI component behavior
+  - [ ] Test security dashboard functionality
+  - [ ] Test real API integration (no hardcoded data)
+  - [ ] Test error handling and fallback states
+  - [ ] Test accessibility compliance (WCAG 2.1)
+
+- [ ] **End-to-End Testing**
+  - [ ] Test complete user workflows
+  - [ ] Test mode switching scenarios
+  - [ ] Test authentication flows
+  - [ ] Test security management operations
+  - [ ] Test real-time updates and notifications
+
+#### **10.6 Integration Testing** (`tests/integration/`)
+- [ ] **Cross-Component Testing**
+  - [ ] Test complete request/response flows
+  - [ ] Test service interaction patterns
+  - [ ] Test configuration changes propagation
+  - [ ] Test error propagation and handling
+  - [ ] Test logging and monitoring integration
+
+- [ ] **Production Scenario Testing**
+  - [ ] Test typical deployment scenarios
+  - [ ] Test configuration migration paths
+  - [ ] Test backup and recovery procedures
+  - [ ] Test monitoring and alerting systems
+  - [ ] Test documentation accuracy
+
+#### **10.7 Test Infrastructure** (`tests/common/`)
+- [ ] **Test Utilities**
+  - [ ] Create test configuration generators
+  - [ ] Create test environment setup/teardown
+  - [ ] Create test data factories
+  - [ ] Create assertion helpers
+  - [ ] Create performance measurement utilities
+
+- [ ] **CI/CD Integration**
+  - [ ] Integrate all tests into cargo test
+  - [ ] Create test result reporting
+  - [ ] Add test coverage tracking
+  - [ ] Create performance regression detection
+  - [ ] Add automatic test documentation generation
+
+#### **10.8 Test Documentation** (`docs/testing/`)
+- [ ] **Testing Guides**
+  - [ ] Create testing best practices guide
+  - [ ] Document test environment setup
+  - [ ] Create performance testing documentation
+  - [ ] Document security testing procedures
+  - [ ] Create troubleshooting guides
+
+**Total Estimated Time**: 2-3 weeks
+**Dependencies**: Some tests depend on completed Phase 9 implementation
+**Impact**: Production confidence, regression prevention, feature reliability assurance
+
 ---
 
 ## 🎯 Phase 4: Registry & OAuth2 Integration (Medium Priority)
@@ -1018,7 +1210,236 @@ make release VERSION=  # Full release workflow
 
 ---
 
-**Last Updated**: January 21, 2025
-**Next Review**: February 2025
+---
+
+## 📊 **Phase 8: Performance Testing & Load Analysis (v0.3.10)**
+
+**Status**: Foundation needed for production deployment validation
+**Priority**: **HIGH** - Essential for understanding system limits and scaling characteristics
+
+### **8.1 Rust Load Testing Infrastructure Setup** ⚡
+
+#### **8.1.1 Core Load Testing Tools**
+- [ ] **Setup Goose Load Testing Framework** (`tests/load/goose_mcp_test.rs`)
+  - [ ] Install Goose with full async support and scenario management
+  - [ ] Create comprehensive MCP protocol test scenarios
+  - [ ] Add WebSocket, HTTP, and SSE transport testing
+  - [ ] Implement smart discovery load testing with natural language requests
+  - [ ] Add tool execution stress testing with realistic payloads
+  - [ ] Create user ramp-up patterns (linear, exponential, plateau)
+
+- [ ] **Custom WebSocket Load Tester** (`src/bin/websocket_load_test.rs`)
+  - [ ] Multi-connection WebSocket stress testing (100, 500, 1000+ concurrent)
+  - [ ] MCP protocol initialization and session management testing
+  - [ ] Message throughput testing (1-1000 messages/sec per connection)
+  - [ ] Connection lifecycle testing (connect, initialize, communicate, disconnect)
+  - [ ] Error handling and reconnection testing under load
+  - [ ] Real-time statistics collection and reporting
+
+- [ ] **Custom HTTP Load Tester** (`src/bin/http_load_test.rs`)
+  - [ ] HTTP endpoint stress testing with various payload sizes
+  - [ ] Smart discovery endpoint load testing with complex queries
+  - [ ] Tool execution endpoint testing with realistic tool calls
+  - [ ] System status and metrics endpoint performance testing
+  - [ ] Concurrent request handling with configurable connection pools
+  - [ ] Response time distribution analysis and latency percentiles
+
+#### **8.1.2 Protocol-Specific Testing**
+- [ ] **MCP 2025-06-18 Protocol Load Testing**
+  - [ ] Streamable HTTP transport performance testing (preferred transport)
+  - [ ] HTTP+SSE legacy transport performance comparison
+  - [ ] WebSocket bidirectional communication stress testing
+  - [ ] Protocol version negotiation under load
+  - [ ] MCP batch request processing performance
+  - [ ] Client capability detection and management stress testing
+
+- [ ] **Smart Discovery Load Analysis** 
+  - [ ] Natural language query processing under high concurrent load
+  - [ ] Semantic search performance with large tool catalogs (100+ tools)
+  - [ ] LLM-based tool selection response times under stress
+  - [ ] Confidence scoring accuracy under load conditions
+  - [ ] Discovery cache effectiveness and hit rates
+  - [ ] Parameter mapping performance with complex requests
+
+#### **8.1.3 System Behavior Analysis**
+- [ ] **Rate Limiting Detection and Measurement** (`src/bin/rate_limit_detector.rs`)
+  - [ ] **Adaptive Load Ramping Algorithm**
+    - [ ] Implement exponential backoff-based connection ramping (10, 50, 100, 200, 500, 1000+)
+    - [ ] Track success/failure rates at each connection level
+    - [ ] Detect rate limiting through response time degradation (>2x baseline)
+    - [ ] Identify connection acceptance limits via connection rejection patterns
+    - [ ] Measure graceful degradation thresholds and recovery behavior
+  - [ ] **Transport-Specific Rate Analysis**
+    - [ ] WebSocket connection rate limits (new connections/second)
+    - [ ] HTTP request rate limits (requests/second per connection)
+    - [ ] SSE connection limits and stream capacity
+    - [ ] MCP protocol-specific rate limiting (tools/list, smart_discovery calls)
+    - [ ] Cross-transport rate limit correlation analysis
+  - [ ] **System Resource Correlation**
+    - [ ] CPU utilization correlation with rate limiting onset
+    - [ ] Memory pressure impact on connection acceptance
+    - [ ] File descriptor exhaustion detection and limits
+    - [ ] Network buffer saturation monitoring
+    - [ ] Thread pool saturation and queue depth analysis
+  - [ ] **Real-time Rate Limit Detection**
+    - [ ] Response time histogram analysis (detect >P95 spikes)
+    - [ ] Connection success rate monitoring (detect <95% success)
+    - [ ] Error code pattern analysis (429, 503, connection refused)
+    - [ ] Throughput cliff detection (sudden throughput drops)
+    - [ ] Automatic test termination when limits reached
+
+- [ ] **Buffering and Backpressure Analysis** (`src/bin/buffer_analysis.rs`)
+  - [ ] **WebSocket Buffer Analysis**
+    - [ ] Message queue depth monitoring per WebSocket connection
+    - [ ] Send buffer utilization and overflow detection
+    - [ ] Receive buffer backlog and processing delays
+    - [ ] Connection dropping correlation with buffer overflow
+    - [ ] WebSocket frame fragmentation impact on buffering
+    - [ ] Ping/pong keepalive buffer impact during high load
+  - [ ] **HTTP Connection Pool Analysis**
+    - [ ] Request queuing behavior in connection pools
+    - [ ] Keep-alive connection reuse efficiency under load
+    - [ ] Connection pool exhaustion and request queuing delays
+    - [ ] HTTP/2 multiplexing impact on buffering (if applicable)
+    - [ ] Request timeout correlation with buffer overflow
+  - [ ] **System-Level Buffer Monitoring**
+    - [ ] OS-level TCP send/receive buffer utilization
+    - [ ] Application-level message queuing (tokio channel depths)
+    - [ ] Memory allocation patterns during buffer growth
+    - [ ] Garbage collection impact on buffer management
+    - [ ] Buffer configuration optimization recommendations
+  - [ ] **Backpressure Propagation Analysis**
+    - [ ] Tool execution backpressure propagation to clients
+    - [ ] External MCP server slow response impact on buffer growth
+    - [ ] Smart discovery processing delays causing client-side buffering
+    - [ ] Session manager backpressure during high connection churn
+    - [ ] Cross-component backpressure flow mapping and optimization
+  - [ ] **Buffer Configuration Optimization**
+    - [ ] WebSocket message buffer size optimization
+    - [ ] HTTP connection pool size tuning
+    - [ ] Tokio channel capacity optimization
+    - [ ] OS TCP buffer size recommendations
+    - [ ] Application-level buffer timeout configurations
+
+- [ ] **Protocol Translation Performance**
+  - [ ] Multi-transport protocol gateway performance testing
+  - [ ] External MCP server proxy performance under load
+  - [ ] Request routing and response forwarding latency
+  - [ ] Protocol conversion overhead measurement
+  - [ ] Connection pooling effectiveness for external services
+  - [ ] Timeout handling and error propagation under stress
+
+#### **8.1.4 Micro-Benchmark Testing**
+- [ ] **Criterion.rs Performance Benchmarks** (`benches/mcp_benchmarks.rs`)
+  - [ ] Individual MCP request processing micro-benchmarks
+  - [ ] Tool discovery algorithm performance benchmarks
+  - [ ] Parameter substitution and validation benchmarks
+  - [ ] Security middleware performance impact measurement
+  - [ ] Database query performance benchmarks
+  - [ ] Serialization/deserialization performance analysis
+
+- [ ] **Component-Level Benchmarks**
+  - [ ] Registry service performance with large tool catalogs
+  - [ ] Router performance with complex routing rules
+  - [ ] Session manager performance with high connection counts
+  - [ ] Authentication middleware performance impact
+  - [ ] Security validation performance overhead
+  - [ ] Logging and monitoring performance impact
+
+#### **8.1.5 Production Scenario Testing**
+- [ ] **Realistic Load Patterns**
+  - [ ] Business hours traffic simulation (gradual ramp-up, sustained load, ramp-down)
+  - [ ] Burst traffic handling (sudden spikes in connection requests)
+  - [ ] Mixed workload testing (concurrent WebSocket, HTTP, SSE connections)
+  - [ ] Long-running connection stability testing (24+ hour sessions)
+  - [ ] Memory leak detection during extended operation
+  - [ ] Resource cleanup verification after connection drops
+
+- [ ] **Failure Scenario Testing**
+  - [ ] Graceful degradation under resource exhaustion
+  - [ ] Recovery behavior after system resource availability
+  - [ ] Error handling consistency across all transport types
+  - [ ] Connection recovery and retry mechanisms
+  - [ ] Emergency lockdown performance and response time
+  - [ ] External service failure handling and isolation
+
+#### **8.1.6 Performance Measurement Infrastructure**
+- [ ] **Metrics Collection System**
+  - [ ] Real-time performance metrics collection during load tests
+  - [ ] Response time percentiles (P50, P90, P95, P99) tracking
+  - [ ] Throughput measurement (requests/second, connections/second)
+  - [ ] Resource utilization monitoring (CPU, memory, file descriptors)
+  - [ ] Error rate tracking and categorization
+  - [ ] Connection lifecycle timing analysis
+
+- [ ] **Performance Reporting and Analysis**
+  - [ ] Automated performance report generation
+  - [ ] Performance regression detection between versions
+  - [ ] Resource utilization analysis and optimization recommendations
+  - [ ] Bottleneck identification and resolution suggestions
+  - [ ] Scalability projection based on load testing results
+  - [ ] Performance comparison across transport types
+
+#### **8.1.7 Integration with Development Workflow**
+- [ ] **Automated Performance Testing**
+  - [ ] Integration with cargo test for performance regression detection
+  - [ ] CI/CD pipeline integration for performance validation
+  - [ ] Pre-commit performance testing for critical changes
+  - [ ] Performance benchmark baselines and comparison
+  - [ ] Automated performance alerts for significant degradation
+  - [ ] Performance testing documentation and guidelines
+
+- [ ] **Development Tools Integration**
+  - [ ] `make perf-test` command for comprehensive performance testing
+  - [ ] `make load-test CONNECTIONS=N DURATION=Xs` for custom load testing
+  - [ ] Performance testing configuration templates
+  - [ ] Load testing result analysis and visualization tools
+  - [ ] Performance optimization guides and best practices
+  - [ ] Performance testing troubleshooting documentation
+
+### **8.2 Expected Performance Characteristics**
+
+#### **Target Performance Metrics**
+- **WebSocket Connections**: 1000+ concurrent connections with <100ms response time
+- **HTTP Throughput**: 10,000+ requests/second with P95 latency <200ms
+- **Smart Discovery**: <500ms response time for complex natural language queries
+- **Memory Usage**: <2GB RAM for 1000 concurrent connections
+- **CPU Usage**: <80% CPU utilization under maximum designed load
+- **Connection Handling**: 100+ new connections/second acceptance rate
+
+#### **Scalability Targets**
+- **Horizontal Scaling**: Clear bottleneck identification for multi-instance deployment
+- **Resource Optimization**: Efficient resource usage with minimal waste
+- **Performance Predictability**: Linear performance scaling within design limits
+- **Graceful Degradation**: Maintained core functionality under overload conditions
+- **Recovery Speed**: <30 seconds to full performance after load reduction
+
+### **8.3 Implementation Timeline**
+
+#### **Phase 1 (Week 1): Core Infrastructure**
+1. Setup Goose framework with basic MCP protocol scenarios
+2. Implement custom WebSocket and HTTP load testers
+3. Create fundamental performance measurement infrastructure
+4. Add basic rate limiting detection capabilities
+
+#### **Phase 2 (Week 2): Protocol Testing**
+1. Comprehensive MCP 2025-06-18 protocol load testing
+2. Smart discovery performance analysis and optimization
+3. Protocol translation performance measurement
+4. Buffering and backpressure analysis implementation
+
+#### **Phase 3 (Week 3): Production Readiness** 
+1. Realistic load pattern simulation and testing
+2. Failure scenario testing and recovery validation
+3. Performance reporting and analysis automation
+4. Development workflow integration and documentation
+
+**Expected Impact**: Complete understanding of MagicTunnel's performance characteristics, scaling limits, and optimization opportunities for production deployment
+
+---
+
+## 🔄 Development Workflow
+
+---
 
 For detailed implementation history and completed features, see [TODO_DONE.md](TODO_DONE.md).

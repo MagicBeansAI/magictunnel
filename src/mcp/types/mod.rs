@@ -15,10 +15,15 @@ pub mod tool_enhancement;
 pub mod capabilities;
 
 // Re-export commonly used types for convenience
-pub use sampling::*;
+pub use sampling::{SamplingRequest, SamplingResponse, SamplingMessage, SamplingMessageRole, 
+                   SamplingContent, SamplingContentPart, SamplingStopReason, SamplingUsage, 
+                   SamplingError, SamplingErrorCode, ModelPreferences};
 pub use elicitation::*;
 pub use roots::*;
-pub use tool_enhancement::*;
+pub use tool_enhancement::{ToolEnhancementRequest, ToolEnhancementResponse, ToolEnhancementMessage, 
+                           ToolEnhancementMessageRole, ToolEnhancementContent, ToolEnhancementContentPart, 
+                           ImageSource, AudioSource, ToolEnhancementStopReason, ToolEnhancementUsage, 
+                           ToolEnhancementError, ToolEnhancementErrorCode};
 // Re-export client capabilities with distinct names to avoid conflicts
 pub use capabilities::{
     ClientCapabilities, 

@@ -1,27 +1,29 @@
 {
   "tool_metrics": {
-    "so_today_visit_performance": {
-      "tool_name": "so_today_visit_performance",
+    "ping_globalping": {
+      "tool_name": "ping_globalping",
       "category": "unknown",
-      "last_updated": "2025-07-31T05:48:48.800904Z",
+      "last_updated": "2025-07-30T07:35:12.135911Z",
       "total_executions": 1,
       "successful_executions": 1,
       "failed_executions": 0,
       "timeout_count": 0,
       "success_rate": 1.0,
-      "avg_execution_time_ms": 8263.0,
-      "median_execution_time_ms": 8263.0,
-      "p95_execution_time_ms": 8263.0,
+      "avg_execution_time_ms": 60001.0,
+      "median_execution_time_ms": 60001.0,
+      "p95_execution_time_ms": 60001.0,
       "recent_execution_times": [
-        8263
+        60001
       ],
-      "top_30_appearances": 1,
-      "top_10_appearances": 1,
-      "top_3_appearances": 1,
-      "avg_confidence_score": 0.27464618682861325,
-      "avg_discovery_position": 1.0,
+      "top_30_appearances": 3,
+      "top_10_appearances": 3,
+      "top_3_appearances": 3,
+      "avg_confidence_score": 0.3505784025267949,
+      "avg_discovery_position": 1.6666666666666667,
       "recent_confidence_scores": [
-        0.27464618682861325
+        0.8393542551994324,
+        0.1061904761904762,
+        0.1061904761904762
       ],
       "primary_execution_source": "smart_discovery",
       "execution_sources": {
@@ -29,15 +31,15 @@
       },
       "error_types": {},
       "usage_by_hour": {
-        "5": 1
+        "7": 1
       },
       "usage_by_day": {
-        "4": 1
+        "3": 1
       },
-      "first_execution": "2025-07-31T05:48:40.537310Z",
-      "last_execution": "2025-07-31T05:48:40.537310Z",
-      "last_successful_execution": "2025-07-31T05:48:40.537310Z",
-      "avg_output_size": 34701.0,
+      "first_execution": "2025-07-30T07:34:12.134872Z",
+      "last_execution": "2025-07-30T07:34:12.134872Z",
+      "last_successful_execution": "2025-07-30T07:34:12.134872Z",
+      "avg_output_size": 0.0,
       "output_types": {
         "json": 1
       }
@@ -144,6 +146,100 @@
         "json": 28
       }
     },
+    "calc_tool": {
+      "tool_name": "calc_tool",
+      "category": "utilities",
+      "last_updated": "2025-07-30T07:51:40.441878Z",
+      "total_executions": 6,
+      "successful_executions": 6,
+      "failed_executions": 0,
+      "timeout_count": 0,
+      "success_rate": 1.0,
+      "avg_execution_time_ms": 55.0,
+      "median_execution_time_ms": 55.0,
+      "p95_execution_time_ms": 60.0,
+      "recent_execution_times": [
+        50,
+        55,
+        60,
+        50,
+        55,
+        60
+      ],
+      "top_30_appearances": 6,
+      "top_10_appearances": 6,
+      "top_3_appearances": 0,
+      "avg_confidence_score": 0.75,
+      "avg_discovery_position": 6.0,
+      "recent_confidence_scores": [
+        0.7,
+        0.75,
+        0.7999999999999999,
+        0.7,
+        0.75,
+        0.7999999999999999
+      ],
+      "primary_execution_source": "api",
+      "execution_sources": {
+        "api": 6
+      },
+      "error_types": {},
+      "usage_by_hour": {
+        "7": 6
+      },
+      "usage_by_day": {
+        "3": 6
+      },
+      "first_execution": "2025-07-30T07:51:40.355855Z",
+      "last_execution": "2025-07-30T07:51:40.441872Z",
+      "last_successful_execution": "2025-07-30T07:51:40.441872Z",
+      "avg_output_size": 64.0,
+      "output_types": {
+        "json": 6
+      }
+    },
+    "so_today_visit_performance": {
+      "tool_name": "so_today_visit_performance",
+      "category": "unknown",
+      "last_updated": "2025-07-31T05:48:48.800904Z",
+      "total_executions": 1,
+      "successful_executions": 1,
+      "failed_executions": 0,
+      "timeout_count": 0,
+      "success_rate": 1.0,
+      "avg_execution_time_ms": 8263.0,
+      "median_execution_time_ms": 8263.0,
+      "p95_execution_time_ms": 8263.0,
+      "recent_execution_times": [
+        8263
+      ],
+      "top_30_appearances": 1,
+      "top_10_appearances": 1,
+      "top_3_appearances": 1,
+      "avg_confidence_score": 0.27464618682861325,
+      "avg_discovery_position": 1.0,
+      "recent_confidence_scores": [
+        0.27464618682861325
+      ],
+      "primary_execution_source": "smart_discovery",
+      "execution_sources": {
+        "smart_discovery": 1
+      },
+      "error_types": {},
+      "usage_by_hour": {
+        "5": 1
+      },
+      "usage_by_day": {
+        "4": 1
+      },
+      "first_execution": "2025-07-31T05:48:40.537310Z",
+      "last_execution": "2025-07-31T05:48:40.537310Z",
+      "last_successful_execution": "2025-07-31T05:48:40.537310Z",
+      "avg_output_size": 34701.0,
+      "output_types": {
+        "json": 1
+      }
+    },
     "file_tool": {
       "tool_name": "file_tool",
       "category": "filesystem",
@@ -216,100 +312,6 @@
       "avg_output_size": 1024.0,
       "output_types": {
         "text": 12
-      }
-    },
-    "ping_globalping": {
-      "tool_name": "ping_globalping",
-      "category": "unknown",
-      "last_updated": "2025-07-30T07:35:12.135911Z",
-      "total_executions": 1,
-      "successful_executions": 1,
-      "failed_executions": 0,
-      "timeout_count": 0,
-      "success_rate": 1.0,
-      "avg_execution_time_ms": 60001.0,
-      "median_execution_time_ms": 60001.0,
-      "p95_execution_time_ms": 60001.0,
-      "recent_execution_times": [
-        60001
-      ],
-      "top_30_appearances": 1,
-      "top_10_appearances": 1,
-      "top_3_appearances": 1,
-      "avg_confidence_score": 0.8393542551994324,
-      "avg_discovery_position": 1.0,
-      "recent_confidence_scores": [
-        0.8393542551994324
-      ],
-      "primary_execution_source": "smart_discovery",
-      "execution_sources": {
-        "smart_discovery": 1
-      },
-      "error_types": {},
-      "usage_by_hour": {
-        "7": 1
-      },
-      "usage_by_day": {
-        "3": 1
-      },
-      "first_execution": "2025-07-30T07:34:12.134872Z",
-      "last_execution": "2025-07-30T07:34:12.134872Z",
-      "last_successful_execution": "2025-07-30T07:34:12.134872Z",
-      "avg_output_size": 0.0,
-      "output_types": {
-        "json": 1
-      }
-    },
-    "calc_tool": {
-      "tool_name": "calc_tool",
-      "category": "utilities",
-      "last_updated": "2025-07-30T07:51:40.441878Z",
-      "total_executions": 6,
-      "successful_executions": 6,
-      "failed_executions": 0,
-      "timeout_count": 0,
-      "success_rate": 1.0,
-      "avg_execution_time_ms": 55.0,
-      "median_execution_time_ms": 55.0,
-      "p95_execution_time_ms": 60.0,
-      "recent_execution_times": [
-        50,
-        55,
-        60,
-        50,
-        55,
-        60
-      ],
-      "top_30_appearances": 6,
-      "top_10_appearances": 6,
-      "top_3_appearances": 0,
-      "avg_confidence_score": 0.75,
-      "avg_discovery_position": 6.0,
-      "recent_confidence_scores": [
-        0.7,
-        0.75,
-        0.7999999999999999,
-        0.7,
-        0.75,
-        0.7999999999999999
-      ],
-      "primary_execution_source": "api",
-      "execution_sources": {
-        "api": 6
-      },
-      "error_types": {},
-      "usage_by_hour": {
-        "7": 6
-      },
-      "usage_by_day": {
-        "3": 6
-      },
-      "first_execution": "2025-07-30T07:51:40.355855Z",
-      "last_execution": "2025-07-30T07:51:40.441872Z",
-      "last_successful_execution": "2025-07-30T07:51:40.441872Z",
-      "avg_output_size": 64.0,
-      "output_types": {
-        "json": 6
       }
     }
   },
@@ -1509,5 +1511,5 @@
       "service_source": null
     }
   ],
-  "last_saved": "2025-07-31T05:48:48.801154Z"
+  "last_saved": "2025-08-08T14:20:06.220057Z"
 }

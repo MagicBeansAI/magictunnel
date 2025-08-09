@@ -1,8 +1,8 @@
 <script lang="ts">
-  import MainLayout from '$lib/components/layout/MainLayout.svelte';
+  import ModeAwareLayout from '$lib/components/layout/ModeAwareLayout.svelte';
   import '../app.css';
 </script>
 
-<MainLayout>
+<ModeAwareLayout>
   <slot />
-</MainLayout>
+</ModeAwareLayout>

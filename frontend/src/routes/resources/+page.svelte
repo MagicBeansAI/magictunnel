@@ -162,10 +162,7 @@
 		<div class="mb-8">
 			<div class="flex justify-between items-center">
 				<div>
-					<div class="flex items-center gap-4 mb-2">
-						<a href="/" class="btn-secondary text-sm">
-							← Back to Dashboard
-						</a>
+					<div class="mb-2">
 						<h1 class="text-4xl font-bold text-primary-700">MCP Resources</h1>
 					</div>
 					<p class="mt-2 text-gray-600">Browse and access MCP resources from all providers</p>
@@ -362,12 +359,6 @@
 			</div>
 		</div>
 
-		<!-- Back to Dashboard -->
-		<div class="mt-6 text-center">
-			<a href="/" class="btn-secondary">
-				← Back to Dashboard
-			</a>
-		</div>
 	</div>
 </div>
 

@@ -4,7 +4,7 @@
 
 MagicTunnel is an intelligent bridge between MCP (Model Context Protocol) clients and diverse agents/endpoints. It provides a single, smart tool discovery interface that can find the right tool for any request, map parameters, and proxy the call automatically.
 
-**Current Version**: 0.3.9 - **Enterprise Security UI & Enhanced System Metrics Complete** ✅
+**Current Version**: 0.3.10 - **Multi-Mode Architecture & Mode-Aware Frontend Complete** ✅
 
 ## Quick Start
 
@@ -13,11 +13,14 @@ MagicTunnel is an intelligent bridge between MCP (Model Context Protocol) client
 # Build the project
 make build-release-semantic && make pregenerate-embeddings-ollama MAGICTUNNEL_ENV=development
 
-# Run with custom config
-./target/release/magictunnel --config magictunnel-config.yaml
+# Run with default magictunnel-config.yaml (auto-detected)
+./target/release/magictunnel
+
+# Run with environment variable overrides
+MAGICTUNNEL_RUNTIME_MODE=advanced MAGICTUNNEL_SMART_DISCOVERY=true ./target/release/magictunnel
 
 # Run in stdio mode for MCP clients (Claude Desktop, Cursor)
-./target/release/magictunnel --stdio --config magictunnel-config.yaml
+./target/release/magictunnel --stdio
 
 # Test the service
 curl -X POST http://localhost:3001/mcp/call \
@@ -32,6 +35,10 @@ cargo test
 
 # Run with debug logging
 RUST_LOG=debug cargo run
+
+# Run in different modes
+MAGICTUNNEL_RUNTIME_MODE=proxy cargo run
+MAGICTUNNEL_RUNTIME_MODE=advanced cargo run
 
 # Kill all magictunnel processes
 pkill -f magictunnel
@@ -88,6 +95,28 @@ MagicTunnel implements a **Smart Tool Discovery and Proxy** system that reduces 
    - **Hidden by Default**: All 83 tools across 15 capability files hidden by default
    - **Smart Discovery Mode**: Clean interface with full functionality through discovery
 
+### Multi-Mode Service Architecture
+
+MagicTunnel implements a **two-tier service architecture** that separates core MCP functionality from advanced enterprise features:
+
+#### **Core/Proxy Services** (Available in both Proxy and Advanced modes):
+1. **MCP Server** - Core protocol handling with built-in MCP authentication (API keys, OAuth, JWT)
+2. **Registry Service** - Tool management and capability discovery
+3. **Smart Discovery Service** - Intelligent tool routing and parameter mapping
+4. **Core LLM Services** - Sampling, elicitation, and tool enhancement services for basic AI functionality
+5. **Web Dashboard** - Basic web interface via MCP server endpoints
+6. **MCP Authentication** - Protocol-level authentication middleware
+
+#### **Advanced Services** (Enterprise features, Advanced mode only):
+1. **Enterprise Security Suite**:
+   - Tool Allowlisting - Enterprise tool security controls
+   - Advanced RBAC (Role-Based Access Control)
+   - Request Sanitization - Enterprise request filtering
+   - Comprehensive audit logging and analytics
+   - Security Policies - Organization-wide policy management
+   - Emergency lockdown capabilities
+2. **Future: MagicTunnel Authentication** - User authentication for MagicTunnel itself (separate from MCP protocol auth)
+
 ### Smart Discovery System (Key Innovation with MCP 2025-06-18 Enhancement)
 
 The system provides **one intelligent tool** (`smart_tool_discovery`) that:
@@ -142,11 +171,38 @@ The system provides **one intelligent tool** (`smart_tool_discovery`) that:
 
 ## Common Development Patterns
 
+### Multi-Mode Service Architecture Usage
+
+**Core/Proxy Services** (always available):
+- MCP protocol authentication (API keys, OAuth, JWT)
+- Core LLM services (sampling, elicitation, tool enhancement)
+- Smart discovery and tool routing
+- Web dashboard basic functionality
+
+**Advanced Services** (advanced mode only):
+- Enterprise security features (allowlisting, RBAC, audit, sanitization, policies, emergency lockdown)
+- Advanced analytics and monitoring
+- Security policies and emergency controls
+
 ### Adding New Tool Support
 1. Create capability definition in `capabilities/` directory (YAML format)
 2. Tool will be automatically discovered and included in registry
 3. Smart discovery will handle parameter mapping and routing
 4. Use `hidden: true` to hide from main tool list while keeping discoverable
+
+### Service Development Guidelines
+
+**For Core Services** (available in both modes):
+- Implement in `src/mcp/`, `src/registry/`, or `src/discovery/`
+- Include MCP protocol authentication if needed
+- Ensure compatibility with both proxy and advanced modes
+- Focus on essential MCP functionality
+
+**For Advanced Services** (advanced mode only):
+- Implement in `src/security/` for security features
+- Use `src/services/advanced_services.rs` for service management
+- Add configuration checks for advanced mode
+- Provide graceful degradation when unavailable
 
 ### Managing Tool Visibility
 ```bash
@@ -185,9 +241,146 @@ curl -X POST http://localhost:3001/mcp/call \
 - Confidence thresholds and caching settings
 - Visibility management with `default_hidden` setting
 
+### **Environment Variables (v0.3.10)**
+MagicTunnel now supports comprehensive environment variable configuration:
+
+```bash
+# Runtime Mode Control
+export MAGICTUNNEL_RUNTIME_MODE=proxy       # proxy | advanced
+export MAGICTUNNEL_CONFIG_PATH=./config.yaml # Custom config file path
+export MAGICTUNNEL_SMART_DISCOVERY=true     # Enable/disable smart discovery
+
+# Run with environment overrides
+./target/release/magictunnel
+```
+
+### **Default Configuration (v0.3.10)**
+- **New Default Config Name**: `magictunnel-config.yaml` (replaces `config.yaml`)
+- **Auto-Detection**: Automatically detects and uses `magictunnel-config.yaml` if present
+- **Built-in Defaults**: Minimal proxy mode defaults when no config file found
+- **Environment Priority**: Environment variables override config file settings
+
+## Startup Flow and Service Architecture
+
+### Complete Startup Sequence (v0.3.10)
+
+MagicTunnel implements a sophisticated startup flow that conditionally loads services based on runtime mode:
+
+```
+1. Configuration Resolution (main.rs:92-113):
+   ├─ Load config file (magictunnel-config.yaml or config.yaml)
+   ├─ Apply environment variable overrides (highest priority)
+   ├─ Determine runtime mode (proxy vs advanced)
+   └─ Validate configuration for selected mode
+
+2. Service Loading (main.rs:154-161):
+   ├─ ServiceLoader::load_services(resolution)
+   ├─ RuntimeMode detection from ConfigResolution
+   └─ Conditional service container creation
+
+3. Service Container Strategy:
+   Proxy Mode:
+   ├─ ProxyServices::new() → Core services only
+   └─ ServiceContainer { proxy_services: Some, advanced_services: None }
+   
+   Advanced Mode:
+   ├─ ProxyServices::new() → Core services (foundation)
+   ├─ AdvancedServices::new(&proxy_services) → Enterprise features
+   └─ ServiceContainer { proxy_services: Some, advanced_services: Some }
+
+4. Backend API Integration (ModeApiHandler):
+   ├─ /api/mode → Runtime mode detection for frontend
+   ├─ /api/config → Configuration validation status
+   └─ /api/services/status → Service health monitoring
+
+5. Frontend Mode Awareness:
+   ├─ mode.ts store fetches backend mode information
+   ├─ ModeAwareLayout subscribes to mode stores
+   ├─ Components filter UI elements based on showAdvancedFeatures
+   └─ Progressive enhancement based on available services
+```
+
+### Service Loading Architecture
+
+**ServiceLoader Implementation** (`src/services/service_loader.rs`):
+- **load_services()**: Main entry point that determines runtime mode and delegates loading
+- **load_proxy_services()**: Loads core MCP functionality (ProxyServices container)
+- **load_advanced_services()**: Loads ProxyServices + AdvancedServices (no duplication)
+- **validate_service_dependencies()**: Ensures proper service health and dependencies
+
+**Service Containers**:
+- **ProxyServices**: MCP Server, Registry, Smart Discovery, Tool Enhancement, Web Dashboard integration
+- **AdvancedServices**: Enterprise Security Suite (Allowlisting, RBAC, Audit, Sanitization, Policies, Emergency Lockdown)
+- **ServiceContainer**: Wrapper that manages both containers with runtime mode awareness
+
+### Frontend Mode-Aware Architecture
+
+**Mode Detection & Integration**:
+```
+Backend (Rust):
+src/web/mode_api.rs → ModeApiHandler
+├─ create_ui_config() → Mode-specific UI configuration
+├─ create_navigation_sections() → Dynamic navigation structure
+└─ create_status_indicators() → Health monitoring indicators
+
+Frontend (Svelte):
+frontend/src/lib/stores/mode.ts → Mode detection store
+├─ fetchAll() → Loads mode, config, and service status
+├─ Derived stores: runtimeMode, isAdvancedMode, navigationSections
+└─ Auto-refresh every 30 seconds
+
+Components:
+├─ ModeAwareLayout.svelte → Central mode integration
+├─ TopBar.svelte → Mode-aware user menu, notifications, search
+├─ Sidebar.svelte → Mode-aware navigation and status indicators
+└─ Progressive enhancement based on showAdvancedFeatures
+```
+
+**UI Filtering Logic**:
+- **Navigation**: Items with `requires_advanced: true` hidden in proxy mode
+- **Status Indicators**: Security/Auth indicators hidden in proxy mode
+- **User Menu**: Security, Analytics, User Management links hidden in proxy mode
+- **Notifications**: Security and audit alerts filtered in proxy mode
+- **Search Results**: Advanced pages (security, LLM services) hidden in proxy mode
+
 ## Recent Major Changes
 
-### Version 0.3.9 (Current) - Enterprise Security UI & Enhanced System Metrics Complete ✅
+### Version 0.3.10 (Current) - Multi-Mode Architecture Implementation Complete ✅
+
+#### **🏗️ Multi-Mode Architecture Complete**
+- **Pure Config-Driven Architecture**: All behavior controlled via config file and environment variables
+- **Environment Variable Integration**: Complete MAGICTUNNEL_RUNTIME_MODE, CONFIG_PATH, and SMART_DISCOVERY support
+- **Default Config Resolution**: magictunnel-config.yaml auto-detection with built-in proxy defaults
+- **Comprehensive Startup Logging**: Config resolution, feature status, and validation logging with detailed output
+- **Configuration Validation System**: Mode-specific validators with helpful error messages for proxy and advanced modes
+- **Conditional Service Loading**: ProxyServices vs AdvancedServices based on runtime mode
+- **Frontend Mode Awareness**: Mode detection API with progressive enhancement for advanced features
+
+#### **🎯 Runtime Mode System**
+- **Proxy Mode (Default)**: Zero-config, minimal dependencies, fast startup for basic MCP proxy functionality
+- **Advanced Mode**: Full-featured, enterprise-ready with comprehensive management and security features
+- **Environment Override Priority**: Environment variables take precedence over config file settings
+- **Smart Service Loading**: Only loads required services based on runtime mode selection
+
+#### **⚙️ Configuration Examples**
+```bash
+# Environment variable override (highest priority)
+export MAGICTUNNEL_RUNTIME_MODE=advanced  # proxy | advanced
+export MAGICTUNNEL_CONFIG_PATH=./my-config.yaml
+export MAGICTUNNEL_SMART_DISCOVERY=true
+./magictunnel
+```
+
+```yaml
+# magictunnel-config.yaml (new default config name)
+deployment:
+  runtime_mode: "proxy"  # "proxy" | "advanced"
+  
+smart_discovery:
+  enabled: true  # Can be overridden by MAGICTUNNEL_SMART_DISCOVERY
+```
+
+### Version 0.3.9 - Enterprise Security UI & Enhanced System Metrics Complete ✅
 
 #### **🎨 Enterprise Security UI Implementation Complete**
 - **Complete 5-Phase Security UI**: All enterprise security features now have professional web interfaces
@@ -457,11 +650,13 @@ cargo run --bin magictunnel-visibility -- -c config.yaml show-all
 ## Environment Variables
 
 ```bash
+# Runtime Mode Control (v0.3.10)
+export MAGICTUNNEL_RUNTIME_MODE=advanced    # proxy | advanced
+export MAGICTUNNEL_CONFIG_PATH=./config.yaml # Custom config file path
+export MAGICTUNNEL_SMART_DISCOVERY=true     # Enable/disable smart discovery
+
 # Enable debug logging
 export RUST_LOG=debug
-
-# Custom config path
-export MAGICTUNNEL_CONFIG=./my-config.yaml
 
 # LLM API keys (for smart discovery)
 export OPENAI_API_KEY=your_key
