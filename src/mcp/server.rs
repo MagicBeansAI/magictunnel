@@ -1316,11 +1316,11 @@ impl McpServer {
             "capabilities": capabilities,
             "implementation": {
                 "name": "MagicTunnel",
-                "version": "0.3.7"
+                "version": "0.3.11"
             },
             "serverInfo": {
                 "name": "magictunnel",
-                "version": "0.3.7"
+                "version": "0.3.11"
             },
             "instructions": "MagicTunnel server providing access to GraphQL, REST, and gRPC endpoints as MCP tools"
         })

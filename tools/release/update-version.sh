@@ -34,25 +34,28 @@ update_version_in_file() {
     fi
 }
 
-# Update documentation files
-update_version_in_file "README.md" "Current Version\*\*: 0\.2\.[0-9]\+" "Current Version**: $VERSION"
-update_version_in_file "CLAUDE.md" "Current Version\*\*: 0\.2\.[0-9]\+" "Current Version**: $VERSION"
-update_version_in_file "CLAUDE.md" "Version 0\.2\.[0-9]\+ (Current)" "Version $VERSION (Current)"
+# Update Cargo.toml first (most important)
+update_version_in_file "Cargo.toml" "version = \"0\.[0-9]\+\.[0-9]\+\"" "version = \"$VERSION\""
+
+# Update documentation files (support both 0.2.x and 0.3.x patterns)
+update_version_in_file "README.md" "Current Version\*\*: 0\.[0-9]\+\.[0-9]\+" "Current Version**: $VERSION"
+update_version_in_file "CLAUDE.md" "Current Version\*\*: 0\.[0-9]\+\.[0-9]\+" "Current Version**: $VERSION"
+update_version_in_file "CLAUDE.md" "Version 0\.[0-9]\+\.[0-9]\+ (Current)" "Version $VERSION (Current)"
 
 # Update configuration files
-update_version_in_file "config.yaml.template" "client_version: \"0\.2\.[0-9]\+\"" "client_version: \"$VERSION\""
-update_version_in_file "magictunnel-config.yaml" "client_version: \"0\.2\.[0-9]\+\"" "client_version: \"$VERSION\""
+update_version_in_file "config.yaml.template" "client_version: \"0\.[0-9]\+\.[0-9]\+\"" "client_version: \"$VERSION\""
+update_version_in_file "magictunnel-config.yaml" "client_version: \"0\.[0-9]\+\.[0-9]\+\"" "client_version: \"$VERSION\""
 
 # Update JSON files
-update_version_in_file "test-resources/info.json" "\"version\": \"0\.2\.[0-9]\+\"" "\"version\": \"$VERSION\""
+update_version_in_file "test-resources/info.json" "\"version\": \"0\.[0-9]\+\.[0-9]\+\"" "\"version\": \"$VERSION\""
 
 # Update test files (using simpler patterns)
-update_version_in_file "tests/test_config_validation.rs" "0\.2\.[0-9]\+\.to_string" "$VERSION.to_string"
-update_version_in_file "tests/mcp_external_tests.rs" "0\.2\.[0-9]\+\.to_string" "$VERSION.to_string"
+update_version_in_file "tests/test_config_validation.rs" "0\.[0-9]\+\.[0-9]\+\.to_string" "$VERSION.to_string"
+update_version_in_file "tests/mcp_external_tests.rs" "0\.[0-9]\+\.[0-9]\+\.to_string" "$VERSION.to_string"
 
 # Update source files
-update_version_in_file "src/mcp/server.rs" "\"version\": \"0\.2\.[0-9]\+\"" "\"version\": \"$VERSION\""
-update_version_in_file "src/auth/oauth.rs" "0\.2\.[0-9]\+" "$VERSION"
+update_version_in_file "src/mcp/server.rs" "\"version\": \"0\.[0-9]\+\.[0-9]\+\"" "\"version\": \"$VERSION\""
+update_version_in_file "src/auth/oauth.rs" "magictunnel/0\.[0-9]\+\.[0-9]\+" "magictunnel/$VERSION"
 
 # Update frontend package.json
 update_version_in_file "frontend/package.json" "\"version\": \"0\.0\.[0-9]\+\"" "\"version\": \"$VERSION\""

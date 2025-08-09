@@ -217,7 +217,7 @@ impl OAuthValidator {
             .client
             .get(&user_info_url)
             .header("Authorization", format!("Bearer {}", access_token))
-            .header("User-Agent", "magictunnel/0.3.0")
+            .header("User-Agent", "magictunnel/0.3.11")
             .send()
             .await
             .map_err(|e| {
@@ -489,7 +489,7 @@ impl OAuthValidator {
             .client
             .post(&oauth_config.token_url)
             .header("Accept", "application/json")
-            .header("User-Agent", "magictunnel/0.3.0 OAuth2.1")
+            .header("User-Agent", "magictunnel/0.3.11 OAuth2.1")
             .header("Content-Type", "application/x-www-form-urlencoded")
             .form(&params)
             .send()
