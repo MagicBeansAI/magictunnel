@@ -4,7 +4,7 @@
 
 MagicTunnel is an intelligent bridge between MCP (Model Context Protocol) clients and diverse agents/endpoints. It provides a single, smart tool discovery interface that can find the right tool for any request, map parameters, and proxy the call automatically.
 
-**Current Version**: 0.3.10 - **Multi-Mode Architecture & Mode-Aware Frontend Complete** ✅
+**Current Version**: 0.3.11 - **Multi-Mode Architecture & Unified Status Banner System Complete** ✅
 
 ## Quick Start
 
@@ -345,7 +345,29 @@ Components:
 
 ## Recent Major Changes
 
-### Version 0.3.10 (Current) - Multi-Mode Architecture Implementation Complete ✅
+### Version 0.3.11 (Current) - Multi-Mode Architecture & Unified Status Banner System Complete ✅
+
+#### **🎨 Unified Status Banner System**
+- **Modern UI Design**: Replaced bulky proxy mode alerts with clean, minimal status bar system
+- **Dynamic Status Messages**: Real-time updates during restart/mode switch operations with color-coded types
+- **Space Efficient**: 60% reduction in visual space while maintaining clarity and impact
+- **Consistent Experience**: All status messages (proxy mode, restart, mode switch, errors) use unified design
+- **Responsive & Accessible**: Clean layout on all devices with proper dark mode support
+
+#### **📊 Dashboard Layout Enhancement** 
+- **System Management Repositioning**: Moved critical controls (restart, mode switch, health check) to top of dashboard
+- **Better Information Hierarchy**: Management actions now appear before status information for improved UX
+- **Unified Restart Behavior**: Both restart and mode switch operations now have identical clean page reload behavior
+
+#### **🔧 Status Message Examples**:
+```
+[●] Running in Proxy Mode • Core features only
+[●] Restarting System (15s remaining) • System restarting... Checking server readiness.
+[●] Mode Switch Complete • Successfully switched to advanced mode and system is online.
+[●] Restart Failed • Failed to restart system: Connection timeout
+```
+
+### Version 0.3.10 - Multi-Mode Architecture Implementation Complete ✅
 
 #### **🏗️ Multi-Mode Architecture Complete**
 - **Pure Config-Driven Architecture**: All behavior controlled via config file and environment variables

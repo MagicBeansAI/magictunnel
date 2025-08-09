@@ -2,7 +2,7 @@
 
 **Smart MCP Proxy** - One intelligent MCP Proxy server that discovers the right MCP for any request. 
 
-Now with **Elicitation and Sampling : MCP 2025-06-18 Integration** and **Multi-Mode Architecture**
+Now with **Elicitation and Sampling : MCP 2025-06-18 Integration**, **Multi-Mode Architecture**, and **Modern UI with Unified Status System**
 
 ![MagicTunnel](docs/images/magictunnel-1.png)
 

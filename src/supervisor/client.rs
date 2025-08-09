@@ -133,13 +133,15 @@ impl SupervisorClient {
     pub async fn custom_restart(&self, 
         pre_commands: Option<Vec<CustomCommand>>,
         start_args: Option<Vec<String>>,
-        post_commands: Option<Vec<CustomCommand>>
+        post_commands: Option<Vec<CustomCommand>>,
+        env_vars: Option<std::collections::HashMap<String, String>>
     ) -> Result<SupervisorResponse> {
         info!("🔧 Requesting custom restart sequence via supervisor");
         let command = SupervisorCommand::CustomRestart {
             pre_commands,
             start_args,
             post_commands,
+            env_vars,
         };
         self.send_command(command).await
     }

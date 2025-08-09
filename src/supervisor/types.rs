@@ -24,6 +24,8 @@ pub enum SupervisorCommand {
         pre_commands: Option<Vec<CustomCommand>>,
         start_args: Option<Vec<String>>,
         post_commands: Option<Vec<CustomCommand>>,
+        /// Environment variables to set for the MagicTunnel process
+        env_vars: Option<std::collections::HashMap<String, String>>,
     },
     /// Execute arbitrary command (restricted for security)
     ExecuteCommand { 

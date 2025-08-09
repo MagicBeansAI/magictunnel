@@ -9,6 +9,7 @@ use crate::mcp::resources::{ResourceManager, ResourceProvider};
 use crate::mcp::prompts::{PromptManager, PromptProvider};
 use crate::mcp::types::{Resource, ResourceContent, PromptTemplate, PromptGetResponse};
 use crate::supervisor::{SupervisorClient, types::{CustomCommand, CommandType}};
+use crate::supervisor::types::SupervisorCommand;
 use crate::error::ProxyError;
 use crate::openai::OpenApiGenerator;
 use crate::services::ServiceContainer;
@@ -928,6 +929,121 @@ impl DashboardApi {
         }
     }
 
+    /// POST /dashboard/api/system/switch-mode - Switch runtime mode and restart
+    pub async fn switch_runtime_mode(&self, body: web::Json<serde_json::Value>) -> Result<HttpResponse> {
+        info!("🔄 [DASHBOARD] Runtime mode switch requested");
+        
+        let new_mode = body.get("mode")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| actix_web::error::ErrorBadRequest("Missing 'mode' field"))?;
+        
+        // Validate the mode
+        if !matches!(new_mode, "proxy" | "advanced") {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "action": "switch_mode",
+                "status": "invalid_mode",
+                "message": format!("Invalid mode '{}'. Must be 'proxy' or 'advanced'", new_mode),
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            })));
+        }
+        
+        info!("🔄 [DASHBOARD] Switching to runtime mode: {}", new_mode);
+        
+        // Create a custom restart request with the mode environment variable
+        // This directly sets the environment variable for the supervisor process
+        let custom_restart = CustomRestartRequest {
+            pre_commands: None, // No longer need the export command
+            start_args: Some(vec![
+                "--config".to_string(),
+                "magictunnel-config.yaml".to_string(),
+                "--log-level".to_string(),
+                "info".to_string()
+            ]),
+            post_commands: Some(vec![
+                CustomCommandSpec {
+                    command_type: "shell".to_string(),
+                    command: "echo".to_string(),
+                    args: Some(vec![format!("Mode switched to {} successfully", new_mode)]),
+                    working_dir: None,
+                    env: Some({
+                        let mut env_vars = std::collections::HashMap::new();
+                        env_vars.insert("MAGICTUNNEL_RUNTIME_MODE".to_string(), new_mode.to_string());
+                        env_vars
+                    }),
+                    description: Some(format!("Confirm mode switch to {}", new_mode)),
+                    is_safe: true,
+                }
+            ]),
+            env_vars: Some({
+                let mut env_map = std::collections::HashMap::new();
+                env_map.insert("MAGICTUNNEL_RUNTIME_MODE".to_string(), new_mode.to_string());
+                env_map
+            }),
+        };
+        
+        // Use the existing custom restart functionality to avoid duplication
+        let custom_restart_body = web::Json(custom_restart);
+        match self.custom_restart_magictunnel(custom_restart_body).await {
+            Ok(response) => {
+                // Extract the response body and modify it for mode switch context
+                let body_bytes = match actix_web::body::to_bytes(response.into_body()).await {
+                    Ok(bytes) => bytes,
+                    Err(e) => {
+                        error!("❌ [DASHBOARD] Failed to read custom restart response: {}", e);
+                        return Ok(HttpResponse::InternalServerError().json(json!({
+                            "action": "switch_mode",
+                            "status": "response_error",
+                            "message": format!("Failed to process restart response: {}", e),
+                            "requested_mode": new_mode,
+                            "timestamp": chrono::Utc::now().to_rfc3339(),
+                        })));
+                    }
+                };
+                
+                // Parse the original response
+                let original_response: serde_json::Value = match serde_json::from_slice(&body_bytes) {
+                    Ok(json) => json,
+                    Err(e) => {
+                        error!("❌ [DASHBOARD] Failed to parse custom restart response: {}", e);
+                        return Ok(HttpResponse::InternalServerError().json(json!({
+                            "action": "switch_mode",
+                            "status": "parse_error",
+                            "message": format!("Failed to parse restart response: {}", e),
+                            "requested_mode": new_mode,
+                            "timestamp": chrono::Utc::now().to_rfc3339(),
+                        })));
+                    }
+                };
+                
+                // Create mode-switch specific response based on custom restart response
+                let mode_switch_response = json!({
+                    "action": "switch_mode",
+                    "status": original_response.get("status").unwrap_or(&json!("unknown")),
+                    "message": format!("Mode switch to '{}': {}", 
+                        new_mode, 
+                        original_response.get("message").unwrap_or(&json!("Unknown status")).as_str().unwrap_or("Unknown status")
+                    ),
+                    "new_mode": new_mode,
+                    "custom_restart_response": original_response,
+                    "timestamp": chrono::Utc::now().to_rfc3339(),
+                });
+                
+                info!("✅ [DASHBOARD] Mode switch delegated to custom restart successfully");
+                Ok(HttpResponse::Ok().json(mode_switch_response))
+            }
+            Err(e) => {
+                error!("❌ [DASHBOARD] Mode switch via custom restart failed: {}", e);
+                Ok(HttpResponse::InternalServerError().json(json!({
+                    "action": "switch_mode",
+                    "status": "custom_restart_error",
+                    "message": format!("Failed to execute mode switch via custom restart: {}", e),
+                    "requested_mode": new_mode,
+                    "timestamp": chrono::Utc::now().to_rfc3339(),
+                })))
+            }
+        }
+    }
+
     /// POST /dashboard/api/system/custom-restart - Execute custom restart sequence with pre/post commands
     pub async fn custom_restart_magictunnel(&self, body: web::Json<CustomRestartRequest>) -> Result<HttpResponse> {
         info!("🔧 [DASHBOARD] Custom restart sequence requested");
@@ -990,6 +1106,7 @@ impl DashboardApi {
             pre_commands,
             body.start_args.clone(),
             post_commands,
+            body.env_vars.clone(),
         ).await {
             Ok(response) => {
                 info!("✅ [DASHBOARD] Custom restart response received from supervisor");
@@ -6160,12 +6277,7 @@ tools:
         
         // Get actual runtime mode from service container - this should always be available
         let runtime_mode = match &self.service_container {
-            Some(container) => {
-                match container.runtime_mode {
-                    crate::config::RuntimeMode::Proxy => "Proxy",
-                    crate::config::RuntimeMode::Advanced => "Advanced",
-                }
-            }
+            Some(container) => &container.runtime_mode,
             None => {
                 error!("🚨 Service container not available - this indicates a critical configuration error");
                 return Ok(HttpResponse::InternalServerError().json(json!({
@@ -6176,9 +6288,9 @@ tools:
             }
         };
         
-        info!("🎯 Runtime mode from service container: {}", runtime_mode);
+        info!("🎯 Runtime mode from service container: {:?}", runtime_mode);
         
-        let available_features = if runtime_mode == "Advanced" {
+        let available_features = if matches!(runtime_mode, crate::config::RuntimeMode::Advanced) {
             vec![
                 "tool_discovery".to_string(),
                 "external_mcp".to_string(),
@@ -6195,7 +6307,7 @@ tools:
             ]
         };
         
-        let hidden_features = if runtime_mode == "Advanced" {
+        let hidden_features = if matches!(runtime_mode, crate::config::RuntimeMode::Advanced) {
             vec![]
         } else {
             vec![
@@ -6211,20 +6323,21 @@ tools:
         let status_indicators = Self::create_status_indicators(runtime_mode);
         
         // Create UI configuration based on mode
+        let is_advanced = matches!(runtime_mode, crate::config::RuntimeMode::Advanced);
         let ui_config = json!({
-            "show_security_ui": runtime_mode == "Advanced",
-            "show_auth_settings": runtime_mode == "Advanced", 
-            "show_analytics": runtime_mode == "Advanced",
-            "show_audit_logs": runtime_mode == "Advanced",
+            "show_security_ui": is_advanced,
+            "show_auth_settings": is_advanced, 
+            "show_analytics": is_advanced,
+            "show_audit_logs": is_advanced,
             "show_external_mcp": self.external_mcp.is_some(),
-            "show_rbac_management": runtime_mode == "Advanced",
+            "show_rbac_management": is_advanced,
             "navigation_sections": navigation_sections,
             "status_indicators": status_indicators
         });
         
         let mode_info = json!({
             "runtime_mode": runtime_mode,
-            "mode_description": if runtime_mode == "Advanced" { 
+            "mode_description": if is_advanced { 
                 "Advanced mode with full feature set" 
             } else { 
                 "Proxy mode with basic functionality" 
@@ -6299,7 +6412,7 @@ tools:
     }
 
     /// Create comprehensive navigation sections based on runtime mode
-    fn create_navigation_sections(runtime_mode: &str) -> serde_json::Value {
+    fn create_navigation_sections(runtime_mode: &crate::config::RuntimeMode) -> serde_json::Value {
         let mut sections = vec![
             // Main section (always visible)
             serde_json::json!({
@@ -6317,37 +6430,98 @@ tools:
                         "requires_advanced": false
                     },
                     {
+                        "id": "monitoring",
+                        "name": "Monitoring", 
+                        "path": "/monitoring",
+                        "icon": "dashboard",
+                        "visible": true,
+                        "requires_advanced": false
+                    }
+                ]
+            }),
+            // MCP Services section (available in both proxy and advanced modes)
+            serde_json::json!({
+                "id": "mcp-services",
+                "name": "MCP Services",
+                "icon": "settings",
+                "visible": true,
+                "items": [
+                    {
+                        "id": "smart-discovery",
+                        "name": "Smart Discovery",
+                        "path": "/smart-discovery",
+                        "icon": "chat",
+                        "visible": true,
+                        "requires_advanced": false
+                    },
+                    {
                         "id": "tools",
                         "name": "Tools",
                         "path": "/tools",
                         "icon": "build",
                         "visible": true,
-                        "requires_advanced": false
+                        "requires_advanced": false,
+                        "children": [
+                            {
+                                "id": "tool-metrics",
+                                "name": "Tool Metrics",
+                                "path": "/tool-metrics",
+                                "icon": "chart",
+                                "visible": true,
+                                "requires_advanced": false
+                            }
+                        ]
                     },
                     {
-                        "id": "resources",
-                        "name": "Resources",
-                        "path": "/resources",
-                        "icon": "folder",
+                        "id": "mcp-commands",
+                        "name": "MCP Commands",
+                        "path": "/mcp-commands",
+                        "icon": "settings",
                         "visible": true,
                         "requires_advanced": false
                     },
                     {
-                        "id": "prompts",
-                        "name": "Prompts",
-                        "path": "/prompts",
+                        "id": "services",
+                        "name": "Services",
+                        "path": "/services",
+                        "icon": "settings",
+                        "visible": true,
+                        "requires_advanced": false
+                    },
+                    {
+                        "id": "llm-services",
+                        "name": "LLM Services",
+                        "path": "/llm-services",
                         "icon": "chat",
                         "visible": true,
-                        "requires_advanced": false
+                        "requires_advanced": false,
+                        "children": [
+                            {
+                                "id": "resources",
+                                "name": "Resources",
+                                "path": "/resources",
+                                "icon": "folder",
+                                "visible": true,
+                                "requires_advanced": false
+                            },
+                            {
+                                "id": "prompts",
+                                "name": "Prompts",
+                                "path": "/prompts",
+                                "icon": "chat",
+                                "visible": true,
+                                "requires_advanced": false
+                            }
+                        ]
                     }
                 ]
             })
         ];
 
-        // Add advanced sections in advanced mode
-        if runtime_mode == "Advanced" {
-            sections.extend([
-                // Security Section with comprehensive sub-options
+        // Add Security section in advanced mode (positioned before Administration)
+        if matches!(runtime_mode, crate::config::RuntimeMode::Advanced) {
+            sections.push(
+                // Security Section with reorganized sub-options
                 serde_json::json!({
                     "id": "security",
                     "name": "Security",
@@ -6363,18 +6537,18 @@ tools:
                             "requires_advanced": true
                         },
                         {
-                            "id": "security-policies",
-                            "name": "Security Policies",
-                            "path": "/security/policies",
-                            "icon": "policy",
+                            "id": "allowlist",
+                            "name": "Tool Allowlisting",
+                            "path": "/security/allowlist",
+                            "icon": "check",
                             "visible": true,
                             "requires_advanced": true
                         },
                         {
-                            "id": "security-config",
-                            "name": "Security Config",
-                            "path": "/security/config",
-                            "icon": "settings",
+                            "id": "security-policies",
+                            "name": "Security Policies",
+                            "path": "/security/policies",
+                            "icon": "policy",
                             "visible": true,
                             "requires_advanced": true
                         },
@@ -6384,31 +6558,33 @@ tools:
                             "path": "/security/rbac",
                             "icon": "people",
                             "visible": true,
-                            "requires_advanced": true
-                        },
-                        {
-                            "id": "rbac-users",
-                            "name": "Users",
-                            "path": "/security/rbac/users",
-                            "icon": "user",
-                            "visible": true,
-                            "requires_advanced": true
-                        },
-                        {
-                            "id": "rbac-roles",
-                            "name": "Roles",
-                            "path": "/security/rbac/roles",
-                            "icon": "badge",
-                            "visible": true,
-                            "requires_advanced": true
-                        },
-                        {
-                            "id": "rbac-permissions",
-                            "name": "Permissions",
-                            "path": "/security/rbac/permissions",
-                            "icon": "key",
-                            "visible": true,
-                            "requires_advanced": true
+                            "requires_advanced": true,
+                            "children": [
+                                {
+                                    "id": "rbac-users",
+                                    "name": "Users",
+                                    "path": "/security/rbac/users",
+                                    "icon": "user",
+                                    "visible": true,
+                                    "requires_advanced": true
+                                },
+                                {
+                                    "id": "rbac-roles",
+                                    "name": "Roles",
+                                    "path": "/security/rbac/roles",
+                                    "icon": "badge",
+                                    "visible": true,
+                                    "requires_advanced": true
+                                },
+                                {
+                                    "id": "rbac-permissions",
+                                    "name": "Permissions",
+                                    "path": "/security/rbac/permissions",
+                                    "icon": "key",
+                                    "visible": true,
+                                    "requires_advanced": true
+                                }
+                            ]
                         },
                         {
                             "id": "audit-logs",
@@ -6416,31 +6592,25 @@ tools:
                             "path": "/security/audit",
                             "icon": "history",
                             "visible": true,
-                            "requires_advanced": true
-                        },
-                        {
-                            "id": "audit-search",
-                            "name": "Audit Search",
-                            "path": "/security/audit/search",
-                            "icon": "search",
-                            "visible": true,
-                            "requires_advanced": true
-                        },
-                        {
-                            "id": "audit-violations",
-                            "name": "Violations",
-                            "path": "/security/audit/violations",
-                            "icon": "warning",
-                            "visible": true,
-                            "requires_advanced": true
-                        },
-                        {
-                            "id": "allowlist",
-                            "name": "Tool Allowlisting",
-                            "path": "/security/allowlist",
-                            "icon": "check",
-                            "visible": true,
-                            "requires_advanced": true
+                            "requires_advanced": true,
+                            "children": [
+                                {
+                                    "id": "audit-search",
+                                    "name": "Audit Search",
+                                    "path": "/security/audit/search",
+                                    "icon": "search",
+                                    "visible": true,
+                                    "requires_advanced": true
+                                },
+                                {
+                                    "id": "audit-violations",
+                                    "name": "Violations",
+                                    "path": "/security/audit/violations",
+                                    "icon": "warning",
+                                    "visible": true,
+                                    "requires_advanced": true
+                                }
+                            ]
                         },
                         {
                             "id": "sanitization",
@@ -6448,144 +6618,96 @@ tools:
                             "path": "/security/sanitization",
                             "icon": "clean",
                             "visible": true,
-                            "requires_advanced": true
+                            "requires_advanced": true,
+                            "children": [
+                                {
+                                    "id": "sanitization-filtering",
+                                    "name": "Filtering",
+                                    "path": "/security/sanitization/filtering",
+                                    "icon": "filter",
+                                    "visible": true,
+                                    "requires_advanced": true
+                                },
+                                {
+                                    "id": "sanitization-secrets",
+                                    "name": "Secrets",
+                                    "path": "/security/sanitization/secrets",
+                                    "icon": "lock",
+                                    "visible": true,
+                                    "requires_advanced": true
+                                },
+                                {
+                                    "id": "sanitization-policies",
+                                    "name": "Sanitization Policies",
+                                    "path": "/security/sanitization/policies",
+                                    "icon": "document",
+                                    "visible": true,
+                                    "requires_advanced": true
+                                },
+                                {
+                                    "id": "sanitization-testing",
+                                    "name": "Testing",
+                                    "path": "/security/sanitization/testing",
+                                    "icon": "test",
+                                    "visible": true,
+                                    "requires_advanced": true
+                                }
+                            ]
                         },
                         {
-                            "id": "sanitization-filtering",
-                            "name": "Filtering",
-                            "path": "/security/sanitization/filtering",
-                            "icon": "filter",
-                            "visible": true,
-                            "requires_advanced": true
-                        },
-                        {
-                            "id": "sanitization-secrets",
-                            "name": "Secrets",
-                            "path": "/security/sanitization/secrets",
-                            "icon": "lock",
-                            "visible": true,
-                            "requires_advanced": true
-                        },
-                        {
-                            "id": "sanitization-policies",
-                            "name": "Sanitization Policies",
-                            "path": "/security/sanitization/policies",
-                            "icon": "document",
-                            "visible": true,
-                            "requires_advanced": true
-                        },
-                        {
-                            "id": "sanitization-testing",
-                            "name": "Testing",
-                            "path": "/security/sanitization/testing",
-                            "icon": "test",
-                            "visible": true,
-                            "requires_advanced": true
-                        }
-                    ]
-                }),
-                // MCP Services Section
-                serde_json::json!({
-                    "id": "mcp-services",
-                    "name": "MCP Services",
-                    "icon": "link",
-                    "visible": true,
-                    "items": [
-                        {
-                            "id": "services",
-                            "name": "External MCP",
-                            "path": "/services",
-                            "icon": "link",
-                            "visible": true,
-                            "requires_advanced": true
-                        },
-                        {
-                            "id": "llm-services",
-                            "name": "LLM Services",
-                            "path": "/llm-services",
-                            "icon": "brain",
-                            "visible": true,
-                            "requires_advanced": true
-                        }
-                    ]
-                }),
-                // Administration Section
-                serde_json::json!({
-                    "id": "administration",
-                    "name": "Administration",
-                    "icon": "settings",
-                    "visible": true,
-                    "items": [
-                        {
-                            "id": "config",
-                            "name": "Configuration",
-                            "path": "/config",
+                            "id": "security-config",
+                            "name": "Security Config",
+                            "path": "/security/config",
                             "icon": "settings",
-                            "visible": true,
-                            "requires_advanced": true
-                        },
-                        {
-                            "id": "monitoring",
-                            "name": "Monitoring",
-                            "path": "/monitoring",
-                            "icon": "analytics",
-                            "visible": true,
-                            "requires_advanced": true
-                        },
-                        {
-                            "id": "tool-metrics",
-                            "name": "Tool Metrics",
-                            "path": "/tool-metrics",
-                            "icon": "chart",
-                            "visible": true,
-                            "requires_advanced": true
-                        },
-                        {
-                            "id": "logs",
-                            "name": "Logs",
-                            "path": "/logs",
-                            "icon": "document",
                             "visible": true,
                             "requires_advanced": true
                         }
                     ]
                 })
-            ]);
-        } else {
-            // In proxy mode, still show some basic sections but fewer advanced features
-            sections.extend([
-                serde_json::json!({
-                    "id": "administration",
-                    "name": "Administration",
-                    "icon": "settings",
-                    "visible": true,
-                    "items": [
-                        {
-                            "id": "config",
-                            "name": "Configuration",
-                            "path": "/config",
-                            "icon": "settings",
-                            "visible": true,
-                            "requires_advanced": false
-                        },
-                        {
-                            "id": "logs",
-                            "name": "Logs",
-                            "path": "/logs",
-                            "icon": "document",
-                            "visible": true,
-                            "requires_advanced": false
-                        }
-                    ]
-                })
-            ]);
+            );
         }
+
+        // Add Administration section (always visible, positioned last)
+        sections.push(
+            serde_json::json!({
+                "id": "administration",
+                "name": "Administration",
+                "icon": "settings",
+                "visible": true,
+                "items": [
+                    {
+                        "id": "configuration",
+                        "name": "Configuration",
+                        "path": "/config",
+                        "icon": "settings",
+                        "visible": true,
+                        "requires_advanced": false
+                    },
+                    {
+                        "id": "logs",
+                        "name": "System Logs",
+                        "path": "/logs",
+                        "icon": "folder",
+                        "visible": true,
+                        "requires_advanced": false
+                    },
+                    {
+                        "id": "build-commands",
+                        "name": "Build Commands",
+                        "path": "/build-commands",
+                        "icon": "build",
+                        "visible": true,
+                        "requires_advanced": false
+                    }
+                ]
+            })
+        );
 
         serde_json::Value::Array(sections)
     }
 
     /// Create status indicators based on runtime mode
-    fn create_status_indicators(runtime_mode: &str) -> serde_json::Value {
+    fn create_status_indicators(runtime_mode: &crate::config::RuntimeMode) -> serde_json::Value {
         let mut indicators = vec![
             serde_json::json!({
                 "id": "mcp-server",
@@ -6602,7 +6724,7 @@ tools:
         ];
 
         // Add advanced indicators only in advanced mode
-        if runtime_mode == "Advanced" {
+        if matches!(runtime_mode, crate::config::RuntimeMode::Advanced) {
             indicators.extend([
                 serde_json::json!({
                     "id": "security",
@@ -6628,6 +6750,7 @@ pub struct CustomRestartRequest {
     pub pre_commands: Option<Vec<CustomCommandSpec>>,
     pub start_args: Option<Vec<String>>,
     pub post_commands: Option<Vec<CustomCommandSpec>>,
+    pub env_vars: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(serde::Deserialize)]
@@ -6749,6 +6872,9 @@ pub fn configure_dashboard_api(
                 }))
                 .route("/system/restart", web::post().to(|api: web::Data<DashboardApi>| async move {
                     api.restart_magictunnel().await
+                }))
+                .route("/system/switch-mode", web::post().to(|api: web::Data<DashboardApi>, body: web::Json<serde_json::Value>| async move {
+                    api.switch_runtime_mode(body).await
                 }))
                 .route("/system/custom-restart", web::post().to(|api: web::Data<DashboardApi>, body: web::Json<CustomRestartRequest>| async move {
                     api.custom_restart_magictunnel(body).await

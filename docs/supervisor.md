@@ -26,7 +26,10 @@ open http://localhost:5173/dashboard
 
 ## Architecture
 
-### Service Hierarchy
+### Service Container Architecture (v0.3.11)
+
+MagicTunnel implements a **service container architecture** that conditionally loads services based on runtime mode:
+
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                MagicTunnel Supervisor                   │
@@ -45,29 +48,98 @@ open http://localhost:5173/dashboard
 └─────────────────────────────────────────────────────────┘
            │                    │
            ▼                    ▼
-┌─────────────────┐    ┌─────────────────┐
-│ MagicTunnel     │    │ Frontend Dev    │
-│ Main Server     │    │ Server (Vite)   │
-│ (Port 3001)     │    │ (Port 5173)     │
-└─────────────────┘    └─────────────────┘
+┌─────────────────────────────────────────┐
+│           MagicTunnel Main Server       │
+│               (Port 3001)               │
+│                                         │
+│  ┌─────────────────────────────────────┐ │
+│  │        Service Container            │ │
+│  │                                     │ │
+│  │  Proxy Mode:                        │ │
+│  │  ├─ ProxyServices { ... }           │ │
+│  │  └─ AdvancedServices: None          │ │
+│  │                                     │ │
+│  │  Advanced Mode:                     │ │
+│  │  ├─ ProxyServices { ... }           │ │
+│  │  └─ AdvancedServices { ... }        │ │
+│  └─────────────────────────────────────┘ │
+└─────────────────────────────────────────┘
            │
            ▼
-┌─────────────────┐
-│ External MCP    │
-│ Services        │
-│ (Port 8082+)    │
-└─────────────────┘
+┌─────────────────┐    ┌─────────────────┐
+│ Frontend Dev    │    │ External MCP    │
+│ Server (Vite)   │    │ Services        │
+│ (Port 5173)     │    │ (Port 8082+)    │
+└─────────────────┘    └─────────────────┘
 ```
 
-### Communication Flow
+### Service Hierarchy
+
+**ServiceContainer Structure:**
+```rust
+pub struct ServiceContainer {
+    /// Core proxy services (always present)
+    pub proxy_services: Option<ProxyServices>,
+    /// Advanced enterprise services (only in advanced mode)
+    pub advanced_services: Option<AdvancedServices>,
+    /// Runtime mode for this container
+    pub runtime_mode: RuntimeMode,
+    /// Total number of loaded services
+    pub service_count: usize,
+}
 ```
-Web Dashboard (5173) 
-    ↓ HTTP API Call
+
+**Proxy Mode Services (Core):**
+- Registry (tool management)
+- MCP Server (protocol handling)
+- Tool Enhancement (optional, core LLM service)
+- Smart Discovery (optional, intelligent tool routing)
+- Health Monitoring (built-in)
+- Web Dashboard (via MCP server)
+
+**Advanced Mode Services (Enterprise):**
+- All Proxy Mode Services (shared foundation)
+- Tool Allowlisting (enterprise tool control)
+- RBAC (Role-Based Access Control) 
+- Request Sanitization (content filtering)
+- Audit Logging (compliance tracking)
+- Security Policies (organization-wide rules)
+- Emergency Lockdown (security response)
+- Advanced Web Dashboard (security UI)
+- Enterprise Monitoring (security metrics)
+
+### Communication Flow
+
+**Unified Status Banner System Flow (v0.3.11):**
+```
+Web Dashboard (5173)
+    ↓ Banner Store Integration
+Frontend Banner System
+    ↓ HTTP API Calls (/dashboard/api/system/restart, /dashboard/api/mode)
 MagicTunnel API (3001)
-    ↓ TCP Socket
+    ↓ TCP Socket Commands (CustomRestart, Status)
 Supervisor Process (8081)
-    ↓ Process Control
+    ↓ Process Control & Service Management
+ServiceContainer (Proxy/Advanced Services)
+    ↓ Environment Variable Management
 Target Services (MagicTunnel, External MCP, etc.)
+    ↓ Status Updates & Health Checks
+Banner Override System (Real-time UI Updates)
+```
+
+**Mode Switch Integration:**
+```
+Frontend Mode Switch Request
+    ↓ setRestartBanner("Mode switching...")
+Banner Override System
+    ↓ Custom Restart with Environment Variables
+Supervisor TCP Control
+    ↓ MAGICTUNNEL_RUNTIME_MODE Override
+Service Container Reload
+    ↓ Service Health Monitoring
+Status Banner Updates
+    ↓ Page Reload on Success
+Complete Mode Switch
 ```
 
 ## Core Features
@@ -85,16 +157,31 @@ The supervisor runs a TCP server on port 8081 for command and control:
 ```rust
 // TCP Commands supported
 pub enum SupervisorCommand {
-    Status,           // Get current status of all processes
-    Restart(String),  // Restart specific service
-    Stop(String),     // Stop specific service  
-    Start(String),    // Start specific service
-    CustomRestart {   // Advanced restart with workflows
-        pre_commands: Vec<Command>,
-        post_commands: Vec<Command>,
-        args: Vec<String>,
+    /// Restart MagicTunnel with optional new arguments
+    Restart { args: Option<Vec<String>> },
+    /// Stop MagicTunnel gracefully
+    Stop,
+    /// Get current process status
+    Status,
+    /// Reload configuration
+    ReloadConfig { config_path: Option<String> },
+    /// Shutdown supervisor
+    Shutdown,
+    /// Health check
+    HealthCheck,
+    /// Execute custom restart sequence with pre/post commands
+    CustomRestart { 
+        pre_commands: Option<Vec<CustomCommand>>,
+        start_args: Option<Vec<String>>,
+        post_commands: Option<Vec<CustomCommand>>,
+        /// Environment variables to set for the MagicTunnel process
+        env_vars: Option<std::collections::HashMap<String, String>>,
     },
-    Shutdown,         // Shutdown supervisor and all services
+    /// Execute arbitrary command (restricted for security)
+    ExecuteCommand { 
+        command: CustomCommand,
+        timeout_seconds: Option<u64>,
+    },
 }
 ```
 
@@ -105,19 +192,31 @@ Advanced restart capabilities with pre/post command execution:
 {
   "pre_commands": [
     {
-      "command_type": "make",
+      "command_type": "Make",
       "command": "clean",
+      "args": null,
+      "working_dir": null,
+      "env": null,
+      "description": "Clean build artifacts",
       "is_safe": true
     }
   ],
   "post_commands": [
     {
-      "command_type": "shell", 
+      "command_type": "Shell", 
       "command": "echo 'Restart complete'",
+      "args": null,
+      "working_dir": null,
+      "env": null,
+      "description": "Completion notification",
       "is_safe": true
     }
   ],
-  "args": ["--config", "production.yaml"]
+  "start_args": ["--config", "production.yaml"],
+  "env_vars": {
+    "MAGICTUNNEL_RUNTIME_MODE": "advanced",
+    "RUST_LOG": "info"
+  }
 }
 ```
 

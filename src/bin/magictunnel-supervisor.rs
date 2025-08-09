@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
@@ -72,6 +73,8 @@ pub enum SupervisorCommand {
         pre_commands: Option<Vec<CustomCommand>>,
         start_args: Option<Vec<String>>,
         post_commands: Option<Vec<CustomCommand>>,
+        /// Environment variables to set for the MagicTunnel process
+        env_vars: Option<std::collections::HashMap<String, String>>,
     },
     /// Execute arbitrary command (restricted for security)
     ExecuteCommand { 
@@ -179,7 +182,12 @@ impl MagicTunnelProcess {
     }
 
     /// Start MagicTunnel process
-    pub async fn start(&mut self, args: Option<Vec<String>>) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn start(&mut self, args: Option<Vec<String>>) -> Result<()> {
+        self.start_with_env(args, None).await
+    }
+
+    /// Start MagicTunnel process with custom environment variables
+    pub async fn start_with_env(&mut self, args: Option<Vec<String>>, env_vars: Option<std::collections::HashMap<String, String>>) -> Result<()> {
         if self.is_running() {
             info!("MagicTunnel is already running, stopping first");
             self.stop().await?;
@@ -195,7 +203,15 @@ impl MagicTunnelProcess {
         let mut cmd = Command::new(&self.config.magictunnel_binary);
         cmd.args(&self.current_args);
         
-        // Set default environment variables only if they're not already set
+        // Apply custom environment variables first (these override defaults)
+        if let Some(env_map) = env_vars {
+            for (key, value) in env_map {
+                info!("Setting custom environment variable: {}={}", key, value);
+                cmd.env(key, value);
+            }
+        }
+        
+        // Set default environment variables only if they're not already set by custom env vars
         if std::env::var("MAGICTUNNEL_ENV").is_err() {
             cmd.env("MAGICTUNNEL_ENV", "development");
         }
@@ -254,7 +270,7 @@ impl MagicTunnelProcess {
     }
 
     /// Stop MagicTunnel process gracefully
-    pub async fn stop(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn stop(&mut self) -> Result<()> {
         if let Some(mut process) = self.process.take() {
             let pid = process.id().unwrap_or(0);
             info!("Stopping MagicTunnel process (PID: {})", pid);
@@ -285,7 +301,7 @@ impl MagicTunnelProcess {
     }
 
     /// Restart MagicTunnel process
-    pub async fn restart(&mut self, args: Option<Vec<String>>) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn restart(&mut self, args: Option<Vec<String>>) -> Result<()> {
         info!("🔄 Restarting MagicTunnel...");
 
         // Check restart cooldown
@@ -293,13 +309,13 @@ impl MagicTunnelProcess {
             let elapsed = last_restart.elapsed().as_secs();
             if elapsed < self.config.restart_cooldown {
                 let remaining = self.config.restart_cooldown - elapsed;
-                return Err(format!("Restart cooldown active, {} seconds remaining", remaining).into());
+                anyhow::bail!("Restart cooldown active, {} seconds remaining", remaining);
             }
         }
 
         // Check restart attempt limit
         if self.restart_count >= self.config.max_restart_attempts {
-            return Err("Maximum restart attempts exceeded".into());
+            anyhow::bail!("Maximum restart attempts exceeded");
         }
 
         self.stop().await?;
@@ -585,6 +601,7 @@ impl MagicTunnelProcess {
         pre_commands: Option<Vec<CustomCommand>>,
         start_args: Option<Vec<String>>,
         post_commands: Option<Vec<CustomCommand>>,
+        env_vars: Option<std::collections::HashMap<String, String>>,
     ) -> CustomRestartResult {
         let start_time = Instant::now();
         info!("🔧 Starting custom restart sequence");
@@ -606,17 +623,27 @@ impl MagicTunnelProcess {
             }
         }
 
-        // Perform the restart
+        // Perform the restart with custom environment variables
         let restart_successful = if overall_success {
-            match self.restart(start_args).await {
-                Ok(()) => {
-                    info!("✅ MagicTunnel restart completed successfully");
-                    true
-                }
-                Err(e) => {
-                    error!("❌ MagicTunnel restart failed: {}", e);
-                    overall_success = false;
-                    false
+            // Stop the current process first
+            if let Err(e) = self.stop().await {
+                error!("❌ Failed to stop MagicTunnel before restart: {}", e);
+                overall_success = false;
+                false
+            } else {
+                // Start with custom environment variables
+                match self.start_with_env(start_args, env_vars).await {
+                    Ok(()) => {
+                        info!("✅ MagicTunnel restart completed successfully with custom environment");
+                        self.restart_count += 1;
+                        self.last_restart = Some(std::time::Instant::now());
+                        true
+                    }
+                    Err(e) => {
+                        error!("❌ MagicTunnel restart failed: {}", e);
+                        overall_success = false;
+                        false
+                    }
                 }
             }
         } else {
@@ -680,7 +707,7 @@ impl SupervisorServer {
     }
 
     /// Start the supervisor server
-    pub async fn start(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn start(&self) -> Result<()> {
         info!("🚀 Starting MagicTunnel Supervisor on port {}", self.config.control_port);
 
         // Start MagicTunnel initially
@@ -746,7 +773,7 @@ impl SupervisorServer {
     async fn handle_connection(
         mut stream: TcpStream,
         process: Arc<Mutex<MagicTunnelProcess>>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<()> {
         let mut reader = BufReader::new(&mut stream);
         let mut line = String::new();
 
@@ -868,9 +895,9 @@ impl SupervisorServer {
                     timestamp,
                 }
             }
-            SupervisorCommand::CustomRestart { pre_commands, start_args, post_commands } => {
+            SupervisorCommand::CustomRestart { pre_commands, start_args, post_commands, env_vars } => {
                 let mut process_guard = process.lock().await;
-                let result = process_guard.execute_custom_restart(pre_commands, start_args, post_commands).await;
+                let result = process_guard.execute_custom_restart(pre_commands, start_args, post_commands, env_vars).await;
                 SupervisorResponse {
                     success: result.overall_success,
                     message: if result.overall_success { 
@@ -904,7 +931,7 @@ impl SupervisorServer {
     async fn send_response(
         stream: &mut TcpStream,
         response: SupervisorResponse,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<()> {
         let response_json = serde_json::to_string(&response)?;
         stream.write_all(response_json.as_bytes()).await?;
         stream.write_all(b"\n").await?;
@@ -924,7 +951,7 @@ impl SupervisorClient {
     }
 
     /// Send command to supervisor
-    pub async fn send_command(&self, command: SupervisorCommand) -> Result<SupervisorResponse, Box<dyn std::error::Error>> {
+    pub async fn send_command(&self, command: SupervisorCommand) -> anyhow::Result<SupervisorResponse> {
         let mut stream = TcpStream::connect(format!("127.0.0.1:{}", self.port)).await?;
         
         let command_json = serde_json::to_string(&command)?;
@@ -942,7 +969,7 @@ impl SupervisorClient {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     // Initialize tracing
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -980,6 +1007,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         pre_commands: Some(pre_commands),
                         start_args: None,
                         post_commands: None,
+                        env_vars: None,
                     }
                 }
                 "execute-make" => {

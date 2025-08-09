@@ -27,26 +27,34 @@ open http://localhost:5173/dashboard
 
 ## Architecture Overview
 
-The web dashboard operates in a multi-tier architecture:
+The web dashboard operates in a multi-tier architecture with service container integration (v0.3.11):
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│ Frontend (5173) │───►│ MagicTunnel API │───►│ Supervisor TCP  │
-│ Svelte + Vite   │    │ (3001)          │    │ (8081)          │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-        │                        │                        │
-        │                        │                        ▼
-        │                        │              ┌─────────────────┐
-        │                        │              │ MagicTunnel     │
-        │                        │              │ Process Mgmt    │
-        │                        │              └─────────────────┘
-        │                        ▼
-        │              ┌─────────────────┐
-        │              │ External MCP    │
-        │              │ Services (8082+)│
-        │              └─────────────────┘
+┌─────────────────┐    ┌─────────────────────────────────────┐    ┌─────────────────┐
+│ Frontend (5173) │───►│        MagicTunnel API              │───►│ Supervisor TCP  │
+│ Svelte + Vite   │    │           (3001)                    │    │ (8081)          │
+│                 │    │                                     │    │                 │
+│ ┌─────────────┐ │    │  ┌─────────────────────────────────┐ │    │ ┌─────────────┐ │
+│ │Banner Store │ │    │  │      Service Container         │ │    │ │Process Mgmt │ │
+│ │  System     │ │    │  │                                 │ │    │ │             │ │
+│ └─────────────┘ │    │  │ Proxy Mode:                     │ │    │ └─────────────┘ │
+└─────────────────┘    │  │ ├─ ProxyServices                │ │    └─────────────────┘
+        │              │  │ └─ AdvancedServices: None       │ │            │
+        │              │  │                                 │ │            ▼
+        │              │  │ Advanced Mode:                  │ │  ┌─────────────────┐
+        │              │  │ ├─ ProxyServices (foundation)   │ │  │ Environment Var │
+        │              │  │ └─ AdvancedServices (security)  │ │  │ Management      │
+        │              │  └─────────────────────────────────┘ │  └─────────────────┘
+        │              └─────────────────────────────────────┘
+        │                        │                 │
+        │                        ▼                 ▼
+        │              ┌─────────────────┐ ┌─────────────────┐
+        │              │ External MCP    │ │ Mode Detection  │
+        │              │ Services (8082+)│ │ & Status API    │
+        │              └─────────────────┘ └─────────────────┘
         ▼
 API Proxy: /dashboard/api/* → localhost:3001
+Banner Integration: Real-time status updates
 ```
 
 ## Dashboard Features
@@ -103,6 +111,32 @@ API Proxy: /dashboard/api/* → localhost:3001
 - **API Key Management**: Secure handling of API keys with masking
 - **System Restart**: Graceful system restart with custom workflows
 - **Supervisor Integration**: Advanced process management and monitoring
+- **Unified Status Banner**: Real-time status updates with modern minimal design
+- **Mode Switching**: Seamless runtime mode switching with status feedback
+
+### 🎨 Unified Status Banner System (v0.3.11)
+
+The dashboard features a modern, unified status banner system that replaces the traditional bulky alert banners:
+
+**Features:**
+- **Dynamic Status Updates**: Real-time feedback for restart/mode switch operations
+- **Color-Coded Types**: Success (green), error (red), warning (orange), info (blue)
+- **Space Efficient**: 60% smaller height with consistent horizontal layout
+- **Auto-Clear**: Success messages automatically clear after 5 seconds
+- **Mode Aware**: Shows current runtime mode when no operations are active
+
+**Status Examples:**
+```
+[●] Running in Proxy Mode • Core features only
+[●] Restarting System (15s remaining) • System restarting...
+[●] Mode Switch Complete • Successfully switched to advanced mode
+[●] Error occurred • Check system logs for details
+```
+
+**Technical Implementation:**
+- **Global Store**: `/frontend/src/lib/stores/banner.ts` manages banner state
+- **Component Integration**: `ModeAwareLayout.svelte` displays banner with modern CSS
+- **API Integration**: Seamless integration with supervisor restart/status APIs
 
 ## Development Setup
 

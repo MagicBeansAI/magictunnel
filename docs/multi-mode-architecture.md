@@ -1,4 +1,4 @@
-# Multi-Mode Architecture Guide (v0.3.10)
+# Multi-Mode Architecture Guide (v0.3.11)
 
 MagicTunnel implements a sophisticated multi-mode architecture that provides two distinct runtime modes to address different deployment scenarios and use cases.
 
@@ -182,50 +182,94 @@ export MAGICTUNNEL_CONFIG_PATH=./configs/production.yaml
 
 ## Service Loading Strategy
 
+### ServiceContainer Architecture
+
+The **ServiceContainer** is the core architectural pattern that enables multi-mode functionality:
+
+```rust
+pub struct ServiceContainer {
+    /// Core proxy services (always present)
+    pub proxy_services: Option<ProxyServices>,
+    /// Advanced enterprise services (only in advanced mode)
+    pub advanced_services: Option<AdvancedServices>,
+    /// Runtime mode for this container
+    pub runtime_mode: RuntimeMode,
+    /// Total number of loaded services
+    pub service_count: usize,
+}
+
+// Configuration-driven instantiation via ServiceLoader
+let service_container = match runtime_mode {
+    RuntimeMode::Proxy => {
+        let proxy_services = ProxyServices::new(config.clone()).await?;
+        let service_count = proxy_services.service_count();
+        ServiceContainer {
+            proxy_services: Some(proxy_services),
+            advanced_services: None,
+            runtime_mode: RuntimeMode::Proxy,
+            service_count,
+        }
+    }
+    RuntimeMode::Advanced => {
+        let proxy_services = ProxyServices::new(config.clone()).await?;
+        let advanced_services = AdvancedServices::new(config.clone(), &proxy_services).await?;
+        let total_services = proxy_services.service_count() + advanced_services.service_count();
+        ServiceContainer {
+            proxy_services: Some(proxy_services),
+            advanced_services: Some(advanced_services),
+            runtime_mode: RuntimeMode::Advanced,
+            service_count: total_services,
+        }
+    }
+};
+```
+
 ### ProxyServices Container
 
 Loaded in **Proxy Mode**:
-- MCP Server Interface
-- Basic Tool Registry  
-- Smart Discovery Engine (if enabled)
-- External MCP Integration
-- Basic Web Dashboard
-- Health Monitoring
+- Registry (tool management)
+- MCP Server (protocol handling)
+- Tool Enhancement (optional, core LLM service)
+- Smart Discovery (optional, intelligent tool routing)
+- Health Monitoring (built-in)
+- Web Dashboard (via MCP server)
 
 ### AdvancedServices Container  
 
 Loaded in **Advanced Mode** (includes all ProxyServices plus):
-- Security Management System
-- Authentication Services (OAuth 2.1)
-- Role-Based Access Control (RBAC)
-- LLM Services (Sampling, Elicitation)
-- Tool Enhancement Pipeline
-- Audit Logging System
-- Request Sanitization
-- Advanced Web Dashboard
-- Enterprise Monitoring
+- Tool Allowlisting (enterprise tool control)
+- RBAC (Role-Based Access Control) 
+- Request Sanitization (content filtering)
+- Audit Logging (compliance tracking)
+- Security Policies (organization-wide rules)
+- Emergency Lockdown (security response)
+- Advanced Web Dashboard (security UI)
+- Enterprise Monitoring (security metrics)
 
 ### Service Dependencies
 
 Services are loaded with proper dependency validation:
 ```bash
-🔄 Loading services for mode: advanced
+🚀 Loading services for advanced mode
 
-📦 ProxyServices Container:
-   ├─ MCP Server Interface ✅
-   ├─ Tool Registry ✅ 
-   ├─ Smart Discovery Engine ✅
-   ├─ External MCP Integration ✅
-   └─ Basic Web Dashboard ✅
+📊 Service Container Details:
+   Runtime Mode: advanced
+   Total Services: 10
+   📦 Proxy Services (4 services):
+      1. Registry
+      2. MCP Server
+      3. Tool Enhancement
+      4. Smart Discovery
+   🏢 Advanced Services (6 services):
+      1. Tool Allowlisting
+      2. RBAC (Role-Based Access Control)
+      3. Request Sanitization
+      4. Audit Logging
+      5. Security Policies
+      6. Emergency Lockdown
 
-📦 AdvancedServices Container:
-   ├─ Security Management ✅
-   ├─ OAuth 2.1 Authentication ✅
-   ├─ LLM Services ✅ (API keys detected)
-   ├─ Audit Logging ✅
-   └─ Enterprise Web Dashboard ✅
-
-🚀 All services loaded successfully
+   ✅ All services are healthy
+✅ Service loading completed for advanced mode (10 total services)
 ```
 
 ## Configuration Validation System
@@ -289,6 +333,44 @@ if (mode === 'proxy') {
 The UI adapts based on available services:
 - **Proxy Mode**: Basic navigation, core tool management
 - **Advanced Mode**: Full navigation with security, LLM services, enterprise features
+
+### Complete System Integration Flow (v0.3.11)
+
+**Unified Status Banner System Integration:**
+
+```
+1. Configuration Resolution (main.rs)
+   ├─ Environment Variable Priority
+   ├─ Config File Detection
+   └─ Runtime Mode Determination
+
+2. Service Container Loading (ServiceLoader)
+   ├─ ProxyServices (always loaded)
+   └─ AdvancedServices (conditional)
+
+3. Supervisor Integration (TCP 8081)
+   ├─ Process Management
+   ├─ Custom Restart Workflows
+   └─ Environment Variable Passing
+
+4. Frontend Status Integration
+   ├─ Banner Store System (/lib/stores/banner.ts)
+   ├─ Real-time Status Updates
+   ├─ Mode Switch Integration
+   └─ Auto-refresh & Page Reload
+
+5. Mode Switch Complete Flow
+   Frontend Request → Custom Restart → Environment Override → 
+   Service Container Reload → Status Monitoring → Success Banner → 
+   Page Reload → Complete Integration
+```
+
+**Key Integration Points:**
+- **ServiceContainer**: Core architectural pattern enabling mode switching
+- **Environment Variables**: `MAGICTUNNEL_RUNTIME_MODE` persists across restarts
+- **Banner System**: Provides real-time user feedback during transitions
+- **Supervisor TCP**: Handles complex restart workflows with pre/post commands
+- **Progressive UI**: Frontend adapts automatically based on available services
 
 ## Migration Guide
 
