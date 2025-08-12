@@ -378,6 +378,10 @@ impl AgentRouter for EnhancedAgentRouter {
         // Execute the tool call with the selected agent (this will use middleware)
         self.execute_with_agent(tool_call, &agent).await
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 /// Builder for creating enhanced routers with middleware, retry, and timeout configuration

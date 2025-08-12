@@ -31,6 +31,9 @@ pub trait AgentRouter: Send + Sync {
         // Execute the tool call with the selected agent
         self.execute_with_agent(tool_call, &agent).await
     }
+
+    /// Support for downcasting to concrete types
+    fn as_any(&self) -> &dyn std::any::Any;
 }
 
 /// Default implementation of AgentRouter
@@ -388,6 +391,10 @@ impl AgentRouter for DefaultAgentRouter {
                 self.execute_smart_discovery_agent(tool_call, *enabled).await
             }
         }
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -1874,5 +1881,82 @@ impl DefaultAgentRouter {
             include_error_details: None,
             sequential_mode: None,
         })
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+impl DefaultAgentRouter {
+    /// Route a tool call with authentication context
+    pub async fn route_with_auth(
+        &self,
+        tool_call: &ToolCall,
+        tool_def: &ToolDefinition,
+        auth_context: Option<&crate::auth::AuthenticationContext>,
+    ) -> Result<AgentResult> {
+        debug!("Routing tool call with auth: {} (auth: {})", 
+               tool_call.name, 
+               auth_context.is_some());
+        
+        // Parse routing configuration into agent type
+        let agent = self.parse_routing_config(&tool_def.routing)?;
+        
+        // Execute the tool call with the selected agent and authentication context
+        self.execute_with_agent_and_auth(tool_call, &agent, auth_context).await
+    }
+
+    /// Execute tool call with agent and authentication context
+    async fn execute_with_agent_and_auth(
+        &self,
+        tool_call: &ToolCall,
+        agent: &AgentType,
+        auth_context: Option<&crate::auth::AuthenticationContext>,
+    ) -> Result<AgentResult> {
+        // For now, we'll handle authentication context only for external MCP calls
+        // Other agent types (subprocess, HTTP, LLM, etc.) will be enhanced later
+        match agent {
+            AgentType::ExternalMcp { server_name, tool_name, .. } => {
+                self.execute_external_mcp_with_auth(tool_call, server_name, tool_name, auth_context).await
+            }
+            _ => {
+                // For other agent types, fall back to standard execution for now
+                debug!("Authentication context not yet supported for agent type: {:?}", agent);
+                self.execute_with_agent(tool_call, agent).await
+            }
+        }
+    }
+
+    /// Execute external MCP tool call with authentication context
+    async fn execute_external_mcp_with_auth(
+        &self,
+        tool_call: &ToolCall,
+        server_name: &str,
+        tool_name: &str,
+        auth_context: Option<&crate::auth::AuthenticationContext>,
+    ) -> Result<AgentResult> {
+        if let Some(external_mcp) = &self.external_mcp {
+            let external_mcp_guard = external_mcp.read().await;
+            
+            // Get authentication headers if context is available
+            let auth_headers = auth_context.map(|ctx| {
+                // For external MCP calls, we don't specify a provider to use the best available token
+                ctx.get_auth_headers(None)
+            }).unwrap_or_default();
+
+            debug!(
+                "Executing external MCP tool '{}' on server '{}' with auth headers: {}",
+                tool_name, server_name, auth_headers.len()
+            );
+
+            // For now, call the standard external MCP execution
+            // The external MCP integration will need to be updated separately to use auth headers
+            external_mcp_guard.execute_tool_with_auth(tool_name, &tool_call.arguments, auth_headers).await
+        } else {
+            Err(crate::error::ProxyError::routing(
+                "External MCP integration not configured".to_string()
+            ))
+        }
     }
 }

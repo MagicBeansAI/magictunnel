@@ -1,0 +1,65 @@
+# Staging Environment Configuration
+deployment:
+  runtime_mode: "advanced"
+  environment: "staging"
+
+mcp:
+  enabled: true
+  stdio: false
+  http:
+    enabled: true
+    host: "0.0.0.0"
+    port: 3001
+    cors_enabled: false  # Disable CORS in staging
+
+auth:
+  enabled: true
+  server_level:
+    type: oauth
+    provider: github
+    scopes: ["user:email", "repo:read"]
+
+oauth_providers:
+  github:
+    client_id: "${GITHUB_STAGING_CLIENT_ID:-$GITHUB_CLIENT_ID}"
+    client_secret: "${GITHUB_STAGING_CLIENT_SECRET:-$GITHUB_CLIENT_SECRET}"
+    oauth_enabled: true
+    authorization_endpoint: "https://github.com/login/oauth/authorize"
+    token_endpoint: "https://github.com/login/oauth/access_token"
+    user_info_endpoint: "https://api.github.com/user"
+
+session_persistence:
+  stdio:
+    enabled: true
+    storage_backend: "filesystem"
+    storage_path: "/var/lib/magictunnel/sessions"
+    encryption_key: "${SESSION_ENCRYPTION_KEY}"
+  
+  token_management:
+    refresh_threshold: "5m"
+    max_token_lifetime: "24h"
+    cleanup_expired_sessions: "1h"
+
+smart_discovery:
+  enabled: true
+  mode: "hybrid"
+
+logging:
+  level: "info"
+  format: "json"
+  file: "/var/log/magictunnel/magictunnel.log"
+
+security:
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 100
+    burst_size: 20
+  
+  content_security:
+    enabled: true
+    max_request_size: "1MB"
+
+metrics:
+  enabled: true
+  port: 9090
+  path: "/metrics"

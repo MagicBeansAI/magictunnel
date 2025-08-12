@@ -88,6 +88,27 @@ impl Router {
         self.agent_router.route(tool_call, tool_def).await
     }
 
+    /// Route a tool call with authentication context
+    pub async fn route_with_auth(
+        &self,
+        tool_call: &ToolCall,
+        tool_def: &ToolDefinition,
+        auth_context: Option<&crate::auth::AuthenticationContext>,
+    ) -> Result<AgentResult> {
+        debug!("Routing tool call with auth: {} (auth: {})", 
+               tool_call.name, 
+               auth_context.is_some());
+        
+        // Check if the underlying agent router supports authentication
+        if let Some(auth_router) = self.agent_router.as_any().downcast_ref::<DefaultAgentRouter>() {
+            auth_router.route_with_auth(tool_call, tool_def, auth_context).await
+        } else {
+            // Fall back to standard routing for routers that don't support auth
+            debug!("Router doesn't support auth context, falling back to standard routing");
+            self.agent_router.route(tool_call, tool_def).await
+        }
+    }
+
     /// Create a new router with enhanced features (logging and metrics middleware)
     pub fn new_enhanced() -> Self {
         let enhanced_router = EnhancedRouterBuilder::new()

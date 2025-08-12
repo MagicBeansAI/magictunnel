@@ -1,0 +1,57 @@
+# Docker Test Environment Configuration
+deployment:
+  runtime_mode: "advanced"
+  environment: "docker-test"
+
+mcp:
+  enabled: true
+  stdio: false
+  http:
+    enabled: true
+    host: "0.0.0.0"  # Accept connections from any IP in container
+    port: 3001
+    cors_enabled: true
+
+auth:
+  enabled: true
+  server_level:
+    type: oauth
+    provider: github
+    scopes: ["user:email", "repo:read"]
+
+oauth_providers:
+  github:
+    client_id: "${GITHUB_CLIENT_ID}"
+    client_secret: "${GITHUB_CLIENT_SECRET}"
+    oauth_enabled: true
+    authorization_endpoint: "https://github.com/login/oauth/authorize"
+    token_endpoint: "https://github.com/login/oauth/access_token"
+    user_info_endpoint: "https://api.github.com/user"
+
+session_persistence:
+  stdio:
+    enabled: true
+    storage_backend: "filesystem"
+    storage_path: "/app/data/sessions"
+    encryption_key: "${SESSION_ENCRYPTION_KEY}"
+  
+  remote_mcp:
+    enabled: true
+    distributed_storage:
+      enabled: true
+      backend: "redis"
+      redis_url: "${REDIS_URL}"
+
+smart_discovery:
+  enabled: true
+  mode: "hybrid"
+
+logging:
+  level: "info"
+  format: "json"
+  file: "/app/logs/magictunnel-docker.log"
+
+metrics:
+  enabled: true
+  port: 9090
+  path: "/metrics"

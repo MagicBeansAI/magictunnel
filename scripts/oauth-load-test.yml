@@ -1,0 +1,172 @@
+# OAuth 2.1 Load Testing Configuration for Artillery
+# Run with: artillery run oauth-load-test.yml
+
+config:
+  target: 'http://localhost:3001'
+  phases:
+    # Warm-up phase
+    - duration: 30
+      arrivalRate: 2
+      name: "Warm-up"
+    
+    # Ramp-up phase
+    - duration: 60
+      arrivalRate: 5
+      rampTo: 20
+      name: "Ramp-up"
+    
+    # Sustained load phase
+    - duration: 120
+      arrivalRate: 20
+      name: "Sustained load"
+    
+    # Peak load phase
+    - duration: 60
+      arrivalRate: 50
+      name: "Peak load"
+    
+    # Cool-down phase
+    - duration: 30
+      arrivalRate: 5
+      name: "Cool-down"
+  
+  defaults:
+    headers:
+      Content-Type: 'application/json'
+      User-Agent: 'MagicTunnel-LoadTest/1.0'
+  
+  # Performance thresholds
+  ensure:
+    maxErrorRate: 5     # Max 5% error rate
+    maxResponseTime: 2000  # Max 2 second response time
+    minThoughput: 10    # Min 10 requests/second during sustained load
+
+scenarios:
+  # Scenario 1: OAuth Authorization Flow (60% of traffic)
+  - name: 'OAuth Authorization Request'
+    weight: 60
+    flow:
+      - post:
+          url: '/mcp/call'
+          json:
+            name: 'smart_tool_discovery'
+            arguments:
+              request: 'get my GitHub user information'
+          capture:
+            - json: '$.error.data.authorization_url'
+              as: 'auth_url'
+            - json: '$.error.data.state'
+              as: 'state'
+          expect:
+            - statusCode: 200
+            - hasProperty: 'error.code'
+            - equals:
+                - -32001
+                - '{{ error.code }}'
+      
+      - think: 1  # 1 second delay between requests
+      
+      # Test health check during load
+      - get:
+          url: '/health'
+          expect:
+            - statusCode: 200
+            - hasProperty: 'status'
+
+  # Scenario 2: Device Code Flow (25% of traffic)
+  - name: 'Device Code Authorization'
+    weight: 25
+    flow:
+      - post:
+          url: '/mcp/call'
+          json:
+            name: 'smart_tool_discovery'
+            arguments:
+              request: 'use headless GitHub tool'
+              tool_hint: 'headless_tools'
+          capture:
+            - json: '$.error.data.user_code'
+              as: 'user_code'
+            - json: '$.error.data.device_code'
+              as: 'device_code'
+          expect:
+            - statusCode: 200
+      
+      - think: 2
+      
+      # Simulate device code polling
+      - post:
+          url: '/mcp/auth/device/token'
+          json:
+            device_code: '{{ device_code }}'
+            provider: 'github_device'
+          expect:
+            - statusCode: 200
+
+  # Scenario 3: Service Account Validation (10% of traffic)
+  - name: 'Service Account Validation'
+    weight: 10
+    flow:
+      - post:
+          url: '/mcp/call'
+          json:
+            name: 'admin_test'
+            arguments:
+              action: 'validate'
+          expect:
+            - statusCode: 200
+      
+      - think: 1
+
+  # Scenario 4: Configuration and Status Checks (5% of traffic)
+  - name: 'System Status Checks'
+    weight: 5
+    flow:
+      - get:
+          url: '/health'
+          expect:
+            - statusCode: 200
+            - hasProperty: 'status'
+      
+      - get:
+          url: '/metrics'
+          expect:
+            - statusCode: 200
+      
+      - get:
+          url: '/admin/sessions/status'
+          expect:
+            - statusCode: 200
+      
+      - think: 3
+
+# Custom functions for load testing
+functions:
+  generateSessionId: |
+    function(userContext, events, done) {
+      userContext.vars.sessionId = 'load-test-' + Math.random().toString(36).substr(2, 9);
+      return done();
+    }
+
+# Before hooks
+before:
+  flow:
+    - function: "generateSessionId"
+
+# Custom reporting
+plugins:
+  expect: {}
+  metrics-by-endpoint: {}
+  
+# Custom metrics
+metrics:
+  - name: 'oauth_authorization_requests'
+    unit: 'count'
+  - name: 'device_code_requests'
+    unit: 'count'
+  - name: 'service_account_requests'
+    unit: 'count'
+  - name: 'response_time_p95'
+    unit: 'milliseconds'
+  - name: 'error_rate'
+    unit: 'percentage'

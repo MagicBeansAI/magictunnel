@@ -1,6 +1,6 @@
 //! Authentication middleware for MCP Proxy
 
-use crate::auth::{ApiKeyValidator, JwtValidator, JwtValidationResult, OAuthValidator, OAuthValidationResult};
+use crate::auth::{ApiKeyValidator, JwtValidator, JwtValidationResult, OAuthValidator, OAuthValidationResult, ServiceAccountValidator, ServiceAccountValidationResult, DeviceCodeValidator, DeviceCodeValidationResult};
 use crate::config::{AuthConfig, ApiKeyEntry};
 use crate::error::{ProxyError, Result};
 use crate::mcp::errors::McpErrorCode;
@@ -21,6 +21,10 @@ pub enum AuthenticationResult {
     OAuth(OAuthValidationResult),
     /// JWT authentication result
     Jwt(JwtValidationResult),
+    /// Service account authentication result
+    ServiceAccount(ServiceAccountValidationResult),
+    /// Device Code Flow authentication result
+    DeviceCode(DeviceCodeValidationResult),
 }
 
 impl AuthenticationResult {
@@ -34,6 +38,8 @@ impl AuthenticationResult {
                 vec!["read".to_string(), "write".to_string()]
             }
             AuthenticationResult::Jwt(jwt_result) => jwt_result.permissions.clone(),
+            AuthenticationResult::ServiceAccount(sa_result) => sa_result.permissions.clone(),
+            AuthenticationResult::DeviceCode(device_result) => device_result.scopes.clone(),
         }
     }
 
@@ -43,6 +49,14 @@ impl AuthenticationResult {
             AuthenticationResult::ApiKey(key_entry) => key_entry.name.clone(),
             AuthenticationResult::OAuth(oauth_result) => oauth_result.user_info.id.clone(),
             AuthenticationResult::Jwt(jwt_result) => jwt_result.user_info.id.clone(),
+            AuthenticationResult::ServiceAccount(sa_result) => sa_result.user_info.id.clone(),
+            AuthenticationResult::DeviceCode(device_result) => {
+                // Device code flow may not have user info initially
+                device_result.user_info
+                    .as_ref()
+                    .map(|info| info.id.clone())
+                    .unwrap_or_else(|| format!("device_code:{}", device_result.device_code))
+            }
         }
     }
 }
@@ -55,6 +69,10 @@ pub struct AuthenticationMiddleware {
     oauth_validator: OAuthValidator,
     /// JWT validator
     jwt_validator: JwtValidator,
+    /// Service account validator
+    service_account_validator: Option<ServiceAccountValidator>,
+    /// Device Code Flow validator
+    device_code_validator: Option<DeviceCodeValidator>,
     /// Whether to log authentication events
     log_auth_events: bool,
 }
@@ -63,10 +81,14 @@ impl AuthenticationMiddleware {
     /// Create new authentication middleware
     pub fn new(config: AuthConfig) -> Result<Self> {
         let jwt_validator = JwtValidator::new(config.jwt.clone())?;
+        let service_account_validator = None; // Will be set via with_service_accounts if needed
+        let device_code_validator = None; // Will be set via with_device_code if needed
         Ok(Self {
             api_key_validator: ApiKeyValidator::new(config.clone()),
             oauth_validator: OAuthValidator::new(config.clone()),
             jwt_validator,
+            service_account_validator,
+            device_code_validator,
             log_auth_events: true,
         })
     }
@@ -74,12 +96,28 @@ impl AuthenticationMiddleware {
     /// Create new authentication middleware with logging configuration
     pub fn with_logging(config: AuthConfig, log_auth_events: bool) -> Result<Self> {
         let jwt_validator = JwtValidator::new(config.jwt.clone())?;
+        let service_account_validator = None; // Will be set via with_service_accounts if needed
+        let device_code_validator = None; // Will be set via with_device_code if needed
         Ok(Self {
             api_key_validator: ApiKeyValidator::new(config.clone()),
             oauth_validator: OAuthValidator::new(config.clone()),
             jwt_validator,
+            service_account_validator,
+            device_code_validator,
             log_auth_events,
         })
+    }
+
+    /// Add service account validator to the middleware
+    pub fn with_service_accounts(mut self, service_account_validator: ServiceAccountValidator) -> Self {
+        self.service_account_validator = Some(service_account_validator);
+        self
+    }
+
+    /// Add device code validator to the middleware
+    pub fn with_device_code(mut self, device_code_validator: DeviceCodeValidator) -> Self {
+        self.device_code_validator = Some(device_code_validator);
+        self
     }
 
     /// Validate authentication for an HTTP request
@@ -93,6 +131,8 @@ impl AuthenticationMiddleware {
         let mut api_key_error: Option<crate::error::ProxyError> = None;
         let mut oauth_error: Option<crate::error::ProxyError> = None;
         let mut jwt_error: Option<crate::error::ProxyError> = None;
+        let mut service_account_error: Option<crate::error::ProxyError> = None;
+        let mut device_code_error: Option<crate::error::ProxyError> = None;
 
         // Try API key authentication first
         match self.api_key_validator.validate_request(req) {
@@ -154,12 +194,68 @@ impl AuthenticationMiddleware {
                 return Ok(Some(AuthenticationResult::Jwt(jwt_result)));
             }
             Ok(None) => {
-                debug!("JWT authentication disabled or not configured");
+                debug!("JWT authentication disabled or not configured, trying Service Account");
             }
             Err(e) => {
-                debug!("JWT authentication failed");
+                debug!("JWT authentication failed, trying Service Account as fallback");
                 jwt_error = Some(e);
             }
+        }
+
+        // Try Service Account authentication
+        if let Some(ref service_account_validator) = self.service_account_validator {
+            match service_account_validator.validate_request(req).await {
+                Ok(Some(sa_result)) => {
+                    if self.log_auth_events {
+                        info!(
+                            user_id = %sa_result.user_info.id,
+                            account_type = ?sa_result.account_type,
+                            permissions = ?sa_result.permissions,
+                            auth_type = "service_account",
+                            "Service account authentication successful"
+                        );
+                    }
+                    return Ok(Some(AuthenticationResult::ServiceAccount(sa_result)));
+                }
+                Ok(None) => {
+                    debug!("Service account authentication disabled or not configured");
+                }
+                Err(e) => {
+                    debug!("Service account authentication failed");
+                    service_account_error = Some(e);
+                }
+            }
+        } else {
+            debug!("Service account validator not configured");
+        }
+
+        // Try Device Code Flow authentication
+        if let Some(ref device_code_validator) = self.device_code_validator {
+            match device_code_validator.validate_request(req).await {
+                Ok(Some(device_result)) => {
+                    if self.log_auth_events {
+                        info!(
+                            device_code = %device_result.device_code,
+                            verification_uri = %device_result.device_authorization.verification_uri,
+                            user_code = %device_result.device_authorization.user_code,
+                            scopes = ?device_result.scopes,
+                            expires_in = %device_result.device_authorization.expires_in,
+                            auth_type = "device_code",
+                            "Device Code Flow authentication initiated"
+                        );
+                    }
+                    return Ok(Some(AuthenticationResult::DeviceCode(device_result)));
+                }
+                Ok(None) => {
+                    debug!("Device Code Flow authentication disabled or not configured");
+                }
+                Err(e) => {
+                    debug!("Device Code Flow authentication failed");
+                    device_code_error = Some(e);
+                }
+            }
+        } else {
+            debug!("Device Code validator not configured");
         }
 
         // If we reach here, all authentication methods failed or are not configured
@@ -168,9 +264,11 @@ impl AuthenticationMiddleware {
             ("API key", api_key_error.as_ref()),
             ("OAuth", oauth_error.as_ref()),
             ("JWT", jwt_error.as_ref()),
+            ("Service Account", service_account_error.as_ref()),
+            ("Device Code", device_code_error.as_ref()),
         ];
 
-        // Find the first error to return (prioritize API key, then OAuth, then JWT)
+        // Find the first error to return (prioritize API key, then OAuth, then JWT, then Service Account)
         for (auth_type, error_opt) in &errors {
             if let Some(error) = error_opt {
                 if self.log_auth_events {
@@ -206,6 +304,22 @@ impl AuthenticationMiddleware {
             }
             AuthenticationResult::Jwt(jwt_result) => {
                 self.jwt_validator.check_permission(jwt_result, permission)
+            }
+            AuthenticationResult::ServiceAccount(sa_result) => {
+                if let Some(ref service_account_validator) = self.service_account_validator {
+                    service_account_validator.check_permission(sa_result, permission)
+                } else {
+                    // Fallback to checking permissions directly if validator not available
+                    sa_result.permissions.contains(&permission.to_string())
+                }
+            }
+            AuthenticationResult::DeviceCode(device_result) => {
+                if let Some(ref device_code_validator) = self.device_code_validator {
+                    device_code_validator.check_permission(device_result, permission)
+                } else {
+                    // Fallback to checking scopes directly if validator not available
+                    device_result.scopes.contains(&permission.to_string())
+                }
             }
         };
 

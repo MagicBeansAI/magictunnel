@@ -634,6 +634,12 @@ pub fn extract_security_user(auth_context: Option<&crate::auth::AuthenticationRe
             crate::auth::AuthenticationResult::Jwt(_) => {
                 ("jwt".to_string(), None)
             }
+            crate::auth::AuthenticationResult::ServiceAccount(sa_result) => {
+                ("service_account".to_string(), sa_result.user_info.name.clone())
+            }
+            crate::auth::AuthenticationResult::DeviceCode(device_result) => {
+                ("device_code".to_string(), device_result.user_info.as_ref().and_then(|info| info.name.clone()))
+            }
         };
         
         SecurityUser {

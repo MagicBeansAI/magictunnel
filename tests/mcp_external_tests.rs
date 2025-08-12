@@ -20,8 +20,8 @@ mod tests {
             reconnect_delay_secs: 5,
             auto_reconnect: true,
             protocol_version: "2025-06-18".to_string(),
-            client_name: "magictunnel-test".to_string(),
-            client_version: "0.3.0".to_string(),
+            client_name: format!("{}-test", env!("CARGO_PKG_NAME")),
+            client_version: env!("CARGO_PKG_VERSION").to_string(),
         }
     }
 

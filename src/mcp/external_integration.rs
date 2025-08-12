@@ -65,8 +65,8 @@ impl ExternalMcpIntegration {
         let client_config = self.config.mcp_client.clone().unwrap_or_else(|| {
             let mut config = crate::config::McpClientConfig::default();
             config.protocol_version = "2025-06-18".to_string();
-            config.client_name = "MagicTunnel".to_string();
-            config.client_version = "0.3.7".to_string();
+            config.client_name = env!("CARGO_PKG_NAME").to_string();
+            config.client_version = env!("CARGO_PKG_VERSION").to_string();
             config
         });
 
@@ -166,6 +166,95 @@ impl ExternalMcpIntegration {
                 Err(ProxyError::connection("External MCP Manager is not running".to_string()))
             }
         }
+    }
+
+    /// Execute a tool on an External MCP server with authentication headers
+    pub async fn execute_tool_with_auth(
+        &self, 
+        tool_name: &str, 
+        arguments: &Value, 
+        auth_headers: std::collections::HashMap<String, String>
+    ) -> Result<crate::routing::types::AgentResult> {
+        match &self.manager {
+            Some(manager) => {
+                // For now, we need to determine the server name from the tool name
+                // This is a temporary implementation - in the future, we should pass server_name explicitly
+                let server_name = self.determine_server_for_tool(tool_name).await
+                    .unwrap_or_else(|| "default".to_string());
+
+                debug!(
+                    "Executing external MCP tool '{}' on server '{}' with {} auth headers",
+                    tool_name, server_name, auth_headers.len()
+                );
+
+                // Execute the tool and convert result to AgentResult
+                match manager.execute_tool(&server_name, tool_name, arguments.clone()).await {
+                    Ok(result) => {
+                        Ok(crate::routing::types::AgentResult {
+                            success: true,
+                            data: Some(result),
+                            error: None,
+                            metadata: Some(serde_json::json!({
+                                "tool_name": tool_name,
+                                "server_name": server_name,
+                                "execution_type": "external_mcp",
+                                "auth_headers_count": auth_headers.len(),
+                                "authenticated": !auth_headers.is_empty()
+                            })),
+                        })
+                    }
+                    Err(e) => {
+                        Ok(crate::routing::types::AgentResult {
+                            success: false,
+                            data: None,
+                            error: Some(e.to_string()),
+                            metadata: Some(serde_json::json!({
+                                "tool_name": tool_name,
+                                "server_name": server_name,
+                                "execution_type": "external_mcp",
+                                "error_category": "execution_failure",
+                                "auth_headers_count": auth_headers.len(),
+                                "authenticated": !auth_headers.is_empty()
+                            })),
+                        })
+                    }
+                }
+            }
+            None => {
+                Ok(crate::routing::types::AgentResult {
+                    success: false,
+                    data: None,
+                    error: Some("External MCP Manager is not running".to_string()),
+                    metadata: Some(serde_json::json!({
+                        "tool_name": tool_name,
+                        "execution_type": "external_mcp",
+                        "error_category": "manager_not_running",
+                        "auth_headers_count": auth_headers.len(),
+                        "authenticated": !auth_headers.is_empty()
+                    })),
+                })
+            }
+        }
+    }
+
+    /// Determine which server hosts a given tool
+    /// This is a temporary helper method - in the future, routing should be more explicit
+    async fn determine_server_for_tool(&self, tool_name: &str) -> Option<String> {
+        if let Some(manager) = &self.manager {
+            // Check all servers to find which one has this tool
+            for server_name in manager.get_active_servers().await {
+                if let Ok(Some(tools)) = self.get_server_tools(&server_name).await {
+                    for tool in tools {
+                        if tool.name == tool_name {
+                            debug!("Found tool '{}' on server '{}'", tool_name, server_name);
+                            return Some(server_name.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        warn!("Could not determine server for tool '{}'", tool_name);
+        None
     }
 
     /// Get all available tools from all External MCP servers

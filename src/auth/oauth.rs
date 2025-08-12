@@ -143,11 +143,11 @@ impl Default for ResourceIndicatorsConfig {
         Self {
             enabled: true, // Enable by default for MCP 2025-06-18 compliance
             default_resources: vec![
-                "https://api.magictunnel.io/mcp".to_string(),
-                "urn:magictunnel:mcp:*".to_string(),
+                format!("https://api.{}.run/mcp", env!("CARGO_PKG_NAME")),
+                format!("urn:{}:mcp:*", env!("CARGO_PKG_NAME")),
             ],
             default_audience: vec![
-                "magictunnel-mcp-server".to_string(),
+                format!("{}-mcp-server", env!("CARGO_PKG_NAME")),
             ],
             require_explicit_resources: false, // For backward compatibility
         }
@@ -319,7 +319,7 @@ impl OAuthValidator {
             .client
             .get(&user_info_url)
             .header("Authorization", format!("Bearer {}", access_token))
-            .header("User-Agent", "magictunnel/0.3.12")
+            .header("User-Agent", format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")))
             .send()
             .await
             .map_err(|e| {
@@ -515,7 +515,7 @@ impl OAuthValidator {
         std::process::id().hash(&mut hasher);
         
         let hash = hasher.finish();
-        let code_verifier = format!("cv_{:016x}_magictunnel_oauth21", hash);
+        let code_verifier = format!("cv_{:016x}_{}_oauth21", hash, env!("CARGO_PKG_NAME"));
         
         // Ensure it meets RFC 7636 requirements (43-128 characters)
         let padded = format!("{}_padding_for_rfc7636_compliance", code_verifier);
@@ -593,7 +593,7 @@ impl OAuthValidator {
             .client
             .post(&oauth_config.token_url)
             .header("Accept", "application/json")
-            .header("User-Agent", "magictunnel/0.3.12 OAuth2.1")
+            .header("User-Agent", format!("{}/{} OAuth2.1", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .form(&params)
             .send()
@@ -692,7 +692,7 @@ impl OAuthValidator {
             .get(&user_info_url)
             .header("Authorization", format!("Bearer {}", access_token))
             .header("Accept", "application/json")
-            .header("User-Agent", "magictunnel/0.3.12")
+            .header("User-Agent", format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")))
             .send()
             .await
             .map_err(|e| {
@@ -964,10 +964,10 @@ mod tests {
             oauth_2_1_enabled: true,
             resource_indicators_enabled: true,
             default_resources: vec![
-                "https://api.magictunnel.io/mcp".to_string(),
-                "urn:magictunnel:mcp:*".to_string(),
+                format!("https://api.{}.run/mcp", env!("CARGO_PKG_NAME")),
+                format!("urn:{}:mcp:*", env!("CARGO_PKG_NAME")),
             ],
-            default_audience: vec!["magictunnel-mcp-server".to_string()],
+            default_audience: vec![format!("{}-mcp-server", env!("CARGO_PKG_NAME"))],
             require_explicit_resources: false,
         });
         config

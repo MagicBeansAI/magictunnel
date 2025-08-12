@@ -433,7 +433,7 @@ mcp_client:
   auto_reconnect: true          # Enable automatic reconnection
   protocol_version: "2025-06-18" # MCP protocol version to use
   client_name: "magictunnel"    # Client name for MCP handshake (defaults to package name)
-  client_version: "0.3.4"       # Client version for MCP handshake (defaults to package version)
+  client_version: "0.3.13"      # Client version for MCP handshake (defaults to package version)
 
 # =============================================================================
 # EXTERNAL MCP CONFIGURATION (Claude Desktop Format)

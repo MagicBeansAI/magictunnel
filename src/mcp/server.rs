@@ -1,6 +1,6 @@
 //! MCP Server implementation
 
-use crate::auth::{AuthMethod, AuthenticationMiddleware, DeviceCodeFlow};
+use crate::auth::{AuthMethod, AuthContextMethod, AuthenticationMiddleware, DeviceCodeFlow};
 use crate::config::{RegistryConfig, AuthConfig, TlsConfig, TlsMode};
 use crate::error::{Result, ProxyError};
 
@@ -734,6 +734,279 @@ impl McpServer {
         }
     }
 
+    /// Validate authentication context for tool execution
+    fn validate_tool_auth(
+        &self,
+        tool_name: &str,
+        auth_context: &crate::auth::AuthenticationContext,
+    ) -> Result<()> {
+        // Basic validation - auth context should already be validated by caller
+        // but we do additional tool-specific checks here
+
+        // Check if authentication has expired
+        if let Err(e) = auth_context.validate() {
+            return Err(e);
+        }
+
+        // TODO: In future versions, implement tool-specific permission checks
+        // For now, we accept any valid authentication context
+
+        debug!(
+            "Authentication validated for tool '{}': user={}, method={}",
+            tool_name,
+            auth_context.user_id,
+            auth_context.auth_method_display()
+        );
+
+        Ok(())
+    }
+
+    /// Load authentication context from session for a user
+    /// This enables automatic recovery of stored tokens for tool execution
+    pub async fn load_auth_context_from_session(
+        &self,
+        session_id: Option<String>,
+        user_id: Option<String>,
+    ) -> Result<Option<crate::auth::AuthenticationContext>> {
+        // Try to create user context for session recovery
+        let user_context = match crate::auth::UserContext::default() {
+            user_ctx => {
+                debug!("Created user context for session recovery: {}", user_ctx.get_unique_user_id());
+                user_ctx
+            }
+        };
+
+        // Create session ID if not provided
+        let session_id = session_id.unwrap_or_else(|| {
+            format!("mcp_session_{}", chrono::Utc::now().timestamp_millis())
+        });
+
+        // Try to load stored tokens from secure storage
+        match self.load_stored_tokens(&user_context).await {
+            Ok(tokens) if !tokens.is_empty() => {
+                // Create authentication context from stored tokens
+                let auth_context = self.create_auth_context_from_tokens(
+                    tokens,
+                    session_id,
+                    user_id.unwrap_or_else(|| user_context.get_unique_user_id()),
+                ).await?;
+
+                debug!("Successfully loaded authentication context from session");
+                Ok(Some(auth_context))
+            }
+            Ok(_) => {
+                debug!("No stored tokens found for session recovery");
+                Ok(None)
+            }
+            Err(e) => {
+                warn!("Failed to load stored tokens for session recovery: {}", e);
+                Ok(None)
+            }
+        }
+    }
+
+    /// Load stored tokens from secure storage
+    async fn load_stored_tokens(
+        &self,
+        user_context: &crate::auth::UserContext,
+    ) -> Result<std::collections::HashMap<String, crate::auth::ProviderToken>> {
+        use crate::auth::TokenStorage;
+
+        let token_storage = TokenStorage::new(user_context.clone()).await?;
+        let mut tokens: std::collections::HashMap<String, crate::auth::ProviderToken> = std::collections::HashMap::new();
+
+        // Try to load OAuth tokens
+        if let Ok(all_tokens) = token_storage.get_all_tokens().await {
+            for (key, token_data) in all_tokens {
+                if key.starts_with("oauth_") {
+                    let provider = key.strip_prefix("oauth_").unwrap_or(&key);
+                    let provider_token = self.convert_token_data_to_provider_token(&token_data, provider);
+                    if !provider_token.is_expired() {
+                        tokens.insert(provider.to_string(), provider_token);
+                    } else {
+                        debug!("Skipping expired token for provider: {}", provider);
+                    }
+                } else if key.starts_with("api_key_") {
+                    let key_ref = key.strip_prefix("api_key_").unwrap_or(&key);
+                    let provider_token = self.convert_token_data_to_provider_token(&token_data, key_ref);
+                    tokens.insert(format!("api_key_{}", key_ref), provider_token);
+                }
+            }
+        }
+
+        debug!("Loaded {} stored tokens from secure storage", tokens.len());
+        Ok(tokens)
+    }
+
+    /// Convert stored token data to ProviderToken
+    fn convert_stored_token_to_provider_token(
+        &self,
+        token_data: &std::collections::HashMap<String, serde_json::Value>,
+        provider: &str,
+    ) -> Result<crate::auth::ProviderToken> {
+        use secrecy::Secret;
+
+        let access_token = token_data
+            .get("access_token")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| crate::error::ProxyError::auth("Missing access token".to_string()))?;
+
+        let refresh_token = token_data
+            .get("refresh_token")
+            .and_then(|v| v.as_str())
+            .map(|s| Secret::new(s.to_string()));
+
+        let token_type = token_data
+            .get("token_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Bearer")
+            .to_string();
+
+        let expires_at = token_data
+            .get("expires_at")
+            .and_then(|v| v.as_u64());
+
+        let scopes = token_data
+            .get("scopes")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert("provider".to_string(), provider.to_string());
+
+        if let Some(user_id) = token_data.get("user_id").and_then(|v| v.as_str()) {
+            metadata.insert("user_id".to_string(), user_id.to_string());
+        }
+
+        Ok(crate::auth::ProviderToken {
+            access_token: Secret::new(access_token.to_string()),
+            refresh_token,
+            token_type,
+            expires_at,
+            scopes,
+            metadata,
+        })
+    }
+
+    /// Convert TokenData to ProviderToken 
+    fn convert_token_data_to_provider_token(
+        &self,
+        token_data: &crate::auth::TokenData,
+        provider: &str,
+    ) -> crate::auth::ProviderToken {
+        use secrecy::ExposeSecret;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let expires_at = token_data.expires_at.as_ref().and_then(|time| {
+            time.duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs())
+        });
+
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert("provider".to_string(), provider.to_string());
+
+        crate::auth::ProviderToken {
+            access_token: token_data.access_token.clone(),
+            refresh_token: token_data.refresh_token.clone(),
+            token_type: token_data.token_type.clone(),
+            expires_at,
+            scopes: token_data.scopes.clone(),
+            metadata,
+        }
+    }
+
+    /// Create authentication context from loaded tokens
+    async fn create_auth_context_from_tokens(
+        &self,
+        tokens: std::collections::HashMap<String, crate::auth::ProviderToken>,
+        session_id: String,
+        user_id: String,
+    ) -> Result<crate::auth::AuthenticationContext> {
+        use crate::auth::{AuthContextMethod, AuthenticationContext};
+
+        // Determine the primary authentication method from available tokens
+        let auth_method = if tokens.keys().any(|k| k.starts_with("oauth_") || (!k.contains("_") && k != "api_key")) {
+            // OAuth authentication
+            let provider = tokens
+                .keys()
+                .find(|k| !k.starts_with("api_key_"))
+                .unwrap_or(&"unknown".to_string())
+                .clone();
+            
+            let scopes = tokens
+                .get(&provider)
+                .map(|token| token.scopes.clone())
+                .unwrap_or_default();
+
+            AuthContextMethod::OAuth { provider, scopes }
+        } else if tokens.keys().any(|k| k.starts_with("api_key_")) {
+            // API Key authentication
+            let key_ref = tokens
+                .keys()
+                .find(|k| k.starts_with("api_key_"))
+                .map(|k| k.strip_prefix("api_key_").unwrap_or(k))
+                .unwrap_or("unknown")
+                .to_string();
+
+            AuthContextMethod::ApiKey { key_ref }
+        } else {
+            AuthContextMethod::None
+        };
+
+        // Collect all scopes from all tokens
+        let all_scopes: Vec<String> = tokens
+            .values()
+            .flat_map(|token| token.scopes.clone())
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect();
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert("source".to_string(), "session_recovery".to_string());
+        metadata.insert("loaded_tokens".to_string(), tokens.len().to_string());
+
+        Ok(AuthenticationContext {
+            user_id,
+            provider_tokens: tokens,
+            session_id,
+            auth_method,
+            scopes: all_scopes,
+            timestamp,
+            metadata,
+        })
+    }
+
+    /// Enhanced call_tool that automatically loads authentication context from session
+    pub async fn call_tool_with_session_recovery(
+        &self,
+        tool_call: ToolCall,
+        session_id: Option<String>,
+        user_id: Option<String>,
+    ) -> Result<ToolResult> {
+        // Try to load authentication context from session
+        let auth_context = self.load_auth_context_from_session(session_id, user_id).await?;
+
+        if auth_context.is_some() {
+            info!(
+                "Using recovered authentication context for tool execution: {}",
+                tool_call.name
+            );
+        }
+
+        // Call tool with recovered authentication context
+        self.call_tool_with_auth(tool_call, auth_context).await
+    }
+
 
     pub async fn start_with_config(self, host: &str, port: u16, tls_config: Option<TlsConfig>) -> Result<()> {
         self.start_with_config_and_services(host, port, tls_config, None, None).await
@@ -997,7 +1270,25 @@ impl McpServer {
 
     /// Handle call_tool request
     pub async fn call_tool(&self, tool_call: ToolCall) -> Result<ToolResult> {
-        debug!("Handling call_tool request for: {}", tool_call.name);
+        self.call_tool_with_auth(tool_call, None).await
+    }
+
+    /// Handle call_tool request with authentication context
+    pub async fn call_tool_with_auth(
+        &self,
+        tool_call: ToolCall,
+        auth_context: Option<crate::auth::AuthenticationContext>,
+    ) -> Result<ToolResult> {
+        debug!("Handling call_tool request for: {} (auth: {})", 
+               tool_call.name, 
+               auth_context.is_some());
+
+        // Create tool execution context
+        let execution_context = crate::auth::ToolExecutionContext::new(
+            tool_call.name.clone(),
+            tool_call.arguments.clone(),
+            auth_context.clone(),
+        );
 
         // Use local registry for tool resolution (including external MCP tools)
         // First, try to find the tool in the local registry
@@ -1014,6 +1305,36 @@ impl McpServer {
                         "enabled": false
                     })
                 ));
+            }
+
+            // Validate execution context
+            if let Err(e) = execution_context.validate() {
+                return Ok(ToolResult::error_with_metadata(
+                    format!("Execution context validation failed: {}", e),
+                    json!({
+                        "tool_name": tool_call.name,
+                        "validated": false,
+                        "source": "local",
+                        "error_category": "context_validation_failure"
+                    })
+                ));
+            }
+
+            // Check authentication requirements for this tool
+            if let Some(ref auth_ctx) = auth_context {
+                // Perform additional validation on auth context
+                if let Err(e) = self.validate_tool_auth(&tool_call.name, auth_ctx) {
+                    return Ok(ToolResult::error_with_metadata(
+                        format!("Authentication validation failed: {}", e),
+                        json!({
+                            "tool_name": tool_call.name,
+                            "validated": false,
+                            "source": "local",
+                            "error_category": "auth_validation_failure",
+                            "auth_method": auth_ctx.auth_method_display()
+                        })
+                    ));
+                }
             }
 
             // Check if we should handle elicitation for this tool
@@ -1041,8 +1362,8 @@ impl McpServer {
                 ));
             }
 
-            // Route to appropriate local agent using the router
-            match self.router.route(&tool_call, &tool_def).await {
+            // Route to appropriate local agent using the router with authentication context
+            match self.router.route_with_auth(&tool_call, &tool_def, auth_context.as_ref()).await {
                 Ok(agent_result) => {
                     // Convert AgentResult to ToolResult using helper
                     let metadata = json!({
@@ -1334,12 +1655,12 @@ impl McpServer {
             "protocolVersion": protocol_version,
             "capabilities": capabilities,
             "implementation": {
-                "name": "MagicTunnel",
-                "version": "0.3.12"
+                "name": env!("CARGO_PKG_NAME"),
+                "version": env!("CARGO_PKG_VERSION")
             },
             "serverInfo": {
-                "name": "magictunnel",
-                "version": "0.3.12"
+                "name": env!("CARGO_PKG_NAME"),
+                "version": env!("CARGO_PKG_VERSION")
             },
             "instructions": "MagicTunnel server providing access to GraphQL, REST, and gRPC endpoints as MCP tools"
         })
@@ -3305,7 +3626,7 @@ async fn check_authentication(
 pub async fn health_check() -> HttpResponse {
     HttpResponse::Ok().json(serde_json::json!({
         "status": "healthy",
-        "service": "magictunnel"
+        "service": env!("CARGO_PKG_NAME")
     }))
 }
 
@@ -4202,6 +4523,30 @@ async fn oauth_token_handler(
                             "error": {
                                 "code": "WRONG_AUTH_TYPE",
                                 "message": "Expected OAuth token, got JWT",
+                                "type": "authentication_error"
+                            }
+                        });
+                        HttpResponse::BadRequest()
+                            .content_type("application/json")
+                            .json(error_response)
+                    }
+                    crate::auth::AuthenticationResult::ServiceAccount(_) => {
+                        let error_response = json!({
+                            "error": {
+                                "code": "WRONG_AUTH_TYPE",
+                                "message": "Expected OAuth token, got Service Account",
+                                "type": "authentication_error"
+                            }
+                        });
+                        HttpResponse::BadRequest()
+                            .content_type("application/json")
+                            .json(error_response)
+                    }
+                    crate::auth::AuthenticationResult::DeviceCode(_) => {
+                        let error_response = json!({
+                            "error": {
+                                "code": "WRONG_AUTH_TYPE",
+                                "message": "Expected OAuth token, got Device Code",
                                 "type": "authentication_error"
                             }
                         });

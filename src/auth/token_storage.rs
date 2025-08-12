@@ -239,7 +239,7 @@ pub struct TokenStorage {
 impl TokenStorage {
     /// Create a new TokenStorage with automatic backend selection
     pub async fn new(user_context: UserContext) -> Result<Self> {
-        let service_name = "MagicTunnel".to_string();
+        let service_name = env!("CARGO_PKG_NAME").to_string();
         let storage_backend = Self::create_storage_backend(&user_context, &service_name).await?;
         
         debug!("Created token storage with backend: {:?}", user_context.secure_storage);

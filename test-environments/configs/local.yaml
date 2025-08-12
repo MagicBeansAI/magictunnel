@@ -1,0 +1,208 @@
+# Local Test Environment Configuration
+deployment:
+  runtime_mode: "advanced"
+  environment: "test"
+
+# Core MCP configuration
+mcp:
+  enabled: true
+  stdio: false
+  http:
+    enabled: true
+    host: "127.0.0.1"
+    port: 3001
+    cors_enabled: true
+    cors_origins: ["http://localhost:3000", "http://localhost:5173"]
+
+# Authentication configuration
+auth:
+  enabled: true
+  
+  # Default authentication for most tools
+  server_level:
+    type: oauth
+    provider: github
+    scopes: ["user:email", "repo:read"]
+  
+  # Capability-specific authentication
+  capabilities:
+    google_workspace:
+      type: oauth
+      provider: google
+      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+    
+    headless_tools:
+      type: device_code
+      provider: github_device
+      scopes: ["user:email", "repo:read"]
+    
+    admin_tools:
+      type: service_account
+      account_ref: github_admin_pat
+  
+  # Tool-specific overrides
+  tools:
+    emergency_admin:
+      type: api_key
+      key_ref: emergency_key
+
+# OAuth Provider Configurations
+oauth_providers:
+  github:
+    client_id: "${GITHUB_CLIENT_ID}"
+    client_secret: "${GITHUB_CLIENT_SECRET}"
+    oauth_enabled: true
+    device_code_enabled: false
+    scopes: ["user:email", "repo:read"]
+    authorization_endpoint: "https://github.com/login/oauth/authorize"
+    token_endpoint: "https://github.com/login/oauth/access_token"
+    user_info_endpoint: "https://api.github.com/user"
+  
+  github_device:
+    client_id: "${GITHUB_DEVICE_CLIENT_ID:-$GITHUB_CLIENT_ID}"
+    client_secret: "${GITHUB_DEVICE_CLIENT_SECRET:-$GITHUB_CLIENT_SECRET}"
+    oauth_enabled: false
+    device_code_enabled: true
+    device_authorization_endpoint: "https://github.com/login/device/code"
+    token_endpoint: "https://github.com/login/oauth/access_token"
+    user_info_endpoint: "https://api.github.com/user"
+  
+  google:
+    client_id: "${GOOGLE_CLIENT_ID:-test_placeholder}"
+    client_secret: "${GOOGLE_CLIENT_SECRET:-test_placeholder}"
+    oauth_enabled: true
+    device_code_enabled: true
+    authorization_endpoint: "https://accounts.google.com/o/oauth2/auth"
+    device_authorization_endpoint: "https://oauth2.googleapis.com/device/code"
+    token_endpoint: "https://oauth2.googleapis.com/token"
+    user_info_endpoint: "https://www.googleapis.com/oauth2/v2/userinfo"
+  
+  microsoft:
+    client_id: "${MICROSOFT_CLIENT_ID:-test_placeholder}"
+    client_secret: "${MICROSOFT_CLIENT_SECRET:-test_placeholder}"
+    oauth_enabled: true
+    device_code_enabled: true
+    authorization_endpoint: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+    device_authorization_endpoint: "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode"
+    token_endpoint: "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+    user_info_endpoint: "https://graph.microsoft.com/v1.0/me"
+
+# API Keys for testing
+api_keys:
+  emergency_key:
+    key: "${EMERGENCY_API_KEY:-sk-test-emergency-key-123}"
+    name: "Emergency Admin Key"
+    permissions: ["read", "write", "admin", "emergency"]
+    active: true
+
+# Service Accounts
+service_accounts:
+  github_admin_pat:
+    type: github_pat
+    token: "${GITHUB_ADMIN_PAT:-$GITHUB_PERSONAL_ACCESS_TOKEN}"
+    scopes: ["repo", "admin:org", "user:email"]
+  
+  google_service:
+    type: google_service_account
+    credentials_file: "${GOOGLE_SERVICE_ACCOUNT_FILE:-/dev/null}"
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"]
+
+# Session persistence configuration
+session_persistence:
+  stdio:
+    enabled: true
+    storage_backend: "filesystem"
+    storage_path: "./test-environments/data/sessions"
+    encryption_key: "${SESSION_ENCRYPTION_KEY:-test_key_32_bytes_long_exactly!}"
+  
+  remote_mcp:
+    enabled: true
+    health_check_interval: "10s"
+    session_recovery_timeout: "30s"
+    distributed_storage:
+      enabled: false  # Disable Redis for local testing
+      backend: "filesystem"
+  
+  token_management:
+    refresh_threshold: "2m"  # Short threshold for testing
+    max_token_lifetime: "1h"
+    cleanup_expired_sessions: "5m"
+
+# Smart discovery configuration
+smart_discovery:
+  enabled: true
+  mode: "hybrid"
+  confidence_threshold: 0.7
+  
+  # LLM provider for smart discovery
+  llm_provider:
+    enabled: false  # Disable for basic testing
+    provider: "ollama"
+    model: "llama2"
+    base_url: "http://localhost:11434"
+
+# Registry configuration
+registry:
+  enabled: true
+  scan_paths:
+    - "./capabilities"
+  auto_reload: true
+  
+  # Default visibility (all tools hidden, use smart discovery)
+  default_hidden: true
+
+# Logging configuration
+logging:
+  level: "debug"
+  format: "json"
+  file: "./test-environments/logs/magictunnel-local.log"
+  max_size: "100MB"
+  max_files: 5
+
+# Metrics and monitoring
+metrics:
+  enabled: true
+  port: 9090
+  path: "/metrics"
+  
+  # Additional auth-specific metrics
+  auth_metrics:
+    enabled: true
+    track_providers: true
+    track_sessions: true
+    track_errors: true
+
+# Security configuration
+security:
+  # CORS for local development
+  cors:
+    enabled: true
+    origins: ["http://localhost:3000", "http://localhost:5173"]
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    headers: ["Content-Type", "Authorization", "X-Session-ID"]
+  
+  # Rate limiting (lenient for testing)
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 1000
+    burst_size: 100
+  
+  # Content security
+  content_security:
+    enabled: true
+    max_request_size: "10MB"
+    allowed_content_types: ["application/json", "text/plain"]
+
+# Development features
+development:
+  # Hot reload capabilities
+  hot_reload: true
+  
+  # Debug endpoints
+  debug_endpoints: true
+  
+  # Detailed error responses
+  verbose_errors: true
+  
+  # Performance profiling
+  profiling: true

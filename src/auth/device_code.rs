@@ -10,11 +10,12 @@ use crate::{auth::{config::OAuthProviderConfig, OAuthTokenResponse, TokenStorage
 use crate::error::ProxyError;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration, collections::HashMap};
 use tracing::{debug, error, info, warn};
 use url::Url;
 use secrecy::{Secret, ExposeSecret};
 use crate::error::Result;
+use actix_web::HttpRequest;
 
 /// Device Code Flow handler for OAuth 2.1 Device Authorization Grant
 #[derive(Debug, Clone)]
@@ -137,6 +138,47 @@ pub struct DeviceCodeErrorResponse {
     pub error_uri: Option<String>,
 }
 
+/// Device Code Flow validation result for middleware integration
+#[derive(Debug, Clone)]
+pub struct DeviceCodeValidationResult {
+    /// Device authorization response containing user code and verification URI
+    pub device_authorization: DeviceAuthorizationResponse,
+    /// Device code for polling
+    pub device_code: String,
+    /// User information (if available, typically empty for device flow)
+    pub user_info: Option<DeviceCodeUserInfo>,
+    /// Granted scopes
+    pub scopes: Vec<String>,
+    /// Additional metadata from the device authorization
+    pub metadata: HashMap<String, String>,
+    /// Expiration time for the device code
+    pub expires_at: u64,
+}
+
+/// User information from Device Code Flow (minimal, as device flow typically doesn't provide full user info initially)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeviceCodeUserInfo {
+    /// User identifier (typically empty until token is obtained)
+    pub id: String,
+    /// User display name
+    pub name: Option<String>,
+    /// User email address
+    pub email: Option<String>,
+    /// User login/username
+    pub login: Option<String>,
+}
+
+/// Device Code Flow validator for middleware integration
+#[derive(Debug, Clone)]
+pub struct DeviceCodeValidator {
+    /// HTTP client for OAuth requests
+    client: Arc<Client>,
+    /// Device Code Flow configurations mapped by provider name
+    configs: HashMap<String, OAuthProviderConfig>,
+    /// Token storage for automatic token persistence (optional)
+    token_storage: Option<Arc<TokenStorage>>,
+}
+
 impl DeviceCodeFlow {
     /// Create a new Device Code Flow handler
     pub fn new(provider_config: OAuthProviderConfig) -> Result<Self> {
@@ -242,7 +284,7 @@ impl DeviceCodeFlow {
             .post(device_auth_endpoint)
             .header("Accept", "application/json")
             .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("User-Agent", "magictunnel/0.3.12 OAuth2.1-DeviceCode")
+            .header("User-Agent", format!("{}/{} OAuth2.1-DeviceCode", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")))
             .form(&request)
             .send()
             .await
@@ -305,7 +347,7 @@ impl DeviceCodeFlow {
             .post(token_endpoint)
             .header("Accept", "application/json")
             .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("User-Agent", "magictunnel/0.3.12 OAuth2.1-DeviceCode")
+            .header("User-Agent", format!("{}/{} OAuth2.1-DeviceCode", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")))
             .form(&request)
             .send()
             .await
@@ -596,6 +638,191 @@ impl DeviceCodeFlow {
     pub fn has_token_storage(&self) -> bool {
         self.token_storage.is_some()
     }
+}
+
+impl DeviceCodeValidator {
+    /// Create a new Device Code Flow validator
+    pub fn new(configs: HashMap<String, OAuthProviderConfig>) -> Self {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .unwrap_or_else(|_| Client::new());
+
+        Self {
+            client: Arc::new(client),
+            configs,
+            token_storage: None,
+        }
+    }
+
+    /// Create a Device Code Flow validator with token storage
+    pub fn with_token_storage(
+        configs: HashMap<String, OAuthProviderConfig>,
+        token_storage: Arc<TokenStorage>,
+    ) -> Self {
+        let mut validator = Self::new(configs);
+        validator.token_storage = Some(token_storage);
+        validator
+    }
+
+    /// Check if Device Code Flow validation is enabled
+    pub fn is_enabled(&self) -> bool {
+        !self.configs.is_empty() && self.configs.values().any(|config| config.device_code_enabled)
+    }
+
+    /// Validate HTTP request for Device Code Flow authentication
+    /// 
+    /// Device Code Flow uses different headers than standard OAuth:
+    /// - X-Device-Code-Provider: Provider name for device authorization
+    /// - X-Device-Code-Scopes: Requested scopes (comma-separated)
+    /// 
+    /// Or Authorization header format:
+    /// - Authorization: DeviceCode <provider>:<scopes>
+    pub async fn validate_request(&self, req: &HttpRequest) -> Result<Option<DeviceCodeValidationResult>> {
+        if !self.is_enabled() {
+            debug!("Device Code Flow validation disabled");
+            return Ok(None);
+        }
+
+        // Try to extract device code request from headers
+        let device_request = match self.extract_device_code_request(req) {
+            Ok(Some(request)) => request,
+            Ok(None) => {
+                debug!("No Device Code Flow credentials found in request");
+                return Ok(None);
+            }
+            Err(e) => {
+                warn!("Failed to extract Device Code Flow request: {}", e);
+                return Ok(None);
+            }
+        };
+
+        // Get provider configuration
+        let provider_config = self.configs.get(&device_request.provider)
+            .ok_or_else(|| ProxyError::auth(format!("Device Code provider '{}' not configured", device_request.provider)))?;
+
+        // Validate that device code flow is enabled for this provider
+        if !provider_config.device_code_enabled {
+            warn!("Device Code Flow not enabled for provider: {}", device_request.provider);
+            return Err(ProxyError::auth(format!("Device Code Flow not enabled for provider: {}", device_request.provider)));
+        }
+
+        // Create DeviceCodeFlow instance and initiate authorization
+        let flow = DeviceCodeFlow::new(provider_config.clone())?;
+        
+        debug!(
+            "Initiating Device Code Flow for provider: {} with scopes: {:?}",
+            device_request.provider, device_request.scopes
+        );
+
+        // Initiate device authorization
+        let auth_response = flow.initiate_device_authorization(&device_request.scopes).await?;
+
+        // Create validation result
+        let validation_result = DeviceCodeValidationResult {
+            device_code: auth_response.device_code.clone(),
+            device_authorization: auth_response.clone(),
+            user_info: None, // Device flow typically doesn't have user info initially
+            scopes: device_request.scopes.clone(),
+            metadata: {
+                let mut metadata = HashMap::new();
+                metadata.insert("provider".to_string(), device_request.provider.clone());
+                metadata.insert("verification_uri".to_string(), auth_response.verification_uri.clone());
+                metadata.insert("user_code".to_string(), auth_response.user_code.clone());
+                metadata.insert("expires_in".to_string(), auth_response.expires_in.to_string());
+                metadata
+            },
+            expires_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() + auth_response.expires_in,
+        };
+
+        info!(
+            "Device Code Flow initiated successfully for provider: {}, user code: {}, expires in: {}s",
+            device_request.provider, auth_response.user_code, auth_response.expires_in
+        );
+
+        Ok(Some(validation_result))
+    }
+
+    /// Check if a device code validation result has a specific permission
+    pub fn check_permission(&self, result: &DeviceCodeValidationResult, permission: &str) -> bool {
+        result.scopes.contains(&permission.to_string())
+    }
+
+    /// Extract device code request from HTTP headers
+    fn extract_device_code_request(&self, req: &HttpRequest) -> Result<Option<DeviceCodeRequest>> {
+        // Try X-Device-Code-Provider and X-Device-Code-Scopes headers first
+        if let (Some(provider_header), Some(scopes_header)) = (
+            req.headers().get("X-Device-Code-Provider"),
+            req.headers().get("X-Device-Code-Scopes")
+        ) {
+            let provider = provider_header.to_str()
+                .map_err(|_| ProxyError::auth("Invalid X-Device-Code-Provider header encoding"))?
+                .to_string();
+
+            let scopes_str = scopes_header.to_str()
+                .map_err(|_| ProxyError::auth("Invalid X-Device-Code-Scopes header encoding"))?;
+
+            let scopes = scopes_str.split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            return Ok(Some(DeviceCodeRequest { provider, scopes }));
+        }
+
+        // Try Authorization header with DeviceCode scheme
+        if let Some(auth_header) = req.headers().get("Authorization") {
+            let auth_str = auth_header.to_str()
+                .map_err(|_| ProxyError::auth("Invalid Authorization header encoding"))?;
+
+            if auth_str.starts_with("DeviceCode ") {
+                let auth_data = auth_str.strip_prefix("DeviceCode ").unwrap();
+                
+                // Parse format: "provider:scope1,scope2,scope3"
+                if let Some((provider, scopes_str)) = auth_data.split_once(':') {
+                    let scopes = scopes_str.split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect();
+
+                    return Ok(Some(DeviceCodeRequest {
+                        provider: provider.to_string(),
+                        scopes,
+                    }));
+                } else {
+                    // If no scopes specified, use provider with default scopes
+                    return Ok(Some(DeviceCodeRequest {
+                        provider: auth_data.to_string(),
+                        scopes: vec![], // Will use provider's default scopes
+                    }));
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Get the configured providers
+    pub fn get_providers(&self) -> Vec<&String> {
+        self.configs.keys().collect()
+    }
+
+    /// Check if a specific provider is configured
+    pub fn has_provider(&self, provider: &str) -> bool {
+        self.configs.contains_key(provider)
+    }
+}
+
+/// Device Code Flow request extracted from HTTP headers
+#[derive(Debug, Clone)]
+struct DeviceCodeRequest {
+    /// OAuth provider name
+    provider: String,
+    /// Requested scopes
+    scopes: Vec<String>,
 }
 
 #[cfg(test)]

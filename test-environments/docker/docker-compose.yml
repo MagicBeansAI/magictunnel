@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  magictunnel:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+      - "9090:9090"
+    environment:
+      - MAGICTUNNEL_CONFIG_PATH=/app/config/docker.yaml
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - GITHUB_DEVICE_CLIENT_ID=${GITHUB_DEVICE_CLIENT_ID}
+      - GITHUB_DEVICE_CLIENT_SECRET=${GITHUB_DEVICE_CLIENT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
+      - SESSION_ENCRYPTION_KEY=${SESSION_ENCRYPTION_KEY:-docker_test_key_32_bytes_long!}
+      - REDIS_URL=redis://redis:6379
+      - RUST_LOG=magictunnel::auth=debug
+    volumes:
+      - ../configs/docker.yaml:/app/config/docker.yaml:ro
+      - ../data:/app/data
+      - ../logs:/app/logs
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # Load testing service
+  artillery:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ../../scripts:/app/scripts
+      - ../logs:/app/logs
+    command: sh -c "npm install -g artillery && sleep infinity"
+    depends_on:
+      - magictunnel
+
+volumes:
+  redis_data:
