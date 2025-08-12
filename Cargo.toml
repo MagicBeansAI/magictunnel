@@ -179,9 +179,5 @@ name = "magictunnel-supervisor"
 path = "src/bin/magictunnel-supervisor.rs"
 
 [[bin]]
-name = "version-manager"
-path = "src/bin/version-manager.rs"
-
-[[bin]]
 name = "magictunnel-llm"
 path = "src/bin/magictunnel-llm.rs"

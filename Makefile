@@ -82,18 +82,8 @@ build:
 build-release:
 	export MAGICTUNNEL_ENV=development cargo build --release && sleep 2 && cp target/release/magictunnel . && cp target/release/magictunnel-supervisor .
 
-# Update version across all files
-update-version:
-	cargo run --bin version-manager -- update
-
-# Check version consistency
-check-version:
-	cargo run --bin version-manager -- check
-
-# Set new version
-set-version:
-	@if [ -z "$(VERSION)" ]; then echo "Usage: make set-version VERSION=x.y.z"; exit 1; fi
-	cargo run --bin version-manager -- set $(VERSION)
+# Manual version management (version-manager removed)
+# Update version manually in Cargo.toml and update references as needed
 
 # Build for release with semantic search environment variables
 build-release-ollama:

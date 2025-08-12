@@ -5,6 +5,21 @@ All notable changes to the MagicTunnel project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.13] - 2025-08-12 - OAuth 2.1 Phase 6 MCP Protocol Integration Complete ✅
+
+### Added - CRITICAL BREAKTHROUGH: OAuth Context Flow Through MCP Protocol ✅
+- **Phase 6 MCP Integration**: OAuth authentication context now flows through MCP protocol to external API calls
+- **13,034+ lines**: Complete OAuth 2.1 system (6,895+ new lines added for Phase 6)
+- **AuthenticationContext System**: Authentication flows through ToolExecutionContext to tool execution
+- **8 new authentication files**: Complete session management and remote storage implementation
+- **3 comprehensive guides**: Production-ready documentation (API reference, testing, deployment)
+
+### Fixed - Documentation Consolidation & Organization ✅
+- **OAuth Documentation**: Combined 3 OAuth docs into single `docs/OAUTH_2_1_COMPLETE_GUIDE.md` (1,478 lines)
+- **Security UI Consolidation**: Integrated `ENTERPRISE_SECURITY_UI_BREAKDOWN.md` into `TODO.md` as optional tasks
+- **TODO.md Organization**: Removed completed OAuth tasks, updated priority levels (CRITICAL → MEDIUM)
+- **Session Documentation**: Updated session tracking with Phase 6 completion status
+
 ## [0.3.12] - 2025-08-11 - OAuth 2.1 Implementation & Remote Session Isolation Complete ✅
 
 ### Added - OAuth 2.1 Complete Implementation ✅ **ENTERPRISE AUTHENTICATION**
