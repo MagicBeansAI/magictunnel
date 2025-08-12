@@ -24,10 +24,18 @@ update_version_in_file() {
     local file="$1"
     local pattern="$2"
     local replacement="$3"
+    local delimiter="$4"
+    
+    # Use custom delimiter if provided, otherwise default to /
+    if [ -n "$delimiter" ]; then
+        local sed_cmd="s${delimiter}${pattern}${delimiter}${replacement}${delimiter}g"
+    else
+        local sed_cmd="s/${pattern}/${replacement}/g"
+    fi
     
     if [ -f "$file" ]; then
         echo "Updating $file..."
-        sed -i.bak "s/$pattern/$replacement/g" "$file"
+        sed -i.bak "$sed_cmd" "$file"
         rm -f "$file.bak"
     else
         echo "Warning: $file not found"
@@ -55,7 +63,7 @@ update_version_in_file "tests/mcp_external_tests.rs" "0\.[0-9]\+\.[0-9]\+\.to_st
 
 # Update source files
 update_version_in_file "src/mcp/server.rs" "\"version\": \"0\.[0-9]\+\.[0-9]\+\"" "\"version\": \"$VERSION\""
-update_version_in_file "src/auth/oauth.rs" "magictunnel/0\.[0-9]\+\.[0-9]\+" "magictunnel/$VERSION"
+update_version_in_file "src/auth/oauth.rs" "magictunnel/0\.[0-9]\+\.[0-9]\+" "magictunnel/$VERSION" "|"
 
 # Update frontend package.json
 update_version_in_file "frontend/package.json" "\"version\": \"0\.0\.[0-9]\+\"" "\"version\": \"$VERSION\""

@@ -1,6 +1,5 @@
 //! Error types and handling for the MCP Proxy
 
-use std::fmt;
 use thiserror::Error;
 
 /// Result type alias for MCP Proxy operations
@@ -139,6 +138,13 @@ impl ProxyError {
     pub fn validation<S: Into<String>>(message: S) -> Self {
         Self::Validation {
             message: message.into(),
+        }
+    }
+
+    /// Create a user context error (using config error type)
+    pub fn user_context<E: std::fmt::Display>(error: E) -> Self {
+        Self::Config {
+            message: format!("User context error: {}", error),
         }
     }
 

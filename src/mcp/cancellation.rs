@@ -5,13 +5,12 @@
 
 use crate::error::{ProxyError, Result};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, RwLock, oneshot};
-use tokio::time::timeout;
-use tracing::{debug, info, warn, error};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 /// Request cancellation manager
@@ -521,7 +520,6 @@ impl std::fmt::Display for CancellationReason {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::{sleep, Duration};
 
     #[tokio::test]
     async fn test_token_creation() {

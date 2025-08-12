@@ -6,18 +6,18 @@
 use crate::config::{ExternalMcpServersConfig, HttpServiceConfig, SseServiceConfig};
 use crate::error::{ProxyError, Result};
 use crate::mcp::clients::{HttpMcpClient, SseMcpClient};
-use crate::mcp::types::{Tool, McpRequest, McpResponse};
+use crate::mcp::types::{Tool, };
 use crate::mcp::metrics::{McpMetricsCollector, McpHealthThresholds, HealthStatus};
 use crate::mcp::health_checker::{McpHealthChecker, HealthCheckConfig};
 use crate::registry::types::{CapabilityFile, ToolDefinition, RoutingConfig};
-use serde_json::{json, Value};
-use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::collections::{HashMap};
+use std::path::{Path};
 use std::sync::Arc;
 use std::time::Instant;
+use serde_json::Value;
 use tokio::sync::RwLock;
 use tokio::time::{interval, Duration};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// Network MCP Service Types
 #[derive(Debug, Clone)]
@@ -438,7 +438,6 @@ impl NetworkMcpServiceManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{HttpAuthType, SseAuthType};
 
     #[test]
     fn test_network_service_manager_creation() {

@@ -3,12 +3,10 @@
 //! This module provides persistent storage for generated prompts and resources,
 //! and resolution services to convert references to full content for MCP clients.
 
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
-use tracing::{debug, info, warn, error};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use crate::error::{ProxyError, Result};

@@ -27,7 +27,7 @@ open http://localhost:5173/dashboard
 
 ## Architecture Overview
 
-The web dashboard operates in a multi-tier architecture with service container integration (v0.3.11):
+The web dashboard operates in a multi-tier architecture with service container integration (v0.3.12):
 
 ```
 ┌─────────────────┐    ┌─────────────────────────────────────┐    ┌─────────────────┐
@@ -114,7 +114,7 @@ Banner Integration: Real-time status updates
 - **Unified Status Banner**: Real-time status updates with modern minimal design
 - **Mode Switching**: Seamless runtime mode switching with status feedback
 
-### 🎨 Unified Status Banner System (v0.3.11)
+### 🎨 Unified Status Banner System (v0.3.12)
 
 The dashboard features a modern, unified status banner system that replaces the traditional bulky alert banners:
 

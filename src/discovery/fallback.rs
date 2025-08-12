@@ -4,10 +4,9 @@
 //! process fails or returns insufficient results.
 
 use crate::discovery::types::*;
-use crate::error::{ProxyError, Result};
 use crate::registry::types::ToolDefinition;
 use std::collections::HashMap;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Fallback strategy configuration
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

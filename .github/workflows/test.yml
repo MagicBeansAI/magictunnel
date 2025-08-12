@@ -1,0 +1,121 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, master, develop, "0.*" ]
+  pull_request:
+    branches: [ main, master, develop, "0.*" ]
+
+env:
+  CARGO_TERM_COLOR: always
+  # Force filesystem storage for automated testing (avoids Keychain prompts)
+  MAGICTUNNEL_TEST_STORAGE_BACKEND: filesystem
+  # Disable smart discovery and OAuth features for basic testing
+  MAGICTUNNEL_SMART_DISCOVERY_ENABLED: false
+  # Use filesystem mode for token storage
+  MAGICTUNNEL_TOKEN_STORAGE_ENABLED: true
+  MAGICTUNNEL_TOKEN_STORAGE_BACKEND: filesystem
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        rust: [stable]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+
+    - name: Cache cargo registry and index
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Set up test environment
+      run: |
+        echo "MAGICTUNNEL_TEST_STORAGE_BACKEND=filesystem" >> $GITHUB_ENV
+        echo "RUST_LOG=debug" >> $GITHUB_ENV
+        echo "RUST_BACKTRACE=1" >> $GITHUB_ENV
+
+    - name: Create test directories
+      run: |
+        mkdir -p test-data/sessions
+        mkdir -p test-data/tokens
+        chmod 700 test-data/sessions test-data/tokens
+      shell: bash
+
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+
+    - name: Check clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+
+    - name: Run unit tests
+      run: cargo test --lib --all-features --verbose
+      env:
+        # Force filesystem storage for all tests
+        MAGICTUNNEL_TEST_STORAGE_BACKEND: filesystem
+        # Disable network-dependent features
+        MAGICTUNNEL_DISABLE_NETWORK_TESTS: true
+
+    - name: Run integration tests
+      run: cargo test --test "*" --all-features --verbose
+      env:
+        # Force filesystem storage for all tests
+        MAGICTUNNEL_TEST_STORAGE_BACKEND: filesystem
+        # Provide test session directory
+        MAGICTUNNEL_TEST_SESSION_DIR: ${{ github.workspace }}/test-data/sessions
+        # Disable network-dependent tests in CI
+        MAGICTUNNEL_DISABLE_NETWORK_TESTS: true
+
+    - name: Run OAuth authentication tests
+      run: cargo test --test "*oauth*" --test "*auth*" --test "*token_storage*" --verbose
+      env:
+        # Ensure filesystem storage for OAuth tests
+        MAGICTUNNEL_TEST_STORAGE_BACKEND: filesystem
+        # Disable real OAuth providers
+        MAGICTUNNEL_DISABLE_REAL_OAUTH_TESTS: true
+
+    - name: Run doctests
+      run: cargo test --doc --all-features --verbose
+
+    - name: Clean up test data
+      run: |
+        rm -rf test-data
+      shell: bash
+
+  test-no-default-features:
+    name: Test without default features
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@v1
+      with:
+        toolchain: stable
+
+    - name: Test without default features
+      run: cargo test --no-default-features --verbose
+      env:
+        MAGICTUNNEL_TEST_STORAGE_BACKEND: filesystem
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: rustsec/audit-check@v1.4.1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}

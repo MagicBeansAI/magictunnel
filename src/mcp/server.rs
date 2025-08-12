@@ -1,8 +1,7 @@
 //! MCP Server implementation
 
-use crate::auth::AuthenticationMiddleware;
-use crate::config::{RegistryConfig, AuthConfig, TlsConfig, TlsMode, ConfigResolution};
-use crate::services::ServiceContainer;
+use crate::auth::{AuthMethod, AuthenticationMiddleware, DeviceCodeFlow};
+use crate::config::{RegistryConfig, AuthConfig, TlsConfig, TlsMode};
 use crate::error::{Result, ProxyError};
 
 
@@ -20,21 +19,18 @@ use crate::mcp::validation::McpMessageValidator;
 use crate::mcp::cancellation::{CancellationManager, CancellationConfig};
 use crate::mcp::progress::{ProgressTracker, ProgressConfig};
 use crate::mcp::tool_validation::{RuntimeToolValidator, ValidationConfig as ToolValidationConfig};
-use crate::mcp::request_forwarder::RequestForwarder;
 use crate::registry::service::{RegistryService, EnhancementCallback};
 use crate::routing::{Router, types::AgentResult};
 use crate::web::{configure_dashboard_api};
 use actix_web::{web, App, HttpServer, HttpResponse, middleware::Logger, HttpRequest};
 use actix_ws::Message;
 use futures_util::{StreamExt, stream};
-use futures_util as futures;
-use tokio_stream::wrappers::UnboundedReceiverStream;
+use secrecy::ExposeSecret;
 use tracing::{debug, info, warn, error};
 use uuid;
 use chrono;
 use serde_json::{json, Value};
 use std::sync::Arc;
-use async_trait::async_trait;
 
 /// MCP Server that handles protocol communication
 pub struct McpServer {
@@ -54,6 +50,8 @@ pub struct McpServer {
     notification_manager: Arc<McpNotificationManager>,
     /// Authentication middleware for securing endpoints ✅ **NEW**
     auth_middleware: Option<Arc<AuthenticationMiddleware>>,
+    /// Multi-level authentication resolver for hierarchical auth ✅ **NEW**
+    auth_resolver: Option<Arc<crate::auth::AuthResolver>>,
     /// Security middleware for comprehensive security controls ✅ **NEW**
     security_middleware: Option<Arc<crate::security::SecurityMiddleware>>,
     /// Session manager for WebSocket connection tracking ✅ **NEW**
@@ -270,6 +268,7 @@ impl McpServer {
             logger_manager,
             notification_manager,
             auth_middleware: None, // No authentication by default
+            auth_resolver: None, // No multi-level auth by default
             security_middleware: None, // No security by default
             session_manager,
             message_validator,
@@ -307,6 +306,7 @@ impl McpServer {
             logger_manager,
             notification_manager,
             auth_middleware: None, // No authentication by default
+            auth_resolver: None, // No multi-level auth by default
             security_middleware: None, // No security by default
             session_manager,
             message_validator,
@@ -510,6 +510,7 @@ impl McpServer {
             logger_manager,
             notification_manager,
             auth_middleware: None, // Will be set if configured
+            auth_resolver: None, // Will be set if configured
             security_middleware: None, // Will be set if configured
             session_manager,
             message_validator,
@@ -598,6 +599,7 @@ impl McpServer {
             logger_manager,
             notification_manager,
             auth_middleware: None, // No authentication by default
+            auth_resolver: None, // No multi-level auth by default
             security_middleware: None, // No security by default
             session_manager,
             message_validator,
@@ -625,6 +627,23 @@ impl McpServer {
             debug!("Authentication disabled");
             self.auth_middleware = None;
         }
+        Ok(self)
+    }
+
+    /// Configure authentication from config (supports both legacy and multi-level)
+    pub fn with_config_authentication(mut self, config: &crate::config::Config) -> Result<Self> {
+        if let Some(ref multi_level_auth) = config.multi_level_auth {
+            if multi_level_auth.enabled {
+                let resolver = crate::auth::AuthResolver::new(multi_level_auth.clone())?;
+                self.auth_resolver = Some(Arc::new(resolver));
+                return Ok(self);
+            }
+        }
+        
+        if let Some(ref auth_config) = config.auth {
+            return self.with_authentication(auth_config.clone());
+        }
+        
         Ok(self)
     }
 
@@ -1316,11 +1335,11 @@ impl McpServer {
             "capabilities": capabilities,
             "implementation": {
                 "name": "MagicTunnel",
-                "version": "0.3.11"
+                "version": "0.3.12"
             },
             "serverInfo": {
                 "name": "magictunnel",
-                "version": "0.3.11"
+                "version": "0.3.12"
             },
             "instructions": "MagicTunnel server providing access to GraphQL, REST, and gRPC endpoints as MCP tools"
         })
@@ -2298,6 +2317,72 @@ impl McpServer {
     /// Get the authentication middleware
     pub fn auth_middleware(&self) -> &Option<Arc<AuthenticationMiddleware>> {
         &self.auth_middleware
+    }
+
+    /// Create MCP error response for Device Code Flow authentication
+    pub async fn create_device_code_auth_error(
+        &self,
+        tool_name: &str,
+        provider: &str,
+        scopes: &[String],
+    ) -> Result<serde_json::Value> {
+        // Check if we have auth resolver configured
+        if let Some(auth_resolver) = &self.auth_resolver {
+            if let Some(auth_method) = auth_resolver.resolve_auth_for_tool(tool_name) {
+                match auth_method {
+                    AuthMethod::DeviceCode { provider: device_provider, scopes: device_scopes } => {
+                        // Get the provider configuration
+                        let provider_config = auth_resolver.get_config()
+                            .oauth_providers
+                            .get(&device_provider)
+                            .ok_or_else(|| ProxyError::config(format!("Device provider '{}' not found", device_provider)))?;
+
+                        // Create device code flow handler
+                        let device_flow = DeviceCodeFlow::new(provider_config.clone())?;
+                        
+                        // Initiate device authorization
+                        let auth_response = device_flow.initiate_device_authorization(&device_scopes).await?;
+                        
+                        // Create MCP error response
+                        Ok(device_flow.create_mcp_error_response(&device_provider, &auth_response))
+                    }
+                    _ => {
+                        // Not a device code flow requirement - return generic auth error
+                        Ok(serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -32001,
+                                "message": "Authentication required",
+                                "data": {
+                                    "auth_type": "oauth",
+                                    "provider": provider,
+                                    "scopes": scopes,
+                                    "instructions": format!("Authentication required for tool '{}'. Please configure OAuth credentials for provider '{}'.", tool_name, provider)
+                                }
+                            }
+                        }))
+                    }
+                }
+            } else {
+                // No authentication required for this tool
+                Err(ProxyError::auth("Tool does not require authentication"))
+            }
+        } else {
+            // No auth resolver configured - return basic error
+            Ok(serde_json::json!({
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -32001,
+                    "message": "Authentication required",
+                    "data": {
+                        "auth_type": "oauth",
+                        "provider": provider,
+                        "scopes": scopes,
+                        "instructions": format!("Authentication required for tool '{}'.", tool_name)
+                    }
+                }
+            }))
+        }
     }
 
     /// Get the registry service
@@ -4043,7 +4128,7 @@ async fn oauth_callback_handler(
                 HttpResponse::Ok()
                     .content_type("application/json")
                     .json(json!({
-                        "access_token": token_response.access_token,
+                        "access_token": token_response.access_token.expose_secret(),
                         "token_type": token_response.token_type,
                         "expires_in": token_response.expires_in,
                         "scope": token_response.scope

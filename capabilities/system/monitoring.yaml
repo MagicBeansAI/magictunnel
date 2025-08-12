@@ -173,7 +173,7 @@ tools:
         custom_metrics: ["filesystems_analyzed", "predictions_generated"]
     
     access:
-      hidden: false
+      hidden: true
       enabled: true
       requires_permissions: ["system:monitor", "filesystem:read"]
       user_groups: ["sre", "administrators", "monitoring"]
@@ -279,7 +279,7 @@ tools:
             estimated_percentage: 15
     
     access:
-      hidden: false
+      hidden: true
       enabled: true
       requires_permissions: ["system:monitor", "process:read"]
       user_groups: ["sre", "developers", "performance_analysts"]
@@ -396,7 +396,7 @@ tools:
         performance_optimization: true
     
     access:
-      hidden: false
+      hidden: true
       enabled: true
       requires_permissions: ["system:admin", "process:monitor", "security:analyze"]
       user_groups: ["administrators", "security_team", "sre"]
@@ -503,7 +503,7 @@ tools:
           - anomalies_detected
     
     access:
-      hidden: false
+      hidden: true
       enabled: true
       requires_permissions: ["network:diagnose", "system:monitor"]
       user_groups: ["network_admins", "sre", "support"]
@@ -607,7 +607,7 @@ tools:
         trend_analysis: true
     
     access:
-      hidden: false
+      hidden: true
       enabled: true
       requires_permissions: ["system:admin", "service:monitor"]
       user_groups: ["administrators", "sre", "platform_team"]

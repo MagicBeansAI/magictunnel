@@ -1,6 +1,6 @@
 [package]
 name = "magictunnel"
-version = "0.3.11"
+version = "0.3.12"
 edition = "2021"
 authors = ["gouravd"]
 description = "MagicTunnel - Fastest way to make LLMs talk to your internal systems and external ones"
@@ -94,6 +94,10 @@ md5 = "0.7"
 walkdir = "2.0"
 glob = "0.3"
 
+# User context and system information
+whoami = "1.5"
+sysinfo = "0.30"
+
 # JSON Schema validation
 jsonschema = "0.17"
 notify = "6.0"
@@ -110,6 +114,13 @@ ipnetwork = "0.20"
 
 # JWT authentication
 jsonwebtoken = "9.2"
+
+# Security and credential protection
+secrecy = { version = "0.8", features = ["serde"] }
+zeroize = { version = "1.7", features = ["derive"] }
+keyring = "2.3"  # Multi-platform secure storage
+aes-gcm = "0.10"  # AES-256-GCM encryption for filesystem storage
+rand = "0.8"  # Random number generation for encryption
 
 # Database support
 tokio-postgres = "0.7"

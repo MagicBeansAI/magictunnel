@@ -12,7 +12,7 @@ fn create_test_oauth_config() -> AuthConfig {
     config.oauth = Some(OAuthConfig {
         provider: "github".to_string(),
         client_id: "test_client_id".to_string(),
-        client_secret: "test_client_secret".to_string(),
+        client_secret: "test_client_secret".to_string().into(),
         auth_url: "https://github.com/login/oauth/authorize".to_string(),
         token_url: "https://github.com/login/oauth/access_token".to_string(),
         oauth_2_1_enabled: true,
@@ -31,7 +31,7 @@ fn create_test_oauth_config_google() -> AuthConfig {
     config.oauth = Some(OAuthConfig {
         provider: "google".to_string(),
         client_id: "test_google_client_id".to_string(),
-        client_secret: "test_google_client_secret".to_string(),
+        client_secret: "test_google_client_secret".to_string().into(),
         auth_url: "https://accounts.google.com/o/oauth2/auth".to_string(),
         token_url: "https://oauth2.googleapis.com/token".to_string(),
         oauth_2_1_enabled: true,

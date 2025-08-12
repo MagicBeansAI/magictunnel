@@ -152,7 +152,7 @@ impl<T: Clone> RequestDeduplicator<T> {
         
         // Store the result and notify waiters
         {
-            let mut pending = self.pending.write().await;
+            let pending = self.pending.write().await;
             if let Some(pending_req) = pending.get(&key) {
                 let waiter_count = pending_req.waiter_count().await;
                 debug!("Request deduplication: notifying {} waiters", waiter_count);
@@ -389,7 +389,6 @@ impl PerformanceOptimizer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::sleep;
 
     #[test]
     fn test_request_key_creation() {

@@ -5,12 +5,11 @@
 
 use crate::mcp::external_process::ExternalMcpProcess;
 use crate::mcp::metrics::{HealthCheckResult, HealthCheckType, HealthStatus};
-use chrono::{DateTime, Utc};
+use chrono::{Utc};
 use serde_json::json;
-use std::sync::Arc;
 use std::time::Instant;
 use tokio::time::{timeout, Duration};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// Configuration for health checking
 #[derive(Debug, Clone)]

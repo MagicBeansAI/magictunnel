@@ -26,7 +26,7 @@ open http://localhost:5173/dashboard
 
 ## Architecture
 
-### Service Container Architecture (v0.3.11)
+### Service Container Architecture (v0.3.12)
 
 MagicTunnel implements a **service container architecture** that conditionally loads services based on runtime mode:
 
@@ -110,7 +110,7 @@ pub struct ServiceContainer {
 
 ### Communication Flow
 
-**Unified Status Banner System Flow (v0.3.11):**
+**Unified Status Banner System Flow (v0.3.12):**
 ```
 Web Dashboard (5173)
     ↓ Banner Store Integration

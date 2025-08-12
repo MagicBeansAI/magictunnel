@@ -32,6 +32,7 @@ async fn create_test_dashboard_api() -> DashboardApi {
         resource_manager,
         prompt_manager,
         None, // Smart discovery service
+        None, // Service container
     )
 }
 

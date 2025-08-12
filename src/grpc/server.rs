@@ -9,7 +9,6 @@ use async_stream;
 
 use crate::registry::RegistryService;
 use crate::mcp::types::{ToolCall, ToolResult as McpToolResult, Tool as McpTool};
-use crate::error::Result;
 
 // Include the generated protobuf code
 tonic::include_proto!("mcp");

@@ -3,6 +3,7 @@
 use crate::config::{Config, RuntimeMode};
 use crate::error::Result;
 use std::collections::HashMap;
+use secrecy::ExposeSecret;
 use tracing::{debug, info};
 
 /// Configuration validator with mode-specific validation rules
@@ -127,7 +128,7 @@ impl ConfigValidator {
                 if oauth.client_id.is_empty() {
                     errors.push("OAuth client_id cannot be empty".to_string());
                 }
-                if oauth.client_secret.is_empty() {
+                if oauth.client_secret.expose_secret().is_empty() {
                     errors.push("OAuth client_secret cannot be empty".to_string());
                 }
                 if oauth.auth_url.is_empty() {

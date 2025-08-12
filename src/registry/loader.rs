@@ -107,12 +107,12 @@ impl RegistryLoader {
             return Err(ProxyError::registry("Not an enhanced format file".to_string()));
         }
 
-        println!("✅ Detected enhanced format, attempting to parse");
+        info!("✅ Detected enhanced format, attempting to parse");
         
         // Parse as enhanced format
         let enhanced: EnhancedCapabilityFileRaw = serde_yaml::from_str(content)
             .map_err(|e| {
-                println!("❌ Enhanced format YAML parsing failed: {}", e);
+                info!("❌ Enhanced format YAML parsing failed: {}", e);
                 ProxyError::registry(format!("Enhanced format parsing error: {}", e))
             })?;
         
@@ -129,7 +129,7 @@ impl RegistryLoader {
         let has_execution = content.contains("execution:");
         let has_mcp = content.contains("# MCP 2025-06-18") || content.contains("mcp_capabilities:");
         
-        println!("🔍 Enhanced format detection - core: {}, execution: {}, mcp: {}", has_core, has_execution, has_mcp);
+        info!("🔍 Enhanced format detection - core: {}, execution: {}, mcp: {}", has_core, has_execution, has_mcp);
         
         has_core && has_execution && has_mcp
     }

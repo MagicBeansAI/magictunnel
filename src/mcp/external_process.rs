@@ -3,9 +3,9 @@
 //! This module manages MCP server processes using Claude Desktop's exact configuration format.
 //! It can spawn local processes (npx, uv run, python, node) and containerized processes (docker run).
 
-use crate::config::{McpServerConfig, ExternalMcpServersConfig, ContainerConfig, McpClientConfig};
+use crate::config::{McpServerConfig, McpClientConfig};
 use crate::error::{ProxyError, Result};
-use crate::mcp::types::{McpRequest, McpResponse, Tool};
+use crate::mcp::types::{McpRequest, McpResponse};
 use crate::mcp::request_forwarder::{RequestForwarder, SharedRequestForwarder, ExternalMcpClient};
 use crate::mcp::errors::McpError;
 use serde_json::{json, Value};

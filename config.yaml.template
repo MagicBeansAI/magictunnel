@@ -91,52 +91,335 @@ registry:
 
 
 # =============================================================================
-# AUTHENTICATION CONFIGURATION (Optional)
+# AUTHENTICATION CONFIGURATION
 # =============================================================================
-# Uncomment and configure one of the following authentication methods:
+# MagicTunnel supports comprehensive OAuth 2.1 multi-level authentication
+# with hierarchical Server → Capability → Tool authentication resolution.
+# All four authentication methods are supported: OAuth 2.1, Device Code Flow, API Keys, and Service Accounts.
 
-# API Key Authentication
+# SIMPLE AUTHENTICATION EXAMPLES (uncomment to enable):
+# 
+# Simple API Key Authentication:
 # auth:
 #   enabled: true
 #   type: "api_key"
 #   api_keys:
-#     keys:
-#       - key: "your_secure_api_key_here_min_16_chars"
-#         name: "Admin Key"
-#         description: "Administrative access"
-#         permissions: ["read", "write", "admin"]
-#         active: true
-#         expires_at: "2025-12-31T23:59:59Z"  # Optional ISO 8601 format
-#       - key: "readonly_key_here_min_16_chars"
-#         name: "Read Only Key"
-#         description: "Read-only access"
-#         permissions: ["read"]
-#         active: true
-#     require_header: true
-#     header_name: "Authorization"
-#     header_format: "Bearer {key}"
-
-# OAuth Authentication
+#     - key_ref: "admin_key"
+#       name: "Admin Key"
+#       key: "your_secure_api_key_here_min_16_chars"
+#       rbac_roles: ["read", "write", "admin"]
+#       active: true
+#       expires_at: "2025-12-31T23:59:59Z"
+#     - key_ref: "readonly_key"
+#       name: "Read Only Key"
+#       key: "readonly_key_here_min_16_chars"
+#       rbac_roles: ["read"]
+#       active: true
+#
+# Simple OAuth Authentication:
 # auth:
 #   enabled: true
 #   type: "oauth"
-#   oauth:
-#     provider: "google"    # or "github", "microsoft", "custom"
-#     client_id: "your-oauth-client-id"
-#     client_secret: "your-oauth-client-secret"
-#     auth_url: "https://accounts.google.com/oauth/authorize"
-#     token_url: "https://oauth2.googleapis.com/token"
+#   oauth_providers:
+#     github:
+#       client_id: "${GITHUB_CLIENT_ID}"
+#       client_secret: "${GITHUB_CLIENT_SECRET}"
+#       scopes: ["user:email"]
+#       oauth_enabled: true
+#       authorization_endpoint: "https://github.com/login/oauth/authorize"
+#       token_endpoint: "https://github.com/login/oauth/access_token"
+#       user_info_endpoint: "https://api.github.com/user"
 
-# JWT Authentication
+# COMPLETE OAUTH 2.1 MULTI-LEVEL AUTHENTICATION (Advanced Configuration)
+# Uncomment and customize the complete OAuth 2.1 configuration below for enterprise features:
+#
 # auth:
 #   enabled: true
-#   type: "jwt"
-#   jwt:
-#     secret: "your_jwt_secret_key_at_least_32_characters_long"
-#     algorithm: "HS256"     # HS256, HS384, HS512, RS256, RS384, RS512, ES256, ES384
-#     expiration: 3600       # Token expiration in seconds
-#     issuer: "magictunnel"  # Optional JWT issuer
-#     audience: "mcp-clients" # Optional JWT audience
+#   type: "multi_level"                    # Enable advanced multi-level authentication
+#   
+#   # Multi-level authentication hierarchy (Server → Capability → Tool)
+#   multi_level:
+#     enabled: true
+#     
+#     # Server-level authentication (applies to all tools unless overridden)
+#     server_level:
+#       type: "oauth"                      # oauth|device_code|api_key|service_account
+#       provider: "github"
+#       scopes: ["user:email"]
+#     
+#     # Capability-level authentication overrides
+#     capabilities:
+#       github:
+#         type: "api_key"
+#         key_ref: "github_api_key"
+#       google:
+#         type: "device_code"
+#         provider: "google"
+#         scopes: ["https://www.googleapis.com/auth/userinfo.email"]
+#     
+#     # Tool-level authentication overrides (highest priority)
+#     tools:
+#       github_create_issue:
+#         type: "device_code"
+#         provider: "github" 
+#         scopes: ["repo"]
+#       google_sheets_read:
+#         type: "service_account"
+#         account_ref: "google_service"
+# 
+#   # OAuth Provider Configurations (with Device Code Flow support)
+#   oauth_providers:
+#     github:
+#       client_id: "${GITHUB_CLIENT_ID}"
+#       client_secret: "${GITHUB_CLIENT_SECRET}"
+#       scopes: ["user:email", "repo", "read:org"]
+#       oauth_enabled: true                # Enable standard OAuth 2.1 flow
+#       device_code_enabled: true          # Enable Device Code Flow (RFC 8628)
+#       authorization_endpoint: "https://github.com/login/oauth/authorize"
+#       device_authorization_endpoint: "https://github.com/login/device/code"
+#       token_endpoint: "https://github.com/login/oauth/access_token"
+#       user_info_endpoint: "https://api.github.com/user"
+#       resource_indicators: 
+#         - "urn:magictunnel:mcp:github:*"
+#         - "https://api.github.com/*"
+#       extra_params:
+#         allow_signup: "false"
+#         
+#     google:
+#       client_id: "${GOOGLE_CLIENT_ID}"
+#       client_secret: "${GOOGLE_CLIENT_SECRET}"
+#       scopes: ["openid", "email", "profile", "https://www.googleapis.com/auth/spreadsheets"]
+#       oauth_enabled: true
+#       device_code_enabled: true
+#       authorization_endpoint: "https://accounts.google.com/o/oauth2/v2/auth"
+#       device_authorization_endpoint: "https://oauth2.googleapis.com/device/code"
+#       token_endpoint: "https://oauth2.googleapis.com/token"
+#       user_info_endpoint: "https://openidconnect.googleapis.com/v1/userinfo"
+#       resource_indicators:
+#         - "urn:magictunnel:mcp:google:*"
+#         - "https://www.googleapis.com/*"
+#         
+#     microsoft:
+#       client_id: "${MICROSOFT_CLIENT_ID}"
+#       client_secret: "${MICROSOFT_CLIENT_SECRET}"
+#       scopes: ["openid", "email", "profile", "https://graph.microsoft.com/user.read"]
+#       oauth_enabled: true
+#       device_code_enabled: true
+#       authorization_endpoint: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+#       device_authorization_endpoint: "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode"
+#       token_endpoint: "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+#       user_info_endpoint: "https://graph.microsoft.com/v1.0/me"
+#       
+#     # Custom headless-only provider (Device Code Flow only)
+#     custom_headless:
+#       client_id: "${CUSTOM_CLIENT_ID}"
+#       client_secret: "${CUSTOM_CLIENT_SECRET}"
+#       scopes: ["api:read", "api:write"]
+#       oauth_enabled: false               # Disable browser-based OAuth
+#       device_code_enabled: true          # Only Device Code Flow
+#       device_authorization_endpoint: "https://auth.custom.com/device/code"
+#       token_endpoint: "https://auth.custom.com/token"
+#       user_info_endpoint: "https://api.custom.com/user"
+# 
+#   # Device Code Flow Configuration (RFC 8628)
+#   device_code_flow:
+#     default_polling_interval_seconds: 5      # Default polling interval
+#     max_polling_attempts: 360                # 30 minutes at 5-second intervals
+#     default_timeout_seconds: 1800            # Device code expiration (30 minutes)
+#     user_instruction_template: |
+#       🔐 Device Authorization Required
+#       
+#       Go to: {verification_uri}
+#       Enter code: {user_code}
+#       
+#       Code expires in {expires_in_minutes} minutes.
+#       MagicTunnel will continue automatically once authorized.
+#     enable_verification_uri_complete: true   # Use complete URI when available
+#     slow_down_increment_seconds: 5           # Increase interval on slow_down response
+#     retry_on_network_error: true             # Retry on network failures
+#     max_network_retries: 3                   # Max network retry attempts
+# 
+#   # API Key Configurations (with RBAC support)
+#   api_keys:
+#     - key_ref: "admin_key"
+#       name: "Administrator Key"
+#       key: "${MAGICTUNNEL_ADMIN_API_KEY}"
+#       rbac_user_id: "admin"
+#       rbac_roles: ["admin", "read", "write"]
+#       expires_at: "2025-12-31T23:59:59Z"
+#       active: true
+#       
+#     - key_ref: "github_api_key"  
+#       name: "GitHub Integration Key"
+#       key: "${GITHUB_API_KEY}"
+#       rbac_user_id: "github_integration"
+#       rbac_roles: ["read", "write"]
+#       active: true
+#       
+#     - key_ref: "readonly_key"
+#       name: "Read Only Access Key"
+#       key: "${MAGICTUNNEL_READONLY_API_KEY}"
+#       rbac_user_id: "readonly"
+#       rbac_roles: ["read"]
+#       active: true
+# 
+#   # Service Account Configurations
+#   service_accounts:
+#     github_service:
+#       account_type: "personal_access_token"
+#       credentials: "${GITHUB_PAT}"
+#       rbac_user_id: "github_service"
+#       rbac_roles: ["read", "write"]
+#       provider_config:
+#         provider: "github"
+#         api_base_url: "https://api.github.com"
+#         
+#     google_service:
+#       account_type: "service_key"
+#       credentials: "${GOOGLE_SERVICE_ACCOUNT_KEY_JSON}"
+#       rbac_user_id: "google_service"  
+#       rbac_roles: ["read", "write"]
+#       provider_config:
+#         provider: "google"
+#         project_id: "${GOOGLE_PROJECT_ID}"
+#         
+#     custom_app_service:
+#       account_type: "application_credentials"
+#       credentials: "${CUSTOM_APP_CREDENTIALS}"
+#       rbac_user_id: "custom_app"
+#       rbac_roles: ["read"]
+# 
+#   # OAuth 2.1 Security Enhancements  
+#   oauth_2_1:
+#     enforce_pkce: true                       # Require PKCE for all OAuth flows
+#     code_challenge_method: "S256"            # Only S256 supported for security
+#     require_state_parameter: true           # Require state parameter
+#     state_length: 32                        # Length of generated state parameter
+#     code_verifier_length: 128               # PKCE code verifier length (43-128)
+#     token_validation_cache_ttl: 3600        # Cache token validation for 1 hour
+#     user_info_cache_ttl: 1800               # Cache user info for 30 minutes
+#     token_refresh_threshold: 300             # Refresh tokens if expire in 5 minutes
+#     enable_refresh_token_rotation: true     # Rotate refresh tokens for security
+# 
+#   # Resource Indicators Configuration (RFC 8707)
+#   resource_indicators:
+#     enabled: true                           # Enable Resource Indicators support
+#     default_resources:
+#       - "https://api.magictunnel.io/mcp"
+#       - "urn:magictunnel:mcp:*"
+#       - "urn:magictunnel:tools:*"
+#     default_audience:
+#       - "magictunnel-mcp-server"
+#       - "magictunnel-tools"
+#     require_explicit_resources: false      # For backward compatibility
+#     wildcard_matching: true                # Support wildcard in resource URIs
+#     resource_validation_strict: false      # Allow unlisted resources (for flexibility)
+#     
+#   # Session Management and Persistence (Legacy - replaced by session_persistence)
+#   session:
+#     storage_backend: "memory"              # memory|redis|file|database
+#     storage_path: "./data/sessions"        # For file backend
+#     redis_url: "${REDIS_URL}"             # For redis backend  
+#     database_url: "${DATABASE_URL}"       # For database backend
+#     session_ttl: 86400                    # Session TTL (24 hours)
+#     refresh_threshold: 3600               # Refresh if expires in 1 hour
+#     cleanup_interval: 3600                # Cleanup expired sessions every hour
+#     enable_persistent_sessions: true      # Persist sessions across restarts
+#     session_cookie_secure: true          # Require HTTPS for session cookies
+#     session_cookie_same_site: "strict"   # CSRF protection
+# 
+#   # Session Persistence Configuration (OAuth 2.1 Phase 2)
+#   # RECOMMENDED: Use this configuration for production deployments
+#   session_persistence:
+#     enabled: true                           # Enable OAuth 2.1 session persistence system (env: MAGICTUNNEL_SESSION_PERSISTENCE_ENABLED)
+#     
+#     # User Context Configuration (Phase 2.1)
+#     # Provides user-specific session identification and isolation
+#     user_context:
+#       enabled: true                         # Enable user context identification (env: MAGICTUNNEL_USER_CONTEXT_ENABLED)
+#       session_directory: "~/.magictunnel/sessions"  # Custom session directory (env: MAGICTUNNEL_CUSTOM_SESSION_DIR)
+#       hostname_isolation: true              # Isolate sessions by hostname for multi-server deployments (env: MAGICTUNNEL_HOSTNAME_ISOLATION)
+#       
+#     # Token Storage Configuration (Phase 2.2)
+#     # Multi-platform secure token storage with encryption
+#     token_storage:
+#       enabled: true                         # Enable secure token storage (env: MAGICTUNNEL_TOKEN_STORAGE_ENABLED)
+#       storage_backend: "auto"               # auto|keychain|credential_manager|secret_service|filesystem (env: MAGICTUNNEL_TOKEN_STORAGE_BACKEND)
+#                                             # auto: Automatically detect best platform storage (macOS Keychain, Windows Credential Manager, Linux Secret Service)
+#                                             # keychain: Force macOS Keychain usage
+#                                             # credential_manager: Force Windows Credential Manager
+#                                             # secret_service: Force Linux Secret Service (D-Bus)
+#                                             # filesystem: Encrypted file storage (fallback option)
+#       encryption_enabled: true              # Enable AES-256-GCM encryption for filesystem storage (env: MAGICTUNNEL_TOKEN_ENCRYPTION_ENABLED)
+#       file_permissions: "0600"              # File permissions for token files (env: MAGICTUNNEL_TOKEN_FILE_PERMISSIONS)
+#       max_tokens_per_provider: 10           # Maximum stored tokens per provider (env: MAGICTUNNEL_MAX_TOKENS_PER_PROVIDER)
+#       token_cleanup_interval_hours: 24      # Cleanup expired tokens every N hours (env: MAGICTUNNEL_TOKEN_CLEANUP_INTERVAL)
+#       
+#     # Session Recovery Configuration (Phase 2.3)
+#     # Automatic session recovery and validation
+#     session_recovery:
+#       enabled: true                         # Enable automatic session recovery (env: MAGICTUNNEL_SESSION_RECOVERY_ENABLED)
+#       auto_recovery_on_startup: true        # Recover sessions on application start (env: MAGICTUNNEL_SESSION_RECOVERY_STARTUP)
+#       validation_interval_minutes: 60       # Validate active sessions every N minutes (env: MAGICTUNNEL_SESSION_VALIDATION_INTERVAL)
+#       max_recovery_attempts: 3              # Maximum recovery attempts per token (env: MAGICTUNNEL_MAX_RECOVERY_ATTEMPTS)
+#       token_validation_timeout_seconds: 30  # Timeout for token validation requests (env: MAGICTUNNEL_TOKEN_VALIDATION_TIMEOUT)
+#       graceful_degradation: true            # Gracefully handle invalid/expired tokens (env: MAGICTUNNEL_GRACEFUL_DEGRADATION)
+#       retry_failed_providers: true          # Retry failed providers after delay (env: MAGICTUNNEL_RETRY_FAILED_PROVIDERS)
+#       
+#     # Token Refresh Configuration (Phase 2.4)
+#     # Automatic token refresh service with background processing
+#     token_refresh:
+#       enabled: true                         # Enable automatic token refresh (env: MAGICTUNNEL_TOKEN_REFRESH_ENABLED)
+#       refresh_threshold_minutes: 15         # Refresh tokens when they expire in N minutes (env: MAGICTUNNEL_TOKEN_REFRESH_THRESHOLD)
+#       background_refresh_enabled: true      # Enable background refresh service (env: MAGICTUNNEL_BACKGROUND_REFRESH_ENABLED)
+#       max_retry_attempts: 3                 # Maximum refresh retry attempts (env: MAGICTUNNEL_REFRESH_MAX_RETRY_ATTEMPTS)
+#       retry_delay_base_seconds: 5           # Base delay for exponential backoff (env: MAGICTUNNEL_REFRESH_RETRY_DELAY_BASE)
+#       concurrent_refresh_limit: 5           # Maximum concurrent refresh operations (env: MAGICTUNNEL_CONCURRENT_REFRESH_LIMIT)
+#       refresh_queue_size: 100               # Maximum size of refresh queue (env: MAGICTUNNEL_REFRESH_QUEUE_SIZE)
+#       enable_refresh_token_rotation: true   # Enable OAuth 2.1 refresh token rotation (env: MAGICTUNNEL_REFRESH_TOKEN_ROTATION)
+# 
+#   # Security and Monitoring Configuration
+#   security:
+#     enable_url_validation: true
+#     trusted_domains:
+#       - "github.com"
+#       - "api.github.com"
+#       - "accounts.google.com"
+#       - "oauth2.googleapis.com"
+#       - "login.microsoftonline.com"
+#       - "graph.microsoft.com"
+#     blocked_domains:
+#       - "malicious-site.com"
+#     rate_limiting:
+#       enabled: true
+#       max_auth_attempts_per_minute: 10
+#       max_token_requests_per_minute: 60
+#       max_device_code_requests_per_minute: 5
+#       lockout_duration_minutes: 15
+#       enable_progressive_delay: true
+#     audit_logging:
+#       enabled: true
+#       log_level: "info"                   # debug|info|warn|error
+#       log_successful_auth: true
+#       log_failed_auth: true
+#       log_token_exchanges: true
+#       log_device_flow_events: true
+#       log_session_events: true
+#       log_rbac_decisions: true
+#       audit_log_file: "./logs/auth-audit.log"
+#       audit_log_rotation: true
+#       max_audit_log_size_mb: 100
+#       
+#   # Thread-Safe Caching Configuration
+#   caching:
+#     enabled: true
+#     auth_resolution_cache_size: 1000      # Cache size for auth resolution
+#     auth_resolution_cache_ttl: 300        # 5 minutes
+#     provider_validation_cache_ttl: 600    # 10 minutes
+#     token_validation_cache_size: 5000     # Max cached token validations
+#     user_info_cache_size: 1000           # Max cached user info
+#     enable_cache_metrics: true           # Track cache hit/miss rates
+#     cache_cleanup_interval: 1800         # Cleanup every 30 minutes
 
 # =============================================================================
 # MCP CLIENT CONFIGURATION
@@ -421,6 +704,44 @@ environment_monitoring:
       description: "Dedicated API key for smart discovery LLM operations"
       required_for: ["smart_discovery_llm"]
       category: "llm"
+    # OAuth 2.1 Authentication Keys
+    - name: "GitHub Client Secret"
+      env_var: "GITHUB_CLIENT_SECRET"
+      description: "GitHub OAuth client secret for authentication"
+      required_for: ["oauth_2_1_github"]
+      category: "oauth"
+    - name: "Google Client Secret"
+      env_var: "GOOGLE_CLIENT_SECRET"
+      description: "Google OAuth client secret for authentication"
+      required_for: ["oauth_2_1_google"]
+      category: "oauth"
+    - name: "Microsoft Client Secret"
+      env_var: "MICROSOFT_CLIENT_SECRET"
+      description: "Microsoft OAuth client secret for authentication"
+      required_for: ["oauth_2_1_microsoft"]
+      category: "oauth"
+    # MagicTunnel Authentication Keys
+    - name: "MagicTunnel Admin API Key"
+      env_var: "MAGICTUNNEL_ADMIN_API_KEY"
+      description: "Administrative API key for MagicTunnel management"
+      required_for: ["auth_admin"]
+      category: "auth"
+    - name: "MagicTunnel Readonly API Key"
+      env_var: "MAGICTUNNEL_READONLY_API_KEY"
+      description: "Read-only API key for MagicTunnel access"
+      required_for: ["auth_readonly"]
+      category: "auth"
+    # Service Account Keys
+    - name: "GitHub Personal Access Token"
+      env_var: "GITHUB_PAT"
+      description: "GitHub Personal Access Token for service account authentication"
+      required_for: ["github_service_account"]
+      category: "service_account"
+    - name: "Google Service Account Key"
+      env_var: "GOOGLE_SERVICE_ACCOUNT_KEY_JSON"
+      description: "Google Service Account JSON key file content"
+      required_for: ["google_service_account"]
+      category: "service_account"
       
   # System environment variables to monitor
   system_vars:
@@ -493,6 +814,119 @@ environment_monitoring:
       category: "smart_discovery"
       default_value: "hybrid"
       expected_values: ["rule_based", "llm_based", "semantic_based", "hybrid"]
+      
+    # OAuth 2.1 Authentication Configuration
+    - name: "OAuth 2.1 Authentication Enabled"
+      env_var: "MAGICTUNNEL_AUTH_ENABLED"
+      description: "Enable OAuth 2.1 multi-level authentication system"
+      category: "oauth_auth"
+      default_value: "false"
+      expected_values: ["true", "false"]
+    - name: "OAuth 2.1 Authentication Type"
+      env_var: "MAGICTUNNEL_AUTH_TYPE"
+      description: "Authentication method type"
+      category: "oauth_auth"
+      default_value: "api_key"
+      expected_values: ["api_key", "oauth", "multi_level"]
+    - name: "OAuth 2.1 Multi-Level Enabled"
+      env_var: "MAGICTUNNEL_AUTH_MULTI_LEVEL_ENABLED"
+      description: "Enable hierarchical multi-level authentication"
+      category: "oauth_auth"
+      default_value: "false"
+      expected_values: ["true", "false"]
+    - name: "GitHub OAuth Client ID"
+      env_var: "GITHUB_CLIENT_ID"
+      description: "GitHub OAuth application client ID"
+      category: "oauth_providers"
+      default_value: ""
+    - name: "Google OAuth Client ID"
+      env_var: "GOOGLE_CLIENT_ID"
+      description: "Google OAuth application client ID"
+      category: "oauth_providers"
+      default_value: ""
+    - name: "Microsoft OAuth Client ID"
+      env_var: "MICROSOFT_CLIENT_ID"
+      description: "Microsoft OAuth application client ID"
+      category: "oauth_providers"
+      default_value: ""
+    - name: "OAuth PKCE Enforcement"
+      env_var: "MAGICTUNNEL_OAUTH_ENFORCE_PKCE"
+      description: "Enforce PKCE for all OAuth flows (OAuth 2.1 security)"
+      category: "oauth_security"
+      default_value: "true"
+      expected_values: ["true", "false"]
+    - name: "OAuth Refresh Token Rotation"
+      env_var: "MAGICTUNNEL_OAUTH_REFRESH_TOKEN_ROTATION"
+      description: "Enable refresh token rotation for security"
+      category: "oauth_security"
+      default_value: "true"
+      expected_values: ["true", "false"]
+    - name: "Device Code Flow Timeout"
+      env_var: "MAGICTUNNEL_DEVICE_CODE_TIMEOUT"
+      description: "Device code expiration timeout in seconds"
+      category: "device_code"
+      default_value: "1800"
+    - name: "Session Storage Backend"
+      env_var: "MAGICTUNNEL_SESSION_STORAGE_BACKEND"
+      description: "Session storage backend for OAuth sessions"
+      category: "session_management"
+      default_value: "memory"
+      expected_values: ["memory", "redis", "file", "database"]
+      
+    # Session Persistence Configuration (OAuth 2.1 Phase 2)
+    - name: "Session Persistence Enabled"
+      env_var: "MAGICTUNNEL_SESSION_PERSISTENCE_ENABLED"
+      description: "Enable OAuth 2.1 session persistence system"
+      category: "session_persistence"
+      default_value: "true"
+      expected_values: ["true", "false"]
+    - name: "User Context Enabled"
+      env_var: "MAGICTUNNEL_USER_CONTEXT_ENABLED"
+      description: "Enable user context identification for session isolation"
+      category: "session_persistence"
+      default_value: "true"
+      expected_values: ["true", "false"]
+    - name: "Token Storage Enabled"
+      env_var: "MAGICTUNNEL_TOKEN_STORAGE_ENABLED"
+      description: "Enable secure token storage across sessions"
+      category: "session_persistence"
+      default_value: "true"
+      expected_values: ["true", "false"]
+    - name: "Token Storage Backend"
+      env_var: "MAGICTUNNEL_TOKEN_STORAGE_BACKEND"
+      description: "Platform-specific secure token storage backend"
+      category: "session_persistence"
+      default_value: "auto"
+      expected_values: ["auto", "keychain", "credential_manager", "secret_service", "filesystem"]
+    - name: "Session Recovery Enabled"
+      env_var: "MAGICTUNNEL_SESSION_RECOVERY_ENABLED"
+      description: "Enable automatic session recovery on startup"
+      category: "session_persistence"
+      default_value: "true"
+      expected_values: ["true", "false"]
+    - name: "Token Refresh Enabled"
+      env_var: "MAGICTUNNEL_TOKEN_REFRESH_ENABLED"
+      description: "Enable automatic token refresh service"
+      category: "session_persistence"
+      default_value: "true"
+      expected_values: ["true", "false"]
+    - name: "Token Refresh Threshold"
+      env_var: "MAGICTUNNEL_TOKEN_REFRESH_THRESHOLD"
+      description: "Minutes before expiration to refresh tokens"
+      category: "session_persistence"
+      default_value: "15"
+    - name: "Background Refresh Enabled"
+      env_var: "MAGICTUNNEL_BACKGROUND_REFRESH_ENABLED"
+      description: "Enable background token refresh service"
+      category: "session_persistence"
+      default_value: "true"
+      expected_values: ["true", "false"]
+    - name: "Refresh Token Rotation"
+      env_var: "MAGICTUNNEL_REFRESH_TOKEN_ROTATION"
+      description: "Enable OAuth 2.1 refresh token rotation for security"
+      category: "session_persistence"
+      default_value: "true"
+      expected_values: ["true", "false"]
       
     # External Services Configuration
     - name: "Ollama Base URL"
@@ -625,6 +1059,11 @@ logging:
 # =============================================================================
 # You can override any configuration value using environment variables:
 #
+# # Multi-Mode Runtime Configuration (v0.3.10)
+# export MAGICTUNNEL_RUNTIME_MODE="advanced"   # proxy|advanced
+# export MAGICTUNNEL_CONFIG_PATH="./my-config.yaml"  # Custom config path
+# export MAGICTUNNEL_SMART_DISCOVERY="true"    # Enable/disable smart discovery
+#
 # # Server configuration
 # export MCP_HOST="0.0.0.0"
 # export MCP_PORT="8080"
@@ -641,12 +1080,120 @@ logging:
 # export MCP_REGISTRY_PATHS="./capabilities,./custom-tools"
 # export MCP_HOT_RELOAD="true"
 #
-# # MCP 2025-06-18 Enhanced Features (Always Enabled - No Configuration Required)
-# All MCP 2025-06-18 features are enabled by default in code
-#
-# # Authentication
+# # Basic Authentication
 # export MCP_AUTH_ENABLED="true"
-# export MCP_AUTH_TYPE="api_key"
+# export MCP_AUTH_TYPE="api_key"  # api_key|oauth|multi_level
+#
+# # OAuth 2.1 Multi-Level Authentication Environment Variables
+# # Multi-level authentication
+# export MAGICTUNNEL_AUTH_ENABLED="true"
+# export MAGICTUNNEL_AUTH_TYPE="multi_level"
+# export MAGICTUNNEL_AUTH_MULTI_LEVEL_ENABLED="true"
+#
+# # OAuth Provider Configuration
+# export GITHUB_CLIENT_ID="your-github-client-id"
+# export GITHUB_CLIENT_SECRET="your-github-client-secret"
+# export GITHUB_OAUTH_ENABLED="true"
+# export GITHUB_DEVICE_CODE_ENABLED="true"
+# export GOOGLE_CLIENT_ID="your-google-client-id"
+# export GOOGLE_CLIENT_SECRET="your-google-client-secret"
+# export MICROSOFT_CLIENT_ID="your-microsoft-client-id"
+# export MICROSOFT_CLIENT_SECRET="your-microsoft-client-secret"
+# export CUSTOM_CLIENT_ID="your-custom-client-id"
+# export CUSTOM_CLIENT_SECRET="your-custom-client-secret"
+#
+# # Device Code Flow Configuration
+# export MAGICTUNNEL_DEVICE_CODE_POLLING_INTERVAL="5"
+# export MAGICTUNNEL_DEVICE_CODE_MAX_ATTEMPTS="360"
+# export MAGICTUNNEL_DEVICE_CODE_TIMEOUT="1800"
+# export MAGICTUNNEL_DEVICE_CODE_SLOW_DOWN_INCREMENT="5"
+#
+# # API Keys and Service Accounts
+# export MAGICTUNNEL_ADMIN_API_KEY="your-secure-admin-key-min-16-chars"
+# export GITHUB_API_KEY="your-github-api-key"
+# export MAGICTUNNEL_READONLY_API_KEY="your-readonly-api-key-min-16-chars"
+# export GITHUB_PAT="your-github-personal-access-token"
+# export GOOGLE_SERVICE_ACCOUNT_KEY_JSON='{...}'
+# export CUSTOM_APP_CREDENTIALS="your-app-credentials"
+# export GOOGLE_PROJECT_ID="your-google-project-id"
+#
+# # OAuth 2.1 Security Configuration
+# export MAGICTUNNEL_OAUTH_ENFORCE_PKCE="true"
+# export MAGICTUNNEL_OAUTH_CODE_CHALLENGE_METHOD="S256"
+# export MAGICTUNNEL_OAUTH_TOKEN_CACHE_TTL="3600"
+# export MAGICTUNNEL_OAUTH_USER_INFO_CACHE_TTL="1800"
+# export MAGICTUNNEL_OAUTH_REFRESH_TOKEN_ROTATION="true"
+#
+# # Resource Indicators Configuration
+# export MAGICTUNNEL_RESOURCE_INDICATORS_ENABLED="true"
+# export MAGICTUNNEL_REQUIRE_EXPLICIT_RESOURCES="false"
+# export MAGICTUNNEL_WILDCARD_MATCHING="true"
+#
+# # Session Management (Legacy - replaced by Session Persistence)
+# export MAGICTUNNEL_SESSION_STORAGE_BACKEND="redis"  # memory|redis|file|database
+# export MAGICTUNNEL_SESSION_STORAGE_PATH="./data/sessions"
+# export REDIS_URL="redis://localhost:6379"
+# export DATABASE_URL="postgresql://user:pass@localhost/magictunnel"
+# export MAGICTUNNEL_SESSION_TTL="86400"
+# export MAGICTUNNEL_SESSION_REFRESH_THRESHOLD="3600"
+# export MAGICTUNNEL_PERSISTENT_SESSIONS="true"
+#
+# # Session Persistence (OAuth 2.1 Phase 2) - RECOMMENDED
+# export MAGICTUNNEL_SESSION_PERSISTENCE_ENABLED="true"
+#
+# # User Context Configuration (Phase 2.1)
+# export MAGICTUNNEL_USER_CONTEXT_ENABLED="true"
+# export MAGICTUNNEL_CUSTOM_SESSION_DIR="./data/sessions"
+# export MAGICTUNNEL_HOSTNAME_ISOLATION="true"
+#
+# # Token Storage Configuration (Phase 2.2)
+# export MAGICTUNNEL_TOKEN_STORAGE_ENABLED="true"
+# export MAGICTUNNEL_TOKEN_STORAGE_BACKEND="keychain"  # auto|keychain|credential_manager|secret_service|filesystem
+# export MAGICTUNNEL_TOKEN_ENCRYPTION_ENABLED="true"
+# export MAGICTUNNEL_TOKEN_FILE_PERMISSIONS="0600"
+# export MAGICTUNNEL_MAX_TOKENS_PER_PROVIDER="10"
+# export MAGICTUNNEL_TOKEN_CLEANUP_INTERVAL="24"
+#
+# # Session Recovery Configuration (Phase 2.3)
+# export MAGICTUNNEL_SESSION_RECOVERY_ENABLED="true"
+# export MAGICTUNNEL_SESSION_RECOVERY_STARTUP="true"
+# export MAGICTUNNEL_SESSION_VALIDATION_INTERVAL="60"
+# export MAGICTUNNEL_MAX_RECOVERY_ATTEMPTS="3"
+# export MAGICTUNNEL_TOKEN_VALIDATION_TIMEOUT="30"
+# export MAGICTUNNEL_GRACEFUL_DEGRADATION="true"
+# export MAGICTUNNEL_RETRY_FAILED_PROVIDERS="true"
+#
+# # Token Refresh Configuration (Phase 2.4)
+# export MAGICTUNNEL_TOKEN_REFRESH_ENABLED="true"
+# export MAGICTUNNEL_TOKEN_REFRESH_THRESHOLD="15"
+# export MAGICTUNNEL_BACKGROUND_REFRESH_ENABLED="true"
+# export MAGICTUNNEL_REFRESH_MAX_RETRY_ATTEMPTS="3"
+# export MAGICTUNNEL_REFRESH_RETRY_DELAY_BASE="5"
+# export MAGICTUNNEL_CONCURRENT_REFRESH_LIMIT="5"
+# export MAGICTUNNEL_REFRESH_QUEUE_SIZE="100"
+# export MAGICTUNNEL_REFRESH_TOKEN_ROTATION="true"
+#
+# # Security and Monitoring
+# export MAGICTUNNEL_AUTH_URL_VALIDATION="true"
+# export MAGICTUNNEL_AUTH_RATE_LIMITING="true"
+# export MAGICTUNNEL_AUTH_MAX_ATTEMPTS_PER_MINUTE="10"
+# export MAGICTUNNEL_AUTH_MAX_TOKEN_REQUESTS_PER_MINUTE="60"
+# export MAGICTUNNEL_AUTH_LOCKOUT_DURATION="15"
+# export MAGICTUNNEL_AUTH_AUDIT_LOGGING="true"
+# export MAGICTUNNEL_AUTH_LOG_SUCCESSFUL="true"
+# export MAGICTUNNEL_AUTH_LOG_FAILED="true"
+# export MAGICTUNNEL_AUTH_LOG_DEVICE_FLOW="true"
+# export MAGICTUNNEL_AUTH_LOG_TOKEN_EXCHANGES="true"
+# export MAGICTUNNEL_AUTH_LOG_SESSION_EVENTS="true"
+# export MAGICTUNNEL_AUTH_LOG_RBAC_DECISIONS="true"
+#
+# # Thread-Safe Caching
+# export MAGICTUNNEL_AUTH_CACHING_ENABLED="true"
+# export MAGICTUNNEL_AUTH_RESOLUTION_CACHE_SIZE="1000"
+# export MAGICTUNNEL_AUTH_RESOLUTION_CACHE_TTL="300"
+# export MAGICTUNNEL_TOKEN_VALIDATION_CACHE_SIZE="5000"
+# export MAGICTUNNEL_USER_INFO_CACHE_SIZE="1000"
+# export MAGICTUNNEL_AUTH_CACHE_CLEANUP_INTERVAL="1800"
 #
 # # External MCP Discovery
 # export EXTERNAL_MCP_ENABLED="true"
@@ -691,6 +1238,7 @@ logging:
 # # Logging
 # export MCP_LOG_LEVEL="debug"
 # export MCP_LOG_FORMAT="json"
+# export RUST_LOG="debug"
 
 # =============================================================================
 # QUICK START EXAMPLES
@@ -714,13 +1262,15 @@ logging:
 #
 
 #
-# 4. Production deployment:
+# 4. Production deployment with OAuth 2.1:
 #    - Enable TLS with proper certificates
-#    - Configure authentication (API keys recommended)
-#    - Set up monitoring and logging
-#    - Use environment variables for secrets
+#    - Configure OAuth 2.1 multi-level authentication
+#    - Set up monitoring and logging with audit trails
+#    - Use environment variables for all secrets
 #    - Enable rate limiting and security headers
-#    - Configure hybrid routing for conflict resolution
+#    - Configure session persistence and Redis caching
+#    - Set up Device Code Flow for headless environments
+#    - Configure RBAC roles and service accounts
 
 # =============================================================================
 # CAPABILITY FILE EXAMPLES
@@ -843,6 +1393,115 @@ logging:
 #   - cargo run --bin magictunnel-cli merge --input dir1/ dir2/ --output merged.yaml
 
 # =============================================================================
+# SESSION PERSISTENCE CONFIGURATION GUIDE (OAuth 2.1 Phase 2)
+# =============================================================================
+#
+# OAuth 2.1 Phase 2: Session Persistence provides comprehensive token management
+# and session recovery capabilities for enterprise OAuth deployments.
+#
+# DEPLOYMENT RECOMMENDATIONS:
+#
+# 1. Development Environment:
+#    - Use filesystem storage with encryption for simplicity
+#    - Enable auto-recovery for seamless development experience
+#    - Set session_directory to project-local path
+#
+# 2. Production Environment:
+#    - Use platform-native storage (keychain/credential_manager/secret_service)
+#    - Enable hostname isolation for multi-server deployments
+#    - Configure background refresh service for optimal performance
+#    - Set up proper monitoring and validation intervals
+#
+# 3. Enterprise Environment:
+#    - Enable all session persistence features
+#    - Configure proper token cleanup and rotation policies
+#    - Set up comprehensive audit logging
+#    - Use proper file permissions and encryption
+#
+# STORAGE BACKEND SELECTION:
+#
+# auto (Recommended):
+#   - Automatically selects best platform storage
+#   - macOS: Uses Keychain Services for secure storage
+#   - Windows: Uses Credential Manager for system integration
+#   - Linux: Uses Secret Service (D-Bus) for desktop integration
+#   - Fallback: Uses encrypted filesystem storage
+#
+# keychain:
+#   - Forces macOS Keychain usage (macOS only)
+#   - Provides system-level security and access control
+#   - Integrates with macOS security policies
+#
+# credential_manager:
+#   - Forces Windows Credential Manager usage (Windows only)
+#   - Provides Windows Hello and system integration
+#   - Supports domain authentication policies
+#
+# secret_service:
+#   - Forces Linux Secret Service usage (Linux with D-Bus)
+#   - Provides desktop environment integration
+#   - Supports GNOME Keyring and KDE Wallet
+#
+# filesystem:
+#   - Uses AES-256-GCM encrypted file storage
+#   - Platform-independent fallback option
+#   - Suitable for containerized deployments
+#
+# TROUBLESHOOTING SESSION PERSISTENCE:
+#
+# 1. Token Storage Issues:
+#    - Check platform support for selected storage backend
+#    - Verify file permissions (0600) for filesystem storage
+#    - Ensure encryption keys are properly generated
+#    - Check system keychain/credential manager access
+#
+# 2. Session Recovery Problems:
+#    - Verify network connectivity to OAuth providers
+#    - Check token validation timeout settings
+#    - Review graceful degradation configuration
+#    - Examine recovery attempt limits and backoff settings
+#
+# 3. Token Refresh Failures:
+#    - Verify refresh token rotation is supported by provider
+#    - Check refresh threshold and background service settings
+#    - Review concurrent refresh limits and queue size
+#    - Examine retry policies and exponential backoff
+#
+# 4. User Context Issues:
+#    - Check session directory permissions and accessibility
+#    - Verify hostname isolation settings for multi-server setups
+#    - Review user context identification logic
+#    - Examine session isolation between different users/hosts
+#
+# SECURITY CONSIDERATIONS:
+#
+# - Tokens are encrypted at rest using AES-256-GCM (filesystem backend)
+# - Platform-native storage uses system security policies
+# - File permissions are strictly enforced (0600 for token files)
+# - Expired tokens are automatically cleaned up
+# - Token rotation is supported per OAuth 2.1 specification
+# - Session isolation prevents cross-user token access
+# - Graceful degradation handles security policy violations
+#
+# PERFORMANCE OPTIMIZATION:
+#
+# - Background refresh service reduces request latency
+# - Concurrent refresh limits prevent resource exhaustion
+# - Token validation caching reduces provider API calls
+# - Session validation intervals balance security and performance
+# - Queue-based refresh processing handles high-load scenarios
+# - Exponential backoff prevents provider rate limiting
+#
+# MONITORING AND OBSERVABILITY:
+#
+# - Session persistence events are logged with appropriate levels
+# - Token refresh operations include timing and success metrics
+# - Recovery attempts are tracked with detailed error information
+# - Storage backend health is monitored and reported
+# - Cache hit/miss rates are available for performance tuning
+# - Provider-specific metrics support troubleshooting
+#
+# =============================================================================
 # TROUBLESHOOTING
 # =============================================================================
 #
@@ -888,5 +1547,17 @@ logging:
 #    - Check certificate validity and expiration
 #    - Ensure proper TLS mode configuration
 #    - Verify trusted proxy settings if behind reverse proxy
+#
+# 8. Session Persistence issues (OAuth 2.1 Phase 2):
+#    - Check platform support for selected token storage backend
+#    - Verify session directory permissions and accessibility
+#    - Ensure network connectivity to OAuth providers for token validation
+#    - Check token refresh settings and provider compatibility
+#    - Review session recovery attempt limits and backoff configuration
+#    - Verify hostname isolation settings for multi-server deployments
+#    - Check file permissions (0600) for filesystem token storage
+#    - Ensure proper encryption key generation for filesystem backend
+#    - Review background refresh service configuration and queue limits
+#    - Check token validation timeout and graceful degradation settings
 #
 # For more help, see: https://github.com/MagicBeansAI/magictunnel/docs

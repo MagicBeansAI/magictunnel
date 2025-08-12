@@ -1,4 +1,4 @@
-# Multi-Mode Architecture Guide (v0.3.11)
+# Multi-Mode Architecture Guide (v0.3.12)
 
 MagicTunnel implements a sophisticated multi-mode architecture that provides two distinct runtime modes to address different deployment scenarios and use cases.
 
@@ -334,7 +334,7 @@ The UI adapts based on available services:
 - **Proxy Mode**: Basic navigation, core tool management
 - **Advanced Mode**: Full navigation with security, LLM services, enterprise features
 
-### Complete System Integration Flow (v0.3.11)
+### Complete System Integration Flow (v0.3.12)
 
 **Unified Status Banner System Integration:**
 

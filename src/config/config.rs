@@ -17,6 +17,28 @@ fn default_client_version() -> String {
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use secrecy::{Secret, ExposeSecret};
+
+/// Custom serde module for Secret<String> in config
+mod secret_string {
+    use serde::{Deserialize, Deserializer, Serializer};
+    use secrecy::{Secret, ExposeSecret};
+    
+    pub fn serialize<S>(secret: &Secret<String>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(secret.expose_secret())
+    }
+    
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Secret<String>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ok(Secret::new(s))
+    }
+}
 
 /// Strategy for handling sampling and elicitation requests from remote MCP servers
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -160,8 +182,10 @@ pub struct Config {
     pub server: ServerConfig,
     /// Registry configuration
     pub registry: RegistryConfig,
-    /// Authentication configuration
+    /// Authentication configuration (legacy single-level)
     pub auth: Option<AuthConfig>,
+    /// Multi-level authentication configuration (OAuth 2.1, Device Code Flow, API Keys, Service Accounts)
+    pub multi_level_auth: Option<crate::auth::MultiLevelAuthConfig>,
     /// Logging configuration
     pub logging: Option<LoggingConfig>,
     // Hybrid routing removed - use external_mcp instead
@@ -383,8 +407,9 @@ pub struct OAuthConfig {
     pub provider: String,
     /// Client ID
     pub client_id: String,
-    /// Client secret
-    pub client_secret: String,
+    /// Client secret (sensitive - protected by secrecy)
+    #[serde(with = "secret_string")]
+    pub client_secret: Secret<String>,
     /// Authorization URL
     pub auth_url: String,
     /// Token URL
@@ -930,6 +955,7 @@ impl Default for Config {
             server: ServerConfig::default(),
             registry: RegistryConfig::default(),
             auth: None,
+            multi_level_auth: None,
             logging: Some(LoggingConfig::default()),
             // hybrid_routing removed - use external_mcp instead
             external_mcp: None,
@@ -1654,7 +1680,7 @@ impl OAuthConfig {
             return Err(ProxyError::config("OAuth client ID cannot be empty"));
         }
 
-        if self.client_secret.is_empty() {
+        if self.client_secret.expose_secret().is_empty() {
             return Err(ProxyError::config("OAuth client secret cannot be empty"));
         }
 
@@ -2196,6 +2222,18 @@ impl Config {
             auth.validate()?;
         }
 
+        // Validate multi-level authentication configuration if present
+        if let Some(ref multi_level_auth) = self.multi_level_auth {
+            multi_level_auth.validate()?;
+        }
+
+        // Check for conflicting auth configurations
+        if self.auth.is_some() && self.multi_level_auth.is_some() {
+            return Err(ProxyError::config(
+                "Cannot enable both legacy 'auth' and new 'multi_level_auth' configurations. Please use only one."
+            ));
+        }
+
         // Validate logging configuration if present
         if let Some(ref logging) = self.logging {
             logging.validate()?;
@@ -2371,6 +2409,67 @@ impl Config {
         }
 
         Ok(())
+    }
+
+    /// Get an authentication resolver for multi-level auth if configured
+    pub fn get_auth_resolver(&self) -> Result<Option<crate::auth::AuthResolver>> {
+        if let Some(ref multi_level_auth) = self.multi_level_auth {
+            Ok(Some(crate::auth::AuthResolver::new(multi_level_auth.clone())?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Check if authentication is enabled (either legacy or multi-level)
+    pub fn is_auth_enabled(&self) -> bool {
+        self.auth.as_ref().map_or(false, |auth| auth.enabled) ||
+        self.multi_level_auth.as_ref().map_or(false, |auth| auth.enabled)
+    }
+
+    /// Check if multi-level authentication is enabled
+    pub fn is_multi_level_auth_enabled(&self) -> bool {
+        self.multi_level_auth.as_ref().map_or(false, |auth| auth.enabled)
+    }
+
+    /// Check if legacy authentication is enabled
+    pub fn is_legacy_auth_enabled(&self) -> bool {
+        self.auth.as_ref().map_or(false, |auth| auth.enabled)
+    }
+
+    /// Get the active authentication configuration type for logging/debugging
+    pub fn get_auth_type_description(&self) -> String {
+        if let Some(ref multi_level_auth) = self.multi_level_auth {
+            if multi_level_auth.enabled {
+                let mut features = Vec::new();
+                if multi_level_auth.server_level.is_some() {
+                    features.push("server-level");
+                }
+                if !multi_level_auth.capabilities.is_empty() {
+                    features.push("capability-level");
+                }
+                if !multi_level_auth.tools.is_empty() {
+                    features.push("tool-level");
+                }
+                if !multi_level_auth.oauth_providers.is_empty() {
+                    features.push("OAuth 2.1");
+                }
+                if !multi_level_auth.api_keys.is_empty() {
+                    features.push("API keys");
+                }
+                if !multi_level_auth.service_accounts.is_empty() {
+                    features.push("service accounts");
+                }
+                return format!("Multi-level auth ({})", features.join(", "));
+            }
+        }
+        
+        if let Some(ref auth) = self.auth {
+            if auth.enabled {
+                return format!("Legacy auth ({})", auth.r#type);
+            }
+        }
+        
+        "Disabled".to_string()
     }
 }
 

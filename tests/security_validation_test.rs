@@ -222,6 +222,7 @@ mod security_tests {
                 },
             },
             auth: None,
+            multi_level_auth: None,
             logging: None,
             external_mcp: None,
             mcp_client: None,

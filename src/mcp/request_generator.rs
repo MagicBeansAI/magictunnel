@@ -5,18 +5,15 @@
 //! requests and orchestrates the sampling and elicitation services.
 
 use crate::config::Config;
-use crate::error::{ProxyError, Result};
+use crate::error::{Result};
 // SamplingService import removed - now using tool_enhancement::ToolEnhancementService
 use crate::mcp::elicitation::ElicitationService;
-use crate::mcp::types::sampling::{SamplingRequest, SamplingResponse, SamplingError};
-use crate::mcp::types::elicitation::{ElicitationRequest, ElicitationResponse, ElicitationError};
-use crate::mcp::types::elicitation::ElicitationAction;
 use crate::registry::types::ToolDefinition;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn, error};
+use tracing::{debug, info, error};
 use chrono::{DateTime, Utc};
 
 /// Configuration for request generation

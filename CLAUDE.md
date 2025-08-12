@@ -4,25 +4,27 @@
 
 MagicTunnel is an intelligent bridge between MCP (Model Context Protocol) clients and diverse agents/endpoints. It provides a single, smart tool discovery interface that can find the right tool for any request, map parameters, and proxy the call automatically.
 
-**Current Version**: 0.3.11 - **Multi-Mode Architecture & Unified Status Banner System Complete** ✅
+**Current Version**: 0.3.12 - **OAuth 2.1 Implementation & Remote Session Isolation Complete** ✅
 
 ## Quick Start
 
 ### Build and Run
 ```bash
 # Build the project
-make build-release-semantic && make pregenerate-embeddings-ollama MAGICTUNNEL_ENV=development
+make build-release-ollama && make pregenerate-embeddings-ollama
 
-# Run with default magictunnel-config.yaml (auto-detected)
-./target/release/magictunnel
+# Check for errors
+cargo check
 
-# Run with environment variable overrides
-MAGICTUNNEL_RUNTIME_MODE=advanced MAGICTUNNEL_SMART_DISCOVERY=true ./target/release/magictunnel
+# Run (Advanced Mode with dashboard)
+./magictunnel-supervisor
 
-# Run in stdio mode for MCP clients (Claude Desktop, Cursor)
-./target/release/magictunnel --stdio
+# Proxy mode only
+export MAGICTUNNEL_RUNTIME_MODE=proxy && ./magictunnel-supervisor
 
-# Test the service
+# Ports: MagicTunnel (3001), Frontend (5173)
+
+# Test service
 curl -X POST http://localhost:3001/mcp/call \
   -H "Content-Type: application/json" \
   -d '{"name": "smart_tool_discovery", "arguments": {"request": "ping google.com"}}'
@@ -30,728 +32,499 @@ curl -X POST http://localhost:3001/mcp/call \
 
 ### Development Commands
 ```bash
-# Run tests
+# Test, check, debug, cleanup
 cargo test
-
-# Run with debug logging
-RUST_LOG=debug cargo run
-
-# Run in different modes
-MAGICTUNNEL_RUNTIME_MODE=proxy cargo run
-MAGICTUNNEL_RUNTIME_MODE=advanced cargo run
-
-# Kill all magictunnel processes
+cargo check
+RUST_LOG=debug ./magictunnel-supervisor
 pkill -f magictunnel
 
-# Check linting (if available)
+# Code quality
 cargo clippy
-
-# Format code
 cargo fmt
 
-# Visibility management CLI
+# Visibility management
 cargo run --bin magictunnel-visibility -- -c config.yaml status
 ```
 
-## High-Level Architecture
+## Architecture
 
-MagicTunnel implements a **Smart Tool Discovery and Proxy** system that reduces N tools to 1 intelligent proxy tool. This solves the message limit problem in MCP systems where having many tools (50+) causes context overflow.
+**Smart Tool Discovery and Proxy** system that reduces N tools to 1 intelligent proxy tool. Solves message limit problems in MCP systems with 50+ tools.
 
 ### Core Components
 
-1. **MCP Server Interface** (`src/mcp/server.rs`)
-   - Implements the Model Context Protocol for communication with MCP clients
-   - Handles tool discovery, parameter mapping, and result proxying
-   - Supports both stdio and HTTP modes
+1. **MCP Server Interface** (`src/mcp/server.rs`) - Protocol implementation, stdio/HTTP modes
+2. **Capability Registry** (`src/registry/`) - Tool definitions, aggregation, visibility management
+3. **Agent Router** (`src/routing/`) - Tool routing, conflict resolution, parameter substitution
+4. **External MCP Integration** (`src/mcp/external_*`) - Process management, bidirectional communication
+5. **Smart Tool Discovery** (`src/discovery/`) - **CORE INNOVATION**: Single intelligent tool with:
+   - Hybrid AI Intelligence (semantic + rule-based + LLM)
+   - MCP 2025-06-18 enhanced descriptions and metadata
+   - Parameter mapping with elicitation validation
+   - Confidence scoring and semantic search
+6. **Visibility Management** (`src/bin/magictunnel-visibility.rs`) - CLI tool control, all 83 tools hidden by default
 
-2. **Capability Registry** (`src/registry/`)
-   - Manages tool definitions from multiple sources (OpenAPI, gRPC, GraphQL)
-   - Handles tool aggregation and validation
-   - Supports dynamic loading of capabilities
-   - **Visibility Management**: Tools can be hidden/shown with `hidden` flag
+### Multi-Mode Architecture
 
-3. **Agent Router** (`src/routing/`)
-   - Routes tool calls to appropriate external agents/endpoints
-   - Handles conflict resolution when multiple tools match
-   - Implements parameter substitution with array indexing support
+**Two-tier service architecture** separating core MCP functionality from enterprise features:
 
-4. **External MCP Integration** (`src/mcp/external_*`)
-   - Manages external MCP processes and agents
-   - Handles websocket and stdio communication
-   - Provides process lifecycle management
-   - **Bidirectional Communication**: Complete MCP 2025-06-18 bidirectional routing with modern clients/ architecture
+#### **Core/Proxy Services** (Both modes):
+- MCP Server with authentication (API keys, OAuth, JWT)
+- Registry Service for tool management
+- Smart Discovery Service for intelligent routing
+- Core LLM Services (sampling, elicitation, enhancement)
+- Web Dashboard
+- MCP Authentication middleware
 
-5. **Smart Tool Discovery System** (`src/discovery/`)
-   - **THE CORE INNOVATION**: Single intelligent tool that discovers the right tool for any request
-   - **Hybrid AI Intelligence**: Combines semantic search, rule-based matching, and LLM analysis
-   - **MCP 2025-06-18 Enhanced**: Uses tool enhancement service for enhanced tool descriptions and elicitation service for metadata
-   - **Parameter mapping**: Uses LLM to extract and map parameters from natural language with elicitation validation
-   - **Confidence scoring**: Provides confidence scores for tool matches using enhanced descriptions
-   - **Semantic Search**: Embedding-based tool matching using AI-enhanced descriptions
-   - **Intelligent Elicitation**: Tool discovery elicitation only works when smart discovery is disabled (logical behavior)
+#### **Advanced Services** (Enterprise only):
+- **Enterprise Security Suite**: Tool allowlisting, RBAC, request sanitization, audit logging, security policies, emergency lockdown
+- **Future**: MagicTunnel Authentication (separate from MCP protocol auth)
 
-6. **Visibility Management System** (`src/bin/magictunnel-visibility.rs`)
-   - **CLI Tool**: Complete tool visibility control
-   - **Hidden by Default**: All 83 tools across 15 capability files hidden by default
-   - **Smart Discovery Mode**: Clean interface with full functionality through discovery
+### Smart Discovery System (Core Innovation)
 
-### Multi-Mode Service Architecture
+**One intelligent tool** (`smart_tool_discovery`) that:
+1. Analyzes natural language requests with hybrid AI
+2. Finds best tool using enhanced descriptions
+3. Maps parameters with elicitation validation
+4. Proxies call to actual tool
+5. Returns results with metadata
 
-MagicTunnel implements a **two-tier service architecture** that separates core MCP functionality from advanced enterprise features:
+**MCP 2025-06-18 Features:**
+- Enhanced descriptions for better semantic matching
+- Rich metadata (keywords, categories, use cases)
+- Smart fallback when enhancement unavailable
+- Sub-second response times with caching
 
-#### **Core/Proxy Services** (Available in both Proxy and Advanced modes):
-1. **MCP Server** - Core protocol handling with built-in MCP authentication (API keys, OAuth, JWT)
-2. **Registry Service** - Tool management and capability discovery
-3. **Smart Discovery Service** - Intelligent tool routing and parameter mapping
-4. **Core LLM Services** - Sampling, elicitation, and tool enhancement services for basic AI functionality
-5. **Web Dashboard** - Basic web interface via MCP server endpoints
-6. **MCP Authentication** - Protocol-level authentication middleware
-
-#### **Advanced Services** (Enterprise features, Advanced mode only):
-1. **Enterprise Security Suite**:
-   - Tool Allowlisting - Enterprise tool security controls
-   - Advanced RBAC (Role-Based Access Control)
-   - Request Sanitization - Enterprise request filtering
-   - Comprehensive audit logging and analytics
-   - Security Policies - Organization-wide policy management
-   - Emergency lockdown capabilities
-2. **Future: MagicTunnel Authentication** - User authentication for MagicTunnel itself (separate from MCP protocol auth)
-
-### Smart Discovery System (Key Innovation with MCP 2025-06-18 Enhancement)
-
-The system provides **one intelligent tool** (`smart_tool_discovery`) that:
-1. Analyzes natural language requests using hybrid AI intelligence
-2. Finds the best matching tool using enhanced descriptions from tool enhancement service
-3. Maps parameters from natural language to tool schema with elicitation service validation
-4. Proxies the call to the actual tool
-5. Returns results with discovery metadata and enhancement information
-
-**MCP 2025-06-18 Integration:**
-- **Enhanced Descriptions**: Uses tool enhancement service for AI-improved tool descriptions (better semantic matching)
-- **Rich Metadata**: Leverages elicitation service for extracted keywords, categories, and use cases
-- **Smart Fallback**: Gracefully degrades to base descriptions when enhancement services are unavailable
-- **Performance Optimization**: Caches enhanced content to maintain sub-second response times
-
-**Discovery modes:**
-- `hybrid` (recommended): Combines semantic search (30%), rule-based (15%), and LLM analysis (55%) using enhanced descriptions
-- `rule_based`: Fast keyword matching and pattern analysis with elicitation metadata
-- `semantic`: Embedding-based similarity search using sampling-enhanced descriptions
-- `llm_based`: AI-powered tool selection with OpenAI/Anthropic/Ollama APIs using enhanced metadata
+**Discovery Modes:**
+- `hybrid`: Semantic (30%) + rule-based (15%) + LLM (55%)
+- `rule_based`: Fast keyword/pattern matching
+- `semantic`: Embedding-based similarity
+- `llm_based`: AI-powered selection (OpenAI/Anthropic/Ollama)
 
 ## Important Files
 
 ### Configuration
-- `magictunnel-config.yaml` - Main configuration file
-- `config.yaml.template` - Template for configuration with comprehensive documentation
-- `capabilities/` - Directory containing capability definitions (YAML format)
+- `magictunnel-config.yaml` - Main config
+- `config.yaml.template` - Config template
+- `capabilities/` - Tool definitions (YAML)
 
-### Key Source Files
-- `src/discovery/service.rs` - Smart discovery implementation with hybrid AI intelligence
-- `src/discovery/semantic.rs` - Semantic search with embedding-based tool matching
-- `src/routing/substitution.rs` - Parameter substitution with array indexing
-- `src/mcp/clients/` - **Modern MCP 2025-06-18 client implementations** ✅
-  - `http_client.rs` - HTTP MCP client with request/response handling
-  - `websocket_client.rs` - WebSocket client with full-duplex communication
-  - `sse_client.rs` - Server-Sent Events client with streaming support
-  - `streamable_http_client.rs` - NDJSON streaming client (MCP 2025-06-18 preferred)
-- `src/mcp/server.rs` - MCP protocol implementation
-- `src/mcp/external_manager.rs` - External MCP server management with bidirectional routing
-- `src/mcp/external_integration.rs` - External MCP integration layer with elicitation support
-- `src/mcp/types/capabilities.rs` - Client capability tracking with minimum intersection capability advertisement
-- `src/registry/service.rs` - Capability registry management with visibility support
-- `src/bin/magictunnel-visibility.rs` - CLI tool for visibility management
-- `src/main.rs` - Application entry point
+### Key Sources
+- `src/discovery/service.rs` - Smart discovery with hybrid AI
+- `src/discovery/semantic.rs` - Semantic search
+- `src/routing/substitution.rs` - Parameter substitution
+- `src/mcp/clients/` - **Modern MCP 2025-06-18 clients** ✅
+  - `http_client.rs`, `websocket_client.rs`, `sse_client.rs`, `streamable_http_client.rs`
+- `src/mcp/server.rs` - MCP protocol
+- `src/mcp/external_*.rs` - External MCP management
+- `src/registry/service.rs` - Registry with visibility
+- `src/bin/magictunnel-visibility.rs` - Visibility CLI
+- `src/main.rs` - Entry point
 
 ### Documentation
-- `docs/ROUTING_ARCHITECTURE.md` - Detailed architecture documentation with Phase 4 completion status
-- `docs/BIDIRECTIONAL_COMMUNICATION_FLOW.md` - **Complete MCP 2025-06-18 bidirectional communication flow** ✅
-- `CHANGELOG.md` - Version history and changes (current: 0.3.8)
-- `README.md` - Comprehensive project overview with current status
-- `how_to_run.md` - Quick setup guide with examples
+- `docs/ROUTING_ARCHITECTURE.md`, `docs/BIDIRECTIONAL_COMMUNICATION_FLOW.md`
+- `CHANGELOG.md`, `README.md`, `how_to_run.md`
 
-## Common Development Patterns
+## Development Patterns
 
-### Multi-Mode Service Architecture Usage
+### Service Usage
 
-**Core/Proxy Services** (always available):
-- MCP protocol authentication (API keys, OAuth, JWT)
-- Core LLM services (sampling, elicitation, tool enhancement)
-- Smart discovery and tool routing
-- Web dashboard basic functionality
+**Core/Proxy Services** (always available): MCP auth, LLM services, smart discovery, web dashboard
+**Advanced Services** (enterprise only): Security suite, analytics, policies
 
-**Advanced Services** (advanced mode only):
-- Enterprise security features (allowlisting, RBAC, audit, sanitization, policies, emergency lockdown)
-- Advanced analytics and monitoring
-- Security policies and emergency controls
+### Adding Tools
+1. Create YAML in `capabilities/`
+2. Auto-discovered in registry
+3. Smart discovery handles routing
+4. Use `hidden: true` to hide from main list
 
-### Adding New Tool Support
-1. Create capability definition in `capabilities/` directory (YAML format)
-2. Tool will be automatically discovered and included in registry
-3. Smart discovery will handle parameter mapping and routing
-4. Use `hidden: true` to hide from main tool list while keeping discoverable
+### Service Guidelines
 
-### Service Development Guidelines
+**Core Services**: Implement in `src/mcp/`, `src/registry/`, `src/discovery/`
+**Advanced Services**: Implement in `src/security/`, check advanced mode, graceful degradation
 
-**For Core Services** (available in both modes):
-- Implement in `src/mcp/`, `src/registry/`, or `src/discovery/`
-- Include MCP protocol authentication if needed
-- Ensure compatibility with both proxy and advanced modes
-- Focus on essential MCP functionality
+### OAuth 2.1 Session Persistence
 
-**For Advanced Services** (advanced mode only):
-- Implement in `src/security/` for security features
-- Use `src/services/advanced_services.rs` for service management
-- Add configuration checks for advanced mode
-- Provide graceful degradation when unavailable
+**Complete enterprise authentication** with session persistence:
 
-### Managing Tool Visibility
-```bash
-# Check current visibility status
-cargo run --bin magictunnel-visibility -- -c config.yaml status
+```rust
+use crate::auth::{UserContext, AuthResolver, MultiLevelAuthConfig};
 
-# Hide/show individual tools
-cargo run --bin magictunnel-visibility -- -c config.yaml hide-tool tool_name
-cargo run --bin magictunnel-visibility -- -c config.yaml show-tool tool_name
+let user_context = UserContext::new()?;
+let auth_resolver = AuthResolver::with_user_context(config, user_context)?;
 
-# Hide/show entire capability files
-cargo run --bin magictunnel-visibility -- -c config.yaml hide-file capabilities/file.yaml
-cargo run --bin magictunnel-visibility -- -c config.yaml show-file capabilities/file.yaml
-
-# Global visibility management
-cargo run --bin magictunnel-visibility -- -c config.yaml hide-all
-cargo run --bin magictunnel-visibility -- -c config.yaml show-all
+// Session file management
+if let Some(session_file) = auth_resolver.get_session_file_path("oauth_tokens.json") {
+    // Cross-platform secure storage
+}
 ```
 
-### Debugging Smart Discovery
+**Features**: Cross-platform (Keychain/CredentialManager/SecretService), secure storage (`~/.magictunnel/sessions/`), hostname isolation, graceful fallback
+
+### Tool Visibility Management
 ```bash
-# Enable debug logging for discovery
+# Status, individual tools, files, global
+cargo run --bin magictunnel-visibility -- -c config.yaml status
+cargo run --bin magictunnel-visibility -- -c config.yaml hide-tool/show-tool tool_name
+cargo run --bin magictunnel-visibility -- -c config.yaml hide-file/show-file capabilities/file.yaml
+cargo run --bin magictunnel-visibility -- -c config.yaml hide-all/show-all
+```
+
+### Debugging
+```bash
+# Debug logging
 RUST_LOG=magictunnel::discovery=debug cargo run
 
-# Test specific tool discovery
+# Test discovery
 curl -X POST http://localhost:3001/mcp/call \
   -H "Content-Type: application/json" \
-  -d '{"name": "smart_tool_discovery", "arguments": {"request": "ping google.com", "confidence_threshold": 0.5}}'
+  -d '{"name": "smart_tool_discovery", "arguments": {"request": "ping google.com"}}'
 ```
 
-### Configuration Updates
-- Smart discovery config is in `smart_discovery` section
-- Discovery modes: `hybrid`, `rule_based`, `semantic`, `llm_based`
-- LLM providers: OpenAI, Anthropic, Ollama
-- Semantic search with embedding support
-- Confidence thresholds and caching settings
-- Visibility management with `default_hidden` setting
+### Configuration
+- Smart discovery in `smart_discovery` section
+- Modes: `hybrid`, `rule_based`, `semantic`, `llm_based`
+- Providers: OpenAI, Anthropic, Ollama
+- Visibility with `default_hidden`
 
-### **Environment Variables (v0.3.10)**
-MagicTunnel now supports comprehensive environment variable configuration:
-
+### Environment Variables
 ```bash
-# Runtime Mode Control
-export MAGICTUNNEL_RUNTIME_MODE=proxy       # proxy | advanced
-export MAGICTUNNEL_CONFIG_PATH=./config.yaml # Custom config file path
-export MAGICTUNNEL_SMART_DISCOVERY=true     # Enable/disable smart discovery
-
-# Run with environment overrides
+export MAGICTUNNEL_RUNTIME_MODE=proxy  # proxy | advanced
+export MAGICTUNNEL_CONFIG_PATH=./config.yaml
+export MAGICTUNNEL_SMART_DISCOVERY=true
 ./target/release/magictunnel
 ```
 
-### **Default Configuration (v0.3.10)**
-- **New Default Config Name**: `magictunnel-config.yaml` (replaces `config.yaml`)
-- **Auto-Detection**: Automatically detects and uses `magictunnel-config.yaml` if present
-- **Built-in Defaults**: Minimal proxy mode defaults when no config file found
-- **Environment Priority**: Environment variables override config file settings
+### Default Configuration
+- **Default**: `magictunnel-config.yaml` (replaces `config.yaml`)
+- **Auto-detection**: Uses `magictunnel-config.yaml` if present
+- **Built-in defaults**: Proxy mode when no config
+- **Priority**: Environment > config file
 
-## Startup Flow and Service Architecture
+## Startup Flow
 
-### Complete Startup Sequence (v0.3.10)
+### Startup Sequence
 
-MagicTunnel implements a sophisticated startup flow that conditionally loads services based on runtime mode:
+1. **Config Resolution**: Load config, apply env overrides, determine mode
+2. **Service Loading**: Conditional container creation based on mode
+3. **Service Strategy**: 
+   - Proxy: Core services only
+   - Advanced: Core + Enterprise features
+4. **API Integration**: Mode detection, config validation, health monitoring
+5. **Frontend**: Mode-aware UI with progressive enhancement
 
-```
-1. Configuration Resolution (main.rs:92-113):
-   ├─ Load config file (magictunnel-config.yaml or config.yaml)
-   ├─ Apply environment variable overrides (highest priority)
-   ├─ Determine runtime mode (proxy vs advanced)
-   └─ Validate configuration for selected mode
+### Service Architecture
 
-2. Service Loading (main.rs:154-161):
-   ├─ ServiceLoader::load_services(resolution)
-   ├─ RuntimeMode detection from ConfigResolution
-   └─ Conditional service container creation
+**ServiceLoader** (`src/services/service_loader.rs`): Entry point, mode detection, validation
 
-3. Service Container Strategy:
-   Proxy Mode:
-   ├─ ProxyServices::new() → Core services only
-   └─ ServiceContainer { proxy_services: Some, advanced_services: None }
-   
-   Advanced Mode:
-   ├─ ProxyServices::new() → Core services (foundation)
-   ├─ AdvancedServices::new(&proxy_services) → Enterprise features
-   └─ ServiceContainer { proxy_services: Some, advanced_services: Some }
+**Containers**:
+- **ProxyServices**: MCP Server, Registry, Discovery, Enhancement, Dashboard
+- **AdvancedServices**: Security Suite (RBAC, Audit, Sanitization, Policies)
+- **ServiceContainer**: Mode-aware wrapper
 
-4. Backend API Integration (ModeApiHandler):
-   ├─ /api/mode → Runtime mode detection for frontend
-   ├─ /api/config → Configuration validation status
-   └─ /api/services/status → Service health monitoring
+### Frontend Mode Awareness
 
-5. Frontend Mode Awareness:
-   ├─ mode.ts store fetches backend mode information
-   ├─ ModeAwareLayout subscribes to mode stores
-   ├─ Components filter UI elements based on showAdvancedFeatures
-   └─ Progressive enhancement based on available services
-```
+**Backend**: `src/web/mode_api.rs` - UI config, navigation, status indicators
+**Frontend**: `mode.ts` store - mode detection, auto-refresh, progressive enhancement
+**Components**: ModeAwareLayout, TopBar, Sidebar with advanced feature filtering
 
-### Service Loading Architecture
+**UI Filtering**: Navigation, status indicators, user menu, notifications, search results filtered by mode
 
-**ServiceLoader Implementation** (`src/services/service_loader.rs`):
-- **load_services()**: Main entry point that determines runtime mode and delegates loading
-- **load_proxy_services()**: Loads core MCP functionality (ProxyServices container)
-- **load_advanced_services()**: Loads ProxyServices + AdvancedServices (no duplication)
-- **validate_service_dependencies()**: Ensures proper service health and dependencies
+## Recent Changes
 
-**Service Containers**:
-- **ProxyServices**: MCP Server, Registry, Smart Discovery, Tool Enhancement, Web Dashboard integration
-- **AdvancedServices**: Enterprise Security Suite (Allowlisting, RBAC, Audit, Sanitization, Policies, Emergency Lockdown)
-- **ServiceContainer**: Wrapper that manages both containers with runtime mode awareness
+### Version 0.3.12 (Current) - OAuth 2.1 & UI Enhancement ✅
 
-### Frontend Mode-Aware Architecture
+#### **UI Improvements**
+- **Unified Status Banner**: Clean, minimal status system replacing bulky alerts
+- **Dynamic Messages**: Real-time updates with color coding
+- **Space Efficient**: 60% reduction in visual space
+- **Dashboard Enhancement**: System controls moved to top, better hierarchy
 
-**Mode Detection & Integration**:
-```
-Backend (Rust):
-src/web/mode_api.rs → ModeApiHandler
-├─ create_ui_config() → Mode-specific UI configuration
-├─ create_navigation_sections() → Dynamic navigation structure
-└─ create_status_indicators() → Health monitoring indicators
+#### **OAuth 2.1 Complete Enterprise Authentication** ✅
+- **Phase 1 & 2 Complete**: Multi-level auth + session persistence
+- **Cross-Platform**: User context (macOS/Windows/Linux)
+- **Token Storage**: Native secure storage + filesystem fallback
+- **Session Recovery**: Automatic restoration on restarts
+- **Background Refresh**: Intelligent token lifecycle
+- **Production Ready**: ~2,900 lines enterprise-grade code
 
-Frontend (Svelte):
-frontend/src/lib/stores/mode.ts → Mode detection store
-├─ fetchAll() → Loads mode, config, and service status
-├─ Derived stores: runtimeMode, isAdvancedMode, navigationSections
-└─ Auto-refresh every 30 seconds
+#### **Complete Features**:
+- Multi-level authentication (server/capability/tool)
+- Session persistence (STDIO & Remote MCP)
+- Enterprise security (storage, error handling, audit)
+- Cross-platform compatibility
+- Token management (refresh, rotation, Redis)
+- Device Code Flow (headless auth)
 
-Components:
-├─ ModeAwareLayout.svelte → Central mode integration
-├─ TopBar.svelte → Mode-aware user menu, notifications, search
-├─ Sidebar.svelte → Mode-aware navigation and status indicators
-└─ Progressive enhancement based on showAdvancedFeatures
-```
+### Version 0.3.10 - Multi-Mode Architecture ✅
 
-**UI Filtering Logic**:
-- **Navigation**: Items with `requires_advanced: true` hidden in proxy mode
-- **Status Indicators**: Security/Auth indicators hidden in proxy mode
-- **User Menu**: Security, Analytics, User Management links hidden in proxy mode
-- **Notifications**: Security and audit alerts filtered in proxy mode
-- **Search Results**: Advanced pages (security, LLM services) hidden in proxy mode
+#### **Architecture Complete**
+- **Config-Driven**: All behavior via config + environment variables
+- **Environment Integration**: RUNTIME_MODE, CONFIG_PATH, SMART_DISCOVERY
+- **Default Resolution**: Auto-detection of magictunnel-config.yaml
+- **Startup Logging**: Config resolution, validation, feature status
+- **Conditional Loading**: ProxyServices vs AdvancedServices
+- **Frontend Awareness**: Mode detection API, progressive enhancement
 
-## Recent Major Changes
+#### **Runtime Modes**
+- **Proxy (Default)**: Zero-config, minimal, fast startup
+- **Advanced**: Full-featured enterprise with security
+- **Priority**: Environment > config file
+- **Smart Loading**: Only required services per mode
 
-### Version 0.3.11 (Current) - Multi-Mode Architecture & Unified Status Banner System Complete ✅
-
-#### **🎨 Unified Status Banner System**
-- **Modern UI Design**: Replaced bulky proxy mode alerts with clean, minimal status bar system
-- **Dynamic Status Messages**: Real-time updates during restart/mode switch operations with color-coded types
-- **Space Efficient**: 60% reduction in visual space while maintaining clarity and impact
-- **Consistent Experience**: All status messages (proxy mode, restart, mode switch, errors) use unified design
-- **Responsive & Accessible**: Clean layout on all devices with proper dark mode support
-
-#### **📊 Dashboard Layout Enhancement** 
-- **System Management Repositioning**: Moved critical controls (restart, mode switch, health check) to top of dashboard
-- **Better Information Hierarchy**: Management actions now appear before status information for improved UX
-- **Unified Restart Behavior**: Both restart and mode switch operations now have identical clean page reload behavior
-
-#### **🔧 Status Message Examples**:
-```
-[●] Running in Proxy Mode • Core features only
-[●] Restarting System (15s remaining) • System restarting... Checking server readiness.
-[●] Mode Switch Complete • Successfully switched to advanced mode and system is online.
-[●] Restart Failed • Failed to restart system: Connection timeout
-```
-
-### Version 0.3.10 - Multi-Mode Architecture Implementation Complete ✅
-
-#### **🏗️ Multi-Mode Architecture Complete**
-- **Pure Config-Driven Architecture**: All behavior controlled via config file and environment variables
-- **Environment Variable Integration**: Complete MAGICTUNNEL_RUNTIME_MODE, CONFIG_PATH, and SMART_DISCOVERY support
-- **Default Config Resolution**: magictunnel-config.yaml auto-detection with built-in proxy defaults
-- **Comprehensive Startup Logging**: Config resolution, feature status, and validation logging with detailed output
-- **Configuration Validation System**: Mode-specific validators with helpful error messages for proxy and advanced modes
-- **Conditional Service Loading**: ProxyServices vs AdvancedServices based on runtime mode
-- **Frontend Mode Awareness**: Mode detection API with progressive enhancement for advanced features
-
-#### **🎯 Runtime Mode System**
-- **Proxy Mode (Default)**: Zero-config, minimal dependencies, fast startup for basic MCP proxy functionality
-- **Advanced Mode**: Full-featured, enterprise-ready with comprehensive management and security features
-- **Environment Override Priority**: Environment variables take precedence over config file settings
-- **Smart Service Loading**: Only loads required services based on runtime mode selection
-
-#### **⚙️ Configuration Examples**
+#### **Config Examples**
 ```bash
-# Environment variable override (highest priority)
-export MAGICTUNNEL_RUNTIME_MODE=advanced  # proxy | advanced
+export MAGICTUNNEL_RUNTIME_MODE=advanced
 export MAGICTUNNEL_CONFIG_PATH=./my-config.yaml
-export MAGICTUNNEL_SMART_DISCOVERY=true
 ./magictunnel
 ```
 
 ```yaml
-# magictunnel-config.yaml (new default config name)
 deployment:
-  runtime_mode: "proxy"  # "proxy" | "advanced"
-  
+  runtime_mode: "proxy"
 smart_discovery:
-  enabled: true  # Can be overridden by MAGICTUNNEL_SMART_DISCOVERY
+  enabled: true
 ```
 
-### Version 0.3.9 - Enterprise Security UI & Enhanced System Metrics Complete ✅
+### Version 0.3.9 - Enterprise Security UI & Metrics ✅
 
-#### **🎨 Enterprise Security UI Implementation Complete**
-- **Complete 5-Phase Security UI**: All enterprise security features now have professional web interfaces
-  - **Phase 1**: Security navigation integration and API layer ✅
-  - **Phase 2**: Tool allowlisting UI with rule management ✅
-  - **Phase 3**: RBAC management UI with role hierarchy ✅
-  - **Phase 4**: Audit logging UI with search and monitoring ✅
-  - **Phase 5**: Request sanitization UI with policy management ✅
-- **Security Management Pages**: Complete implementation in `/frontend/src/routes/security/`
-- **Enterprise-Grade Interface**: Professional UI components for allowlisting, RBAC, audit logging, and sanitization
+#### **Security UI Complete**
+- **5-Phase Implementation**: Navigation, allowlisting, RBAC, audit logging, sanitization
+- **Professional Interface**: Complete `/frontend/src/routes/security/`
+- **Enterprise Components**: Full management UI suite
 
-#### **📊 Enhanced System Metrics Implementation Complete**
-- **Process-Specific Monitoring**: Real-time tracking of MagicTunnel and supervisor processes
-  - **CPU Usage Tracking**: Individual process CPU percentage monitoring
-  - **Memory Usage Tracking**: Process-specific memory consumption in MB
-  - **Process Status**: Running/stopped status for each service process
-- **Backend API Enhancement**: Extended `/dashboard/api/metrics` endpoint with process data
-- **Frontend Integration**: Updated TopBar status dropdown and SystemMetricsCard components
-- **Synchronized Data**: Shared store ensures consistent metrics across all UI components
-- **Real System Detection**: Automatic system memory detection (32GB) replacing hardcoded values
+#### **Enhanced Metrics**
+- **Process Monitoring**: Real-time CPU/memory tracking
+- **Individual Processes**: MagicTunnel + supervisor status
+- **Backend Enhancement**: Extended `/dashboard/api/metrics`
+- **Frontend Integration**: TopBar + SystemMetricsCard sync
+- **Real Detection**: Automatic system memory (32GB)
 
-#### **🚀 Modern UI Layout System Complete**
-- **Professional Sidebar Navigation**: Collapsible navigation with 4 organized sections (Main, Security, MCP Services, Administration)
-- **Advanced TopBar**: Search functionality, notifications system, system status monitoring, user management
-- **Responsive Layout Container**: Mobile-friendly design with sidebar collapse and overlay support
-- **Intelligent Breadcrumbs**: Route-based navigation with icons and responsive design
-- **Enhanced HTML Template**: SEO optimization, accessibility features, cross-browser compatibility
-- **Dark Mode Support**: Complete theme system with persistence and smooth transitions
+#### **Modern UI System**
+- **Professional Navigation**: 4-section collapsible sidebar
+- **Advanced TopBar**: Search, notifications, status, user management
+- **Responsive Design**: Mobile-friendly with overlay
+- **Accessibility**: WCAG 2.1, keyboard navigation, screen readers
+- **Dark Mode**: Complete theme system
 
-#### **✨ Key Features Delivered**
-- **Real-time System Monitoring**: Live CPU, memory, and connection tracking with process-specific details
-- **Advanced Search System**: Intelligent page/tool search with live results
-- **Notification Management**: Security alerts with severity levels and mark-as-read functionality
-- **Mobile Responsive**: Touch-friendly interface with mobile menu overlay
-- **Accessibility Compliance**: WCAG 2.1 support, keyboard navigation, screen reader compatibility
-- **Component Architecture**: Event-driven communication with state management
-- **Production Ready**: Professional enterprise-grade UI framework
-- **Enhanced Metrics Display**: Both system totals and service-specific resource monitoring
+#### **Key Features**
+- Real-time monitoring, search system, notification management
+- Mobile responsive, accessibility compliance
+- Event-driven architecture, production ready
 
-### Version 0.3.8 - API Cleanup & MCP Architecture Fix Complete ✅
+### Version 0.3.8 - API Cleanup & Architecture Fix ✅
 
-#### **🧹 Sampling Dashboard API Cleanup**
-- **12 Unnecessary APIs Removed**: Cleaned up all `/dashboard/api/sampling/*` endpoints that were not required for true MCP protocol-level sampling
-- **API Methods Removed**: `get_sampling_status`, `generate_sampling_request`, `list_sampling_tools`, and 8 service management methods
-- **Helper Methods Cleaned**: Removed `get_tools_with_sampling`, `tool_has_sampling_enhancement`, `get_tool_sampling_enhancement`
-- **Struct Types Removed**: Cleaned up 10+ sampling-related request/response struct types
-- **Route Registrations Removed**: Cleaned up all sampling API route registrations
-- **Documentation Updated**: Updated `docs/automatic-llm-generation-workflow.md` and `docs/llm-workflow.md` to reflect API changes
+#### **API Cleanup**
+- **12 APIs Removed**: Cleaned `/dashboard/api/sampling/*` endpoints
+- **Methods Cleaned**: Removed status, request generation, tool listing
+- **Structs Removed**: 10+ sampling request/response types
+- **Documentation Updated**: Workflow docs updated
 
-#### **🏗️ MCP 2025-06-18 Architecture Fix**
-- **Incorrect Server Handlers Removed**: Removed `sampling/createMessage` and `elicitation/create` handlers from `server.rs`
-- **Client Architecture Verified**: Confirmed clients (stdio, WebSocket, StreamableHTTP) correctly handle these methods
-- **Proper Flow Established**: External MCP servers → Client handles createMessage → Forward via internal methods → Server routing
-- **RequestForwarder Architecture**: Verified proper internal forwarding via `forward_sampling_request()` and `forward_elicitation_request()`
+#### **MCP Architecture Fix**
+- **Server Handlers Removed**: Incorrect `sampling/createMessage` and `elicitation/create`
+- **Client Architecture**: Verified proper stdio/WebSocket/StreamableHTTP handling
+- **Flow Established**: External MCP → Client → Internal forwarding → Server
+- **RequestForwarder**: Proper internal routing verified
 
-#### **🔧 Tool Enhancement Pipeline Fix**
-- **Method Renaming**: Renamed `should_use_local_elicitation()` to `should_use_tool_enhancement()` in `src/discovery/enhancement.rs`
-- **Logic Fix**: Removed smart discovery dependency - tool enhancement now runs on all enabled tools
-- **External Tool Protection**: Simplified external tool logic with proper enabled tool checking
-- **Architecture Clarification**: Clear separation between tool enhancement and MCP elicitation services
+#### **Enhancement Pipeline**
+- **Method Renamed**: `should_use_local_elicitation()` → `should_use_tool_enhancement()`
+- **Logic Fixed**: Removed smart discovery dependency
+- **External Protection**: Simplified tool logic
+- **Clear Separation**: Tool enhancement vs MCP elicitation services
 
-#### **🚀 Future Enhancement Planning**
-- **LLM-Assisted Sampling**: Added comprehensive TODO comments for MagicTunnel-initiated sampling requests
-- **Advanced Elicitation**: Added TODO comments for context-aware elicitation beyond parameter validation
-- **Proxy-Only Strategy**: Current implementation focuses on proxy functionality with intelligent enhancement planned
-- **Documentation Updates**: Updated sampling and elicitation documentation with future enhancement roadmap
+#### **Future Planning**
+- LLM-assisted sampling, advanced elicitation
+- Proxy-focused strategy with intelligent enhancement
 
-### Version 0.3.2 - Advanced MCP Platform with LLM Integration ✅
+### Version 0.3.2 - Advanced MCP Platform ✅
 
-#### **🚀 MCP 2025-06-18 Specification Compliance (Backend Complete)**
-- **Full MCP 2025-06-18 Implementation**: Complete backend implementation of latest MCP spec with MCP sampling and elicitation services
-- **OAuth 2.1 Framework**: Backend authentication implementation with PKCE and Resource Indicators (RFC 8707)
-- **Dual Transport Support**: HTTP+SSE (deprecated) and Streamable HTTP (preferred) with graceful migration
-- **Enhanced Security Model**: Backend MCP-specific consent flows and capability validation
-- **Streamable HTTP Transport**: NDJSON streaming, enhanced batching, and session management
-- **Backward Compatibility**: Maintained HTTP+SSE support at `/mcp/stream` with deprecation guidance
+#### **MCP 2025-06-18 Backend Complete**
+- **Full Implementation**: Latest MCP spec with sampling/elicitation
+- **OAuth 2.1**: Backend auth with PKCE and Resource Indicators
+- **Transport**: HTTP+SSE (deprecated), Streamable HTTP (preferred)
+- **Security**: MCP consent flows, capability validation
+- **Streaming**: NDJSON, batching, session management
 
-#### **🤖 Automatic LLM Generation Workflow (Backend Complete)**
-- **Sampling Service**: AI-powered tool description enhancement with OpenAI/Anthropic/Ollama support
-- **Elicitation Service**: Automatic metadata extraction and parameter validation using structured LLM analysis
-- **Enhancement Pipeline**: Coordinated sampling + elicitation with parallel processing and error handling
-- **LLM Management CLI**: Unified `magictunnel-llm` tool for all LLM service management with external MCP protection
-- **External MCP Protection**: Automatic detection and protection of external MCP server content with warnings
-- **Performance Optimization**: Multi-level caching, rate limiting, and asynchronous processing for enterprise scale
+#### **LLM Generation Workflow**
+- **Services**: AI-powered enhancement (OpenAI/Anthropic/Ollama)
+- **Pipeline**: Coordinated sampling + elicitation
+- **CLI**: `magictunnel-llm` management tool
+- **Protection**: External MCP content detection
+- **Performance**: Multi-level caching, rate limiting
 
-#### **🎨 LLM Backend Management APIs (Complete)**
-- **Resource Management APIs**: 7 comprehensive REST endpoints for resource browsing, reading, validation, and statistics
-- **Enhancement Pipeline APIs**: 9 complete endpoints for tool enhancement management, job tracking, and cache control
-- **Prompt Management APIs**: Complete backend implementation with full CRUD operations
-- **Sampling Service APIs**: Full management interface for AI-powered tool enhancement with provider health monitoring
-- **Elicitation Service APIs**: Complete metadata extraction and validation management with batch processing
-- **Provider Management APIs**: LLM provider configuration, testing, and health monitoring across OpenAI/Anthropic/Ollama
-- **Statistics and Analytics**: Comprehensive analytics for resource types, provider health, and enhancement metrics
-- **Batch Processing Support**: Enhanced batch operations for tool enhancement and resource management
+#### **Backend APIs Complete**
+- **25+ Endpoints**: Resource, enhancement, prompt, sampling, elicitation
+- **Provider Management**: Config, testing, health monitoring
+- **Analytics**: Comprehensive metrics and statistics
+- **Batch Processing**: Enhanced operations
 
-#### **🔒 Security Features (Backend Complete, UI In Progress)**
-- **Security CLI**: `magictunnel-security` tool for policy management and security validation
-- **Authentication Framework**: Backend OAuth 2.1 implementation and API key support
-- **Configuration Security**: Granular security policy configuration support
-- **Audit Framework**: Backend audit logging infrastructure
-- ⚠️ **UI Pending**: Web-based security management interface and visual policy builder in development
+#### **Security & Tools**
+- **Security CLI**: `magictunnel-security` policy management
+- **Auth Framework**: OAuth 2.1, API keys, audit logging
+- **CLI Suite**: Enterprise management tools
+- **OpenAPI 3.1**: Custom GPT support
+- **Claude Desktop**: Fixed compatibility issues
 
-#### **🎨 Frontend and UI (Partial Implementation)**
-- **Basic Dashboard**: Existing web dashboard with tool management
-- **Accessibility Planning**: WCAG 2.1 AA compliance requirements documented in TODO.md
-- ⚠️ **LLM UI Pending**: Frontend for sampling, elicitation, and enhancement management needs implementation
-- ⚠️ **Security UI Pending**: Visual policy builder and security management UI in development
-- ⚠️ **Enterprise UI Pending**: Advanced enterprise management interfaces planned
+### Version 0.3.6 - Modern Architecture Migration ✅
+- **Legacy Client Removal**: Migrated from monolithic `client.rs` to modular `clients/`
+- **Modern Architecture**: 4 specialized implementations (HTTP, WebSocket, SSE, StreamableHTTP)
+- **Test Migration**: Configuration validation replacing routing calls
+- **Code Reduction**: Removed ~2,700 lines deprecated code
+- **Production Ready**: Clean compilation, MCP 2025-06-18 compliance
 
-#### **⚙️ Enhanced Configuration System (Complete)**
-- **YAML Format Evolution**: Enhanced capability file format with metadata support and versioning
-- **Service Configuration**: Comprehensive LLM provider and enhancement settings with validation
-- **Security Configuration**: Backend security policy and configuration management
-- **Performance Tuning**: Caching, batching, and optimization settings for enterprise deployments
-- **Environment Management**: Advanced environment variable and deployment configuration support
+### Version 0.3.4 - Test Infrastructure ✅
+- **Complete Test Coverage**: 60+ functions across 6 suites
+- **API Testing**: Elicitation, sampling, resource, prompt, discovery, integration
+- **Enterprise Framework**: Realistic environments, comprehensive validation
+- **Quality Assurance**: Production deployment ready
 
-#### **🛠️ Developer and Operations Tools (Backend Complete)**
-- **Advanced CLI Tools**: Complete suite including `magictunnel-llm` and `magictunnel-security` for enterprise management
-- **OpenAPI 3.1 Integration**: Complete Custom GPT support and API generation for seamless integrations
-- **Enhanced Documentation**: Comprehensive documentation including automatic LLM generation workflow guide
-- **Claude Desktop Compatibility**: Fixed Claude not working issues with full MCP compliance
-- **Sequential Mode**: Enhanced sequential mode functionality
-
-### Version 0.3.6 (Current) - Legacy Client Removal & Modern Architecture Migration Complete ✅
-- **Complete Legacy Client Migration**: Successfully migrated from deprecated monolithic `client.rs` to modern modular `clients/` architecture
-  - **Modern Client Architecture**: 4 specialized client implementations (HTTP, WebSocket, SSE, StreamableHTTP)
-  - **Test Migration Complete**: All 4 test files migrated from legacy client to configuration validation
-  - **Legacy Code Removal**: Removed ~2,700 lines of deprecated client.rs code
-  - **Clean Architecture**: Only modern, specialized clients remain with MCP 2025-06-18 compliance
-  - **Configuration-Based Testing**: Replaced routing calls with data structure and configuration validation
-- **Migration Benefits**: Reduced codebase size, eliminated deprecation warnings, better maintainability
-- **Production Readiness**: Clean compilation, all tests passing, modern architecture operational
-
-### Version 0.3.4 - Configuration Documentation and Test Infrastructure ✅
-- **Complete LLM Backend APIs Test Coverage**: 60+ test functions across 6 test suites
-  - **Elicitation Service API Tests**: 10 comprehensive test functions covering metadata extraction and batch processing
-  - **Sampling Service API Tests**: 12 comprehensive test functions covering tool enhancement and content generation
-  - **Enhanced Resource Management API Tests**: 12 detailed test functions with filtering, pagination, and content reading
-  - **Enhanced Prompt Management API Tests**: 14 comprehensive test functions covering CRUD operations and template management
-  - **Enhanced Ranking and Discovery Tests**: 12 advanced test functions for updated ranking algorithms with LLM integration
-  - **LLM Backend APIs Integration Tests**: 5 comprehensive integration test functions across all services
-- **Test Infrastructure**: Complete API testing framework with realistic environments and comprehensive validation
-- **Quality Assurance**: Enterprise-grade test coverage for production deployment
-
-### Version 0.2.x (Previous Releases)
-- **Smart Tool Discovery Complete**: Hybrid AI intelligence system
-- **Visibility Management System**: Complete implementation with CLI tool
-- **Semantic Search**: Embedding-based tool matching
-- **Ultimate Smart Discovery Mode**: All 83 tools hidden by default
-- **Parameter substitution**: Array indexing support (`{hosts[0]}`)
-- **LLM API integration**: OpenAI, Anthropic, Ollama support
-- **Batch processing**: Handle large tool catalogs efficiently
-- **Enhanced keyword matching**: Better networking tool recognition
+### Version 0.2.x - Foundation
+- **Smart Discovery**: Hybrid AI intelligence
+- **Visibility Management**: CLI tool, 83 tools hidden by default
+- **Semantic Search**: Embedding-based matching
+- **Parameter Substitution**: Array indexing (`{hosts[0]}`)
+- **LLM Integration**: OpenAI/Anthropic/Ollama
+- **Batch Processing**: Large catalog handling
 
 ### Migration Notes
-- **Legacy Client Removal (v0.3.6)**: Deprecated monolithic `client.rs` removed in favor of modern modular `clients/` architecture
-- External MCP integration replaced remote/local MCP modules
-- Smart discovery replaces individual tool exposure
-- Configuration moved from separate files to unified config structure
-- All tools now hidden by default with smart discovery interface
-- Visibility management available through CLI tool
+- **v0.3.6**: Legacy `client.rs` → modern modular `clients/`
+- External MCP integration replaced remote/local modules
+- Smart discovery replaced individual tool exposure
+- Unified config structure
+- All tools hidden by default with smart discovery
+- CLI visibility management
 
 ## Common Issues
 
-### Build Issues
-- Ensure Rust 1.70+ is installed
-- Check that all dependencies are available
-- Use `cargo clean` if encountering cache issues
+### Build
+- Rust 1.70+, check dependencies, `cargo clean` for cache issues
 
-### Runtime Issues
-- **Smart discovery low confidence**: Check hybrid AI matching in `src/discovery/service.rs`
-- **Semantic search not working**: Verify OpenAI API key and embedding generation
-- **Parameter substitution errors**: Verify array indexing syntax in substitution.rs
-- **External MCP not starting**: Check file permissions and working directory
-- **Tool visibility issues**: Use `magictunnel-visibility` CLI to check/modify tool visibility
-- **Transport compatibility**: Use `/mcp/streamable` (preferred) or `/mcp/stream` (deprecated) endpoints
+### Runtime
+- **Low confidence**: Check hybrid AI in `src/discovery/service.rs`
+- **Semantic search**: Verify OpenAI API key, embedding generation
+- **Parameter errors**: Check array syntax in substitution.rs
+- **External MCP**: File permissions, working directory
+- **Visibility**: Use `magictunnel-visibility` CLI
+- **Transport**: Use `/mcp/streamable` (preferred) or `/mcp/stream` (deprecated)
 
-### Git Issues
-- Binary `magictunnel` is in `.gitignore` but may be tracked - use `git rm --cached magictunnel`
+### Git
+- Binary tracked: `git rm --cached magictunnel`
 
 ## Testing
 
 ```bash
-# Run all tests
-cargo test
-
-# Run specific test module
-cargo test discovery
-
-# Run integration tests
-cargo test --test integration
-
-# Test smart discovery specifically
-cargo test smart_discovery
-
-# Test visibility management
-cargo test visibility
-
-# Test semantic search
-cargo test semantic
+cargo test                          # All tests
+cargo test discovery                # Specific module
+cargo test --test integration       # Integration tests
+cargo test smart_discovery          # Smart discovery
+cargo test visibility               # Visibility management
+cargo test semantic                 # Semantic search
 ```
 
 ## CLI Tools
 
-MagicTunnel includes several powerful CLI tools for comprehensive system management:
-
-### 1. Main Server (`magictunnel`)
+### 1. Main Server
 ```bash
-# Start the main MCP server
-cargo run --bin magictunnel -- --config config.yaml
-
-# Start with stdio mode for Claude Desktop
-cargo run --bin magictunnel -- --stdio --config config.yaml
+cargo run --bin magictunnel -- --config config.yaml      # MCP server
+cargo run --bin magictunnel -- --stdio --config config.yaml  # Claude Desktop
 ```
 
-### 2. LLM Management (`magictunnel-llm`) 🆕
+### 2. LLM Management 🆕
 ```bash
-# Complete health check for all LLM services
-cargo run --bin magictunnel-llm -- bulk health-check
-
-# Generate enhanced descriptions
-cargo run --bin magictunnel-llm -- sampling generate --tool example_tool
-
-# Extract metadata and validation rules
-cargo run --bin magictunnel-llm -- elicitation generate --tool example_tool
-
-# Full enhancement pipeline
-cargo run --bin magictunnel-llm -- enhancements regenerate --batch-size 5
-
-# Generate prompts and resources
-cargo run --bin magictunnel-llm -- prompts generate --tool example_tool
-cargo run --bin magictunnel-llm -- resources generate --tool example_tool
-
-# Provider management
-cargo run --bin magictunnel-llm -- providers test --all
+cargo run --bin magictunnel-llm -- bulk health-check                    # Health check
+cargo run --bin magictunnel-llm -- sampling generate --tool example_tool # Enhanced descriptions
+cargo run --bin magictunnel-llm -- elicitation generate --tool example_tool # Metadata extraction
+cargo run --bin magictunnel-llm -- enhancements regenerate --batch-size 5   # Full pipeline
+cargo run --bin magictunnel-llm -- prompts generate --tool example_tool     # Prompt generation
+cargo run --bin magictunnel-llm -- providers test --all                     # Provider testing
 ```
 
-### 3. Security Management (`magictunnel-security`) 🆕
+### 3. Security Management 🆕
 ```bash
-# Security policy management
-cargo run --bin magictunnel-security -- policies list
-cargo run --bin magictunnel-security -- policies validate
-
-# Allowlist management
-cargo run --bin magictunnel-security -- allowlist add-tool tool_name
-cargo run --bin magictunnel-security -- allowlist status
+cargo run --bin magictunnel-security -- policies list                    # Policy management
+cargo run --bin magictunnel-security -- allowlist add-tool tool_name     # Allowlist management
 ```
 
-### 4. Visibility Management (`magictunnel-visibility`)
+### 4. Visibility Management
 ```bash
-# Check tool visibility status
-cargo run --bin magictunnel-visibility -- -c config.yaml status
-
-# Manage individual tools
-cargo run --bin magictunnel-visibility -- -c config.yaml hide-tool tool_name
-cargo run --bin magictunnel-visibility -- -c config.yaml show-tool tool_name
-
-# Manage entire files
-cargo run --bin magictunnel-visibility -- -c config.yaml hide-file capabilities/file.yaml
-cargo run --bin magictunnel-visibility -- -c config.yaml show-file capabilities/file.yaml
-
-# Global management
-cargo run --bin magictunnel-visibility -- -c config.yaml hide-all
-cargo run --bin magictunnel-visibility -- -c config.yaml show-all
+cargo run --bin magictunnel-visibility -- -c config.yaml status          # Status
+cargo run --bin magictunnel-visibility -- -c config.yaml hide-tool tool_name  # Individual tools
+cargo run --bin magictunnel-visibility -- -c config.yaml hide-file file.yaml  # Entire files
+cargo run --bin magictunnel-visibility -- -c config.yaml hide-all/show-all    # Global
 ```
 
 ## Environment Variables
 
 ```bash
-# Runtime Mode Control (v0.3.10)
-export MAGICTUNNEL_RUNTIME_MODE=advanced    # proxy | advanced
-export MAGICTUNNEL_CONFIG_PATH=./config.yaml # Custom config file path
-export MAGICTUNNEL_SMART_DISCOVERY=true     # Enable/disable smart discovery
-
-# Enable debug logging
+# Runtime control
+export MAGICTUNNEL_RUNTIME_MODE=advanced     # proxy | advanced
+export MAGICTUNNEL_CONFIG_PATH=./config.yaml
+export MAGICTUNNEL_SMART_DISCOVERY=true
 export RUST_LOG=debug
 
-# LLM API keys (for smart discovery)
+# LLM providers
 export OPENAI_API_KEY=your_key
 export ANTHROPIC_API_KEY=your_key
 export OLLAMA_BASE_URL=http://localhost:11434
 
-# Semantic search configuration
+# Semantic search
 export MAGICTUNNEL_SEMANTIC_ENABLED=true
 export MAGICTUNNEL_EMBEDDING_MODEL=text-embedding-3-small
 ```
 
 ## Current Status
 
-### Implementation Status
-- **Total Tools**: 83 across 15 capability files
-- **Visible Tools**: 0 (complete Smart Tool Discovery mode)
-- **Hidden Tools**: 83 (all available through discovery)
-- **Smart Discovery**: Hybrid AI intelligence with semantic search
-- **CLI Management**: Full visibility control with real-time status
+### Implementation
+- **Tools**: 83 across 15 files (0 visible, all via discovery)
+- **Smart Discovery**: Hybrid AI with semantic search
+- **CLI Management**: Full visibility control
 
-### Implementation Status Overview
+### Backend Services ✅
+- ✅ **MCP 2025-06-18**: Full spec with sampling/elicitation
+- ✅ **Bidirectional Communication**: Complete routing (6 ProcessingStrategy variants)
+- ✅ **LLM Generation**: AI-powered enhancement (multi-provider)
+- ✅ **Management APIs**: 25+ REST endpoints
+- ✅ **Security Framework**: Auth, policies, audit logging
+- ✅ **Smart Discovery**: Hybrid AI + MCP enhanced metadata
+- ✅ **Configuration**: Enhanced YAML format
+- ✅ **External Protection**: Automatic detection/preservation
+- ✅ **Performance**: Multi-level caching, async processing
+- ✅ **CLI Tools**: Complete suite (llm, security, visibility)
 
-#### **Backend Services Complete ✅**
-- ✅ **MCP 2025-06-18 Backend**: Full specification implementation with MCP sampling and elicitation services
-- ✅ **MCP Client Bidirectional Communication**: Complete routing implementation with all 6 ProcessingStrategy variants
-- ✅ **Automatic LLM Generation**: AI-powered tool enhancement with multi-provider support (backend complete)
-- ✅ **LLM Backend Management APIs**: Complete REST API implementation for all LLM services (25+ endpoints)
-- ✅ **Security Framework**: Backend authentication, policy framework, and audit logging
-- ✅ **Smart Tool Discovery**: Hybrid AI intelligence with MCP 2025-06-18 enhanced metadata integration
-- ✅ **Advanced Configuration**: Enhanced YAML format with comprehensive settings
-- ✅ **External MCP Protection**: Automatic detection and content preservation
-- ✅ **Performance Optimization**: Multi-level caching and asynchronous processing
-- ✅ **CLI Tools**: Complete suite including `magictunnel-llm` and `magictunnel-security`
-- ✅ **Visibility Management**: Complete implementation with real-time control
+### UI & Enterprise Features
+- ✅ **Security UI**: Complete professional interface
+- ✅ **Modern Layout**: Sidebar navigation, topbar, responsive
+- ✅ **Accessibility**: WCAG 2.1, keyboard navigation, screen readers
+- ⚠️ **LLM Services UI**: Frontend for enhancement management (planned)
+- ⚠️ **Advanced Dashboards**: Enterprise interfaces (planned)
+- ⚠️ **Review Workflows**: Content approval interfaces (planned)
 
-#### **UI and Enterprise Features Status** 
-- ✅ **Enterprise Security UI**: Complete implementation with professional interface for all security features
-- ✅ **Modern Layout System**: Professional sidebar navigation, advanced topbar, responsive design
-- ✅ **Accessibility Framework**: WCAG 2.1 support with keyboard navigation and screen reader compatibility
-- ⚠️ **LLM Services UI**: Frontend for sampling, elicitation, and enhancement management (planned)
-- ⚠️ **Advanced Dashboards**: Additional enterprise management interfaces (planned)
-- ⚠️ **Review Workflows**: Content approval and review interfaces for LLM-generated content (planned)
+## Status Summary
 
-## Current Status Summary
+### **Advanced MCP Platform**
+Sophisticated MCP platform with:
+- **MCP 2025-06-18 compliance** with modern protocol features
+- **LLM generation workflow** for intelligent tool enhancement
+- **25+ REST endpoints** for comprehensive API management
+- **Security framework** with auth, policies, audit logging
+- **Advanced CLI tooling** for system management
+- **Enhanced configuration** supporting complex deployments
+- **Smart discovery** with enhanced metadata integration
 
-### **🎯 Advanced MCP Platform with Complete Backend APIs**
-MagicTunnel has evolved into a sophisticated MCP platform with:
-- **Complete MCP 2025-06-18 backend compliance** with modern protocol features and services
-- **Automatic LLM generation workflow** backend implementation for intelligent tool enhancement
-- **Comprehensive LLM Backend Management APIs** with 25+ REST endpoints for all LLM services
-- **Security framework** including authentication, policy management, and audit logging
-- **Advanced CLI tooling** for comprehensive system management
-- **Enhanced configuration system** supporting complex deployments
-- **Smart tool discovery** with MCP 2025-06-18 enhanced metadata integration
+### **Development Roadmap**
+1. **UI Development**: LLM services, security management frontends
+2. **Enterprise Features**: Visual builders, approval workflows, dashboards
+3. **Accessibility**: WCAG 2.1 AA compliance
+4. **Integration Testing**: End-to-end MCP 2025-06-18 testing
 
-### **🚧 Development Roadmap**
-Current development priorities:
-1. **UI Development**: Frontend interfaces for LLM services, security management, and enterprise features
-2. **Enterprise Features**: Visual policy builders, content approval workflows, and advanced dashboards
-3. **Accessibility Implementation**: WCAG 2.1 AA compliance across all UI components
-4. **Integration Testing**: End-to-end testing of MCP 2025-06-18 features
+### **Migration Path**
+1. **Config Migration**: Enhanced YAML with backward compatibility
+2. **Service Integration**: Optional LLM with fallback
+3. **CLI Access**: Enhanced management capabilities
+4. **Progressive Enhancement**: Backend ready, UI following
 
-### **🔄 Migration and Upgrade Path**
-For existing installations:
-1. **Configuration Migration**: Enhanced YAML format with backward compatibility
-2. **Service Integration**: Optional LLM services with fallback to original descriptions
-3. **CLI Access**: New management capabilities available through enhanced CLI tools
-4. **Progressive Enhancement**: Backend features available immediately, UI features following
+### **Performance**
+- **83+ tools** with smart discovery
+- **Sub-second responses** with multi-level caching
+- **Enterprise features** without performance impact
+- **Horizontal scaling** with distributed caching
 
-### **📊 Performance and Scale**
-- **83+ tools** managed with smart discovery
-- **Sub-second response times** with multi-level caching
-- **Backend enterprise features** without performance impact
-- **Horizontal scaling** with distributed caching support
-
-This guide covers the MagicTunnel platform as currently implemented. The combination of Smart Tool Discovery, Automatic LLM Enhancement Backend, Security Framework, and Advanced CLI Tools provides a powerful foundation for MCP-based workflows, with comprehensive UI features planned for future releases.
+Powerful foundation for MCP workflows with Smart Discovery, LLM Enhancement, Security Framework, and Advanced CLI Tools.

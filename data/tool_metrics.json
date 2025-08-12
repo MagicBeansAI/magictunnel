@@ -1,47 +1,61 @@
 {
   "tool_metrics": {
-    "ping_globalping": {
-      "tool_name": "ping_globalping",
-      "category": "unknown",
-      "last_updated": "2025-07-30T07:35:12.135911Z",
-      "total_executions": 1,
-      "successful_executions": 1,
-      "failed_executions": 0,
+    "test_file_tool": {
+      "tool_name": "test_file_tool",
+      "category": "filesystem",
+      "last_updated": "2025-08-11T12:07:55.224710Z",
+      "total_executions": 8,
+      "successful_executions": 6,
+      "failed_executions": 2,
       "timeout_count": 0,
-      "success_rate": 1.0,
-      "avg_execution_time_ms": 60001.0,
-      "median_execution_time_ms": 60001.0,
-      "p95_execution_time_ms": 60001.0,
+      "success_rate": 0.75,
+      "avg_execution_time_ms": 1175.0,
+      "median_execution_time_ms": 1175.0,
+      "p95_execution_time_ms": 1350.0,
       "recent_execution_times": [
-        60001
+        1000,
+        1050,
+        1100,
+        1150,
+        1200,
+        1250,
+        1300,
+        1350
       ],
-      "top_30_appearances": 3,
-      "top_10_appearances": 3,
-      "top_3_appearances": 3,
-      "avg_confidence_score": 0.3505784025267949,
-      "avg_discovery_position": 1.6666666666666667,
+      "top_30_appearances": 8,
+      "top_10_appearances": 8,
+      "top_3_appearances": 6,
+      "avg_confidence_score": 0.73,
+      "avg_discovery_position": 2.875,
       "recent_confidence_scores": [
-        0.8393542551994324,
-        0.1061904761904762,
-        0.1061904761904762
+        0.8,
+        0.78,
+        0.76,
+        0.74,
+        0.7200000000000001,
+        0.7000000000000001,
+        0.68,
+        0.66
       ],
-      "primary_execution_source": "smart_discovery",
+      "primary_execution_source": "direct",
       "execution_sources": {
-        "smart_discovery": 1
+        "direct": 8
       },
-      "error_types": {},
+      "error_types": {
+        "FileNotFound": 2
+      },
       "usage_by_hour": {
-        "7": 1
+        "12": 8
       },
       "usage_by_day": {
-        "3": 1
+        "1": 8
       },
-      "first_execution": "2025-07-30T07:34:12.134872Z",
-      "last_execution": "2025-07-30T07:34:12.134872Z",
-      "last_successful_execution": "2025-07-30T07:34:12.134872Z",
-      "avg_output_size": 0.0,
+      "first_execution": "2025-08-11T12:07:55.211561Z",
+      "last_execution": "2025-08-11T12:07:55.224707Z",
+      "last_successful_execution": "2025-08-11T12:07:55.220902Z",
+      "avg_output_size": 1024.0,
       "output_types": {
-        "json": 1
+        "text": 6
       }
     },
     "ping_tool": {
@@ -146,100 +160,6 @@
         "json": 28
       }
     },
-    "calc_tool": {
-      "tool_name": "calc_tool",
-      "category": "utilities",
-      "last_updated": "2025-07-30T07:51:40.441878Z",
-      "total_executions": 6,
-      "successful_executions": 6,
-      "failed_executions": 0,
-      "timeout_count": 0,
-      "success_rate": 1.0,
-      "avg_execution_time_ms": 55.0,
-      "median_execution_time_ms": 55.0,
-      "p95_execution_time_ms": 60.0,
-      "recent_execution_times": [
-        50,
-        55,
-        60,
-        50,
-        55,
-        60
-      ],
-      "top_30_appearances": 6,
-      "top_10_appearances": 6,
-      "top_3_appearances": 0,
-      "avg_confidence_score": 0.75,
-      "avg_discovery_position": 6.0,
-      "recent_confidence_scores": [
-        0.7,
-        0.75,
-        0.7999999999999999,
-        0.7,
-        0.75,
-        0.7999999999999999
-      ],
-      "primary_execution_source": "api",
-      "execution_sources": {
-        "api": 6
-      },
-      "error_types": {},
-      "usage_by_hour": {
-        "7": 6
-      },
-      "usage_by_day": {
-        "3": 6
-      },
-      "first_execution": "2025-07-30T07:51:40.355855Z",
-      "last_execution": "2025-07-30T07:51:40.441872Z",
-      "last_successful_execution": "2025-07-30T07:51:40.441872Z",
-      "avg_output_size": 64.0,
-      "output_types": {
-        "json": 6
-      }
-    },
-    "so_today_visit_performance": {
-      "tool_name": "so_today_visit_performance",
-      "category": "unknown",
-      "last_updated": "2025-07-31T05:48:48.800904Z",
-      "total_executions": 1,
-      "successful_executions": 1,
-      "failed_executions": 0,
-      "timeout_count": 0,
-      "success_rate": 1.0,
-      "avg_execution_time_ms": 8263.0,
-      "median_execution_time_ms": 8263.0,
-      "p95_execution_time_ms": 8263.0,
-      "recent_execution_times": [
-        8263
-      ],
-      "top_30_appearances": 1,
-      "top_10_appearances": 1,
-      "top_3_appearances": 1,
-      "avg_confidence_score": 0.27464618682861325,
-      "avg_discovery_position": 1.0,
-      "recent_confidence_scores": [
-        0.27464618682861325
-      ],
-      "primary_execution_source": "smart_discovery",
-      "execution_sources": {
-        "smart_discovery": 1
-      },
-      "error_types": {},
-      "usage_by_hour": {
-        "5": 1
-      },
-      "usage_by_day": {
-        "4": 1
-      },
-      "first_execution": "2025-07-31T05:48:40.537310Z",
-      "last_execution": "2025-07-31T05:48:40.537310Z",
-      "last_successful_execution": "2025-07-31T05:48:40.537310Z",
-      "avg_output_size": 34701.0,
-      "output_types": {
-        "json": 1
-      }
-    },
     "file_tool": {
       "tool_name": "file_tool",
       "category": "filesystem",
@@ -312,6 +232,262 @@
       "avg_output_size": 1024.0,
       "output_types": {
         "text": 12
+      }
+    },
+    "calc_tool": {
+      "tool_name": "calc_tool",
+      "category": "utilities",
+      "last_updated": "2025-07-30T07:51:40.441878Z",
+      "total_executions": 6,
+      "successful_executions": 6,
+      "failed_executions": 0,
+      "timeout_count": 0,
+      "success_rate": 1.0,
+      "avg_execution_time_ms": 55.0,
+      "median_execution_time_ms": 55.0,
+      "p95_execution_time_ms": 60.0,
+      "recent_execution_times": [
+        50,
+        55,
+        60,
+        50,
+        55,
+        60
+      ],
+      "top_30_appearances": 6,
+      "top_10_appearances": 6,
+      "top_3_appearances": 0,
+      "avg_confidence_score": 0.75,
+      "avg_discovery_position": 6.0,
+      "recent_confidence_scores": [
+        0.7,
+        0.75,
+        0.7999999999999999,
+        0.7,
+        0.75,
+        0.7999999999999999
+      ],
+      "primary_execution_source": "api",
+      "execution_sources": {
+        "api": 6
+      },
+      "error_types": {},
+      "usage_by_hour": {
+        "7": 6
+      },
+      "usage_by_day": {
+        "3": 6
+      },
+      "first_execution": "2025-07-30T07:51:40.355855Z",
+      "last_execution": "2025-07-30T07:51:40.441872Z",
+      "last_successful_execution": "2025-07-30T07:51:40.441872Z",
+      "avg_output_size": 64.0,
+      "output_types": {
+        "json": 6
+      }
+    },
+    "ping_globalping": {
+      "tool_name": "ping_globalping",
+      "category": "unknown",
+      "last_updated": "2025-07-30T07:35:12.135911Z",
+      "total_executions": 1,
+      "successful_executions": 1,
+      "failed_executions": 0,
+      "timeout_count": 0,
+      "success_rate": 1.0,
+      "avg_execution_time_ms": 60001.0,
+      "median_execution_time_ms": 60001.0,
+      "p95_execution_time_ms": 60001.0,
+      "recent_execution_times": [
+        60001
+      ],
+      "top_30_appearances": 3,
+      "top_10_appearances": 3,
+      "top_3_appearances": 3,
+      "avg_confidence_score": 0.3505784025267949,
+      "avg_discovery_position": 1.6666666666666667,
+      "recent_confidence_scores": [
+        0.8393542551994324,
+        0.1061904761904762,
+        0.1061904761904762
+      ],
+      "primary_execution_source": "smart_discovery",
+      "execution_sources": {
+        "smart_discovery": 1
+      },
+      "error_types": {},
+      "usage_by_hour": {
+        "7": 1
+      },
+      "usage_by_day": {
+        "3": 1
+      },
+      "first_execution": "2025-07-30T07:34:12.134872Z",
+      "last_execution": "2025-07-30T07:34:12.134872Z",
+      "last_successful_execution": "2025-07-30T07:34:12.134872Z",
+      "avg_output_size": 0.0,
+      "output_types": {
+        "json": 1
+      }
+    },
+    "so_today_visit_performance": {
+      "tool_name": "so_today_visit_performance",
+      "category": "unknown",
+      "last_updated": "2025-07-31T05:48:48.800904Z",
+      "total_executions": 1,
+      "successful_executions": 1,
+      "failed_executions": 0,
+      "timeout_count": 0,
+      "success_rate": 1.0,
+      "avg_execution_time_ms": 8263.0,
+      "median_execution_time_ms": 8263.0,
+      "p95_execution_time_ms": 8263.0,
+      "recent_execution_times": [
+        8263
+      ],
+      "top_30_appearances": 1,
+      "top_10_appearances": 1,
+      "top_3_appearances": 1,
+      "avg_confidence_score": 0.27464618682861325,
+      "avg_discovery_position": 1.0,
+      "recent_confidence_scores": [
+        0.27464618682861325
+      ],
+      "primary_execution_source": "smart_discovery",
+      "execution_sources": {
+        "smart_discovery": 1
+      },
+      "error_types": {},
+      "usage_by_hour": {
+        "5": 1
+      },
+      "usage_by_day": {
+        "4": 1
+      },
+      "first_execution": "2025-07-31T05:48:40.537310Z",
+      "last_execution": "2025-07-31T05:48:40.537310Z",
+      "last_successful_execution": "2025-07-31T05:48:40.537310Z",
+      "avg_output_size": 34701.0,
+      "output_types": {
+        "json": 1
+      }
+    },
+    "test_calc_tool": {
+      "tool_name": "test_calc_tool",
+      "category": "utilities",
+      "last_updated": "2025-08-11T12:07:55.230511Z",
+      "total_executions": 3,
+      "successful_executions": 3,
+      "failed_executions": 0,
+      "timeout_count": 0,
+      "success_rate": 1.0,
+      "avg_execution_time_ms": 55.0,
+      "median_execution_time_ms": 55.0,
+      "p95_execution_time_ms": 60.0,
+      "recent_execution_times": [
+        50,
+        55,
+        60
+      ],
+      "top_30_appearances": 3,
+      "top_10_appearances": 3,
+      "top_3_appearances": 0,
+      "avg_confidence_score": 0.75,
+      "avg_discovery_position": 6.0,
+      "recent_confidence_scores": [
+        0.7,
+        0.75,
+        0.7999999999999999
+      ],
+      "primary_execution_source": "api",
+      "execution_sources": {
+        "api": 3
+      },
+      "error_types": {},
+      "usage_by_hour": {
+        "12": 3
+      },
+      "usage_by_day": {
+        "1": 3
+      },
+      "first_execution": "2025-08-11T12:07:55.226613Z",
+      "last_execution": "2025-08-11T12:07:55.230509Z",
+      "last_successful_execution": "2025-08-11T12:07:55.230509Z",
+      "avg_output_size": 64.0,
+      "output_types": {
+        "json": 3
+      }
+    },
+    "test_ping_tool": {
+      "tool_name": "test_ping_tool",
+      "category": "networking",
+      "last_updated": "2025-08-11T12:07:55.209748Z",
+      "total_executions": 15,
+      "successful_executions": 14,
+      "failed_executions": 1,
+      "timeout_count": 1,
+      "success_rate": 0.9333333333333333,
+      "avg_execution_time_ms": 270.0,
+      "median_execution_time_ms": 270.0,
+      "p95_execution_time_ms": 340.0,
+      "recent_execution_times": [
+        200,
+        210,
+        220,
+        230,
+        240,
+        250,
+        260,
+        270,
+        280,
+        290,
+        300,
+        310,
+        320,
+        330,
+        340
+      ],
+      "top_30_appearances": 15,
+      "top_10_appearances": 15,
+      "top_3_appearances": 15,
+      "avg_confidence_score": 0.935,
+      "avg_discovery_position": 1.0,
+      "recent_confidence_scores": [
+        0.9,
+        0.905,
+        0.91,
+        0.915,
+        0.92,
+        0.925,
+        0.93,
+        0.935,
+        0.9400000000000001,
+        0.9450000000000001,
+        0.9500000000000001,
+        0.9550000000000001,
+        0.96,
+        0.9650000000000001,
+        0.97
+      ],
+      "primary_execution_source": "smart_discovery",
+      "execution_sources": {
+        "smart_discovery": 15
+      },
+      "error_types": {
+        "NetworkError": 1
+      },
+      "usage_by_hour": {
+        "12": 15
+      },
+      "usage_by_day": {
+        "1": 15
+      },
+      "first_execution": "2025-08-11T12:07:55.098489Z",
+      "last_execution": "2025-08-11T12:07:55.209745Z",
+      "last_successful_execution": "2025-08-11T12:07:55.207962Z",
+      "avg_output_size": 512.0,
+      "output_types": {
+        "json": 14
       }
     }
   },
@@ -1509,7 +1685,582 @@
       },
       "execution_source": "smart_discovery",
       "service_source": null
+    },
+    {
+      "execution_id": "14ee1c51-fbf6-4e5d-a970-07a77971b6c8",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-08-11T12:07:55.098489Z",
+      "duration_ms": 200,
+      "result": {
+        "Success": {
+          "output_size": 512,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "ping_hash_0",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.9,
+        "discovery_method": "hybrid",
+        "query": "ping server",
+        "timestamp": "2025-08-11T12:07:55.098490Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "70bd6e95-84dc-424a-9c31-6b3e6d0d9123",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-08-11T12:07:55.183752Z",
+      "duration_ms": 210,
+      "result": {
+        "Success": {
+          "output_size": 512,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "ping_hash_1",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.905,
+        "discovery_method": "hybrid",
+        "query": "ping server",
+        "timestamp": "2025-08-11T12:07:55.183752Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "7abab2d0-a457-4bf4-adb2-4c65a8ae3a7e",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-08-11T12:07:55.185270Z",
+      "duration_ms": 220,
+      "result": {
+        "Success": {
+          "output_size": 512,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "ping_hash_2",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.91,
+        "discovery_method": "hybrid",
+        "query": "ping server",
+        "timestamp": "2025-08-11T12:07:55.185270Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "d7d85d97-f173-441f-a51c-a22b6cd828c8",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-08-11T12:07:55.186827Z",
+      "duration_ms": 230,
+      "result": {
+        "Success": {
+          "output_size": 512,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "ping_hash_3",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.915,
+        "discovery_method": "hybrid",
+        "query": "ping server",
+        "timestamp": "2025-08-11T12:07:55.186828Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "04eb1420-99be-4be2-bffa-ede5505a492d",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-08-11T12:07:55.189872Z",
+      "duration_ms": 240,
+      "result": {
+        "Success": {
+          "output_size": 512,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "ping_hash_4",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.92,
+        "discovery_method": "hybrid",
+        "query": "ping server",
+        "timestamp": "2025-08-11T12:07:55.189873Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "316fb576-6642-47d0-898f-e26dff87206c",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-08-11T12:07:55.192673Z",
+      "duration_ms": 250,
+      "result": {
+        "Success": {
+          "output_size": 512,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "ping_hash_5",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.925,
+        "discovery_method": "hybrid",
+        "query": "ping server",
+        "timestamp": "2025-08-11T12:07:55.192673Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "77495e47-6353-4b52-b899-46782cab46c8",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-08-11T12:07:55.194305Z",
+      "duration_ms": 260,
+      "result": {
+        "Success": {
+          "output_size": 512,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "ping_hash_6",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.93,
+        "discovery_method": "hybrid",
+        "query": "ping server",
+        "timestamp": "2025-08-11T12:07:55.194306Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "6b4e3dcf-1568-448b-a40e-1a305cf6922a",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-08-11T12:07:55.195915Z",
+      "duration_ms": 270,
+      "result": {
+        "Success": {
+          "output_size": 512,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "ping_hash_7",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.935,
+        "discovery_method": "hybrid",
+        "query": "ping server",
+        "timestamp": "2025-08-11T12:07:55.195915Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "b8a7e967-ac22-4585-b804-469d25a305b4",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-08-11T12:07:55.197578Z",
+      "duration_ms": 280,
+      "result": {
+        "Success": {
+          "output_size": 512,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "ping_hash_8",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.9400000000000001,
+        "discovery_method": "hybrid",
+        "query": "ping server",
+        "timestamp": "2025-08-11T12:07:55.197579Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "ca33f7f8-1ded-41c6-9966-a97ff2d87187",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-08-11T12:07:55.199260Z",
+      "duration_ms": 290,
+      "result": {
+        "Success": {
+          "output_size": 512,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "ping_hash_9",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.9450000000000001,
+        "discovery_method": "hybrid",
+        "query": "ping server",
+        "timestamp": "2025-08-11T12:07:55.199261Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "a985d701-19bd-4524-aeac-1363e5cb1211",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-08-11T12:07:55.200964Z",
+      "duration_ms": 300,
+      "result": {
+        "Success": {
+          "output_size": 512,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "ping_hash_10",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.9500000000000001,
+        "discovery_method": "hybrid",
+        "query": "ping server",
+        "timestamp": "2025-08-11T12:07:55.200965Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "aea81448-7557-46cc-9c7f-a25ce1c95727",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-08-11T12:07:55.204013Z",
+      "duration_ms": 310,
+      "result": {
+        "Success": {
+          "output_size": 512,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "ping_hash_11",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.9550000000000001,
+        "discovery_method": "hybrid",
+        "query": "ping server",
+        "timestamp": "2025-08-11T12:07:55.204014Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "29173b40-7727-4c89-8413-e68e95b678de",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-08-11T12:07:55.206209Z",
+      "duration_ms": 320,
+      "result": {
+        "Success": {
+          "output_size": 512,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "ping_hash_12",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.96,
+        "discovery_method": "hybrid",
+        "query": "ping server",
+        "timestamp": "2025-08-11T12:07:55.206210Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "b8df628b-d54c-42cd-ac28-7578689a1094",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-08-11T12:07:55.207962Z",
+      "duration_ms": 330,
+      "result": {
+        "Success": {
+          "output_size": 512,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "ping_hash_13",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.9650000000000001,
+        "discovery_method": "hybrid",
+        "query": "ping server",
+        "timestamp": "2025-08-11T12:07:55.207962Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "fb5c99bc-4708-41b1-ad01-b93e071eb71a",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-08-11T12:07:55.209745Z",
+      "duration_ms": 340,
+      "result": {
+        "Error": {
+          "error_type": "NetworkError",
+          "error_message": "Timeout",
+          "is_timeout": true
+        }
+      },
+      "input_hash": "ping_hash_14",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.97,
+        "discovery_method": "hybrid",
+        "query": "ping server",
+        "timestamp": "2025-08-11T12:07:55.209746Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "d8f3d5eb-13da-43d3-b0ef-0a2ee272403e",
+      "tool_name": "test_file_tool",
+      "start_time": "2025-08-11T12:07:55.211561Z",
+      "duration_ms": 1000,
+      "result": {
+        "Success": {
+          "output_size": 1024,
+          "output_type": "text"
+        }
+      },
+      "input_hash": "file_hash_0",
+      "discovery_context": {
+        "position": 2,
+        "confidence_score": 0.8,
+        "discovery_method": "semantic",
+        "query": "file operation",
+        "timestamp": "2025-08-11T12:07:55.211562Z"
+      },
+      "execution_source": "direct",
+      "service_source": "filesystem_service"
+    },
+    {
+      "execution_id": "2c8d8cfc-4fc8-461e-a2f3-5e6d6e8c1386",
+      "tool_name": "test_file_tool",
+      "start_time": "2025-08-11T12:07:55.213380Z",
+      "duration_ms": 1050,
+      "result": {
+        "Success": {
+          "output_size": 1024,
+          "output_type": "text"
+        }
+      },
+      "input_hash": "file_hash_1",
+      "discovery_context": {
+        "position": 3,
+        "confidence_score": 0.78,
+        "discovery_method": "semantic",
+        "query": "file operation",
+        "timestamp": "2025-08-11T12:07:55.213381Z"
+      },
+      "execution_source": "direct",
+      "service_source": "filesystem_service"
+    },
+    {
+      "execution_id": "9f6978a9-7b14-4267-8845-61e2ce03d1a3",
+      "tool_name": "test_file_tool",
+      "start_time": "2025-08-11T12:07:55.215229Z",
+      "duration_ms": 1100,
+      "result": {
+        "Success": {
+          "output_size": 1024,
+          "output_type": "text"
+        }
+      },
+      "input_hash": "file_hash_2",
+      "discovery_context": {
+        "position": 4,
+        "confidence_score": 0.76,
+        "discovery_method": "semantic",
+        "query": "file operation",
+        "timestamp": "2025-08-11T12:07:55.215229Z"
+      },
+      "execution_source": "direct",
+      "service_source": "filesystem_service"
+    },
+    {
+      "execution_id": "92801a5f-e6ff-49c2-9432-6de1ab84162f",
+      "tool_name": "test_file_tool",
+      "start_time": "2025-08-11T12:07:55.217083Z",
+      "duration_ms": 1150,
+      "result": {
+        "Success": {
+          "output_size": 1024,
+          "output_type": "text"
+        }
+      },
+      "input_hash": "file_hash_3",
+      "discovery_context": {
+        "position": 2,
+        "confidence_score": 0.74,
+        "discovery_method": "semantic",
+        "query": "file operation",
+        "timestamp": "2025-08-11T12:07:55.217084Z"
+      },
+      "execution_source": "direct",
+      "service_source": "filesystem_service"
+    },
+    {
+      "execution_id": "817c74b9-634a-4c8d-b96a-db6922ebcf1f",
+      "tool_name": "test_file_tool",
+      "start_time": "2025-08-11T12:07:55.218988Z",
+      "duration_ms": 1200,
+      "result": {
+        "Success": {
+          "output_size": 1024,
+          "output_type": "text"
+        }
+      },
+      "input_hash": "file_hash_4",
+      "discovery_context": {
+        "position": 3,
+        "confidence_score": 0.7200000000000001,
+        "discovery_method": "semantic",
+        "query": "file operation",
+        "timestamp": "2025-08-11T12:07:55.218989Z"
+      },
+      "execution_source": "direct",
+      "service_source": "filesystem_service"
+    },
+    {
+      "execution_id": "3f2b6084-cc5d-434e-8bde-8d702e81ada2",
+      "tool_name": "test_file_tool",
+      "start_time": "2025-08-11T12:07:55.220902Z",
+      "duration_ms": 1250,
+      "result": {
+        "Success": {
+          "output_size": 1024,
+          "output_type": "text"
+        }
+      },
+      "input_hash": "file_hash_5",
+      "discovery_context": {
+        "position": 4,
+        "confidence_score": 0.7000000000000001,
+        "discovery_method": "semantic",
+        "query": "file operation",
+        "timestamp": "2025-08-11T12:07:55.220903Z"
+      },
+      "execution_source": "direct",
+      "service_source": "filesystem_service"
+    },
+    {
+      "execution_id": "48f43e22-ea12-40e0-a7c8-50daac9066a7",
+      "tool_name": "test_file_tool",
+      "start_time": "2025-08-11T12:07:55.222852Z",
+      "duration_ms": 1300,
+      "result": {
+        "Error": {
+          "error_type": "FileNotFound",
+          "error_message": "File does not exist",
+          "is_timeout": false
+        }
+      },
+      "input_hash": "file_hash_6",
+      "discovery_context": {
+        "position": 2,
+        "confidence_score": 0.68,
+        "discovery_method": "semantic",
+        "query": "file operation",
+        "timestamp": "2025-08-11T12:07:55.222854Z"
+      },
+      "execution_source": "direct",
+      "service_source": "filesystem_service"
+    },
+    {
+      "execution_id": "3a148418-0193-494f-ac82-f5a92eaed9ba",
+      "tool_name": "test_file_tool",
+      "start_time": "2025-08-11T12:07:55.224707Z",
+      "duration_ms": 1350,
+      "result": {
+        "Error": {
+          "error_type": "FileNotFound",
+          "error_message": "File does not exist",
+          "is_timeout": false
+        }
+      },
+      "input_hash": "file_hash_7",
+      "discovery_context": {
+        "position": 3,
+        "confidence_score": 0.66,
+        "discovery_method": "semantic",
+        "query": "file operation",
+        "timestamp": "2025-08-11T12:07:55.224708Z"
+      },
+      "execution_source": "direct",
+      "service_source": "filesystem_service"
+    },
+    {
+      "execution_id": "0708ee34-6e8e-447d-8c02-0a560662399e",
+      "tool_name": "test_calc_tool",
+      "start_time": "2025-08-11T12:07:55.226613Z",
+      "duration_ms": 50,
+      "result": {
+        "Success": {
+          "output_size": 64,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "calc_hash_0",
+      "discovery_context": {
+        "position": 5,
+        "confidence_score": 0.7,
+        "discovery_method": "rule_based",
+        "query": "calculate",
+        "timestamp": "2025-08-11T12:07:55.226614Z"
+      },
+      "execution_source": "api",
+      "service_source": null
+    },
+    {
+      "execution_id": "95c441fb-50c8-4272-a627-e35dfdd23900",
+      "tool_name": "test_calc_tool",
+      "start_time": "2025-08-11T12:07:55.228570Z",
+      "duration_ms": 55,
+      "result": {
+        "Success": {
+          "output_size": 64,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "calc_hash_1",
+      "discovery_context": {
+        "position": 6,
+        "confidence_score": 0.75,
+        "discovery_method": "rule_based",
+        "query": "calculate",
+        "timestamp": "2025-08-11T12:07:55.228570Z"
+      },
+      "execution_source": "api",
+      "service_source": null
+    },
+    {
+      "execution_id": "1ba7a091-2926-449f-9ce8-339441ef7a32",
+      "tool_name": "test_calc_tool",
+      "start_time": "2025-08-11T12:07:55.230509Z",
+      "duration_ms": 60,
+      "result": {
+        "Success": {
+          "output_size": 64,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "calc_hash_2",
+      "discovery_context": {
+        "position": 7,
+        "confidence_score": 0.7999999999999999,
+        "discovery_method": "rule_based",
+        "query": "calculate",
+        "timestamp": "2025-08-11T12:07:55.230509Z"
+      },
+      "execution_source": "api",
+      "service_source": null
     }
   ],
-  "last_saved": "2025-08-08T14:20:06.220057Z"
+  "last_saved": "2025-08-11T12:07:55.230545Z"
 }

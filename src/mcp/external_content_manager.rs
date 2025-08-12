@@ -8,10 +8,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, warn, error};
+use tracing::{debug, info, warn};
 
-use crate::error::{ProxyError, Result};
-use crate::mcp::types::{PromptTemplate, Resource, ResourceContent, PromptListResponse, ResourceListResponse};
+use crate::error::{Result};
+use crate::mcp::types::{PromptTemplate, Resource, PromptListResponse, ResourceListResponse};
 use crate::mcp::external_manager::ExternalMcpManager;
 use crate::mcp::content_storage::ContentStorageService;
 use crate::registry::types::{PromptReference, ResourceReference, GenerationReferenceMetadata, ToolDefinition};

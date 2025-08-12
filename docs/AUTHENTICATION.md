@@ -64,11 +64,11 @@ API keys support the following permissions:
 - `write`: Execute tools and modify resources
 - `admin`: Administrative operations and configuration
 
-## OAuth 2.0 Authentication ✅ **FULLY IMPLEMENTED**
+## OAuth 2.1 Authentication ✅ **FULLY IMPLEMENTED** - Phase 1 & 2 Complete
 
-Integration with external OAuth providers for user authentication.
+Enterprise-grade OAuth 2.1 authentication system with multi-level authentication, session persistence, and Device Code Flow support.
 
-OAuth 2.0 provides secure, standardized authentication using external providers like Google, GitHub, Microsoft, etc. The implementation supports the complete authorization code flow with automatic fallback to API key authentication.
+OAuth 2.1 provides enhanced security features including PKCE, Resource Indicators (RFC 8707), and comprehensive session management. The implementation supports both interactive browser flows and headless environments through Device Code Flow (RFC 8628).
 
 ### Configuration
 
@@ -95,12 +95,14 @@ auth:
   - Default scope: `"user:email"`
   - User info endpoint: `https://api.github.com/user`
 - **Google**: `provider: "google"`
-  - Default scope: `"openid profile email"`
+  - Default scope: `"openid email profile"`
   - User info endpoint: `https://www.googleapis.com/oauth2/v2/userinfo`
 - **Microsoft**: `provider: "microsoft"`
   - Default scope: `"openid profile email"`
   - User info endpoint: `https://graph.microsoft.com/v1.0/me`
 - **Custom**: `provider: "custom"` with custom URLs
+
+**Note**: MagicTunnel uses standard OAuth scopes for each provider. MCP-specific permissions are managed internally within MagicTunnel after successful OAuth authentication.
 
 ### OAuth Flow
 
@@ -113,14 +115,26 @@ auth:
 
 ### Implementation Features
 
-- ✅ Complete OAuth 2.0 authorization code flow
-- ✅ Token exchange and validation
-- ✅ User info retrieval from providers
-- ✅ Integration with MCP endpoints
-- ✅ Fallback authentication (API key + OAuth)
-- ✅ Comprehensive error handling
-- ✅ Provider-specific configurations
-- ✅ Custom provider support
+- ✅ **Phase 1 Complete**: Multi-level authentication infrastructure with OAuth 2.1 and PKCE
+- ✅ **Phase 1 Complete**: Device Code Flow (RFC 8628) for headless environments
+- ✅ **Phase 1 Complete**: Authentication resolution with hierarchical fallback
+- ✅ **Phase 1 Complete**: Security enhancements with credential protection
+- ✅ **Phase 2 Complete**: Session persistence with user context system
+- ✅ **Phase 2 Complete**: Multi-platform token storage (filesystem, keychain, credential manager)
+- ✅ **Phase 2 Complete**: Automatic session recovery on startup
+- ✅ **Phase 2 Complete**: Token refresh service with background renewal
+- ✅ Provider-specific configurations with custom provider support
+- ✅ Resource Indicators (RFC 8707) for enhanced authorization scope
+- ✅ Comprehensive error handling with structured MCP responses
+- ✅ MCP 2025-06-18 compliance features
+
+**OAuth 2.1 Enhanced Features**:
+- **PKCE (Proof Key for Code Exchange)**: Mandatory PKCE for all authorization flows
+- **Resource Indicators (RFC 8707)**: Enhanced token security with resource scoping
+- **Device Code Flow (RFC 8628)**: Headless authentication for CLI/server environments
+- **Multi-Level Authentication**: Server → Capability → Tool level authentication hierarchy
+- **Session Persistence**: Automatic session recovery across process restarts
+- **Token Management**: Background refresh with secure multi-platform storage
 
 ## JWT Authentication ✅ **FULLY IMPLEMENTED**
 
@@ -283,31 +297,38 @@ logging:
 
 This will log authentication attempts and permission checks.
 
-## Implementation Status Summary
+## Implementation Status Summary - OAuth 2.1 Phase 1 & 2 Complete ✅
 
-### ✅ **Currently Implemented and Production Ready**
-- **API Key Authentication**: Complete implementation with validation, middleware, permissions, and testing
-- **Permission-based Access Control**: Granular read/write/admin permissions for all endpoints
-- **Authentication Middleware**: HTTP request validation and error handling
-- **Configuration Management**: Full configuration parsing and validation for all auth types
-- **Comprehensive Testing**: 7 integration tests covering all API key authentication scenarios
+### ✅ **OAuth 2.1 Authentication System - Production Ready**
+- **Phase 1 Complete**: Multi-level authentication configuration with hierarchical resolution
+- **Phase 1 Complete**: OAuth 2.1 with PKCE and Resource Indicators implementation
+- **Phase 1 Complete**: Device Code Flow (RFC 8628) for headless environments
+- **Phase 1 Complete**: Security enhancements with secure credential storage
+- **Phase 2 Complete**: Session persistence system with user context identification
+- **Phase 2 Complete**: Multi-platform token storage (filesystem, keychain, credential manager)
+- **Phase 2 Complete**: Automatic session recovery for STDIO and remote MCP modes
+- **Phase 2 Complete**: Token refresh service with background renewal
 
-### ✅ **Fully Implemented**
+### ✅ **Additional Authentication Methods - Fully Implemented**
 - **API Key Authentication**: Complete implementation with permissions and validation
-- **OAuth 2.0 Authentication**: Complete implementation with provider support and authorization code flow
-  - ✅ OAuth provider integration (GitHub, Google, Microsoft, Custom)
-  - ✅ Token validation and authorization code flow
-  - ✅ OAuth middleware and HTTP request handling
-  - ✅ Comprehensive test coverage (7 tests)
-- **JWT Authentication**: Complete implementation with multi-algorithm support and validation
+  - ✅ Granular read/write/admin permissions for all endpoints
+  - ✅ Authentication middleware with HTTP request validation
+  - ✅ Comprehensive test coverage (7 integration tests)
+- **JWT Authentication**: Complete implementation with multi-algorithm support
   - ✅ JWT token parsing, signature verification, and claims validation
   - ✅ Support for HMAC (HS256/384/512), RSA (RS256/384/512), and ECDSA (ES256/384) algorithms
-  - ✅ JWT middleware and HTTP request handling (Authorization header and query parameter)
+  - ✅ JWT middleware and HTTP request handling
   - ✅ Comprehensive test coverage (10 tests)
 
-### 🎯 **Recommended Usage**
-- **For Production**: All three authentication methods (API Key, OAuth 2.0, and JWT) are fully implemented and production-ready
-- **For Development**: Choose the authentication method that best fits your use case:
-  - **API Key**: Simple, fast, ideal for service-to-service communication
-  - **OAuth 2.0**: Best for user authentication with third-party providers
-  - **JWT**: Stateless, scalable, ideal for distributed systems and microservices
+### 🎯 **Recommended Usage - Enterprise Authentication**
+- **For Production**: All authentication methods are fully implemented and enterprise-ready
+  - **OAuth 2.1**: Interactive user authentication with enhanced security (PKCE, Resource Indicators)
+  - **Device Code Flow**: Headless environments, CLI tools, Docker containers, CI/CD pipelines
+  - **API Key**: Service-to-service communication with granular permissions
+  - **JWT**: Stateless authentication for distributed systems and microservices
+
+### 🚀 **Session Persistence Benefits**
+- **STDIO Mode**: No re-authentication on Claude Desktop or MCP client restarts
+- **Remote MCP**: Transparent session recovery when MCP servers restart
+- **Multi-Platform**: Secure token storage using native credential systems
+- **Background Refresh**: Automatic token renewal before expiration

@@ -105,7 +105,7 @@ tools:
     type: enhanced_subprocess
     config: {}
   annotations: null
-  hidden: false
+  hidden: true
   enabled: true
 - name: intelligent_directory_lister
   description: AI-enhanced directory listing with intelligent file analysis and metadata extraction
@@ -140,7 +140,7 @@ tools:
     type: enhanced_subprocess
     config: {}
   annotations: null
-  hidden: false
+  hidden: true
   enabled: true
 enhanced_metadata: null
 enhanced_tools: null

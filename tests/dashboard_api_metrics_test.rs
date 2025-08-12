@@ -45,6 +45,7 @@ async fn create_test_dashboard_api() -> (DashboardApi, Arc<ToolMetricsCollector>
         resource_manager,
         prompt_manager,
         Some(Arc::new(smart_discovery)),
+        None, // Service container
     );
     
     (dashboard_api, final_tool_metrics)
@@ -460,6 +461,7 @@ async fn test_tool_metrics_error_handling() {
         resource_manager,
         prompt_manager,
         None, // No discovery service - should cause metrics to be unavailable
+        None, // Service container
     );
     
     let app = test::init_service(

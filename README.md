@@ -173,9 +173,13 @@ Or generate from existing APIs:
 
 MagicTunnel is **fully compliant** with the latest MCP 2025-06-18 specification:
 
-### 🔐 **Authentication & Security**
-- **✅ OAuth 2.1 Framework**: Complete upgrade with PKCE support
-- **✅ Resource Indicators (RFC 8707)**: Enhanced token security with resource scoping
+### 🔐 **Authentication & Security** - **Phase 1 & 2 Complete** ✅
+- **✅ OAuth 2.1 Framework**: Complete enterprise authentication with PKCE and Resource Indicators
+- **✅ Device Code Flow (RFC 8628)**: Headless authentication for CLI/server environments
+- **✅ Multi-Level Authentication**: Server → Capability → Tool hierarchical authentication system
+- **✅ Session Persistence**: Automatic session recovery across process restarts (STDIO & Remote MCP)
+- **✅ Multi-Platform Token Storage**: Native credential storage (Keychain, Credential Manager, Secret Service)
+- **✅ Background Token Refresh**: Automatic token renewal with secure credential management
 - **✅ Enhanced Security Model**: MCP-specific consent flows and capability permissions
 
 ### 🌐 **Transport Layer**

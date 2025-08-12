@@ -1,28 +1,226 @@
 {
-  "download_file": {
-    "name": "download_file",
-    "description": "Download a file from a URL",
+  "resource_utilization_monitor": {
+    "name": "resource_utilization_monitor",
+    "description": "Monitor resource utilization during agent execution",
     "enabled": true,
     "hidden": true,
-    "content_hash": "ebae396a01f15e52",
+    "content_hash": "206c8d902f147a77",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "search_files_filesystem": {
+    "name": "search_files_filesystem",
+    "description": "Recursively search for files and directories matching a pattern. Searches through all subdirectories from the starting path. The search is case-insensitive and matches partial names. Returns full paths to all matching items. Great for finding files when you don't know their exact location. Only searches within allowed directories.",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "5bcc2e427e34e237",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "execute_card_metabase-manual": {
+    "name": "execute_card_metabase-manual",
+    "description": "Execute a Metabase question/card and get results",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "3492b02c4480bd3b",
+    "last_updated": 1753786359,
+    "embedding_dims": 768
+  },
+  "enhanced_so_this_month_visit_performance": {
+    "name": "enhanced_so_this_month_visit_performance",
+    "description": "AI-enhanced Sales officers dashboard showing visit related performance metrics for this month with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "34d556a13d1ba267",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "enhanced_parallel_subprocess_test": {
+    "name": "enhanced_parallel_subprocess_test",
+    "description": "AI-enhanced Test parallel subprocess execution performance with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "d7336b263b33f143",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "enhanced_slack_notification": {
+    "name": "enhanced_slack_notification",
+    "description": "AI-enhanced Send notifications to Slack channels with rich formatting with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "f6e8d3a47f2ec395",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "create_dashboard_metabase-manual": {
+    "name": "create_dashboard_metabase-manual",
+    "description": "Create a new Metabase dashboard.",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "330b63a75993ade3",
+    "last_updated": 1753786359,
+    "embedding_dims": 768
+  },
+  "move_file_filesystem": {
+    "name": "move_file_filesystem",
+    "description": "Move or rename files and directories. Can move files between directories and rename them in a single operation. If the destination exists, the operation will fail. Works across different directories and can be used for simple renaming within the same directory. Both source and destination must be within allowed directories.",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "8a8000220ef5096",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "create_card_metabase-manual": {
+    "name": "create_card_metabase-manual",
+    "description": "Create a new Metabase question (card).",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "9c205f18482ec16e",
+    "last_updated": 1753786359,
+    "embedding_dims": 768
+  },
+  "get_dashboard_data": {
+    "name": "get_dashboard_data",
+    "description": "Fetch multiple data sets for a dashboard in a single GraphQL request",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "c8e0a34d8841e923",
+    "last_updated": 1753779694,
+    "embedding_dims": 768
+  },
+  "enhanced_malformed_input_test": {
+    "name": "enhanced_malformed_input_test",
+    "description": "AI-enhanced Test handling of malformed and unexpected inputs with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "d18b6e0f9b479bc8",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "http_globalping": {
+    "name": "http_globalping",
+    "description": "http (via globalping MCP server)",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "c0c8ed45e660cbcd",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "malformed_input_test": {
+    "name": "malformed_input_test",
+    "description": "Test handling of malformed and unexpected inputs",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "c68e9650d9a95356",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "enhanced_llm_throughput_test": {
+    "name": "enhanced_llm_throughput_test",
+    "description": "AI-enhanced Test LLM throughput with batch processing with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "8abbd5f4e41113f8",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "process_large_dataset": {
+    "name": "process_large_dataset",
+    "description": "Process large datasets with progress tracking and cancellation",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "fee4e109b7b62af0",
+    "last_updated": 1754777010,
+    "embedding_dims": 768
+  },
+  "network_error_simulation": {
+    "name": "network_error_simulation",
+    "description": "Simulate various network error conditions",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "dde09da707990560",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "enhanced_security_scanner": {
+    "name": "enhanced_security_scanner",
+    "description": "AI-enhanced Run security scans on code and infrastructure with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "39227fe780b3ba76",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "intelligent_data_processor": {
+    "name": "intelligent_data_processor",
+    "description": "AI-powered data processing with real-time progress and adaptive optimization",
+    "enabled": true,
+    "hidden": false,
+    "content_hash": "b0e659ab5b8516cf",
+    "last_updated": 1754777010,
+    "embedding_dims": 768
+  },
+  "check_disk_usage": {
+    "name": "check_disk_usage",
+    "description": "Check disk usage for specified paths",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "c649ba136e7f914d",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "enhanced_websocket_connection_test": {
+    "name": "enhanced_websocket_connection_test",
+    "description": "AI-enhanced Test WebSocket connection establishment and message throughput with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "54d3259b3a56e3e1",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "advanced_file_search": {
+    "name": "advanced_file_search",
+    "description": "Advanced file search with parameter substitution and environment variables",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "19b9d1ed65bb281",
     "last_updated": 1753895946,
     "embedding_dims": 768
   },
-  "enhanced_postgres_query": {
-    "name": "enhanced_postgres_query",
-    "description": "AI-enhanced Execute SQL queries against PostgreSQL databases with MCP 2025-06-18 compliance",
+  "write_file": {
+    "name": "write_file",
+    "description": "Write content to a file",
     "enabled": true,
     "hidden": true,
-    "content_hash": "34f2d475c51afd98",
-    "last_updated": 1754742144,
+    "content_hash": "77e752a96f65bf8a",
+    "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "google_sheets_create": {
-    "name": "google_sheets_create",
-    "description": "Create a new Google Spreadsheet (auto-detects OAuth2 or Service Account authentication)",
+  "enhanced_api_stress_test": {
+    "name": "enhanced_api_stress_test",
+    "description": "AI-enhanced Stress test API endpoints with high load with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "43f9eda473ac576f",
+    "content_hash": "46179ba96fe738ef",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "enhanced_advanced_file_search": {
+    "name": "enhanced_advanced_file_search",
+    "description": "AI-enhanced Advanced file search with parameter substitution and environment variables with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "1539baf0c4d529fe",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "llm_error_handling": {
+    "name": "llm_error_handling",
+    "description": "Test LLM error handling with invalid inputs and API issues",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "2810d0f005b2cc46",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
@@ -35,31 +233,22 @@
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "enhanced_websocket_error_handling": {
-    "name": "enhanced_websocket_error_handling",
-    "description": "AI-enhanced Test WebSocket error handling and connection issues with MCP 2025-06-18 compliance",
+  "enhanced_google_sheets_write": {
+    "name": "enhanced_google_sheets_write",
+    "description": "AI-enhanced Write data to a Google Spreadsheet (auto-detects OAuth2 or Service Account authentication) with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "ee65f76ecdea8120",
-    "last_updated": 1754742144,
+    "content_hash": "836f8f34b64ddecc",
+    "last_updated": 1754780090,
     "embedding_dims": 768
   },
-  "enhanced_execute_query": {
-    "name": "enhanced_execute_query",
-    "description": "AI-enhanced Execute a SQL query against a database with MCP 2025-06-18 compliance",
+  "enhanced_analyze_sentiment": {
+    "name": "enhanced_analyze_sentiment",
+    "description": "AI-enhanced Analyze the sentiment of text with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "bbb2abad2ef19890",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "slack_notification": {
-    "name": "slack_notification",
-    "description": "Send notifications to Slack channels with rich formatting",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "212f129554926c56",
-    "last_updated": 1753895947,
+    "content_hash": "d9812693e51d5c71",
+    "last_updated": 1754780090,
     "embedding_dims": 768
   },
   "compareLocations_globalping": {
@@ -68,34 +257,214 @@
     "enabled": true,
     "hidden": true,
     "content_hash": "be148ba0f2068c8d",
-    "last_updated": 1754742144,
+    "last_updated": 1754780090,
     "embedding_dims": 768
   },
-  "move_file_filesystem": {
-    "name": "move_file_filesystem",
-    "description": "Move or rename files and directories. Can move files between directories and rename them in a single operation. If the destination exists, the operation will fail. Works across different directories and can be used for simple renaming within the same directory. Both source and destination must be within allowed directories.",
+  "enhanced_docker_container_manager": {
+    "name": "enhanced_docker_container_manager",
+    "description": "AI-enhanced Manage Docker containers with comprehensive operations with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "8a8000220ef5096",
-    "last_updated": 1754742144,
+    "content_hash": "aaa8ca87a46ce45c",
+    "last_updated": 1754780089,
     "embedding_dims": 768
   },
-  "read_file_enhanced": {
-    "name": "read_file_enhanced",
-    "description": "Read file contents with intelligent encoding detection and validation",
-    "enabled": true,
-    "hidden": false,
-    "content_hash": "b9a13e13816b2cf7",
-    "last_updated": 1754742143,
-    "embedding_dims": 768
-  },
-  "enhanced_llm_response_time_test": {
-    "name": "enhanced_llm_response_time_test",
-    "description": "AI-enhanced Measure LLM response times for different prompt types with MCP 2025-06-18 compliance",
+  "llm_response_time_test": {
+    "name": "llm_response_time_test",
+    "description": "Measure LLM response times for different prompt types",
     "enabled": true,
     "hidden": true,
-    "content_hash": "700f9af8f52b2d4e",
-    "last_updated": 1754742144,
+    "content_hash": "ef6dab0f019ffbd6",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "admin_reset_cache": {
+    "name": "admin_reset_cache",
+    "description": "Administrative tool to reset system caches",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "6037288e04a646b",
+    "last_updated": 1753779693,
+    "embedding_dims": 768
+  },
+  "intelligent_directory_lister": {
+    "name": "intelligent_directory_lister",
+    "description": "AI-enhanced directory listing with intelligent file analysis and metadata extraction",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "498f9ea50a149f8d",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "directory_tree_filesystem": {
+    "name": "directory_tree_filesystem",
+    "description": "Get a recursive tree view of files and directories as a JSON structure. Each entry includes 'name', 'type' (file/directory), and 'children' for directories. Files have no children array, while directories always have a children array (which may be empty). The output is formatted with 2-space indentation for readability. Only works within allowed directories.",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "3003f41003b44d",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "enhanced_download_file": {
+    "name": "enhanced_download_file",
+    "description": "AI-enhanced Download a file from a URL with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "9117cf56f225f464",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "get_file_info_filesystem": {
+    "name": "get_file_info_filesystem",
+    "description": "Retrieve detailed metadata about a file or directory. Returns comprehensive information including size, creation time, last modified time, permissions, and type. This tool is perfect for understanding file characteristics without reading the actual content. Only works within allowed directories.",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "4557657c36a578bb",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "enhanced_multilingual_translator": {
+    "name": "enhanced_multilingual_translator",
+    "description": "AI-enhanced Advanced translation with context awareness and quality scoring with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "58eb45bc763c0d2f",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "sqlite_query": {
+    "name": "sqlite_query",
+    "description": "Execute SQL queries against SQLite databases",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "a06f18be1c5731c7",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "sse_system_monitoring": {
+    "name": "sse_system_monitoring",
+    "description": "Subscribe to system monitoring events via SSE",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "7bb33d069a5e9a7e",
+    "last_updated": 1753780595,
+    "embedding_dims": 768
+  },
+  "enhanced_api_health_checker": {
+    "name": "enhanced_api_health_checker",
+    "description": "AI-enhanced Advanced API health checking with dynamic headers and retry logic with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "df2456b1e6d3eec",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "enhanced_websocket_error_handling": {
+    "name": "enhanced_websocket_error_handling",
+    "description": "AI-enhanced Test WebSocket error handling and connection issues with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "ee65f76ecdea8120",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "enhanced_postgres_query": {
+    "name": "enhanced_postgres_query",
+    "description": "AI-enhanced Execute SQL queries against PostgreSQL databases with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "34f2d475c51afd98",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "locations_globalping": {
+    "name": "locations_globalping",
+    "description": "locations (via globalping MCP server)",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "59452f309879910c",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "openai_code_assistant": {
+    "name": "openai_code_assistant",
+    "description": "AI-powered code assistance with OpenAI integration",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "ab15ed522138e85a",
+    "last_updated": 1753895946,
+    "embedding_dims": 768
+  },
+  "enhanced_execute_query": {
+    "name": "enhanced_execute_query",
+    "description": "AI-enhanced Execute a SQL query against a database with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "bbb2abad2ef19890",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "database_query_executor": {
+    "name": "database_query_executor",
+    "description": "Execute database queries with multiple database support",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "d4e53a3cda7e39a",
+    "last_updated": 1753895946,
+    "embedding_dims": 768
+  },
+  "intelligent_process_monitor": {
+    "name": "intelligent_process_monitor",
+    "description": "AI-enhanced process monitoring with behavior analysis and anomaly detection",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "5eea54ab6ca38084",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "subscribe_to_notifications": {
+    "name": "subscribe_to_notifications",
+    "description": "Subscribe to real-time notifications using GraphQL subscription",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "148a95b387885f94",
+    "last_updated": 1753779693,
+    "embedding_dims": 768
+  },
+  "enhanced_git_diff": {
+    "name": "enhanced_git_diff",
+    "description": "AI-enhanced Show differences in Git repository with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "b4324503c1960ad9",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "enhanced_http_post": {
+    "name": "enhanced_http_post",
+    "description": "AI-enhanced Make an HTTP POST request with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "1f9c60d2a82ee844",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "analyze_sentiment": {
+    "name": "analyze_sentiment",
+    "description": "Analyze the sentiment of text",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "76fadeb95056fd0b",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "enhanced_webhook_sender": {
+    "name": "enhanced_webhook_sender",
+    "description": "AI-enhanced Send webhook notifications with dynamic payload construction with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "c9bf409925b911de",
+    "last_updated": 1754780090,
     "embedding_dims": 768
   },
   "enhanced_realtime_chat_bot": {
@@ -104,87 +473,60 @@
     "enabled": true,
     "hidden": true,
     "content_hash": "db7fb5fb9a1aefee",
-    "last_updated": 1754742144,
+    "last_updated": 1754780090,
     "embedding_dims": 768
   },
-  "enhanced_so_today_visit_performance": {
-    "name": "enhanced_so_today_visit_performance",
-    "description": "AI-enhanced Sales officer's dashboard showing visit related performance metrics for today with MCP 2025-06-18 compliance",
+  "enhanced_google_sheets_create": {
+    "name": "enhanced_google_sheets_create",
+    "description": "AI-enhanced Create a new Google Spreadsheet (auto-detects OAuth2 or Service Account authentication) with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "eb065ed329008ee7",
-    "last_updated": 1754742144,
+    "content_hash": "663d26614909607e",
+    "last_updated": 1754780090,
     "embedding_dims": 768
   },
-  "list_directory": {
-    "name": "list_directory",
-    "description": "List contents of a directory",
+  "subprocess_benchmark": {
+    "name": "subprocess_benchmark",
+    "description": "Benchmark subprocess execution performance with various workloads",
     "enabled": true,
     "hidden": true,
-    "content_hash": "a3c451d40f87f18a",
+    "content_hash": "261a3a428a1e3800",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "enhanced_http_latency_test": {
-    "name": "enhanced_http_latency_test",
-    "description": "AI-enhanced Measure HTTP request latency and throughput with MCP 2025-06-18 compliance",
+  "traceroute_globalping": {
+    "name": "traceroute_globalping",
+    "description": "traceroute (via globalping MCP server)",
     "enabled": true,
     "hidden": true,
-    "content_hash": "c55c15ba1a61ba7b",
-    "last_updated": 1754742144,
+    "content_hash": "273cb9cc869aabda",
+    "last_updated": 1754780089,
     "embedding_dims": 768
   },
-  "google_sheets_write": {
-    "name": "google_sheets_write",
-    "description": "Write data to a Google Spreadsheet (auto-detects OAuth2 or Service Account authentication)",
+  "sse_notification_stream": {
+    "name": "sse_notification_stream",
+    "description": "Subscribe to real-time notification events via SSE",
     "enabled": true,
     "hidden": true,
-    "content_hash": "a4343efc8e9ea140",
-    "last_updated": 1753895946,
+    "content_hash": "5ba9f549344de215",
+    "last_updated": 1753780595,
     "embedding_dims": 768
   },
-  "enhanced_env_postgres_query": {
-    "name": "enhanced_env_postgres_query",
-    "description": "AI-enhanced Execute PostgreSQL query using environment variables for connection with MCP 2025-06-18 compliance",
+  "update_card_metabase-manual": {
+    "name": "update_card_metabase-manual",
+    "description": "Update an existing Metabase question (card).",
     "enabled": true,
     "hidden": true,
-    "content_hash": "666813f3964a415",
-    "last_updated": 1754742144,
+    "content_hash": "f460c50310859323",
+    "last_updated": 1753786359,
     "embedding_dims": 768
   },
-  "intelligent_data_processor": {
-    "name": "intelligent_data_processor",
-    "description": "AI-powered data processing with real-time progress and adaptive optimization",
-    "enabled": true,
-    "hidden": false,
-    "content_hash": "b0e659ab5b8516cf",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "read_media_file_filesystem": {
-    "name": "read_media_file_filesystem",
-    "description": "Read an image or audio file. Returns the base64 encoded data and MIME type. Only works within allowed directories.",
+  "execute_query_metabase-manual": {
+    "name": "execute_query_metabase-manual",
+    "description": "Execute a SQL query against a Metabase database",
     "enabled": true,
     "hidden": true,
-    "content_hash": "4dc0bacbe59c46e1",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "check_network_connectivity": {
-    "name": "check_network_connectivity",
-    "description": "Test network connectivity to hosts",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "ed0d7bbbd6a72e44",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "delete_card_metabase-manual": {
-    "name": "delete_card_metabase-manual",
-    "description": "Delete a Metabase question (card).",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "e4769f695fb975d",
+    "content_hash": "add243da4df750e8",
     "last_updated": 1753786359,
     "embedding_dims": 768
   },
@@ -197,49 +539,13 @@
     "last_updated": 1753895946,
     "embedding_dims": 768
   },
-  "search_files_filesystem": {
-    "name": "search_files_filesystem",
-    "description": "Recursively search for files and directories matching a pattern. Searches through all subdirectories from the starting path. The search is case-insensitive and matches partial names. Returns full paths to all matching items. Great for finding files when you don't know their exact location. Only searches within allowed directories.",
+  "enhanced_intelligent_code_reviewer": {
+    "name": "enhanced_intelligent_code_reviewer",
+    "description": "AI-enhanced AI-powered code review with configurable models and prompts with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "5bcc2e427e34e237",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "read_file_filesystem": {
-    "name": "read_file_filesystem",
-    "description": "Read the complete contents of a file from the file system. Handles various text encodings and provides detailed error messages if the file cannot be read. Use this tool when you need to examine the contents of a single file. Use the 'head' parameter to read only the first N lines of a file, or the 'tail' parameter to read only the last N lines of a file. Only works within allowed directories.",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "371ee0921bb5df71",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "git_branch": {
-    "name": "git_branch",
-    "description": "Create or list Git branches",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "d6e0087591ee3f8b",
-    "last_updated": 1753895946,
-    "embedding_dims": 768
-  },
-  "enhanced_websocket_connection_test": {
-    "name": "enhanced_websocket_connection_test",
-    "description": "AI-enhanced Test WebSocket connection establishment and message throughput with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "54d3259b3a56e3e1",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "enhanced_sqlite_user_query": {
-    "name": "enhanced_sqlite_user_query",
-    "description": "AI-enhanced Query user data from SQLite database with filtering with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "7a4c60006f7e91de",
-    "last_updated": 1754742144,
+    "content_hash": "fe606c3ce1ffd65",
+    "last_updated": 1754780089,
     "embedding_dims": 768
   },
   "read_file": {
@@ -248,691 +554,34 @@
     "enabled": true,
     "hidden": true,
     "content_hash": "53f86f30f726f517",
-    "last_updated": 1754742143,
+    "last_updated": 1754777010,
     "embedding_dims": 768
   },
-  "enhanced_webhook_sender": {
-    "name": "enhanced_webhook_sender",
-    "description": "AI-enhanced Send webhook notifications with dynamic payload construction with MCP 2025-06-18 compliance",
+  "enhanced_git_status": {
+    "name": "enhanced_git_status",
+    "description": "AI-enhanced Get the status of a Git repository with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "c9bf409925b911de",
-    "last_updated": 1754742144,
+    "content_hash": "c57b4115ab42c459",
+    "last_updated": 1754780089,
     "embedding_dims": 768
   },
-  "help_globalping": {
-    "name": "help_globalping",
-    "description": "help (via globalping MCP server)",
+  "enhanced_llm_error_handling": {
+    "name": "enhanced_llm_error_handling",
+    "description": "AI-enhanced Test LLM error handling with invalid inputs and API issues with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "64725287d04536be",
-    "last_updated": 1754742144,
+    "content_hash": "468a7782f6b239ff",
+    "last_updated": 1754780089,
     "embedding_dims": 768
   },
-  "secure_file_writer": {
-    "name": "secure_file_writer",
-    "description": "AI-enhanced secure file writer with validation and permission checks",
+  "enhanced_mixed_agent_benchmark": {
+    "name": "enhanced_mixed_agent_benchmark",
+    "description": "AI-enhanced Benchmark mixed workload across all agent types with MCP 2025-06-18 compliance",
     "enabled": true,
-    "hidden": false,
-    "content_hash": "b43c1614ee1f40dd",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "malformed_input_test": {
-    "name": "malformed_input_test",
-    "description": "Test handling of malformed and unexpected inputs",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "c68e9650d9a95356",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "update_card_metabase-manual": {
-    "name": "update_card_metabase-manual",
-    "description": "Update an existing Metabase question (card).",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "f460c50310859323",
-    "last_updated": 1753786359,
-    "embedding_dims": 768
-  },
-  "enhanced_git_branch": {
-    "name": "enhanced_git_branch",
-    "description": "AI-enhanced Create or list Git branches with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "1bf99f9ad83ebdd0",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "edit_file_filesystem": {
-    "name": "edit_file_filesystem",
-    "description": "Make line-based edits to a text file. Each edit replaces exact line sequences with new content. Returns a git-style diff showing the changes made. Only works within allowed directories.",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "3bf76fc1eea6c0e2",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "execute_query": {
-    "name": "execute_query",
-    "description": "Execute a SQL query against a database",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "d6112d10ebdde8f9",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "network_error_simulation": {
-    "name": "network_error_simulation",
-    "description": "Simulate various network error conditions",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "dde09da707990560",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "intelligent_network_diagnostics": {
-    "name": "intelligent_network_diagnostics",
-    "description": "AI-powered network connectivity and performance diagnostics",
-    "enabled": true,
-    "hidden": false,
-    "content_hash": "a5c6e901cf302fe5",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "enhanced_live_data_streamer": {
-    "name": "enhanced_live_data_streamer",
-    "description": "AI-enhanced Stream live data updates via WebSocket with filtering and aggregation with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "49480ffb68195df8",
-    "last_updated": 1754742145,
-    "embedding_dims": 768
-  },
-  "intelligent_service_monitor": {
-    "name": "intelligent_service_monitor",
-    "description": "AI-enhanced service monitoring with predictive health analysis",
-    "enabled": true,
-    "hidden": false,
-    "content_hash": "76497a2abfecda7c",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "read_text_file_filesystem": {
-    "name": "read_text_file_filesystem",
-    "description": "Read the complete contents of a file from the file system as text. Handles various text encodings and provides detailed error messages if the file cannot be read. Use this tool when you need to examine the contents of a single file. Use the 'head' parameter to read only the first N lines of a file, or the 'tail' parameter to read only the last N lines of a file. Operates on the file as text regardless of extension. Only works within allowed directories.",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "396fb0ff25814102",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "get_dashboard_cards_metabase-manual": {
-    "name": "get_dashboard_cards_metabase-manual",
-    "description": "Get all cards in a dashboard",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "d124e9f5bfeb96c8",
-    "last_updated": 1753786359,
-    "embedding_dims": 768
-  },
-  "git_status": {
-    "name": "git_status",
-    "description": "Get the status of a Git repository",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "2b4c1cc507f27944",
-    "last_updated": 1753895946,
-    "embedding_dims": 768
-  },
-  "get_file_info_filesystem": {
-    "name": "get_file_info_filesystem",
-    "description": "Retrieve detailed metadata about a file or directory. Returns comprehensive information including size, creation time, last modified time, permissions, and type. This tool is perfect for understanding file characteristics without reading the actual content. Only works within allowed directories.",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "4557657c36a578bb",
-    "last_updated": 1754742145,
-    "embedding_dims": 768
-  },
-  "google_sheets_list_spreadsheets": {
-    "name": "google_sheets_list_spreadsheets",
-    "description": "List all accessible Google Spreadsheets (auto-detects OAuth2 or Service Account authentication)",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "4a5200b3f6bef233",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "intelligent_code_reviewer": {
-    "name": "intelligent_code_reviewer",
-    "description": "AI-powered code review with configurable models and prompts",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "4a0d830030fac2bc",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "http_globalping": {
-    "name": "http_globalping",
-    "description": "http (via globalping MCP server)",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "c0c8ed45e660cbcd",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "validate_schema": {
-    "name": "validate_schema",
-    "description": "Validate database schema against expected structure",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "c3a63da9f0921b20",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "system_info_collector": {
-    "name": "system_info_collector",
-    "description": "Collect comprehensive system information with dynamic command building",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "cad814024969e9c2",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "concurrent_request_test": {
-    "name": "concurrent_request_test",
-    "description": "Test handling of concurrent requests and rate limiting",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "f0b57884c6b127b2",
-    "last_updated": 1753895946,
-    "embedding_dims": 768
-  },
-  "generate_text": {
-    "name": "generate_text",
-    "description": "Generate text using a language model",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "ba582389f612936f",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "list_databases_metabase-manual": {
-    "name": "list_databases_metabase-manual",
-    "description": "List all databases in Metabase",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "a384b28a88500730",
-    "last_updated": 1753786359,
-    "embedding_dims": 768
-  },
-  "delete_dashboard_metabase-manual": {
-    "name": "delete_dashboard_metabase-manual",
-    "description": "Delete a Metabase dashboard.",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "98c4bb47cf523a6d",
-    "last_updated": 1753786359,
-    "embedding_dims": 768
-  },
-  "grpc_order_service": {
-    "name": "grpc_order_service",
-    "description": "Call gRPC order service to create or retrieve orders",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "7d6370264b3063d0",
-    "last_updated": 1753780595,
-    "embedding_dims": 768
-  },
-  "enhanced_git_commit": {
-    "name": "enhanced_git_commit",
-    "description": "AI-enhanced Create a Git commit with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "3dff1107b3061259",
-    "last_updated": 1754742143,
-    "embedding_dims": 768
-  },
-  "enhanced_system_info_collector": {
-    "name": "enhanced_system_info_collector",
-    "description": "AI-enhanced Collect comprehensive system information with dynamic command building with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "e3be37e765f8dffd",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "llm_error_handling": {
-    "name": "llm_error_handling",
-    "description": "Test LLM error handling with invalid inputs and API issues",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "2810d0f005b2cc46",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "intelligent_memory_analyzer": {
-    "name": "intelligent_memory_analyzer",
-    "description": "AI-powered memory usage analysis with optimization recommendations",
-    "enabled": true,
-    "hidden": false,
-    "content_hash": "e25dc4ab27b888ae",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "sse_log_stream": {
-    "name": "sse_log_stream",
-    "description": "Subscribe to real-time application log streams via SSE",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "affddd30ef8a98d4",
-    "last_updated": 1753780595,
-    "embedding_dims": 768
-  },
-  "locations_globalping": {
-    "name": "locations_globalping",
-    "description": "locations (via globalping MCP server)",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "59452f309879910c",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "check_memory_usage": {
-    "name": "check_memory_usage",
-    "description": "Check system memory usage",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "d3fda886d8b12bba",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "ping_globalping": {
-    "name": "ping_globalping",
-    "description": "ping (via globalping MCP server)",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "88319a549d1124ad",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "enhanced_google_sheets_list_spreadsheets": {
-    "name": "enhanced_google_sheets_list_spreadsheets",
-    "description": "AI-enhanced List all accessible Google Spreadsheets (auto-detects OAuth2 or Service Account authentication) with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "797b8fbf0b45d762",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "sse_system_monitoring": {
-    "name": "sse_system_monitoring",
-    "description": "Subscribe to system monitoring events via SSE",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "7bb33d069a5e9a7e",
-    "last_updated": 1753780595,
-    "embedding_dims": 768
-  },
-  "subscribe_to_notifications": {
-    "name": "subscribe_to_notifications",
-    "description": "Subscribe to real-time notifications using GraphQL subscription",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "148a95b387885f94",
-    "last_updated": 1753779693,
-    "embedding_dims": 768
-  },
-  "grpc_health_check": {
-    "name": "grpc_health_check",
-    "description": "Perform health check on gRPC services",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "60eb747d73edb059",
-    "last_updated": 1753780596,
-    "embedding_dims": 768
-  },
-  "enhanced_api_health_checker": {
-    "name": "enhanced_api_health_checker",
-    "description": "AI-enhanced Advanced API health checking with dynamic headers and retry logic with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "df2456b1e6d3eec",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "enhanced_malformed_input_test": {
-    "name": "enhanced_malformed_input_test",
-    "description": "AI-enhanced Test handling of malformed and unexpected inputs with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "d18b6e0f9b479bc8",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "create_directory_filesystem": {
-    "name": "create_directory_filesystem",
-    "description": "Create a new directory or ensure a directory exists. Can create multiple nested directories in one operation. If the directory already exists, this operation will succeed silently. Perfect for setting up directory structures for projects or ensuring required paths exist. Only works within allowed directories.",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "3b597a2422f09ca7",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "parameter_edge_cases": {
-    "name": "parameter_edge_cases",
-    "description": "Test parameter substitution with edge cases and special characters",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "fb98d21e93dd8e5c",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "intelligent_directory_lister": {
-    "name": "intelligent_directory_lister",
-    "description": "AI-enhanced directory listing with intelligent file analysis and metadata extraction",
-    "enabled": true,
-    "hidden": false,
-    "content_hash": "93a0f30b7821f5a6",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "debug_trace": {
-    "name": "debug_trace",
-    "description": "Debug tracing tool for troubleshooting (hidden by default)",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "180f5057f5435d8d",
-    "last_updated": 1753779693,
-    "embedding_dims": 768
-  },
-  "enhanced_kubernetes_deployment": {
-    "name": "enhanced_kubernetes_deployment",
-    "description": "AI-enhanced Deploy and manage Kubernetes resources with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "c576f2426463ed78",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "env_postgres_query": {
-    "name": "env_postgres_query",
-    "description": "Execute PostgreSQL query using environment variables for connection",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "fd6d0e59ee36d445",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "subprocess_benchmark": {
-    "name": "subprocess_benchmark",
-    "description": "Benchmark subprocess execution performance with various workloads",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "261a3a428a1e3800",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "enhanced_http_post": {
-    "name": "enhanced_http_post",
-    "description": "AI-enhanced Make an HTTP POST request with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "1f9c60d2a82ee844",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "write_file_filesystem": {
-    "name": "write_file_filesystem",
-    "description": "Create a new file or completely overwrite an existing file with new content. Use with caution as it will overwrite existing files without warning. Handles text content with proper encoding. Only works within allowed directories.",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "33b3ffe73e8f79d5",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "getMeasurement_globalping": {
-    "name": "getMeasurement_globalping",
-    "description": "getMeasurement (via globalping MCP server)",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "c2b1ad08f873b5ff",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "enhanced_multilingual_translator": {
-    "name": "enhanced_multilingual_translator",
-    "description": "AI-enhanced Advanced translation with context awareness and quality scoring with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "58eb45bc763c0d2f",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "enhanced_parallel_subprocess_test": {
-    "name": "enhanced_parallel_subprocess_test",
-    "description": "AI-enhanced Test parallel subprocess execution performance with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "d7336b263b33f143",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "enhanced_postgres_table_info": {
-    "name": "enhanced_postgres_table_info",
-    "description": "AI-enhanced Get table information from PostgreSQL database with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "3252b9a7322ae182",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "public_calculator": {
-    "name": "public_calculator",
-    "description": "A calculator tool that's visible to all users",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "d3a4580f6a4e3835",
-    "last_updated": 1753779693,
-    "embedding_dims": 768
-  },
-  "internal_system_check": {
-    "name": "internal_system_check",
-    "description": "Internal system health check (hidden from main interface)",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "6d697a32b48efbb",
-    "last_updated": 1753779693,
-    "embedding_dims": 768
-  },
-  "list_allowed_directories_filesystem": {
-    "name": "list_allowed_directories_filesystem",
-    "description": "Returns the list of directories that this server is allowed to access. Use this to understand which directories are available before trying to access files.",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "91dd988198e1b59e",
-    "last_updated": 1754742143,
-    "embedding_dims": 768
-  },
-  "write_file": {
-    "name": "write_file",
-    "description": "Write content to a file",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "77e752a96f65bf8a",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "enhanced_intelligent_code_reviewer": {
-    "name": "enhanced_intelligent_code_reviewer",
-    "description": "AI-enhanced AI-powered code review with configurable models and prompts with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "fe606c3ce1ffd65",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "enhanced_openai_code_assistant": {
-    "name": "enhanced_openai_code_assistant",
-    "description": "AI-enhanced AI-powered code assistance with OpenAI integration with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "6aa765e57a34678a",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "enhanced_advanced_file_search": {
-    "name": "enhanced_advanced_file_search",
-    "description": "AI-enhanced Advanced file search with parameter substitution and environment variables with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "1539baf0c4d529fe",
-    "last_updated": 1754742143,
-    "embedding_dims": 768
-  },
-  "intelligent_disk_monitor": {
-    "name": "intelligent_disk_monitor",
-    "description": "AI-enhanced disk usage monitoring with predictive analysis and alerting",
-    "enabled": true,
-    "hidden": false,
-    "content_hash": "a9e34b76b0e3b01f",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "enhanced_http_get": {
-    "name": "enhanced_http_get",
-    "description": "AI-enhanced Make an HTTP GET request with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "5384b551e7c109d6",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "enhanced_slack_notification": {
-    "name": "enhanced_slack_notification",
-    "description": "AI-enhanced Send notifications to Slack channels with rich formatting with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "f6e8d3a47f2ec395",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "sse_notification_stream": {
-    "name": "sse_notification_stream",
-    "description": "Subscribe to real-time notification events via SSE",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "5ba9f549344de215",
-    "last_updated": 1753780595,
-    "embedding_dims": 768
-  },
-  "llm_response_time_test": {
-    "name": "llm_response_time_test",
-    "description": "Measure LLM response times for different prompt types",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "ef6dab0f019ffbd6",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "list_directory_filesystem": {
-    "name": "list_directory_filesystem",
-    "description": "Get a detailed listing of all files and directories in a specified path. Results clearly distinguish between files and directories with [FILE] and [DIR] prefixes. This tool is essential for understanding directory structure and finding specific files within a directory. Only works within allowed directories.",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "7e7edf3ac20b8d6f",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "http_retry_test": {
-    "name": "http_retry_test",
-    "description": "Test HTTP retry logic with unreliable endpoints",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "615d24ad1fe9ad2b",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "postgres_analytics_query": {
-    "name": "postgres_analytics_query",
-    "description": "Execute analytics queries against PostgreSQL with date filtering",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "78f39ce8f159e753",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "realtime_chat_bot": {
-    "name": "realtime_chat_bot",
-    "description": "Real-time chat bot with WebSocket connection and session management",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "420784dceaa2ea89",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "live_data_streamer": {
-    "name": "live_data_streamer",
-    "description": "Stream live data updates via WebSocket with filtering and aggregation",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "bf4ca5138dac16ee",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "enhanced_sqlite_query": {
-    "name": "enhanced_sqlite_query",
-    "description": "AI-enhanced Execute SQL queries against SQLite databases with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "16238318471eedbf",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "enhanced_google_sheets_write": {
-    "name": "enhanced_google_sheets_write",
-    "description": "AI-enhanced Write data to a Google Spreadsheet (auto-detects OAuth2 or Service Account authentication) with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "836f8f34b64ddecc",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "enhanced_parameter_edge_cases": {
-    "name": "enhanced_parameter_edge_cases",
-    "description": "AI-enhanced Test parameter substitution with edge cases and special characters with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "5f20e5d8b20a02cd",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "read_multiple_files_filesystem": {
-    "name": "read_multiple_files_filesystem",
-    "description": "Read the contents of multiple files simultaneously. This is more efficient than reading files one by one when you need to analyze or compare multiple files. Each file's content is returned with its path as a reference. Failed reads for individual files won't stop the entire operation. Only works within allowed directories.",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "f4f6f5961e3ca294",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "mtr_globalping": {
-    "name": "mtr_globalping",
-    "description": "mtr (via globalping MCP server)",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "e967140b1254ba6c",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "execute_card_metabase-manual": {
-    "name": "execute_card_metabase-manual",
-    "description": "Execute a Metabase question/card and get results",
-    "enabled": true,
     "hidden": true,
-    "content_hash": "3492b02c4480bd3b",
-    "last_updated": 1753786359,
+    "content_hash": "4b28dc17ef48350d",
+    "last_updated": 1754780090,
     "embedding_dims": 768
   },
   "multilingual_translator": {
@@ -944,22 +593,58 @@
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "api_stress_test": {
-    "name": "api_stress_test",
-    "description": "Stress test API endpoints with high load",
+  "enhanced_google_sheets_read": {
+    "name": "enhanced_google_sheets_read",
+    "description": "AI-enhanced Read data from a Google Spreadsheet (auto-detects OAuth2 or Service Account authentication) with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "76b2a38bd9b4269c",
+    "content_hash": "d29e48115cf107aa",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "check_process_status": {
+    "name": "check_process_status",
+    "description": "Check status of running processes with optional filtering",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "5127faab5f66463b",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "enhanced_network_error_simulation": {
-    "name": "enhanced_network_error_simulation",
-    "description": "AI-enhanced Simulate various network error conditions with MCP 2025-06-18 compliance",
+  "check_service_status": {
+    "name": "check_service_status",
+    "description": "Check status of system services",
     "enabled": true,
     "hidden": true,
-    "content_hash": "496b3c19e7e653cc",
-    "last_updated": 1754742144,
+    "content_hash": "cdc3274d6053d6b",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "git_status": {
+    "name": "git_status",
+    "description": "Get the status of a Git repository",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "2b4c1cc507f27944",
+    "last_updated": 1753895946,
+    "embedding_dims": 768
+  },
+  "http_retry_test": {
+    "name": "http_retry_test",
+    "description": "Test HTTP retry logic with unreliable endpoints",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "615d24ad1fe9ad2b",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "timeout_test_subprocess": {
+    "name": "timeout_test_subprocess",
+    "description": "Test subprocess timeout handling with configurable delays",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "6cde577c829d545f",
+    "last_updated": 1753895947,
     "embedding_dims": 768
   },
   "list_dashboards_metabase-manual": {
@@ -971,6 +656,87 @@
     "last_updated": 1753786359,
     "embedding_dims": 768
   },
+  "enhanced_system_info_collector": {
+    "name": "enhanced_system_info_collector",
+    "description": "AI-enhanced Collect comprehensive system information with dynamic command building with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "e3be37e765f8dffd",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "introspect_schema": {
+    "name": "introspect_schema",
+    "description": "Introspect GraphQL schema to discover available types and operations",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "46edf89a9629a30e",
+    "last_updated": 1753779693,
+    "embedding_dims": 768
+  },
+  "grpc_user_service": {
+    "name": "grpc_user_service",
+    "description": "Call gRPC user service to get user information",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "188e5df3186a42d6",
+    "last_updated": 1753780595,
+    "embedding_dims": 768
+  },
+  "read_media_file_filesystem": {
+    "name": "read_media_file_filesystem",
+    "description": "Read an image or audio file. Returns the base64 encoded data and MIME type. Only works within allowed directories.",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "4dc0bacbe59c46e1",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "enhanced_git_commit": {
+    "name": "enhanced_git_commit",
+    "description": "AI-enhanced Create a Git commit with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "3dff1107b3061259",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "enhanced_timeout_test_subprocess": {
+    "name": "enhanced_timeout_test_subprocess",
+    "description": "AI-enhanced Test subprocess timeout handling with configurable delays with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "a901693ab34926b4",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "enhanced_google_sheets_list_sheets": {
+    "name": "enhanced_google_sheets_list_sheets",
+    "description": "AI-enhanced List all sheets in a Google Spreadsheet (auto-detects OAuth2 or Service Account authentication) with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "64ce6eec9d82e10",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "update_dashboard_metabase-manual": {
+    "name": "update_dashboard_metabase-manual",
+    "description": "Update an existing Metabase dashboard.",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "d3032ff969249752",
+    "last_updated": 1753786359,
+    "embedding_dims": 768
+  },
+  "download_file": {
+    "name": "download_file",
+    "description": "Download a file from a URL",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "ebae396a01f15e52",
+    "last_updated": 1753895946,
+    "embedding_dims": 768
+  },
   "so_this_month_visit_performance": {
     "name": "so_this_month_visit_performance",
     "description": "Sales officers dashboard showing visit related performance metrics for this month",
@@ -980,103 +746,229 @@
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "prometheus_query": {
-    "name": "prometheus_query",
-    "description": "Query Prometheus metrics with PromQL",
+  "list_directory_with_sizes_filesystem": {
+    "name": "list_directory_with_sizes_filesystem",
+    "description": "Get a detailed listing of all files and directories in a specified path, including sizes. Results clearly distinguish between files and directories with [FILE] and [DIR] prefixes. This tool is useful for understanding directory structure and finding specific files within a directory. Only works within allowed directories.",
     "enabled": true,
     "hidden": true,
-    "content_hash": "e358605dcabe3412",
+    "content_hash": "f9d4ff8b4e8da5e9",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "webhook_sender": {
+    "name": "webhook_sender",
+    "description": "Send webhook notifications with dynamic payload construction",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "2f6965067ba514e0",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "kubernetes_deployment": {
-    "name": "kubernetes_deployment",
-    "description": "Deploy and manage Kubernetes resources",
+  "enhanced_resource_utilization_monitor": {
+    "name": "enhanced_resource_utilization_monitor",
+    "description": "AI-enhanced Monitor resource utilization during agent execution with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "b9831805f9de6bc8",
+    "content_hash": "4f919f7017f2b1cc",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "intelligent_code_reviewer": {
+    "name": "intelligent_code_reviewer",
+    "description": "AI-powered code review with configurable models and prompts",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "4a0d830030fac2bc",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "enhanced_subprocess_benchmark": {
-    "name": "enhanced_subprocess_benchmark",
-    "description": "AI-enhanced Benchmark subprocess execution performance with various workloads with MCP 2025-06-18 compliance",
+  "websocket_error_handling": {
+    "name": "websocket_error_handling",
+    "description": "Test WebSocket error handling and connection issues",
     "enabled": true,
     "hidden": true,
-    "content_hash": "b6c6fe1739597217",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "enhanced_llm_throughput_test": {
-    "name": "enhanced_llm_throughput_test",
-    "description": "AI-enhanced Test LLM throughput with batch processing with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "8abbd5f4e41113f8",
-    "last_updated": 1754742145,
-    "embedding_dims": 768
-  },
-  "enhanced_sqlite_create_table": {
-    "name": "enhanced_sqlite_create_table",
-    "description": "AI-enhanced Create a table in SQLite database with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "78ac793e2b57a934",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "grpc_notification_service": {
-    "name": "grpc_notification_service",
-    "description": "Send notifications via gRPC notification service",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "dfca7998a51efd78",
-    "last_updated": 1753780595,
-    "embedding_dims": 768
-  },
-  "sse_stock_price_stream": {
-    "name": "sse_stock_price_stream",
-    "description": "Subscribe to real-time stock price updates via SSE",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "1a0a9b00231656b7",
-    "last_updated": 1753780596,
-    "embedding_dims": 768
-  },
-  "traceroute_globalping": {
-    "name": "traceroute_globalping",
-    "description": "traceroute (via globalping MCP server)",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "273cb9cc869aabda",
-    "last_updated": 1754742145,
-    "embedding_dims": 768
-  },
-  "backup_table": {
-    "name": "backup_table",
-    "description": "Create a backup of a database table",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "4baa56201b816e0c",
+    "content_hash": "8bcfad93ba50249d",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "postgres_table_info": {
-    "name": "postgres_table_info",
-    "description": "Get table information from PostgreSQL database",
+  "enhanced_sqlite_query": {
+    "name": "enhanced_sqlite_query",
+    "description": "AI-enhanced Execute SQL queries against SQLite databases with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "579f1da3e15ca84e",
+    "content_hash": "16238318471eedbf",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "enhanced_postgres_table_info": {
+    "name": "enhanced_postgres_table_info",
+    "description": "AI-enhanced Get table information from PostgreSQL database with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "3252b9a7322ae182",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "realtime_chat_bot": {
+    "name": "realtime_chat_bot",
+    "description": "Real-time chat bot with WebSocket connection and session management",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "420784dceaa2ea89",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "enhanced_grafana_dashboard_manager": {
-    "name": "enhanced_grafana_dashboard_manager",
-    "description": "AI-enhanced Manage Grafana dashboards and alerts with MCP 2025-06-18 compliance",
+  "grafana_dashboard_manager": {
+    "name": "grafana_dashboard_manager",
+    "description": "Manage Grafana dashboards and alerts",
     "enabled": true,
     "hidden": true,
-    "content_hash": "5ca516e7547166b9",
-    "last_updated": 1754742144,
+    "content_hash": "ac2ca0c38d01bdde",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "ping_globalping": {
+    "name": "ping_globalping",
+    "description": "ping (via globalping MCP server)",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "88319a549d1124ad",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "security_scanner": {
+    "name": "security_scanner",
+    "description": "Run security scans on code and infrastructure",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "a5f5269fcee53722",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "limits_globalping": {
+    "name": "limits_globalping",
+    "description": "limits (via globalping MCP server)",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "6bbaf81c69eb1392",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "mtr_globalping": {
+    "name": "mtr_globalping",
+    "description": "mtr (via globalping MCP server)",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "e967140b1254ba6c",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "delete_card_metabase-manual": {
+    "name": "delete_card_metabase-manual",
+    "description": "Delete a Metabase question (card).",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "e4769f695fb975d",
+    "last_updated": 1753786359,
+    "embedding_dims": 768
+  },
+  "list_cards_metabase-manual": {
+    "name": "list_cards_metabase-manual",
+    "description": "List all questions/cards in Metabase",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "542523547ffb5cbd",
+    "last_updated": 1753786359,
+    "embedding_dims": 768
+  },
+  "enhanced_git_branch": {
+    "name": "enhanced_git_branch",
+    "description": "AI-enhanced Create or list Git branches with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "1bf99f9ad83ebdd0",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "dns_globalping": {
+    "name": "dns_globalping",
+    "description": "dns (via globalping MCP server)",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "2fb29113581dd587",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "enhanced_env_sqlite_query": {
+    "name": "enhanced_env_sqlite_query",
+    "description": "AI-enhanced Execute SQLite query using environment variable for database path with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "83de16ace241bd6",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "postgres_query": {
+    "name": "postgres_query",
+    "description": "Execute SQL queries against PostgreSQL databases",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "3153cf766fe0d792",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "api_health_checker": {
+    "name": "api_health_checker",
+    "description": "Advanced API health checking with dynamic headers and retry logic",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "4329ebc2545ecd04",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "intelligent_service_monitor": {
+    "name": "intelligent_service_monitor",
+    "description": "AI-enhanced service monitoring with predictive health analysis",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "2d630372502cc89f",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "google_sheets_read": {
+    "name": "google_sheets_read",
+    "description": "Read data from a Google Spreadsheet (auto-detects OAuth2 or Service Account authentication)",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "7c6b8131ac579296",
+    "last_updated": 1753895946,
+    "embedding_dims": 768
+  },
+  "enhanced_summarize_text": {
+    "name": "enhanced_summarize_text",
+    "description": "AI-enhanced Summarize long text content with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "332c0c02a6e9b9eb",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "env_sqlite_query": {
+    "name": "env_sqlite_query",
+    "description": "Execute SQLite query using environment variable for database path",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "8fea98b95dd3fe90",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "get_user_profile": {
+    "name": "get_user_profile",
+    "description": "Fetch user profile information using GraphQL",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "5b2bd35ad55c1c6c",
+    "last_updated": 1753779694,
     "embedding_dims": 768
   },
   "execute_custom_query": {
@@ -1094,133 +986,79 @@
     "enabled": true,
     "hidden": true,
     "content_hash": "e2eba597ba3e0c06",
-    "last_updated": 1754742143,
+    "last_updated": 1754780089,
     "embedding_dims": 768
   },
-  "postgres_query": {
-    "name": "postgres_query",
-    "description": "Execute SQL queries against PostgreSQL databases",
+  "intelligent_network_diagnostics": {
+    "name": "intelligent_network_diagnostics",
+    "description": "AI-powered network connectivity and performance diagnostics",
     "enabled": true,
     "hidden": true,
-    "content_hash": "3153cf766fe0d792",
+    "content_hash": "f116bbc8f7ed5659",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "http_post": {
+    "name": "http_post",
+    "description": "Make an HTTP POST request",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "a00ac7034499435",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "env_sqlite_query": {
-    "name": "env_sqlite_query",
-    "description": "Execute SQLite query using environment variable for database path",
+  "enhanced_google_sheets_list_spreadsheets": {
+    "name": "enhanced_google_sheets_list_spreadsheets",
+    "description": "AI-enhanced List all accessible Google Spreadsheets (auto-detects OAuth2 or Service Account authentication) with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "8fea98b95dd3fe90",
+    "content_hash": "797b8fbf0b45d762",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "env_postgres_query": {
+    "name": "env_postgres_query",
+    "description": "Execute PostgreSQL query using environment variables for connection",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "fd6d0e59ee36d445",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "enhanced_api_stress_test": {
-    "name": "enhanced_api_stress_test",
-    "description": "AI-enhanced Stress test API endpoints with high load with MCP 2025-06-18 compliance",
+  "get_dashboard_cards_metabase-manual": {
+    "name": "get_dashboard_cards_metabase-manual",
+    "description": "Get all cards in a dashboard",
     "enabled": true,
     "hidden": true,
-    "content_hash": "46179ba96fe738ef",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "list_cards_metabase-manual": {
-    "name": "list_cards_metabase-manual",
-    "description": "List all questions/cards in Metabase",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "542523547ffb5cbd",
+    "content_hash": "d124e9f5bfeb96c8",
     "last_updated": 1753786359,
     "embedding_dims": 768
   },
-  "enhanced_database_query_executor": {
-    "name": "enhanced_database_query_executor",
-    "description": "AI-enhanced Execute database queries with multiple database support with MCP 2025-06-18 compliance",
+  "authStatus_globalping": {
+    "name": "authStatus_globalping",
+    "description": "authStatus (via globalping MCP server)",
     "enabled": true,
     "hidden": true,
-    "content_hash": "449a288debeb1db0",
-    "last_updated": 1754742144,
+    "content_hash": "f26a81b0d5b22d2f",
+    "last_updated": 1754780089,
     "embedding_dims": 768
   },
-  "summarize_text": {
-    "name": "summarize_text",
-    "description": "Summarize long text content",
+  "slack_notification": {
+    "name": "slack_notification",
+    "description": "Send notifications to Slack channels with rich formatting",
     "enabled": true,
     "hidden": true,
-    "content_hash": "79117ddd3e6ba0a1",
+    "content_hash": "212f129554926c56",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "enhanced_git_diff": {
-    "name": "enhanced_git_diff",
-    "description": "AI-enhanced Show differences in Git repository with MCP 2025-06-18 compliance",
+  "enhanced_backup_table": {
+    "name": "enhanced_backup_table",
+    "description": "AI-enhanced Create a backup of a database table with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "b4324503c1960ad9",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "memory_stress_test": {
-    "name": "memory_stress_test",
-    "description": "Test memory usage limits and resource management",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "cdcb8cad894e8120",
-    "last_updated": 1753895946,
-    "embedding_dims": 768
-  },
-  "enhanced_so_this_month_visit_performance": {
-    "name": "enhanced_so_this_month_visit_performance",
-    "description": "AI-enhanced Sales officers dashboard showing visit related performance metrics for this month with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "34d556a13d1ba267",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "webhook_sender": {
-    "name": "webhook_sender",
-    "description": "Send webhook notifications with dynamic payload construction",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "2f6965067ba514e0",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "openai_code_assistant": {
-    "name": "openai_code_assistant",
-    "description": "AI-powered code assistance with OpenAI integration",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "ab15ed522138e85a",
-    "last_updated": 1753895946,
-    "embedding_dims": 768
-  },
-  "execute_query_metabase-manual": {
-    "name": "execute_query_metabase-manual",
-    "description": "Execute a SQL query against a Metabase database",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "add243da4df750e8",
-    "last_updated": 1753786359,
-    "embedding_dims": 768
-  },
-  "http_latency_test": {
-    "name": "http_latency_test",
-    "description": "Measure HTTP request latency and throughput",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "7095c85d4c21d17",
-    "last_updated": 1753895946,
-    "embedding_dims": 768
-  },
-  "resource_utilization_monitor": {
-    "name": "resource_utilization_monitor",
-    "description": "Monitor resource utilization during agent execution",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "206c8d902f147a77",
-    "last_updated": 1753895947,
+    "content_hash": "76b6e4166f9cc34e",
+    "last_updated": 1754780090,
     "embedding_dims": 768
   },
   "parallel_subprocess_test": {
@@ -1232,238 +1070,31 @@
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "intelligent_process_monitor": {
-    "name": "intelligent_process_monitor",
-    "description": "AI-enhanced process monitoring with behavior analysis and anomaly detection",
-    "enabled": true,
-    "hidden": false,
-    "content_hash": "b72bec85238ec3b6",
-    "last_updated": 1754742143,
-    "embedding_dims": 768
-  },
-  "enhanced_generate_text": {
-    "name": "enhanced_generate_text",
-    "description": "AI-enhanced Generate text using a language model with MCP 2025-06-18 compliance",
+  "kubernetes_deployment": {
+    "name": "kubernetes_deployment",
+    "description": "Deploy and manage Kubernetes resources",
     "enabled": true,
     "hidden": true,
-    "content_hash": "ef221ce441a864d8",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "enhanced_google_sheets_read": {
-    "name": "enhanced_google_sheets_read",
-    "description": "AI-enhanced Read data from a Google Spreadsheet (auto-detects OAuth2 or Service Account authentication) with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "d29e48115cf107aa",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "git_diff": {
-    "name": "git_diff",
-    "description": "Show differences in Git repository",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "393c5cfd36efabbd",
+    "content_hash": "b9831805f9de6bc8",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "sqlite_query": {
-    "name": "sqlite_query",
-    "description": "Execute SQL queries against SQLite databases",
+  "list_databases_metabase-manual": {
+    "name": "list_databases_metabase-manual",
+    "description": "List all databases in Metabase",
     "enabled": true,
     "hidden": true,
-    "content_hash": "a06f18be1c5731c7",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "admin_reset_cache": {
-    "name": "admin_reset_cache",
-    "description": "Administrative tool to reset system caches",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "6037288e04a646b",
-    "last_updated": 1753779693,
-    "embedding_dims": 768
-  },
-  "enhanced_validate_schema": {
-    "name": "enhanced_validate_schema",
-    "description": "AI-enhanced Validate database schema against expected structure with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "cda54559cb811916",
-    "last_updated": 1754742143,
-    "embedding_dims": 768
-  },
-  "database_query_executor": {
-    "name": "database_query_executor",
-    "description": "Execute database queries with multiple database support",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "d4e53a3cda7e39a",
-    "last_updated": 1753895946,
-    "embedding_dims": 768
-  },
-  "authStatus_globalping": {
-    "name": "authStatus_globalping",
-    "description": "authStatus (via globalping MCP server)",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "f26a81b0d5b22d2f",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "aws_s3_operations": {
-    "name": "aws_s3_operations",
-    "description": "Perform AWS S3 operations with comprehensive functionality",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "f92c13766661826c",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "enhanced_backup_table": {
-    "name": "enhanced_backup_table",
-    "description": "AI-enhanced Create a backup of a database table with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "76b6e4166f9cc34e",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "get_user_profile": {
-    "name": "get_user_profile",
-    "description": "Fetch user profile information using GraphQL",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "5b2bd35ad55c1c6c",
-    "last_updated": 1753779694,
-    "embedding_dims": 768
-  },
-  "enhanced_analyze_sentiment": {
-    "name": "enhanced_analyze_sentiment",
-    "description": "AI-enhanced Analyze the sentiment of text with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "d9812693e51d5c71",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "google_sheets_list_sheets": {
-    "name": "google_sheets_list_sheets",
-    "description": "List all sheets in a Google Spreadsheet (auto-detects OAuth2 or Service Account authentication)",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "7c700d8811b6fdc4",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "update_dashboard_metabase-manual": {
-    "name": "update_dashboard_metabase-manual",
-    "description": "Update an existing Metabase dashboard.",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "d3032ff969249752",
+    "content_hash": "a384b28a88500730",
     "last_updated": 1753786359,
     "embedding_dims": 768
   },
-  "enhanced_env_sqlite_query": {
-    "name": "enhanced_env_sqlite_query",
-    "description": "AI-enhanced Execute SQLite query using environment variable for database path with MCP 2025-06-18 compliance",
+  "enhanced_prometheus_query": {
+    "name": "enhanced_prometheus_query",
+    "description": "AI-enhanced Query Prometheus metrics with PromQL with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "83de16ace241bd6",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "create_dashboard_metabase-manual": {
-    "name": "create_dashboard_metabase-manual",
-    "description": "Create a new Metabase dashboard.",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "330b63a75993ade3",
-    "last_updated": 1753786359,
-    "embedding_dims": 768
-  },
-  "websocket_error_handling": {
-    "name": "websocket_error_handling",
-    "description": "Test WebSocket error handling and connection issues",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "8bcfad93ba50249d",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "enhanced_concurrent_request_test": {
-    "name": "enhanced_concurrent_request_test",
-    "description": "AI-enhanced Test handling of concurrent requests and rate limiting with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "c12dbd5b42532942",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "sse_chat_stream": {
-    "name": "sse_chat_stream",
-    "description": "Subscribe to real-time chat messages via SSE",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "57de20532a6da772",
-    "last_updated": 1753780596,
-    "embedding_dims": 768
-  },
-  "sqlite_create_table": {
-    "name": "sqlite_create_table",
-    "description": "Create a table in SQLite database",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "6c5e0bd7dbe603ac",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "enhanced_http_retry_test": {
-    "name": "enhanced_http_retry_test",
-    "description": "AI-enhanced Test HTTP retry logic with unreliable endpoints with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "2db5516118309140",
-    "last_updated": 1754742143,
-    "embedding_dims": 768
-  },
-  "google_sheets_read": {
-    "name": "google_sheets_read",
-    "description": "Read data from a Google Spreadsheet (auto-detects OAuth2 or Service Account authentication)",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "7c6b8131ac579296",
-    "last_updated": 1753895946,
-    "embedding_dims": 768
-  },
-  "enhanced_security_scanner": {
-    "name": "enhanced_security_scanner",
-    "description": "AI-enhanced Run security scans on code and infrastructure with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "39227fe780b3ba76",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "so_today_visit_performance": {
-    "name": "so_today_visit_performance",
-    "description": "Sales officer's dashboard showing visit related erformance metrics for today",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "8d5942015710d834",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "dns_globalping": {
-    "name": "dns_globalping",
-    "description": "dns (via globalping MCP server)",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "2fb29113581dd587",
-    "last_updated": 1754742144,
+    "content_hash": "67af4c9b120030fb",
+    "last_updated": 1754780090,
     "embedding_dims": 768
   },
   "mixed_agent_benchmark": {
@@ -1475,129 +1106,57 @@
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "get_dashboard_data": {
-    "name": "get_dashboard_data",
-    "description": "Fetch multiple data sets for a dashboard in a single GraphQL request",
+  "postgres_analytics_query": {
+    "name": "postgres_analytics_query",
+    "description": "Execute analytics queries against PostgreSQL with date filtering",
     "enabled": true,
     "hidden": true,
-    "content_hash": "c8e0a34d8841e923",
-    "last_updated": 1753779694,
-    "embedding_dims": 768
-  },
-  "enhanced_google_sheets_create": {
-    "name": "enhanced_google_sheets_create",
-    "description": "AI-enhanced Create a new Google Spreadsheet (auto-detects OAuth2 or Service Account authentication) with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "663d26614909607e",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "enhanced_git_status": {
-    "name": "enhanced_git_status",
-    "description": "AI-enhanced Get the status of a Git repository with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "c57b4115ab42c459",
-    "last_updated": 1754742145,
-    "embedding_dims": 768
-  },
-  "grpc_user_service": {
-    "name": "grpc_user_service",
-    "description": "Call gRPC user service to get user information",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "188e5df3186a42d6",
-    "last_updated": 1753780595,
-    "embedding_dims": 768
-  },
-  "enhanced_resource_utilization_monitor": {
-    "name": "enhanced_resource_utilization_monitor",
-    "description": "AI-enhanced Monitor resource utilization during agent execution with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "4f919f7017f2b1cc",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "enhanced_timeout_test_subprocess": {
-    "name": "enhanced_timeout_test_subprocess",
-    "description": "AI-enhanced Test subprocess timeout handling with configurable delays with MCP 2025-06-18 compliance",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "a901693ab34926b4",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "create_card_metabase-manual": {
-    "name": "create_card_metabase-manual",
-    "description": "Create a new Metabase question (card).",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "9c205f18482ec16e",
-    "last_updated": 1753786359,
-    "embedding_dims": 768
-  },
-  "advanced_file_search": {
-    "name": "advanced_file_search",
-    "description": "Advanced file search with parameter substitution and environment variables",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "19b9d1ed65bb281",
-    "last_updated": 1753895946,
-    "embedding_dims": 768
-  },
-  "api_health_checker": {
-    "name": "api_health_checker",
-    "description": "Advanced API health checking with dynamic headers and retry logic",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "4329ebc2545ecd04",
+    "content_hash": "78f39ce8f159e753",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "websocket_connection_test": {
-    "name": "websocket_connection_test",
-    "description": "Test WebSocket connection establishment and message throughput",
+  "read_file_enhanced": {
+    "name": "read_file_enhanced",
+    "description": "Read file contents with intelligent encoding detection and validation",
+    "enabled": true,
+    "hidden": false,
+    "content_hash": "b9a13e13816b2cf7",
+    "last_updated": 1754777009,
+    "embedding_dims": 768
+  },
+  "enhanced_memory_stress_test": {
+    "name": "enhanced_memory_stress_test",
+    "description": "AI-enhanced Test memory usage limits and resource management with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "dc4b9015a90f1f85",
+    "content_hash": "ba9841b6fd91c82f",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "llm_throughput_test": {
+    "name": "llm_throughput_test",
+    "description": "Test LLM throughput with batch processing",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "97519d9130566325",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "enhanced_docker_container_manager": {
-    "name": "enhanced_docker_container_manager",
-    "description": "AI-enhanced Manage Docker containers with comprehensive operations with MCP 2025-06-18 compliance",
+  "list_directory_filesystem": {
+    "name": "list_directory_filesystem",
+    "description": "Get a detailed listing of all files and directories in a specified path. Results clearly distinguish between files and directories with [FILE] and [DIR] prefixes. This tool is essential for understanding directory structure and finding specific files within a directory. Only works within allowed directories.",
     "enabled": true,
     "hidden": true,
-    "content_hash": "aaa8ca87a46ce45c",
-    "last_updated": 1754742144,
+    "content_hash": "7e7edf3ac20b8d6f",
+    "last_updated": 1754780090,
     "embedding_dims": 768
   },
-  "timeout_test_subprocess": {
-    "name": "timeout_test_subprocess",
-    "description": "Test subprocess timeout handling with configurable delays",
+  "list_directory": {
+    "name": "list_directory",
+    "description": "List contents of a directory",
     "enabled": true,
     "hidden": true,
-    "content_hash": "6cde577c829d545f",
-    "last_updated": 1753895947,
-    "embedding_dims": 768
-  },
-  "introspect_schema": {
-    "name": "introspect_schema",
-    "description": "Introspect GraphQL schema to discover available types and operations",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "46edf89a9629a30e",
-    "last_updated": 1753779693,
-    "embedding_dims": 768
-  },
-  "security_scanner": {
-    "name": "security_scanner",
-    "description": "Run security scans on code and infrastructure",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "a5f5269fcee53722",
+    "content_hash": "a3c451d40f87f18a",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
@@ -1610,31 +1169,76 @@
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "enhanced_llm_error_handling": {
-    "name": "enhanced_llm_error_handling",
-    "description": "AI-enhanced Test LLM error handling with invalid inputs and API issues with MCP 2025-06-18 compliance",
+  "read_file_filesystem": {
+    "name": "read_file_filesystem",
+    "description": "Read the complete contents of a file from the file system. Handles various text encodings and provides detailed error messages if the file cannot be read. Use this tool when you need to examine the contents of a single file. Use the 'head' parameter to read only the first N lines of a file, or the 'tail' parameter to read only the last N lines of a file. Only works within allowed directories.",
     "enabled": true,
     "hidden": true,
-    "content_hash": "468a7782f6b239ff",
-    "last_updated": 1754742144,
+    "content_hash": "371ee0921bb5df71",
+    "last_updated": 1754780090,
     "embedding_dims": 768
   },
-  "enhanced_google_sheets_list_sheets": {
-    "name": "enhanced_google_sheets_list_sheets",
-    "description": "AI-enhanced List all sheets in a Google Spreadsheet (auto-detects OAuth2 or Service Account authentication) with MCP 2025-06-18 compliance",
+  "enhanced_env_postgres_query": {
+    "name": "enhanced_env_postgres_query",
+    "description": "AI-enhanced Execute PostgreSQL query using environment variables for connection with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "64ce6eec9d82e10",
-    "last_updated": 1754742144,
+    "content_hash": "666813f3964a415",
+    "last_updated": 1754780090,
     "embedding_dims": 768
   },
-  "enhanced_aws_s3_operations": {
-    "name": "enhanced_aws_s3_operations",
-    "description": "AI-enhanced Perform AWS S3 operations with comprehensive functionality with MCP 2025-06-18 compliance",
+  "enhanced_validate_schema": {
+    "name": "enhanced_validate_schema",
+    "description": "AI-enhanced Validate database schema against expected structure with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "444910f9f0fc2522",
-    "last_updated": 1754742144,
+    "content_hash": "cda54559cb811916",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "git_branch": {
+    "name": "git_branch",
+    "description": "Create or list Git branches",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "d6e0087591ee3f8b",
+    "last_updated": 1753895946,
+    "embedding_dims": 768
+  },
+  "read_text_file_filesystem": {
+    "name": "read_text_file_filesystem",
+    "description": "Read the complete contents of a file from the file system as text. Handles various text encodings and provides detailed error messages if the file cannot be read. Use this tool when you need to examine the contents of a single file. Use the 'head' parameter to read only the first N lines of a file, or the 'tail' parameter to read only the last N lines of a file. Operates on the file as text regardless of extension. Only works within allowed directories.",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "396fb0ff25814102",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "enhanced_so_today_visit_performance": {
+    "name": "enhanced_so_today_visit_performance",
+    "description": "AI-enhanced Sales officer's dashboard showing visit related performance metrics for today with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "eb065ed329008ee7",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "enhanced_http_latency_test": {
+    "name": "enhanced_http_latency_test",
+    "description": "AI-enhanced Measure HTTP request latency and throughput with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "c55c15ba1a61ba7b",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "sse_log_stream": {
+    "name": "sse_log_stream",
+    "description": "Subscribe to real-time application log streams via SSE",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "affddd30ef8a98d4",
+    "last_updated": 1753780595,
     "embedding_dims": 768
   },
   "git_commit": {
@@ -1646,49 +1250,301 @@
     "last_updated": 1753895946,
     "embedding_dims": 768
   },
-  "enhanced_mixed_agent_benchmark": {
-    "name": "enhanced_mixed_agent_benchmark",
-    "description": "AI-enhanced Benchmark mixed workload across all agent types with MCP 2025-06-18 compliance",
+  "enhanced_generate_text": {
+    "name": "enhanced_generate_text",
+    "description": "AI-enhanced Generate text using a language model with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "4b28dc17ef48350d",
-    "last_updated": 1754742144,
+    "content_hash": "ef221ce441a864d8",
+    "last_updated": 1754780089,
     "embedding_dims": 768
   },
-  "http_post": {
-    "name": "http_post",
-    "description": "Make an HTTP POST request",
+  "google_sheets_list_sheets": {
+    "name": "google_sheets_list_sheets",
+    "description": "List all sheets in a Google Spreadsheet (auto-detects OAuth2 or Service Account authentication)",
     "enabled": true,
     "hidden": true,
-    "content_hash": "a00ac7034499435",
+    "content_hash": "7c700d8811b6fdc4",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "analyze_sentiment": {
-    "name": "analyze_sentiment",
-    "description": "Analyze the sentiment of text",
+  "websocket_connection_test": {
+    "name": "websocket_connection_test",
+    "description": "Test WebSocket connection establishment and message throughput",
     "enabled": true,
     "hidden": true,
-    "content_hash": "76fadeb95056fd0b",
+    "content_hash": "dc4b9015a90f1f85",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "enhanced_memory_stress_test": {
-    "name": "enhanced_memory_stress_test",
-    "description": "AI-enhanced Test memory usage limits and resource management with MCP 2025-06-18 compliance",
+  "secure_file_writer": {
+    "name": "secure_file_writer",
+    "description": "AI-enhanced secure file writer with validation and permission checks",
     "enabled": true,
     "hidden": true,
-    "content_hash": "ba9841b6fd91c82f",
-    "last_updated": 1754742144,
+    "content_hash": "8c2250c8c52ebf56",
+    "last_updated": 1754780090,
     "embedding_dims": 768
   },
-  "directory_tree_filesystem": {
-    "name": "directory_tree_filesystem",
-    "description": "Get a recursive tree view of files and directories as a JSON structure. Each entry includes 'name', 'type' (file/directory), and 'children' for directories. Files have no children array, while directories always have a children array (which may be empty). The output is formatted with 2-space indentation for readability. Only works within allowed directories.",
+  "write_file_filesystem": {
+    "name": "write_file_filesystem",
+    "description": "Create a new file or completely overwrite an existing file with new content. Use with caution as it will overwrite existing files without warning. Handles text content with proper encoding. Only works within allowed directories.",
     "enabled": true,
     "hidden": true,
-    "content_hash": "3003f41003b44d",
-    "last_updated": 1754742145,
+    "content_hash": "33b3ffe73e8f79d5",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "sse_stock_price_stream": {
+    "name": "sse_stock_price_stream",
+    "description": "Subscribe to real-time stock price updates via SSE",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "1a0a9b00231656b7",
+    "last_updated": 1753780596,
+    "embedding_dims": 768
+  },
+  "sse_chat_stream": {
+    "name": "sse_chat_stream",
+    "description": "Subscribe to real-time chat messages via SSE",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "57de20532a6da772",
+    "last_updated": 1753780596,
+    "embedding_dims": 768
+  },
+  "http_latency_test": {
+    "name": "http_latency_test",
+    "description": "Measure HTTP request latency and throughput",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "7095c85d4c21d17",
+    "last_updated": 1753895946,
+    "embedding_dims": 768
+  },
+  "system_info_collector": {
+    "name": "system_info_collector",
+    "description": "Collect comprehensive system information with dynamic command building",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "cad814024969e9c2",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "enhanced_aws_s3_operations": {
+    "name": "enhanced_aws_s3_operations",
+    "description": "AI-enhanced Perform AWS S3 operations with comprehensive functionality with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "444910f9f0fc2522",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "enhanced_sqlite_user_query": {
+    "name": "enhanced_sqlite_user_query",
+    "description": "AI-enhanced Query user data from SQLite database with filtering with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "7a4c60006f7e91de",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "grpc_health_check": {
+    "name": "grpc_health_check",
+    "description": "Perform health check on gRPC services",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "60eb747d73edb059",
+    "last_updated": 1753780596,
+    "embedding_dims": 768
+  },
+  "delete_dashboard_metabase-manual": {
+    "name": "delete_dashboard_metabase-manual",
+    "description": "Delete a Metabase dashboard.",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "98c4bb47cf523a6d",
+    "last_updated": 1753786359,
+    "embedding_dims": 768
+  },
+  "git_diff": {
+    "name": "git_diff",
+    "description": "Show differences in Git repository",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "393c5cfd36efabbd",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "execute_query": {
+    "name": "execute_query",
+    "description": "Execute a SQL query against a database",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "d6112d10ebdde8f9",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "enhanced_network_error_simulation": {
+    "name": "enhanced_network_error_simulation",
+    "description": "AI-enhanced Simulate various network error conditions with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "496b3c19e7e653cc",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "validate_schema": {
+    "name": "validate_schema",
+    "description": "Validate database schema against expected structure",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "c3a63da9f0921b20",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "enhanced_subprocess_benchmark": {
+    "name": "enhanced_subprocess_benchmark",
+    "description": "AI-enhanced Benchmark subprocess execution performance with various workloads with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "b6c6fe1739597217",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "edit_file_filesystem": {
+    "name": "edit_file_filesystem",
+    "description": "Make line-based edits to a text file. Each edit replaces exact line sequences with new content. Returns a git-style diff showing the changes made. Only works within allowed directories.",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "3bf76fc1eea6c0e2",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "postgres_table_info": {
+    "name": "postgres_table_info",
+    "description": "Get table information from PostgreSQL database",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "579f1da3e15ca84e",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "generate_text": {
+    "name": "generate_text",
+    "description": "Generate text using a language model",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "ba582389f612936f",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "create_directory_filesystem": {
+    "name": "create_directory_filesystem",
+    "description": "Create a new directory or ensure a directory exists. Can create multiple nested directories in one operation. If the directory already exists, this operation will succeed silently. Perfect for setting up directory structures for projects or ensuring required paths exist. Only works within allowed directories.",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "3b597a2422f09ca7",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "enhanced_kubernetes_deployment": {
+    "name": "enhanced_kubernetes_deployment",
+    "description": "AI-enhanced Deploy and manage Kubernetes resources with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "c576f2426463ed78",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "enhanced_concurrent_request_test": {
+    "name": "enhanced_concurrent_request_test",
+    "description": "AI-enhanced Test handling of concurrent requests and rate limiting with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "c12dbd5b42532942",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "intelligent_memory_analyzer": {
+    "name": "intelligent_memory_analyzer",
+    "description": "AI-powered memory usage analysis with optimization recommendations",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "28c042b46158c696",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "getMeasurement_globalping": {
+    "name": "getMeasurement_globalping",
+    "description": "getMeasurement (via globalping MCP server)",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "c2b1ad08f873b5ff",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "sqlite_create_table": {
+    "name": "sqlite_create_table",
+    "description": "Create a table in SQLite database",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "6c5e0bd7dbe603ac",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "google_sheets_list_spreadsheets": {
+    "name": "google_sheets_list_spreadsheets",
+    "description": "List all accessible Google Spreadsheets (auto-detects OAuth2 or Service Account authentication)",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "4a5200b3f6bef233",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "backup_table": {
+    "name": "backup_table",
+    "description": "Create a backup of a database table",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "4baa56201b816e0c",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "intelligent_disk_monitor": {
+    "name": "intelligent_disk_monitor",
+    "description": "AI-enhanced disk usage monitoring with predictive analysis and alerting",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "fa7ac69b2bb3866d",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "google_sheets_create": {
+    "name": "google_sheets_create",
+    "description": "Create a new Google Spreadsheet (auto-detects OAuth2 or Service Account authentication)",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "43f9eda473ac576f",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "enhanced_sqlite_create_table": {
+    "name": "enhanced_sqlite_create_table",
+    "description": "AI-enhanced Create a table in SQLite database with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "78ac793e2b57a934",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "internal_system_check": {
+    "name": "internal_system_check",
+    "description": "Internal system health check (hidden from main interface)",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "6d697a32b48efbb",
+    "last_updated": 1753779693,
     "embedding_dims": 768
   },
   "enhanced_postgres_analytics_query": {
@@ -1697,105 +1553,249 @@
     "enabled": true,
     "hidden": true,
     "content_hash": "3fc1df3ad875fdb2",
-    "last_updated": 1754742144,
+    "last_updated": 1754780090,
     "embedding_dims": 768
   },
-  "list_directory_with_sizes_filesystem": {
-    "name": "list_directory_with_sizes_filesystem",
-    "description": "Get a detailed listing of all files and directories in a specified path, including sizes. Results clearly distinguish between files and directories with [FILE] and [DIR] prefixes. This tool is useful for understanding directory structure and finding specific files within a directory. Only works within allowed directories.",
+  "check_memory_usage": {
+    "name": "check_memory_usage",
+    "description": "Check system memory usage",
     "enabled": true,
     "hidden": true,
-    "content_hash": "f9d4ff8b4e8da5e9",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "process_large_dataset": {
-    "name": "process_large_dataset",
-    "description": "Process large datasets with progress tracking and cancellation",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "fee4e109b7b62af0",
-    "last_updated": 1754742144,
-    "embedding_dims": 768
-  },
-  "grafana_dashboard_manager": {
-    "name": "grafana_dashboard_manager",
-    "description": "Manage Grafana dashboards and alerts",
-    "enabled": true,
-    "hidden": true,
-    "content_hash": "ac2ca0c38d01bdde",
+    "content_hash": "d3fda886d8b12bba",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "enhanced_summarize_text": {
-    "name": "enhanced_summarize_text",
-    "description": "AI-enhanced Summarize long text content with MCP 2025-06-18 compliance",
+  "public_calculator": {
+    "name": "public_calculator",
+    "description": "A calculator tool that's visible to all users",
     "enabled": true,
     "hidden": true,
-    "content_hash": "332c0c02a6e9b9eb",
-    "last_updated": 1754742144,
+    "content_hash": "d3a4580f6a4e3835",
+    "last_updated": 1753779693,
     "embedding_dims": 768
   },
-  "check_process_status": {
-    "name": "check_process_status",
-    "description": "Check status of running processes with optional filtering",
+  "enhanced_grafana_dashboard_manager": {
+    "name": "enhanced_grafana_dashboard_manager",
+    "description": "AI-enhanced Manage Grafana dashboards and alerts with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "5127faab5f66463b",
+    "content_hash": "5ca516e7547166b9",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "enhanced_http_get": {
+    "name": "enhanced_http_get",
+    "description": "AI-enhanced Make an HTTP GET request with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "5384b551e7c109d6",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "google_sheets_write": {
+    "name": "google_sheets_write",
+    "description": "Write data to a Google Spreadsheet (auto-detects OAuth2 or Service Account authentication)",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "a4343efc8e9ea140",
+    "last_updated": 1753895946,
+    "embedding_dims": 768
+  },
+  "enhanced_http_retry_test": {
+    "name": "enhanced_http_retry_test",
+    "description": "AI-enhanced Test HTTP retry logic with unreliable endpoints with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "2db5516118309140",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "list_allowed_directories_filesystem": {
+    "name": "list_allowed_directories_filesystem",
+    "description": "Returns the list of directories that this server is allowed to access. Use this to understand which directories are available before trying to access files.",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "91dd988198e1b59e",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "enhanced_llm_response_time_test": {
+    "name": "enhanced_llm_response_time_test",
+    "description": "AI-enhanced Measure LLM response times for different prompt types with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "700f9af8f52b2d4e",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "enhanced_parameter_edge_cases": {
+    "name": "enhanced_parameter_edge_cases",
+    "description": "AI-enhanced Test parameter substitution with edge cases and special characters with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "5f20e5d8b20a02cd",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "parameter_edge_cases": {
+    "name": "parameter_edge_cases",
+    "description": "Test parameter substitution with edge cases and special characters",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "fb98d21e93dd8e5c",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "enhanced_prometheus_query": {
-    "name": "enhanced_prometheus_query",
-    "description": "AI-enhanced Query Prometheus metrics with PromQL with MCP 2025-06-18 compliance",
+  "concurrent_request_test": {
+    "name": "concurrent_request_test",
+    "description": "Test handling of concurrent requests and rate limiting",
     "enabled": true,
     "hidden": true,
-    "content_hash": "67af4c9b120030fb",
-    "last_updated": 1754742144,
+    "content_hash": "f0b57884c6b127b2",
+    "last_updated": 1753895946,
     "embedding_dims": 768
   },
-  "llm_throughput_test": {
-    "name": "llm_throughput_test",
-    "description": "Test LLM throughput with batch processing",
+  "grpc_order_service": {
+    "name": "grpc_order_service",
+    "description": "Call gRPC order service to create or retrieve orders",
     "enabled": true,
     "hidden": true,
-    "content_hash": "97519d9130566325",
+    "content_hash": "7d6370264b3063d0",
+    "last_updated": 1753780595,
+    "embedding_dims": 768
+  },
+  "api_stress_test": {
+    "name": "api_stress_test",
+    "description": "Stress test API endpoints with high load",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "76b2a38bd9b4269c",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "check_disk_usage": {
-    "name": "check_disk_usage",
-    "description": "Check disk usage for specified paths",
+  "live_data_streamer": {
+    "name": "live_data_streamer",
+    "description": "Stream live data updates via WebSocket with filtering and aggregation",
     "enabled": true,
     "hidden": true,
-    "content_hash": "c649ba136e7f914d",
+    "content_hash": "bf4ca5138dac16ee",
     "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "limits_globalping": {
-    "name": "limits_globalping",
-    "description": "limits (via globalping MCP server)",
+  "prometheus_query": {
+    "name": "prometheus_query",
+    "description": "Query Prometheus metrics with PromQL",
     "enabled": true,
     "hidden": true,
-    "content_hash": "6bbaf81c69eb1392",
-    "last_updated": 1754742144,
+    "content_hash": "e358605dcabe3412",
+    "last_updated": 1753895947,
     "embedding_dims": 768
   },
-  "enhanced_download_file": {
-    "name": "enhanced_download_file",
-    "description": "AI-enhanced Download a file from a URL with MCP 2025-06-18 compliance",
+  "help_globalping": {
+    "name": "help_globalping",
+    "description": "help (via globalping MCP server)",
     "enabled": true,
     "hidden": true,
-    "content_hash": "9117cf56f225f464",
-    "last_updated": 1754742144,
+    "content_hash": "64725287d04536be",
+    "last_updated": 1754780090,
     "embedding_dims": 768
   },
-  "check_service_status": {
-    "name": "check_service_status",
-    "description": "Check status of system services",
+  "enhanced_openai_code_assistant": {
+    "name": "enhanced_openai_code_assistant",
+    "description": "AI-enhanced AI-powered code assistance with OpenAI integration with MCP 2025-06-18 compliance",
     "enabled": true,
     "hidden": true,
-    "content_hash": "cdc3274d6053d6b",
+    "content_hash": "6aa765e57a34678a",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "grpc_notification_service": {
+    "name": "grpc_notification_service",
+    "description": "Send notifications via gRPC notification service",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "dfca7998a51efd78",
+    "last_updated": 1753780595,
+    "embedding_dims": 768
+  },
+  "so_today_visit_performance": {
+    "name": "so_today_visit_performance",
+    "description": "Sales officer's dashboard showing visit related erformance metrics for today",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "8d5942015710d834",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "enhanced_live_data_streamer": {
+    "name": "enhanced_live_data_streamer",
+    "description": "AI-enhanced Stream live data updates via WebSocket with filtering and aggregation with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "49480ffb68195df8",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "enhanced_database_query_executor": {
+    "name": "enhanced_database_query_executor",
+    "description": "AI-enhanced Execute database queries with multiple database support with MCP 2025-06-18 compliance",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "449a288debeb1db0",
+    "last_updated": 1754780089,
+    "embedding_dims": 768
+  },
+  "aws_s3_operations": {
+    "name": "aws_s3_operations",
+    "description": "Perform AWS S3 operations with comprehensive functionality",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "f92c13766661826c",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "read_multiple_files_filesystem": {
+    "name": "read_multiple_files_filesystem",
+    "description": "Read the contents of multiple files simultaneously. This is more efficient than reading files one by one when you need to analyze or compare multiple files. Each file's content is returned with its path as a reference. Failed reads for individual files won't stop the entire operation. Only works within allowed directories.",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "f4f6f5961e3ca294",
+    "last_updated": 1754780090,
+    "embedding_dims": 768
+  },
+  "memory_stress_test": {
+    "name": "memory_stress_test",
+    "description": "Test memory usage limits and resource management",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "cdcb8cad894e8120",
+    "last_updated": 1753895946,
+    "embedding_dims": 768
+  },
+  "debug_trace": {
+    "name": "debug_trace",
+    "description": "Debug tracing tool for troubleshooting (hidden by default)",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "180f5057f5435d8d",
+    "last_updated": 1753779693,
+    "embedding_dims": 768
+  },
+  "summarize_text": {
+    "name": "summarize_text",
+    "description": "Summarize long text content",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "79117ddd3e6ba0a1",
+    "last_updated": 1753895947,
+    "embedding_dims": 768
+  },
+  "check_network_connectivity": {
+    "name": "check_network_connectivity",
+    "description": "Test network connectivity to hosts",
+    "enabled": true,
+    "hidden": true,
+    "content_hash": "ed0d7bbbd6a72e44",
     "last_updated": 1753895947,
     "embedding_dims": 768
   }
