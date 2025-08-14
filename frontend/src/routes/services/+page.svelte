@@ -11,12 +11,17 @@
   let expandedServices = new Set<string>();
 
   function toggleServiceExpanded(serviceName: string) {
-    if (expandedServices.has(serviceName)) {
-      expandedServices.delete(serviceName);
+    console.log('Toggling service expanded:', serviceName);
+    const newExpanded = new Set(expandedServices);
+    if (newExpanded.has(serviceName)) {
+      newExpanded.delete(serviceName);
+      console.log('Collapsing service:', serviceName);
     } else {
-      expandedServices.add(serviceName);
+      newExpanded.add(serviceName);
+      console.log('Expanding service:', serviceName);
     }
-    expandedServices = expandedServices; // Trigger reactivity
+    expandedServices = newExpanded; // Create new Set to ensure reactivity
+    console.log('Current expanded services:', Array.from(expandedServices));
   }
 
   function getStatusColor(status: string): string {
@@ -346,9 +351,9 @@
                   </div>
                   
                   <button 
-                    class="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                    class="p-2 text-gray-400 hover:text-gray-600 transition-colors bg-gray-50 hover:bg-gray-100 rounded-md border border-gray-200"
                     on:click={() => toggleServiceExpanded(service.name)}
-                    title="Toggle details"
+                    title="Toggle details - Click to {expandedServices.has(service.name) ? 'collapse' : 'expand'}"
                   >
                     {expandedServices.has(service.name) ? '▼' : '▶'}
                   </button>

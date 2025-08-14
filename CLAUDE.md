@@ -415,7 +415,7 @@ smart_discovery:
 - **Parameter errors**: Check array syntax in substitution.rs
 - **External MCP**: File permissions, working directory
 - **Visibility**: Use `magictunnel-visibility` CLI
-- **Transport**: Use `/mcp/streamable` (preferred) or `/mcp/stream` (deprecated)
+- **Transport**: Use `/mcp/streamable` (preferred) or `/mcp/sse` (deprecated)
 
 ### Git
 - Binary tracked: `git rm --cached magictunnel`

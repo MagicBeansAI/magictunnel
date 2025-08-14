@@ -132,17 +132,14 @@ impl RequestGeneratorService {
         tool_enhancement_service: Arc<crate::mcp::tool_enhancement::ToolEnhancementService>,
         elicitation_service: Arc<ElicitationService>,
     ) -> Self {
+        let description_enhancement_enabled = config.tool_enhancement.as_ref().map(|s| s.enabled).unwrap_or(false);
+        let elicitation_enabled = config.elicitation.as_ref().map(|e| e.enabled).unwrap_or(false);
+        
         let generator_config = RequestGeneratorConfig {
-            enabled: config.smart_discovery.as_ref()
-                .map(|sd| sd.enable_sampling.unwrap_or(false) || sd.enable_elicitation.unwrap_or(false))
-                .unwrap_or(false),
-            auto_generate_descriptions: config.smart_discovery.as_ref()
-                .map(|sd| sd.enable_sampling.unwrap_or(false))
-                .unwrap_or(false),
+            enabled: description_enhancement_enabled || elicitation_enabled,
+            auto_generate_descriptions: description_enhancement_enabled,
             auto_generate_examples: false, // Expensive, off by default
-            auto_generate_keywords: config.smart_discovery.as_ref()
-                .map(|sd| sd.enable_elicitation.unwrap_or(false))
-                .unwrap_or(false),
+            auto_generate_keywords: elicitation_enabled,
             max_concurrent_requests: 5,
             cache_ttl_seconds: 3600,
             require_approval: true, // Enable approval in production
@@ -218,7 +215,7 @@ impl RequestGeneratorService {
             &serde_json::to_value(&tool_def.input_schema).unwrap_or(json!({})),
         ).await {
             Ok(request) => {
-                info!("🎯 Generated sampling request for enhanced description: {}", tool_name);
+                info!("🎯 Generated tool enhancement request for enhanced description: {}", tool_name);
                 
                 // Execute the request
                 match self.tool_enhancement_service.execute_server_generated_request(request).await {
@@ -430,7 +427,7 @@ impl RequestGeneratorService {
             existing_keywords,
         ).await {
             Ok(request) => {
-                info!("🔍 Generated sampling request for keyword extraction: {}", tool_name);
+                info!("🔍 Generated tool enhancement request for keyword extraction: {}", tool_name);
                 
                 // Execute the request
                 match self.tool_enhancement_service.execute_server_generated_request(request).await {

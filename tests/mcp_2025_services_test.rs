@@ -50,10 +50,6 @@ async fn test_tool_enhancement_service_request_handling() {
         semantic_search: magictunnel::discovery::SemanticSearchConfig::default(),
         enable_sequential_mode: false,
         tool_metrics_enabled: None,
-        enable_sampling: Some(false),
-        enable_elicitation: Some(false),
-        default_sampling_strategy: None,
-        default_elicitation_strategy: None,
     });
     
     let service = ToolEnhancementService::from_config(&config).unwrap();
@@ -281,10 +277,6 @@ async fn test_roots_service_list_roots() {
         semantic_search: magictunnel::discovery::SemanticSearchConfig::default(),
         enable_sequential_mode: false,
         tool_metrics_enabled: None,
-        enable_sampling: Some(false),
-        enable_elicitation: Some(false),
-        default_sampling_strategy: None,
-        default_elicitation_strategy: None,
     });
     
     let service = RootsService::from_config(&config).unwrap();

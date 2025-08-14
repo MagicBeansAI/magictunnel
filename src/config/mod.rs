@@ -25,9 +25,7 @@ pub use config::{
     HttpServiceConfig, SseServiceConfig, WebSocketServiceConfig,
     HttpAuthType, SseAuthType, WebSocketAuthType,
     // MCP 2025-06-18 feature types
-    SamplingConfig, ElicitationConfig, LlmConfig, SamplingElicitationStrategy,
-    // MCP External Routing types (MCP 2025-06-18)
-    McpExternalRoutingConfig, ExternalRoutingStrategyConfig
+    SamplingConfig, ToolEnhancementConfig, ElicitationConfig, LlmConfig, SamplingElicitationStrategy
 };
 
 // Re-export environment and resolver types

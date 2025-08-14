@@ -5,6 +5,19 @@ All notable changes to the MagicTunnel project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.14]
+
+### Fixed - Navigation Architecture ✅
+- **Startup Optimization**: Moved to async processing, whatever could
+- **Fixed LLM Enhancments**: Fixed loading, saving and deduplication
+- **Duplicate Navigation Logic**: Removed hardcoded navigation from dashboard.rs, now delegates to mode_api.rs
+- **Navigation Order**: Resources moved to position after Roots in MCP Services menu
+- **Roots API Integration**: Added missing roots API routes configuration in HTTP server
+
+### Added - API Consistency ✅
+- **Single Source Navigation**: Both `/api/mode` and `/dashboard/api/mode` use same navigation structure
+- **Roots API Routes**: Configured `/api/roots/*` endpoints with proper dependency injection
+
 ## [0.3.13] - 2025-08-12 - OAuth 2.1 Phase 6 MCP Protocol Integration Complete ✅
 
 ### Added - CRITICAL BREAKTHROUGH: OAuth Context Flow Through MCP Protocol ✅
@@ -477,7 +490,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dual Transport Support**: HTTP+SSE (deprecated) and Streamable HTTP (preferred) with graceful migration
 - **Enhanced Security Model**: MCP-specific consent flows, capability permissions, and tool approval workflows
 - **Streamable HTTP Transport**: NDJSON streaming, enhanced batching, and session management
-- **Backward Compatibility**: Maintained HTTP+SSE support at `/mcp/stream` with deprecation guidance
+- **Backward Compatibility**: Maintained HTTP+SSE support at `/mcp/sse` and `/mcp/sse/messages` with deprecation guidance
 
 #### **🤖 Automatic LLM Generation Workflow Complete**
 - **Sampling Service**: AI-powered tool description enhancement with OpenAI/Anthropic/Ollama support
@@ -1258,7 +1271,7 @@ cargo run --bin graphql_generator -- \
 **OpenAPI Capability Generation:**
 ```bash
 # Generate MCP tools from OpenAPI specification
-cargo run --bin openapi-generator -- \
+cargo run --bin magictunnel-cli openapi -- \
   --spec "petstore.json" \
   --base-url "https://petstore.swagger.io/v2" \
   --prefix "petstore" \
@@ -1267,7 +1280,7 @@ cargo run --bin openapi-generator -- \
   --output "capabilities/petstore_tools.yaml"
 
 # Generate with filtering and custom naming
-cargo run --bin openapi-generator -- \
+cargo run --bin magictunnel-cli openapi -- \
   --spec "https://api.example.com/openapi.yaml" \
   --base-url "https://api.example.com" \
   --prefix "api" \

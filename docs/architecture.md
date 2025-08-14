@@ -28,7 +28,7 @@ MagicTunnel is an intelligent bridge between MCP (Model Context Protocol) client
 - **Multi-Client Concurrency**: Full support for multiple concurrent clients with session isolation
 - **Protocol Compliance**: Full MCP specification support with multiple streaming protocols:
   - **WebSocket**: Real-time bidirectional communication (`/mcp/ws`)
-  - **Server-Sent Events**: Legacy streaming support (`/mcp/stream`)
+  - **Server-Sent Events**: Legacy streaming support (`/mcp/sse`)
   - **HTTP Streaming**: Progressive tool execution results (`/mcp/call/stream`)
   - **gRPC Streaming**: High-performance binary streaming with concurrent server architecture
 
@@ -434,7 +434,7 @@ magictunnel/
   - Automatic reconnection support
 - **Use Cases**: Interactive clients, real-time dashboards, Claude Desktop integration
 
-#### 2. Server-Sent Events - SSE (`/mcp/stream`)
+#### 2. Server-Sent Events - SSE (`/mcp/sse`)
 - **Connection**: One-way server-to-client streaming
 - **Protocol**: SSE with JSON data events
 - **Message Types**: Data events, heartbeat, connection status

@@ -16,9 +16,7 @@
 #[cfg(test)]
 mod tests {
     use magictunnel::config::{
-        Config, ExternalMcpConfig, McpClientConfig, 
-        McpExternalRoutingConfig, SamplingElicitationStrategy,
-        SamplingConfig, ElicitationConfig, ExternalRoutingStrategyConfig
+        Config, ElicitationConfig, ExternalMcpConfig, LlmConfig, McpClientConfig, SamplingConfig, SamplingElicitationStrategy
     };
     // Legacy client import removed - focusing on E2E data structure and configuration testing
     use magictunnel::mcp::external_manager::ExternalMcpManager;
@@ -40,34 +38,6 @@ mod tests {
                 capabilities_output_dir: "./test-capabilities".to_string(),
                 refresh_interval_minutes: 60,
                 containers: None,
-                external_routing: Some(McpExternalRoutingConfig {
-                    enabled: true,
-                    sampling: Some(ExternalRoutingStrategyConfig {
-                        default_strategy: SamplingElicitationStrategy::MagictunnelFirst,
-                        server_strategies: Some({
-                            let mut strategies = std::collections::HashMap::new();
-                            strategies.insert("test-openai-server".to_string(), SamplingElicitationStrategy::MagictunnelHandled);
-                            strategies.insert("test-anthropic-server".to_string(), SamplingElicitationStrategy::ClientForwarded);
-                            strategies
-                        }),
-                        priority_order: vec![
-                            "test-anthropic-server".to_string(),
-                            "test-openai-server".to_string(),
-                            "test-local-llm".to_string(),
-                        ],
-                        fallback_to_magictunnel: true,
-                        max_retry_attempts: 3,
-                        timeout_seconds: 300,
-                    }),
-                    elicitation: Some(ExternalRoutingStrategyConfig {
-                        default_strategy: SamplingElicitationStrategy::ClientFirst,
-                        server_strategies: None,
-                        priority_order: vec![],
-                        fallback_to_magictunnel: true,
-                        max_retry_attempts: 3,
-                        timeout_seconds: 300,
-                    }),
-                }),
             }),
             mcp_client: Some(McpClientConfig {
                 connect_timeout_secs: 30,
@@ -81,20 +51,21 @@ mod tests {
             }),
             sampling: Some(SamplingConfig {
                 enabled: true,
-                default_model: "gpt-4".to_string(),
-                max_tokens_limit: 4000,
-                default_sampling_strategy: Some(SamplingElicitationStrategy::MagictunnelFirst),
-                default_elicitation_strategy: Some(SamplingElicitationStrategy::ClientFirst),
-                llm_config: None,
+                default_sampling_strategy: Some(SamplingElicitationStrategy::ClientForwarded),
+                default_elicitation_strategy: Some(SamplingElicitationStrategy::ClientForwarded),
+                llm_config: Some(LlmConfig {
+                    provider: "openai".to_string(),
+                    model: "gpt-4".to_string(),
+                    api_key_env: Some("OPENAI_API_KEY".to_string()),
+                    api_base_url: None,
+                    max_tokens: Some(4000),
+                    temperature: Some(0.7),
+                    additional_params: None,
+                }),
             }),
             elicitation: Some(ElicitationConfig {
                 enabled: true,
-                default_elicitation_strategy: Some(SamplingElicitationStrategy::ClientFirst),
-                respect_external_authority: true,
-                allow_tool_override: true,
-                enable_hybrid_elicitation: false,
-                default_timeout_seconds: 300,
-                max_schema_complexity: "100".to_string(),
+                default_elicitation_strategy: Some(SamplingElicitationStrategy::ClientForwarded),
             }),
             ..Default::default()
         }
@@ -210,8 +181,6 @@ mod tests {
         let external_integration = create_mock_external_integration().await;
         let config = create_test_config();
         let client_config = config.mcp_client.unwrap_or_default();
-        let external_routing_config = config.external_mcp.unwrap().external_routing;
-        
         let test_request = create_test_elicitation_request("claude-desktop-e2e-test");
         
         // Verify elicitation request structure
@@ -222,14 +191,6 @@ mod tests {
         let metadata = test_request.metadata.as_ref().unwrap();
         assert_eq!(metadata["client_id"], json!("claude-desktop-e2e-test"));
         assert_eq!(metadata["test_scenario"], json!("e2e_elicitation_test"));
-        
-        // Verify external routing configuration
-        if let Some(routing_config) = external_routing_config {
-            if let Some(elicitation_config) = routing_config.elicitation {
-                assert_eq!(elicitation_config.default_strategy, SamplingElicitationStrategy::ClientFirst);
-                assert!(elicitation_config.fallback_to_magictunnel);
-            }
-        }
         
         println!("✅ Elicitation strategy configuration verified");
     }
@@ -303,8 +264,6 @@ mod tests {
         let external_integration = create_mock_external_integration().await;
         let config = create_test_config();
         let client_config = config.mcp_client.unwrap_or_default();
-        let external_routing_config = config.external_mcp.unwrap().external_routing;
-        
         let test_request = create_test_sampling_request("claude-desktop-timeout-test", Some("gpt-4"));
         
         // Verify request structure for timeout scenarios
@@ -317,15 +276,6 @@ mod tests {
         assert!(client_config.request_timeout_secs >= 60);
         assert!(client_config.connect_timeout_secs >= 30);
         assert_eq!(client_config.max_reconnect_attempts, 3);
-        
-        // Verify fallback configuration if external routing is enabled
-        if let Some(routing_config) = external_routing_config {
-            if let Some(sampling_config) = routing_config.sampling {
-                assert!(sampling_config.fallback_to_magictunnel);
-                assert!(sampling_config.timeout_seconds >= 300);
-                assert!(sampling_config.max_retry_attempts >= 3);
-            }
-        }
         
         println!("✅ Fallback chain configuration validation verified");
     }
@@ -448,32 +398,22 @@ mod tests {
         println!("  Metadata keys: {:?}", request_metadata.keys().collect::<Vec<_>>());
     }
 
-    /// Test: Strategy Override per Server Configuration
+    /// Test: Service-Level Strategy Configuration
     #[tokio::test]
-    async fn test_strategy_override_per_server_configuration() {
+    async fn test_service_level_strategy_configuration() {
         let config = create_test_config();
-        let external_routing = config.external_mcp.unwrap().external_routing.unwrap();
-        let sampling_config = external_routing.sampling.unwrap();
         
-        // Verify server-specific strategy overrides are loaded correctly
-        assert_eq!(sampling_config.default_strategy, SamplingElicitationStrategy::MagictunnelFirst);
+        // Verify sampling service configuration
+        let sampling_config = config.sampling.as_ref().unwrap();
+        assert!(sampling_config.enabled);
+        assert_eq!(sampling_config.default_sampling_strategy, Some(SamplingElicitationStrategy::ClientForwarded));
         
-        let openai_strategy = sampling_config.server_strategies.as_ref().unwrap().get("test-openai-server");
-        assert_eq!(openai_strategy, Some(&SamplingElicitationStrategy::MagictunnelHandled));
+        // Verify elicitation service configuration  
+        let elicitation_config = config.elicitation.as_ref().unwrap();
+        assert!(elicitation_config.enabled);
+        assert_eq!(elicitation_config.default_elicitation_strategy, Some(SamplingElicitationStrategy::ClientForwarded));
         
-        let anthropic_strategy = sampling_config.server_strategies.as_ref().unwrap().get("test-anthropic-server");
-        assert_eq!(anthropic_strategy, Some(&SamplingElicitationStrategy::ClientForwarded));
-        
-        // Verify priority order
-        assert_eq!(sampling_config.priority_order, vec![
-            "test-anthropic-server".to_string(),
-            "test-openai-server".to_string(),
-            "test-local-llm".to_string(),
-        ]);
-        
-        assert!(sampling_config.fallback_to_magictunnel);
-        
-        println!("Strategy configuration verified successfully");
+        println!("Service-level strategy configuration verified successfully");
     }
 
     /// Test: Complete Flow Integration with Mock External Server Response

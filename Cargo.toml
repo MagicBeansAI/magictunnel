@@ -1,6 +1,6 @@
 [package]
 name = "magictunnel"
-version = "0.3.13"
+version = "0.3.14"
 edition = "2021"
 authors = ["gouravd"]
 description = "MagicTunnel - Fastest way to make LLMs talk to your internal systems and external ones"
@@ -147,24 +147,34 @@ codegen-units = 1
 panic = "abort"
 
 [profile.dev]
-debug = true
-opt-level = 0
+opt-level = 1               # Some optimization for faster builds
+debug = 1                   # Reduced debug info for faster compilation
+incremental = true          # Enable incremental compilation
+split-debuginfo = "unpacked" # Faster debug info generation (macOS/Linux)
+codegen-units = 512         # Maximum parallel codegen units for M2 Max
+
+# Optimize heavy dependencies in dev builds
+[profile.dev.package.serde]
+opt-level = 3
+
+[profile.dev.package.serde_json]
+opt-level = 3
+
+[profile.dev.package.tokio]
+opt-level = 2
+
+[profile.dev.package.actix-web]
+opt-level = 2
+
+[profile.dev.package.reqwest]
+opt-level = 2
+
+[profile.dev.package.tonic]
+opt-level = 2
 
 [[bin]]
 name = "magictunnel"
 path = "src/main.rs"
-
-[[bin]]
-name = "openapi-generator"
-path = "src/bin/openapi_generator.rs"
-
-[[bin]]
-name = "grpc-generator"
-path = "src/bin/grpc_generator.rs"
-
-[[bin]]
-name = "graphql-generator"
-path = "src/bin/graphql_generator.rs"
 
 [[bin]]
 name = "magictunnel-cli"

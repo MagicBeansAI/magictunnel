@@ -105,12 +105,16 @@ smart_discovery:
   tool_selection_mode: "rule_based"
   default_confidence_threshold: 0.7
   enable_tool_enhancement: false
-  enable_elicitation: false
   max_tools_to_consider: 10
   max_high_quality_matches: 3
   high_quality_threshold: 0.95
   use_fuzzy_matching: true
   enable_sequential_mode: true
+  
+# Configure sampling/elicitation at service level, not smart_discovery level
+elicitation:
+  enabled: true
+  default_elicitation_strategy: "client_forwarded"
 "#, capabilities_dir = capabilities_dir)
 }
 
@@ -478,15 +482,19 @@ smart_discovery:
   tool_selection_mode: "rule_based"
   default_confidence_threshold: 0.7
   enable_tool_enhancement: true
-  enable_elicitation: false
   max_tools_to_consider: 10
   max_high_quality_matches: 3
   high_quality_threshold: 0.95
   use_fuzzy_matching: true
   enable_sequential_mode: true
 
+# Configure sampling/elicitation at service level, not smart_discovery level  
 sampling:
   enabled: true
+  
+elicitation:
+  enabled: true
+  default_elicitation_strategy: "client_forwarded"
 "#, capabilities_dir = capabilities_dir.to_str().unwrap());
     
     let config_file = temp_dir.path().join("config.yaml");

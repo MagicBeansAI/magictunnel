@@ -370,23 +370,41 @@ impl SemanticSearchService {
             info!("Loaded {} tool metadata entries", storage.metadata.len());
         }
         
-        // Load content hashes
+        // Load content hashes with retry logic for file access issues
         if self.config.storage.hash_file.exists() {
-            let hash_content = tokio::fs::read_to_string(&self.config.storage.hash_file).await
-                .map_err(|e| ProxyError::config(format!("Failed to read hash file: {}", e)))?;
-            
-            let hashes: HashMap<String, String> = serde_json::from_str(&hash_content)
-                .map_err(|e| ProxyError::config(format!("Failed to parse hashes: {}", e)))?;
-            
-            storage.content_hashes = hashes;
-            info!("Loaded {} content hashes", storage.content_hashes.len());
+            match tokio::fs::read_to_string(&self.config.storage.hash_file).await {
+                Ok(hash_content) => {
+                    match serde_json::from_str::<HashMap<String, String>>(&hash_content) {
+                        Ok(hashes) => {
+                            storage.content_hashes = hashes;
+                            info!("Loaded {} content hashes", storage.content_hashes.len());
+                        }
+                        Err(e) => {
+                            warn!("Failed to parse content hashes (file may be partially written): {}", e);
+                            // Continue without hashes - they'll be regenerated if needed
+                        }
+                    }
+                }
+                Err(e) => {
+                    // This could happen during pre-generation when files are being written
+                    warn!("Failed to read hash file (likely temporary during pre-generation): {}", e);
+                    // Continue without hashes - they'll be regenerated if needed
+                }
+            }
         }
         
-        // Load embeddings (binary format)
+        // Load embeddings (binary format) with error tolerance
         if self.config.storage.embeddings_file.exists() {
-            let embeddings = self.load_embeddings_binary(&self.config.storage.embeddings_file).await?;
-            storage.embeddings = embeddings;
-            info!("Loaded {} tool embeddings", storage.embeddings.len());
+            match self.load_embeddings_binary(&self.config.storage.embeddings_file).await {
+                Ok(embeddings) => {
+                    storage.embeddings = embeddings;
+                    info!("Loaded {} tool embeddings", storage.embeddings.len());
+                }
+                Err(e) => {
+                    warn!("Failed to load embeddings file (likely temporary during pre-generation): {}", e);
+                    // Continue without embeddings - they'll be regenerated if needed
+                }
+            }
         }
         
         storage.mark_clean();
@@ -396,7 +414,40 @@ impl SemanticSearchService {
     /// Reload embeddings from disk (for hot-reload)
     pub async fn reload_embeddings(&self) -> Result<()> {
         info!("🔥 Reloading embeddings from disk for hot-reload");
-        self.load_embeddings().await
+        
+        // Retry logic for hot-reload to handle race conditions during pre-generation
+        let mut attempts = 0;
+        let max_attempts = 5;
+        
+        loop {
+            match self.load_embeddings().await {
+                Ok(()) => {
+                    if attempts > 0 {
+                        info!("✅ Successfully reloaded embeddings after {} retries", attempts);
+                    }
+                    return Ok(());
+                }
+                Err(e) => {
+                    attempts += 1;
+                    if attempts >= max_attempts {
+                        return Err(e);
+                    }
+                    
+                    // Check if this is a temporary file access issue during pre-generation
+                    let error_msg = e.to_string();
+                    if error_msg.contains("Failed to read hash file") || 
+                       error_msg.contains("background task failed") ||
+                       error_msg.contains("No such file or directory") {
+                        warn!("Hot-reload attempt {} failed (likely due to pre-generation race condition): {}", attempts, e);
+                        tokio::time::sleep(std::time::Duration::from_millis(500 * attempts as u64)).await;
+                        continue;
+                    } else {
+                        // Non-recoverable error
+                        return Err(e);
+                    }
+                }
+            }
+        }
     }
     
     /// Load embeddings from binary file
@@ -885,7 +936,7 @@ impl SemanticSearchService {
         enhanced_tool.base.hidden.hash(&mut hasher);
         
         // Include enhancement metadata in hash
-        if let Some(enhanced_desc) = &enhanced_tool.sampling_enhanced_description {
+        if let Some(enhanced_desc) = &enhanced_tool.llm_enhanced_description {
             enhanced_desc.hash(&mut hasher);
         }
         

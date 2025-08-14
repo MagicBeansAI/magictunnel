@@ -150,8 +150,8 @@ impl RegistryService {
             enhancement_callback: RwLock::new(None),
         };
         
-        // Perform initial load
-        service.reload_registry().await?;
+        // Perform initial load (without enhancement notifications to avoid overriding cached enhancements)
+        service.reload_registry_internal(false).await?;
         
         // Set up file watching if enabled
         if service.config.hot_reload {
@@ -539,6 +539,11 @@ impl RegistryService {
 
     /// Force reload the entire registry using high-performance parallel pipeline
     pub async fn reload_registry(&self) -> Result<()> {
+        self.reload_registry_internal(true).await
+    }
+    
+    /// Internal reload method with option to skip enhancement notifications
+    async fn reload_registry_internal(&self, notify_enhancements: bool) -> Result<()> {
         let start_time = Instant::now();
         info!("Starting registry reload with parallel pipeline");
 
@@ -595,9 +600,11 @@ impl RegistryService {
             changed_tools.len()
         );
 
-        // Notify enhancement service of changes (async)
-        if !changed_tools.is_empty() {
+        // Notify enhancement service of changes (async) - only if requested
+        if notify_enhancements && !changed_tools.is_empty() {
             self.notify_tools_changed(changed_tools).await;
+        } else if !notify_enhancements && !changed_tools.is_empty() {
+            info!("Skipping enhancement notification for {} tools (initial load)", changed_tools.len());
         }
 
         // Send tools list_changed notification

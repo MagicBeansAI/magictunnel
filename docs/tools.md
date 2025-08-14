@@ -320,10 +320,7 @@ MagicTunnel provides CLI tools to automatically generate MCP capability files fr
 
 | Generator | API Format | Binary Name | Description |
 |-----------|------------|-------------|-------------|
-| **OpenAPI** | OpenAPI/Swagger | `openapi-generator` | Generate tools from REST APIs |
-| **gRPC** | Protobuf | `grpc-generator` | Generate tools from gRPC services |
-| **GraphQL** | GraphQL Schema | `graphql-generator` | Generate tools from GraphQL APIs |
-| **Unified CLI** | All formats | `magictunnel-cli` | Unified interface for all generators |
+| **Unified CLI** | All formats | `magictunnel-cli` | Unified interface for OpenAPI, gRPC, and GraphQL generation |
 
 ### OpenAPI/Swagger Generator
 
@@ -331,13 +328,13 @@ Generate tools from OpenAPI (Swagger) specifications:
 
 ```bash
 # Basic usage
-./target/release/openapi-generator \
+magictunnel-cli openapi \
   --spec path/to/openapi.json \
   --output capabilities/api-tools.yaml \
   --base-url https://api.example.com
 
 # With authentication (Bearer token)
-./target/release/openapi-generator \
+magictunnel-cli openapi \
   --spec https://api.example.com/openapi.json \
   --output capabilities/api-tools.yaml \
   --base-url https://api.example.com \
@@ -345,7 +342,7 @@ Generate tools from OpenAPI (Swagger) specifications:
   --auth-token $API_TOKEN
 
 # With API key authentication
-./target/release/openapi-generator \
+magictunnel-cli openapi \
   --spec openapi.yaml \
   --output capabilities/api-tools.yaml \
   --base-url https://api.example.com \
@@ -354,7 +351,7 @@ Generate tools from OpenAPI (Swagger) specifications:
   --auth-header "X-API-Key"
 
 # With tool name prefix and specific methods
-./target/release/openapi-generator \
+magictunnel-cli openapi \
   --spec openapi.json \
   --output capabilities/api-tools.yaml \
   --base-url https://api.example.com \
@@ -363,7 +360,7 @@ Generate tools from OpenAPI (Swagger) specifications:
   --naming "method-path"
 
 # Including deprecated operations
-./target/release/openapi-generator \
+magictunnel-cli openapi \
   --spec openapi.json \
   --output capabilities/api-tools.yaml \
   --base-url https://api.example.com \
@@ -393,13 +390,13 @@ Generate tools from gRPC protobuf service definitions:
 
 ```bash
 # Basic usage
-./target/release/grpc-generator \
+magictunnel-cli grpc \
   --proto path/to/service.proto \
   --output capabilities/grpc-tools.yaml \
   --endpoint localhost:50051
 
 # With TLS and authentication
-./target/release/grpc-generator \
+magictunnel-cli grpc \
   --proto service.proto \
   --output capabilities/grpc-tools.yaml \
   --endpoint api.example.com:443 \
@@ -408,7 +405,7 @@ Generate tools from gRPC protobuf service definitions:
   --auth-token $GRPC_TOKEN
 
 # With service filtering and metadata
-./target/release/grpc-generator \
+magictunnel-cli grpc \
   --proto service.proto \
   --output capabilities/grpc-tools.yaml \
   --endpoint localhost:50051 \
@@ -417,7 +414,7 @@ Generate tools from gRPC protobuf service definitions:
   --timeout 30
 
 # With streaming strategy
-./target/release/grpc-generator \
+magictunnel-cli grpc \
   --proto service.proto \
   --output capabilities/grpc-tools.yaml \
   --endpoint localhost:50051 \
@@ -446,20 +443,20 @@ Generate tools from GraphQL schemas:
 
 ```bash
 # From GraphQL SDL file
-./target/release/graphql-generator \
+magictunnel-cli graphql \
   --schema schema.graphql \
   --endpoint https://api.example.com/graphql \
   --output capabilities/graphql-tools.yaml
 
 # From introspection JSON
-./target/release/graphql-generator \
+magictunnel-cli graphql \
   --schema introspection.json \
   --format json \
   --endpoint https://api.example.com/graphql \
   --output capabilities/graphql-tools.yaml
 
 # With authentication and filtering
-./target/release/graphql-generator \
+magictunnel-cli graphql \
   --schema schema.graphql \
   --endpoint https://api.example.com/graphql \
   --output capabilities/graphql-tools.yaml \
@@ -469,7 +466,7 @@ Generate tools from GraphQL schemas:
   --prefix "gql_"
 
 # Exclude deprecated fields
-./target/release/graphql-generator \
+magictunnel-cli graphql \
   --schema schema.graphql \
   --endpoint https://api.example.com/graphql \
   --output capabilities/graphql-tools.yaml \
@@ -555,7 +552,7 @@ operations = ["query", "mutation"]
 
 ```bash
 # Generate tools for your company's REST API
-./target/release/openapi-generator \
+magictunnel-cli openapi \
   --spec https://internal-api.company.com/openapi.json \
   --output capabilities/internal-api.yaml \
   --base-url https://internal-api.company.com \
@@ -568,14 +565,14 @@ operations = ["query", "mutation"]
 
 ```bash
 # Generate tools for user service
-./target/release/grpc-generator \
+magictunnel-cli grpc \
   --proto protos/user_service.proto \
   --output capabilities/user-service.yaml \
   --endpoint user-service:50051 \
   --prefix "user_"
 
 # Generate tools for order service  
-./target/release/grpc-generator \
+magictunnel-cli grpc \
   --proto protos/order_service.proto \
   --output capabilities/order-service.yaml \
   --endpoint order-service:50051 \
@@ -591,7 +588,7 @@ operations = ["query", "mutation"]
 
 ```bash
 # Generate tools from large GraphQL schema
-./target/release/graphql-generator \
+magictunnel-cli graphql \
   --schema large-schema.graphql \
   --endpoint https://api.example.com/graphql \
   --output capabilities/graphql-api.yaml \
@@ -659,7 +656,7 @@ description: "Create a new customer account in the billing system with email ver
 ```bash
 # Use environment variables for secrets
 export API_TOKEN="your-secret-token"
-./target/release/openapi-generator --auth-token $API_TOKEN ...
+magictunnel-cli openapi --auth-token $API_TOKEN ...
 ```
 
 4. **Tool Organization**: Use prefixes and organize by service:
@@ -762,5 +759,5 @@ curl -X POST http://localhost:8080/v1/mcp/call \
 RUST_LOG=debug magictunnel --config your-config.yaml
 
 # Debug specific generator
-RUST_LOG=debug ./target/release/openapi-generator --spec openapi.json --output test.yaml --base-url https://api.example.com
+RUST_LOG=debug magictunnel-cli openapi --spec openapi.json --output test.yaml --base-url https://api.example.com
 ```

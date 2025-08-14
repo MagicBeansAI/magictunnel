@@ -3,6 +3,8 @@
 **/*.rs.bk
 *.pdb
 
+storage/
+
 # MagjcTunnel binaries
 ./magictunnel
 magictunnel

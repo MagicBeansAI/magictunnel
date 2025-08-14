@@ -1,5 +1,7 @@
 # MagicTunnel MCP Configuration Examples
 
+> **📝 NOTE**: All configuration examples use **client_forwarded** strategy, which is the only supported routing strategy. MagicTunnel forwards all sampling/elicitation requests to the original client (Claude Desktop, etc.).
+
 ## Overview
 
 This document provides practical configuration examples for different MCP (Model Context Protocol) use cases with MagicTunnel's MCP 2025-06-18 enhanced capabilities. Each example shows the correct YAML configuration structure based on the current codebase, including external MCP server management, sampling/elicitation services, and tool enhancement features.
@@ -47,41 +49,35 @@ external_mcp:
 # MCP 2025-06-18 Sampling Service Configuration
 sampling:
   enabled: true
-  default_model: "gpt-4o-mini"
-  max_tokens_limit: 4000
-  default_sampling_strategy: "magictunnel_handled"  # MagicTunnel handles sampling
-  default_elicitation_strategy: "magictunnel_handled"  # MagicTunnel handles elicitation
+  default_sampling_strategy: "client_forwarded"  # Forward to client (only supported strategy)
   llm_config:
     provider: "openai"
     model: "gpt-4o-mini"
-    api_key_env: "OPENAI_API_KEY"
     max_tokens: 4000
+    api_key_env: "OPENAI_API_KEY"
     temperature: 0.7
 
 # MCP 2025-06-18 Elicitation Service Configuration  
 elicitation:
   enabled: true
-  max_schema_complexity: "WithArrays"
-  default_timeout_seconds: 60
-  default_elicitation_strategy: "magictunnel_handled"
-  respect_external_authority: false  # Override external server elicitation for dev
-  allow_tool_override: true
-  enable_hybrid_elicitation: false
+  default_elicitation_strategy: "client_forwarded"
 
 # Tool Enhancement Service (AI-powered tool descriptions)
 tool_enhancement:
   enabled: true
-  default_model: "gpt-4o-mini"
-  max_tokens_limit: 2000
+  
+  # LLM Configuration for tool enhancement requests
+  llm_config:
+    provider: "openai"
+    model: "gpt-4o-mini"
+    max_tokens: 2000
 
-# Smart Discovery Configuration
+# Smart Discovery Configuration (Tool Selection Only)
 smart_discovery:
   enabled: true
   tool_selection_mode: "hybrid"
   default_confidence_threshold: 0.7
   max_tools_to_consider: 10
-  enable_sampling: true
-  enable_elicitation: true
 
 # Development logging
 logging:
@@ -131,13 +127,11 @@ external_mcp:
     enabled: true
     sampling:
       default_strategy: "client_forwarded"
-      priority_order: ["primary-server", "secondary-server"]
       fallback_to_magictunnel: false  # Never fallback in production
       max_retry_attempts: 3
       timeout_seconds: 30
     elicitation:
       default_strategy: "client_forwarded" 
-      priority_order: ["primary-server", "secondary-server"]
       fallback_to_magictunnel: false
       max_retry_attempts: 3
       timeout_seconds: 30
@@ -156,8 +150,6 @@ mcp_client:
 # Sampling Service - Forward to Client
 sampling:
   enabled: true
-  default_model: "gpt-4o"  # High-quality model for fallback
-  max_tokens_limit: 8192
   default_sampling_strategy: "client_forwarded"  # Always forward to client
   default_elicitation_strategy: "client_forwarded"
   # No llm_config needed since we're forwarding
@@ -165,25 +157,18 @@ sampling:
 # Elicitation Service - Forward to Client  
 elicitation:
   enabled: true
-  max_schema_complexity: "WithNestedArrays"  # More complex schemas for production
-  default_timeout_seconds: 300  # 5 minutes for complex elicitation
   default_elicitation_strategy: "client_forwarded"
-  respect_external_authority: true  # Respect external server capabilities
-  allow_tool_override: false  # Strict mode for production
-  enable_hybrid_elicitation: false
 
 # Tool Enhancement - Disabled for production performance
 tool_enhancement:
   enabled: false  # Disable to reduce overhead
 
-# Smart Discovery with conservative settings
+# Smart Discovery with conservative settings (Tool Selection Only)
 smart_discovery:
   enabled: true
   tool_selection_mode: "rule_based"  # Faster than hybrid for production
   default_confidence_threshold: 0.8  # Higher threshold for production
   max_tools_to_consider: 5
-  enable_sampling: false  # Disable sampling enhancement for performance
-  enable_elicitation: false  # Disable elicitation enhancement for performance
 
 # Production logging
 logging:
@@ -197,13 +182,13 @@ logging:
 - Multiple server failover for reliability
 - Clean separation between MCP tool routing and LLM interactions
 
-### 3. Mixed Strategy Setup
+### 3. Simplified Production Setup
 
-**Use Case**: Different routing strategies per external server with hybrid processing
-**Focus**: Granular control over sampling/elicitation routing with fallback strategies
+**Use Case**: Production environment with consistent client-forwarded routing
+**Focus**: Simplified configuration with all requests forwarded to original client
 
 ```yaml
-# magictunnel-mixed-strategy.yaml
+# magictunnel-simplified-production.yaml
 server:
   host: "0.0.0.0"
   port: 3001
@@ -233,24 +218,10 @@ external_mcp:
     enabled: true
     sampling:
       default_strategy: "client_forwarded"  # Default: forward to client
-      server_strategies:
-        "complex-analysis-server": "magictunnel_handled"  # Complex server: MagicTunnel handles
-        "simple-data-server": "client_forwarded"          # Simple server: forward to client
-        "experimental-server": "hybrid"                   # Experimental: hybrid approach
-      priority_order: ["complex-analysis-server", "experimental-server", "simple-data-server"]
-      fallback_to_magictunnel: true  # Allow fallback
-      max_retry_attempts: 2
-      timeout_seconds: 45
+      fallback_to_magictunnel: false  # Simplified proxy configuration
     elicitation:
-      default_strategy: "magictunnel_handled"  # Default: MagicTunnel handles elicitation
-      server_strategies:
-        "complex-analysis-server": "magictunnel_handled"
-        "simple-data-server": "client_forwarded"
-        "experimental-server": "parallel"  # Try both simultaneously
-      priority_order: ["complex-analysis-server", "experimental-server", "simple-data-server"]
-      fallback_to_magictunnel: true
-      max_retry_attempts: 2
-      timeout_seconds: 60
+      default_strategy: "client_forwarded"  # Default: MagicTunnel handles elicitation
+      fallback_to_magictunnel: false  # Simplified proxy configuration
 
 # MCP Client configuration
 mcp_client:
@@ -266,41 +237,36 @@ mcp_client:
 # Sampling Service with mixed strategies
 sampling:
   enabled: true
-  default_model: "claude-3-sonnet-20240229"
-  max_tokens_limit: 6000
   default_sampling_strategy: "client_forwarded"  # Server-wide default
-  default_elicitation_strategy: "magictunnel_handled"  # Server-wide default
+  default_elicitation_strategy: "client_forwarded"  # Server-wide default
   llm_config:
     provider: "anthropic"
     model: "claude-3-sonnet-20240229"
-    api_key_env: "ANTHROPIC_API_KEY"
     max_tokens: 6000
+    api_key_env: "ANTHROPIC_API_KEY"
     temperature: 0.7
 
 # Elicitation Service  
 elicitation:
   enabled: true
-  max_schema_complexity: "WithArrays"
-  default_timeout_seconds: 180
-  default_elicitation_strategy: "magictunnel_handled"
-  respect_external_authority: true  # Respect external server capabilities
-  allow_tool_override: true  # Allow per-tool overrides
-  enable_hybrid_elicitation: true  # Enable hybrid processing
+  default_elicitation_strategy: "client_forwarded"
 
 # Tool Enhancement Service enabled for complex scenarios
 tool_enhancement:
   enabled: true
-  default_model: "claude-3-sonnet-20240229"
-  max_tokens_limit: 4000
+  
+  # LLM Configuration for tool enhancement requests
+  llm_config:
+    provider: "anthropic"
+    model: "claude-3-sonnet-20240229"
+    max_tokens: 4000
 
-# Smart Discovery with full capabilities
+# Smart Discovery with full capabilities (Tool Selection Only)
 smart_discovery:
   enabled: true
   tool_selection_mode: "hybrid"  # Use AI intelligence
   default_confidence_threshold: 0.75
   max_tools_to_consider: 8
-  enable_sampling: true  # Enable sampling enhancement
-  enable_elicitation: true  # Enable elicitation enhancement
 
 # Balanced logging
 logging:
@@ -309,11 +275,10 @@ logging:
 ```
 
 **Expected Behavior**:
-- **Server-level defaults**: Sampling → client, Elicitation → MagicTunnel
-- **Complex analysis server**: MagicTunnel handles both (uses Anthropic Claude)
-- **Simple data server**: Client handles sampling requests  
-- **Tool-level overrides**: Financial analysis → MagicTunnel, Calculator → Client
-- **Priority hierarchy**: Tool-level > Server-level > Global defaults
+- All sampling/elicitation requests forwarded to original client (Claude Desktop)
+- Consistent client-forwarded strategy across all external servers
+- Simplified configuration suitable for production deployment
+- Clean separation between MCP tool routing and LLM interactions
 
 ### 4. Quality-Focused Setup
 
@@ -350,14 +315,12 @@ external_mcp:
   external_routing:
     enabled: true
     sampling:
-      default_strategy: "hybrid"  # Combine responses for best quality
-      priority_order: ["premium-claude-server", "premium-gpt4-server", "specialized-server"]
+      default_strategy: "client_forwarded"  # Forward to client (only supported strategy)
       fallback_to_magictunnel: true
       max_retry_attempts: 5  # More attempts for quality
       timeout_seconds: 90
     elicitation:
-      default_strategy: "hybrid"  # Comprehensive elicitation
-      priority_order: ["premium-claude-server", "premium-gpt4-server", "specialized-server"]
+      default_strategy: "client_forwarded"  # Forward to client (only supported strategy)
       fallback_to_magictunnel: true
       max_retry_attempts: 5
       timeout_seconds: 120
@@ -376,15 +339,12 @@ mcp_client:
 # Sampling Service with premium models
 sampling:
   enabled: true
-  default_model: "gpt-4o"  # Premium model for quality
-  max_tokens_limit: 16384  # Large context for detailed responses
-  default_sampling_strategy: "hybrid"  # Always use hybrid for quality
-  default_elicitation_strategy: "hybrid"
+  default_sampling_strategy: "client_forwarded"  # Forward to client (only supported strategy)
   llm_config:
     provider: "openai"
     model: "gpt-4o"  # Premium model
+    max_tokens: 16384  # Large context for detailed responses
     api_key_env: "OPENAI_API_KEY"
-    max_tokens: 16384
     temperature: 0.7
     additional_params:
       top_p: 0.9
@@ -393,20 +353,19 @@ sampling:
 # Elicitation Service with comprehensive capabilities
 elicitation:
   enabled: true
-  max_schema_complexity: "WithNestedArrays"  # Maximum complexity support
-  default_timeout_seconds: 600  # 10 minutes for complex elicitation
-  default_elicitation_strategy: "hybrid"
-  respect_external_authority: true
-  allow_tool_override: true
-  enable_hybrid_elicitation: true  # Enable all hybrid features
+  default_elicitation_strategy: "client_forwarded"
 
 # Tool Enhancement Service - Full AI enhancement
 tool_enhancement:
   enabled: true
-  default_model: "gpt-4o"  # Premium model for enhancement
-  max_tokens_limit: 8192  # Large context for detailed descriptions
+  
+  # LLM Configuration for tool enhancement requests
+  llm_config:
+    provider: "openai"
+    model: "gpt-4o"  # Premium model for enhancement
+    max_tokens: 8192  # Large context for detailed descriptions
 
-# Smart Discovery with maximum intelligence
+# Smart Discovery with maximum intelligence (Tool Selection Only)
 smart_discovery:
   enabled: true
   tool_selection_mode: "hybrid"  # Full AI intelligence
@@ -415,10 +374,6 @@ smart_discovery:
   max_high_quality_matches: 8
   high_quality_threshold: 0.95
   use_fuzzy_matching: true
-  enable_sampling: true  # Full enhancement
-  enable_elicitation: true
-  default_sampling_strategy: "hybrid"
-  default_elicitation_strategy: "hybrid"
   
   # LLM configuration for smart discovery
   llm_mapper:
@@ -522,13 +477,11 @@ external_mcp:
     enabled: true
     sampling:
       default_strategy: "client_forwarded"  # Never use internal LLMs
-      priority_order: ["secure-internal-server"]
       fallback_to_magictunnel: false  # No fallback for compliance
       max_retry_attempts: 2
       timeout_seconds: 45
     elicitation:
       default_strategy: "client_forwarded"  # Never use internal LLMs
-      priority_order: ["secure-internal-server"]
       fallback_to_magictunnel: false  # No fallback for compliance
       max_retry_attempts: 2
       timeout_seconds: 60
@@ -556,14 +509,12 @@ elicitation:
 tool_enhancement:
   enabled: false  # Disable to prevent data leakage
 
-# Smart Discovery with minimal features
+# Smart Discovery with minimal features (Tool Selection Only)
 smart_discovery:
   enabled: true
   tool_selection_mode: "rule_based"  # No LLM usage
   default_confidence_threshold: 0.9
   max_tools_to_consider: 3  # Conservative limit
-  enable_sampling: false  # Disable for security
-  enable_elicitation: false  # Disable for security
 
 # Security Configuration
 security:
@@ -585,8 +536,8 @@ logging:
 
 ### 6. Research/Academic Setup
 
-**Use Case**: Research environment with experimental features and comprehensive analysis
-**Focus**: Multi-provider experimentation, detailed logging, and research data collection
+**Use Case**: Research environment with simplified proxy configuration
+**Focus**: Client-forwarded routing with detailed logging for research data collection
 
 ```yaml
 # magictunnel-research.yaml
@@ -619,25 +570,11 @@ external_mcp:
   external_routing:
     enabled: true
     sampling:
-      default_strategy: "hybrid"  # Always use hybrid for research comparison
-      server_strategies:
-        "research-claude-server": "parallel"     # Compare parallel vs client
-        "experimental-server": "magictunnel_handled"  # Local processing for experiments
-        "academic-server": "client_forwarded"    # Let client handle for comparison
-      priority_order: ["research-claude-server", "experimental-server", "academic-server"]
-      fallback_to_magictunnel: true
-      max_retry_attempts: 5  # More attempts for research
-      timeout_seconds: 120
+      default_strategy: "client_forwarded"  # Simplified proxy configuration
+      fallback_to_magictunnel: false
     elicitation:
-      default_strategy: "hybrid"
-      server_strategies:
-        "research-claude-server": "parallel"
-        "experimental-server": "magictunnel_handled"
-        "academic-server": "client_forwarded"
-      priority_order: ["research-claude-server", "experimental-server", "academic-server"]
-      fallback_to_magictunnel: true
-      max_retry_attempts: 5
-      timeout_seconds: 180
+      default_strategy: "client_forwarded"  # Simplified proxy configuration
+      fallback_to_magictunnel: false
 
 # MCP Client for research with extended capabilities
 mcp_client:
@@ -653,15 +590,13 @@ mcp_client:
 # Sampling Service with multiple providers for comparison
 sampling:
   enabled: true
-  default_model: "gpt-4o"  # High-quality default
-  max_tokens_limit: 32768  # Maximum context for research
-  default_sampling_strategy: "hybrid"  # Always compare multiple approaches
-  default_elicitation_strategy: "hybrid"
+  default_sampling_strategy: "client_forwarded"  # Forward to client (only supported strategy)
+  default_elicitation_strategy: "client_forwarded"
   llm_config:
     provider: "openai"
     model: "gpt-4o"
+    max_tokens: 32768  # Maximum context for research
     api_key_env: "OPENAI_API_KEY"
-    max_tokens: 32768  # Large context for research
     temperature: 0.8  # Slightly higher for creativity
     additional_params:
       top_p: 0.95
@@ -671,20 +606,19 @@ sampling:
 # Elicitation Service with maximum flexibility for research
 elicitation:
   enabled: true
-  max_schema_complexity: "WithNestedArrays"  # Support complex research schemas
-  default_timeout_seconds: 900  # 15 minutes for complex research elicitation
-  default_elicitation_strategy: "hybrid"
-  respect_external_authority: false  # Override for research comparison
-  allow_tool_override: true
-  enable_hybrid_elicitation: true
+  default_elicitation_strategy: "client_forwarded"
 
 # Tool Enhancement Service for research analysis
 tool_enhancement:
   enabled: true
-  default_model: "claude-3-opus-20240229"  # Highest quality for research
-  max_tokens_limit: 16384
+  
+  # LLM Configuration for tool enhancement requests
+  llm_config:
+    provider: "anthropic"
+    model: "claude-3-opus-20240229"  # Highest quality for research
+    max_tokens: 16384
 
-# Smart Discovery with full research capabilities
+# Smart Discovery with full research capabilities (Tool Selection Only)
 smart_discovery:
   enabled: true
   tool_selection_mode: "hybrid"  # Full AI intelligence for research
@@ -693,10 +627,6 @@ smart_discovery:
   max_high_quality_matches: 10
   high_quality_threshold: 0.9
   use_fuzzy_matching: true
-  enable_sampling: true
-  enable_elicitation: true
-  default_sampling_strategy: "hybrid"
-  default_elicitation_strategy: "hybrid"
   
   # Multiple LLM providers for research comparison
   llm_mapper:
@@ -723,8 +653,8 @@ logging:
 ```
 
 **Expected Behavior**:
-- Hybrid processing for comprehensive research comparison
-- Multiple LLM providers tested simultaneously (OpenAI GPT-4, Anthropic Claude)
+- All requests forwarded to original client for consistency
+- Simplified configuration suitable for research environments
 - Maximum context sizes and timeouts for complex research tasks
 - Flexible validation to support experimental tool development
 - Comprehensive logging at trace level for detailed analysis

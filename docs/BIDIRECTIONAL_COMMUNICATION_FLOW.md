@@ -2,7 +2,7 @@
 
 ## MCP 2025-06-18 Bidirectional Architecture
 
-🚨 **IMPORTANT**: This document reflects the MCP 2025-06-18 bidirectional communication flow where **External MCP Servers** can send sampling/elicitation requests **TO** MagicTunnel during tool execution.
+🚨 **IMPORTANT**: This document reflects the MCP 2025-06-18 bidirectional communication flow where **External MCP Servers** can send sampling/elicitation requests **TO** MagicTunnel during tool execution. All requests are forwarded to the original client using **ClientForwarded** strategy.
 
 ## Bidirectional Flow Overview
 
@@ -573,10 +573,8 @@ external_mcp:
       
   external_routing:
     sampling:
-      default_strategy: magictunnel_handled  # Use MagicTunnel's LLMs by default
-      server_strategies:
-        "ai-analysis-server": magictunnel_handled  # Let MagicTunnel handle its sampling requests
-      fallback_to_magictunnel: true
+      default_strategy: client_forwarded  # Current proxy only supports client_forwarded
+      fallback_to_magictunnel: false      # Not currently supported at proxy level
 ```
 
 ### Bidirectional Request Flow Decision Tree
@@ -588,15 +586,11 @@ external_mcp:
 ├─ Extract original_client_id: "claude-desktop-abc123"
 ├─ Extract request_type: "sampling/createMessage" | "elicitation/request"
 │
-└─ Route Decision (via existing strategy logic):
+└─ Route Decision (simplified strategy logic):
    │
-   ├─ Check server-specific strategy for the SOURCE server:
-   │  └─ server_strategies["ai-analysis-server"] = "magictunnel_handled"
-   │     └─ ✅ Use MagicTunnel's internal LLMs (OpenAI/Anthropic/Ollama)
-   │
-   ├─ Check default strategy:
-   │  └─ default_strategy = "client_first" 
-   │     └─ Forward to original Claude Desktop client
+   └─ Apply default strategy for all servers (simplified configuration):
+      └─ default_strategy = "client_forwarded"
+         └─ ✅ Forward to original Claude Desktop client
    │        ├─ Success → Return response to external server
    │        └─ Failure → Try other external servers or fallback
    │

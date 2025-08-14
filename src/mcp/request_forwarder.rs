@@ -50,6 +50,22 @@ pub trait RequestForwarder: Send + Sync {
         original_client_id: &str,
     ) -> Result<ElicitationResponse>;
 
+    /// Forward a notification from an external MCP server to MagicTunnel Server
+    /// 
+    /// # Arguments
+    /// * `notification_method` - The notification method (e.g., "notifications/tools/list_changed")
+    /// * `source_server` - Name/ID of the external server that sent the notification
+    /// * `original_client_id` - ID of the original client (e.g., "claude-desktop-abc123")
+    /// 
+    /// # Returns
+    /// Result indicating success or failure of forwarding
+    async fn forward_notification(
+        &self,
+        notification_method: &str,
+        source_server: &str,
+        original_client_id: &str,
+    ) -> Result<()>;
+
     /// Get the name/ID of this request forwarder for logging purposes
     fn forwarder_id(&self) -> &str {
         "request_forwarder"
@@ -137,6 +153,18 @@ mod tests {
                 ].into_iter().collect()),
                 timestamp: Some(chrono::Utc::now()),
             })
+        }
+
+        async fn forward_notification(
+            &self,
+            notification_method: &str,
+            source_server: &str,
+            original_client_id: &str,
+        ) -> Result<()> {
+            // Mock implementation for testing - just log
+            println!("Mock forwarding notification {} from {} for client {}", 
+                     notification_method, source_server, original_client_id);
+            Ok(())
         }
 
         fn forwarder_id(&self) -> &str {

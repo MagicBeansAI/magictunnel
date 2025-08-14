@@ -292,7 +292,7 @@ impl EmbeddingManager {
         // Spawn task to handle file change events
         tokio::spawn(async move {
             let mut debounce_timer: Option<tokio::time::Instant> = None;
-            const DEBOUNCE_DURATION: std::time::Duration = std::time::Duration::from_millis(500);
+            const DEBOUNCE_DURATION: std::time::Duration = std::time::Duration::from_millis(2000);
             
             while let Some(changed_path) = rx.recv().await {
                 // Debounce rapid file changes
@@ -474,7 +474,7 @@ impl EmbeddingManager {
                         let mut tool_def = enhanced_tool.base.clone();
                         
                         // Use enhanced description if available
-                        if let Some(enhanced_desc) = &enhanced_tool.sampling_enhanced_description {
+                        if let Some(enhanced_desc) = &enhanced_tool.llm_enhanced_description {
                             tool_def.description = enhanced_desc.clone();
                         }
                         
@@ -523,7 +523,7 @@ impl EmbeddingManager {
                         let mut tool_def = enhanced_tool.base.clone();
                         
                         // Use enhanced description if available
-                        if let Some(enhanced_desc) = &enhanced_tool.sampling_enhanced_description {
+                        if let Some(enhanced_desc) = &enhanced_tool.llm_enhanced_description {
                             info!("🎯 Using sampling-enhanced description for embedding: {}", tool_name);
                             tool_def.description = enhanced_desc.clone();
                         }

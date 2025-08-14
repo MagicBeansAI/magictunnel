@@ -457,6 +457,7 @@ external_mcp:
     network_mode: "bridge"          # Container network mode
     run_args: ["--rm", "-i"]        # Additional container run arguments
 
+
   # Note: External MCP uses the global conflict_resolution configuration below
 
 # =============================================================================
@@ -576,29 +577,33 @@ smart_discovery:
 # =============================================================================
 # SAMPLING CONFIGURATION
 # =============================================================================
-# Configuration for MCP sampling capabilities - generating sample requests and responses
+# Configuration for MCP 2025-06-18 sampling capabilities - generating sample requests and responses
+# NOTE: Currently only supports client_forwarded strategy (proxy passes requests to client)
 sampling:
   enabled: false                         # Enable sampling capabilities (env: SAMPLING_ENABLED)
-  max_schema_complexity: "medium"        # Maximum schema complexity: simple|medium|complex (env: SAMPLING_MAX_SCHEMA_COMPLEXITY)
-  default_timeout_seconds: 30            # Default timeout for sampling requests (env: SAMPLING_DEFAULT_TIMEOUT)
-  default_sampling_strategy: "client_forwarded"  # Default sampling routing strategy
+  default_sampling_strategy: "client_forwarded"  # Only supported strategy: forward to client
+  
+  # LLM Configuration for MagicTunnel-handled requests (optional, only needed if strategy is not client_forwarded)
+  # llm_config:
+  #   provider: "openai"                 # LLM provider: openai|anthropic|ollama
+  #   model: "gpt-4o-mini"               # Model name to use
+  #   api_key_env: "OPENAI_API_KEY"      # Environment variable for API key
+  #   max_tokens: 4000                   # Maximum tokens per request
+  #   temperature: 0.7                   # Temperature for randomness
+  
+  # Note: Future LLM-based sampling will support provider prioritization (claude, openai, ollama)
+  # Note: Individual MCP server sampling strategies should be configured in external-mcp-servers.yaml
 
 # =============================================================================
 # ELICITATION CONFIGURATION
 # =============================================================================
 # Configuration for MCP 2025-06-18 elicitation capabilities - interactive parameter collection
 # Elicitation is OPTIONAL per MCP 2025-06-18 specification and enables dynamic user input during tool execution
+# NOTE: Currently only supports client_forwarded strategy (proxy passes requests to client)
 elicitation:
   enabled: false                         # Enable elicitation capabilities (OPTIONAL per MCP spec) (env: ELICITATION_ENABLED)
-  max_schema_complexity: "medium"        # Maximum schema complexity: simple|medium|complex (env: ELICITATION_MAX_SCHEMA_COMPLEXITY)
-                                         # Note: MCP spec only supports primitive types (string, number, boolean)
-  default_timeout_seconds: 30            # Default timeout for elicitation requests (env: ELICITATION_DEFAULT_TIMEOUT)
+  default_elicitation_strategy: "client_forwarded"  # Only supported strategy: forward to client
   
-  # Authority Management for External MCP Servers
-  # When proxying external MCP servers, respect their elicitation capabilities unless explicitly overridden
-  respect_external_authority: true       # Respect external MCP server elicitation authority (env: ELICITATION_RESPECT_EXTERNAL_AUTHORITY)
-  allow_tool_override: true              # Allow per-tool override of elicitation authority (env: ELICITATION_ALLOW_TOOL_OVERRIDE)
-  enable_hybrid_elicitation: false       # Enable local elicitation for hybrid tools (env: ELICITATION_ENABLE_HYBRID)
   
   # MCP 2025-06-18 Compliance Settings
   # Security: Elicitation must not request sensitive information (PII, credentials, etc.)
@@ -983,10 +988,18 @@ environment_monitoring:
 # =============================================================================
 # TOOL ENHANCEMENT SERVICE CONFIGURATION
 # =============================================================================
-# tool_enhancement:
-#   enabled: true              # Enable tool enhancement service
-#   cache_duration: 3600       # Cache duration in seconds
-#   max_enhancements: 1000     # Maximum number of cached enhancements
+# AI-powered tool description and metadata enhancement
+tool_enhancement:
+  enabled: false                    # Enable tool enhancement service (env: TOOL_ENHANCEMENT_ENABLED)
+  
+  # LLM Configuration for tool enhancement requests
+  llm_config:
+    provider: "openai"              # LLM provider: openai|anthropic|ollama (env: TOOL_ENHANCEMENT_LLM_PROVIDER)
+    model: "gpt-4o-mini"            # Model name to use (env: TOOL_ENHANCEMENT_LLM_MODEL)
+    api_key_env: "OPENAI_API_KEY"   # Environment variable for API key (env: TOOL_ENHANCEMENT_LLM_API_KEY_ENV)
+    base_url: null                  # Custom base URL (env: TOOL_ENHANCEMENT_LLM_BASE_URL)
+    max_tokens: 4000                # Maximum tokens per request (env: TOOL_ENHANCEMENT_LLM_MAX_TOKENS)
+    temperature: 0.7                # Temperature for randomness (env: TOOL_ENHANCEMENT_LLM_TEMPERATURE)
 
 # =============================================================================
 # PROMPT GENERATION SERVICE CONFIGURATION
@@ -1023,10 +1036,19 @@ environment_monitoring:
 # =============================================================================
 # ENHANCEMENT STORAGE CONFIGURATION
 # =============================================================================
-# enhancement_storage:
-#   enabled: true              # Enable enhancement storage
-#   storage_path: "./data/enhancements" # Path to store enhancements
-#   compression: true          # Enable compression for storage
+# Persistent storage for enhanced tool descriptions
+enhancement_storage:
+  enabled: false                        # Enable enhancement storage (env: ENHANCEMENT_STORAGE_ENABLED)
+  storage_dir: "./data/enhancements"     # Base directory for storing enhanced tool descriptions (env: ENHANCEMENT_STORAGE_DIR)
+  max_storage_mb: 100                   # Maximum storage size in MB (env: ENHANCEMENT_STORAGE_MAX_SIZE_MB)
+  enable_versioning: true               # Whether to enable versioning (env: ENHANCEMENT_STORAGE_VERSIONING)
+  auto_load_on_startup: true            # Whether to auto-load on startup (env: ENHANCEMENT_STORAGE_AUTO_LOAD)
+  
+  # Content cleanup policy
+  cleanup_policy:
+    max_age_days: 90                    # Maximum age in days before cleanup (env: ENHANCEMENT_STORAGE_CLEANUP_MAX_AGE)
+    max_versions_per_tool: 5            # Maximum number of versions to keep per tool (env: ENHANCEMENT_STORAGE_CLEANUP_MAX_VERSIONS)
+    cleanup_on_startup: true            # Whether to cleanup on startup (env: ENHANCEMENT_STORAGE_CLEANUP_ON_STARTUP)
 
 # =============================================================================
 # LOGGING CONFIGURATION

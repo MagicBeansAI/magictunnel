@@ -219,7 +219,6 @@ mod tests {
                 capabilities_output_dir: "./test-mock-capabilities".to_string(),
                 refresh_interval_minutes: 1,
                 containers: None,
-                external_routing: None,
             }),
             mcp_client: Some(McpClientConfig {
                 connect_timeout_secs: 5,

@@ -81,6 +81,17 @@ impl RequestForwarder for MockRequestForwarder {
         Err(magictunnel::error::ProxyError::mcp("Elicitation not implemented in mock".to_string()))
     }
 
+    async fn forward_notification(
+        &self,
+        notification_method: &str,
+        source_server: &str,
+        original_client_id: &str,
+    ) -> Result<()> {
+        println!("Mock bidirectional forwarder received notification {} from {} for client {}", 
+                 notification_method, source_server, original_client_id);
+        Ok(())
+    }
+
     fn forwarder_id(&self) -> &str {
         &self.id
     }

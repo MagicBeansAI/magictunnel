@@ -421,33 +421,6 @@ external_mcp:
     network_mode: "bridge"          # Container network mode
     run_args: ["--rm", "-i"]        # Additional container run arguments
 
-  # MCP External Routing Configuration (MCP 2025-06-18)
-  # Configuration for routing to external MCP servers for sampling and elicitation requests
-  external_routing:
-    enabled: true                   # Enable MCP external routing for sampling/elicitation (env: EXTERNAL_MCP_ROUTING_ENABLED)
-    
-    # Sampling Request Routing Strategy
-    sampling:
-      default_strategy: "magictunnel_first"  # Strategy: magictunnel_handled|client_forwarded|magictunnel_first|client_first|parallel|hybrid (env: EXTERNAL_MCP_SAMPLING_STRATEGY)
-      server_strategies: {}         # Server-specific strategies (optional)
-      priority_order:               # Priority order for sampling-capable servers (highest to lowest priority)
-        - "claude-mcp-server"       # Example: Premium external MCP server with advanced models
-        - "openai-mcp-server"       # Example: OpenAI-based MCP server
-        - "ollama-local"            # Example: Local Ollama MCP server
-      fallback_to_magictunnel: true # Fall back to internal sampling service if all external servers fail (env: EXTERNAL_MCP_SAMPLING_FALLBACK)
-      max_retry_attempts: 2         # Maximum retry attempts per server before trying next (env: EXTERNAL_MCP_SAMPLING_MAX_RETRIES)
-      timeout_seconds: 30           # Timeout for each sampling request (env: EXTERNAL_MCP_SAMPLING_TIMEOUT)
-    
-    # Elicitation Request Routing Strategy  
-    elicitation:
-      default_strategy: "magictunnel_first"   # Strategy: magictunnel_handled|client_forwarded|magictunnel_first|client_first|parallel|hybrid (env: EXTERNAL_MCP_ELICITATION_STRATEGY)
-      server_strategies: {}         # Server-specific strategies (optional)
-      priority_order:               # Custom priority order (empty = use discovery order)
-        - "claude-mcp-server"       # Example: Premium external MCP server with advanced models
-        - "openai-mcp-server"       # Example: OpenAI-based MCP server
-      fallback_to_magictunnel: true # Fall back to internal elicitation service (env: EXTERNAL_MCP_ELICITATION_FALLBACK)
-      max_retry_attempts: 1         # Elicitation typically needs fewer retries (env: EXTERNAL_MCP_ELICITATION_MAX_RETRIES)
-      timeout_seconds: 60           # Longer timeout for elicitation (may involve user interaction) (env: EXTERNAL_MCP_ELICITATION_TIMEOUT)
 
   # Note: External MCP uses the global conflict_resolution configuration below
 
@@ -485,10 +458,6 @@ smart_discovery:
   enabled: true                           # Enable smart discovery (env: SMART_DISCOVERY_ENABLED)
   tool_selection_mode: "hybrid"          # Tool selection mode: rule_based|llm_based|semantic_based|hybrid (env: SMART_DISCOVERY_MODE)
   default_confidence_threshold: 0.7       # Default confidence threshold for tool matching (env: SMART_DISCOVERY_THRESHOLD)
-  
-  # MCP 2025-06-18 Enhanced Features
-  enable_sampling: true                   # Enable sampling service for enhanced LLM interactions (env: SMART_DISCOVERY_SAMPLING_ENABLED)
-  enable_elicitation: true                # Enable elicitation service for structured data collection (env: SMART_DISCOVERY_ELICITATION_ENABLED)
   max_tools_to_consider: 10               # Maximum number of tools to consider for matching (env: SMART_DISCOVERY_MAX_TOOLS)
   max_high_quality_matches: 3             # Maximum high-quality matches to collect before stopping processing (env: SMART_DISCOVERY_MAX_HIGH_QUALITY_MATCHES)
   high_quality_threshold: 0.95            # Confidence threshold for considering a match as high-quality (env: SMART_DISCOVERY_HIGH_QUALITY_THRESHOLD)
@@ -595,8 +564,6 @@ smart_discovery:
 # Configuration for the Sampling service that enables structured LLM message generation
 sampling:
   enabled: true                          # Enable sampling service (env: SAMPLING_ENABLED)
-  default_model: "gpt-4o-mini"          # Default model for sampling requests
-  max_tokens_limit: 4000                # Maximum tokens allowed per request
   default_sampling_strategy: "client_forwarded"  # Default sampling routing strategy
   
   # LLM Configuration for MagicTunnel-handled requests
@@ -604,24 +571,36 @@ sampling:
     provider: "openai"                   # LLM provider: openai|anthropic|ollama
     model: "gpt-4o-mini"                 # Model name to use
     api_key_env: "OPENAI_API_KEY"        # Environment variable for API key
+    max_tokens: 4000                     # Maximum tokens allowed per request
     base_url: null                       # Custom base URL (optional)
     timeout: 30                          # Request timeout in seconds
     max_retries: 3                       # Maximum retries for failed requests
 
 # =============================================================================
+# MCP 2025-06-18 TOOL ENHANCEMENT SERVICE CONFIGURATION
+# =============================================================================
+# Configuration for the Tool Enhancement service that generates enhanced descriptions,
+# keywords, and examples for tools using LLM-powered analysis
+tool_enhancement:
+  enabled: true                          # Enable tool enhancement service (env: TOOL_ENHANCEMENT_ENABLED)
+  
+  # LLM Configuration for Tool Enhancement
+  llm_config:
+    provider: "openai"                   # LLM provider: openai|anthropic|ollama (env: TOOL_ENHANCEMENT_LLM_PROVIDER)
+    model: "gpt-4o-mini"                 # Model name to use (env: TOOL_ENHANCEMENT_LLM_MODEL)
+    api_key_env: "OPENAI_API_KEY"        # Environment variable for API key (env: TOOL_ENHANCEMENT_LLM_API_KEY_ENV)
+    api_base_url: null                   # Custom base URL (env: TOOL_ENHANCEMENT_LLM_BASE_URL)
+    max_tokens: 4000                     # Maximum tokens per request (env: TOOL_ENHANCEMENT_LLM_MAX_TOKENS)
+    temperature: 0.7                     # Temperature for creativity (env: TOOL_ENHANCEMENT_LLM_TEMPERATURE)
+
+# =============================================================================
 # MCP 2025-06-18 ELICITATION SERVICE CONFIGURATION
 # =============================================================================
 # Configuration for the Elicitation service that enables structured data collection
+# NOTE: Currently only supports client_forwarded strategy (proxy passes requests to client)
 elicitation:
   enabled: true                          # Enable elicitation service (env: ELICITATION_ENABLED)
-  max_schema_complexity: "WithArrays"    # Maximum schema complexity: Simple|WithArrays|Nested|Complex
-  default_timeout_seconds: 300           # Default timeout for elicitation requests (5 minutes)
   default_elicitation_strategy: "client_forwarded"  # Default elicitation routing strategy
-  
-  # Authority Management for External MCP Servers
-  respect_external_authority: true       # Respect external MCP server elicitation authority (env: ELICITATION_RESPECT_EXTERNAL_AUTHORITY)
-  allow_tool_override: true              # Allow per-tool override of elicitation authority (env: ELICITATION_ALLOW_TOOL_OVERRIDE)
-  enable_hybrid_elicitation: false       # Enable local elicitation for hybrid tools (env: ELICITATION_ENABLE_HYBRID)
 
 # =============================================================================
 # VISIBILITY CONFIGURATION
@@ -641,6 +620,22 @@ visibility:
 
   # Default hidden state for new tools (default: true in Smart Discovery Mode)
   default_hidden: true            # Default hidden state for new tools (env: VISIBILITY_DEFAULT_HIDDEN)
+
+# =============================================================================
+# ENHANCEMENT STORAGE CONFIGURATION
+# =============================================================================
+# Configuration for storing enhanced tool descriptions and metadata
+enhancement_storage:
+  storage_dir: "./storage/enhanced_tools"  # Directory to store enhanced tool data (env: ENHANCEMENT_STORAGE_DIR)
+  max_storage_mb: 512                      # Maximum storage size in MB (env: ENHANCEMENT_STORAGE_MAX_MB)
+  enable_versioning: true                  # Enable versioning of enhancements (env: ENHANCEMENT_STORAGE_VERSIONING)
+  auto_load_on_startup: true               # Auto-load enhancements on startup (env: ENHANCEMENT_STORAGE_AUTO_LOAD)
+  
+  # Cleanup policy for old enhancement data
+  cleanup_policy:
+    max_age_days: 90                       # Maximum age in days before cleanup (env: ENHANCEMENT_CLEANUP_MAX_AGE_DAYS)
+    max_versions_per_tool: 5               # Maximum versions to keep per tool (env: ENHANCEMENT_CLEANUP_MAX_VERSIONS)
+    cleanup_on_startup: true               # Clean up old data on startup (env: ENHANCEMENT_CLEANUP_ON_STARTUP)
 
 # =============================================================================
 # LOGGING CONFIGURATION

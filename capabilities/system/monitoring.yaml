@@ -1,614 +1,285 @@
-# MCP 2025-06-18 Compliant System Monitoring - Enterprise Edition
-# Complete restructure for maximum security, intelligence, and enterprise capabilities
-
-# Enhanced metadata with comprehensive classification
 metadata:
-  name: "Enterprise System Monitoring Suite"
-  description: "Next-generation system monitoring with AI-enhanced analysis and MCP 2025-06-18 compliance"
-  version: "3.0.0"
-  author: "MCP 2025 SRE Team"
-  
-  # Enhanced categorization
-  classification:
-    security_level: "mixed"       # Mixed - some tools are safe, others privileged
-    complexity_level: "varied"    # From simple checks to complex analysis
-    domain: "system_monitoring"
-    use_cases: ["health_monitoring", "performance_analysis", "system_diagnostics", "infrastructure_management"]
-  
-  # Discovery enhancement metadata
-  discovery_metadata:
-    primary_keywords: ["monitor", "check", "system", "health", "performance", "status", "usage"]
-    semantic_embeddings: true
-    llm_enhanced: true
-    workflow_enabled: true
-  
-  # MCP 2025-06-18 capabilities
-  mcp_capabilities:
-    version: "2025-06-18"
-    supports_cancellation: true
-    supports_progress: true
-    supports_sampling: true
-    supports_validation: true
-    supports_elicitation: false
-
-# Completely restructured tools with full MCP 2025-06-18 integration
+  name: Enterprise System Monitoring Suite
+  description: Next-generation system monitoring with AI-enhanced analysis and MCP 2025-06-18 compliance
+  version: 3.0.0
+  author: MCP 2025 SRE Team
+  tags: null
 tools:
-  # Enhanced disk usage monitoring with AI analysis
-  - name: "intelligent_disk_monitor"
-    
-    core:
-      description: "AI-enhanced disk usage monitoring with predictive analysis and alerting"
-      input_schema:
-        type: object
-        properties:
-          paths:
-            type: array
-            description: "Filesystem paths to monitor (supports wildcards and auto-discovery)"
-            items:
-              type: string
-              validation:
-                path_exists: true
-                permission_check: true
-            default: ["/"]
-            maxItems: 50
-          analysis_mode:
-            type: string
-            enum: ["basic", "detailed", "predictive", "comprehensive"]
-            default: "detailed"
-            description: "Level of analysis and reporting"
-          alert_threshold:
-            type: integer
-            description: "Usage percentage threshold for alerts"
-            default: 85
-            minimum: 50
-            maximum: 98
-            validation:
-              enterprise_best_practice: [80, 90]
-          trend_analysis:
-            type: boolean
-            default: true
-            description: "Enable AI-powered usage trend analysis"
-          include_inodes:
-            type: boolean
-            default: false
-            description: "Include inode usage analysis"
-        required: []
+- name: intelligent_disk_monitor
+  description: AI-enhanced disk usage monitoring with predictive analysis and alerting
+  inputSchema:
+    additionalProperties: false
+    properties:
+      alert_threshold:
+        default: 85
+        description: Usage percentage threshold for alerts
+        maximum: 98
+        minimum: 50
+        type: integer
+        validation:
+          enterprise_best_practice:
+          - 80
+          - 90
+      analysis_mode:
+        default: detailed
+        description: Level of analysis and reporting
+        enum:
+        - basic
+        - detailed
+        - predictive
+        - comprehensive
+        type: string
+      include_inodes:
+        default: false
+        description: Include inode usage analysis
+        type: boolean
+      paths:
+        default:
+        - /
+        description: Filesystem paths to monitor (supports wildcards and auto-discovery)
+        items:
+          type: string
+          validation:
+            path_exists: true
+            permission_check: true
+        maxItems: 50
+        type: array
+      trend_analysis:
+        default: true
+        description: Enable AI-powered usage trend analysis
+        type: boolean
+    required: []
+    type: object
+  routing:
+    type: enhanced_system_monitor
+    config:
+      args:
+      - --paths
+      - '{paths}'
+      - --mode
+      - '{analysis_mode}'
+      - --threshold
+      - '{alert_threshold}'
+      command: intelligent_df_analyzer
+      timeout_seconds: 120
+  annotations: null
+  hidden: true
+  enabled: true
+  sampling_strategy: null
+  elicitation_strategy: null
+- name: intelligent_memory_analyzer
+  description: AI-powered memory usage analysis with optimization recommendations
+  inputSchema:
+    properties:
+      analysis_depth:
+        default: detailed
+        description: Depth of memory analysis
+        enum:
+        - basic
+        - detailed
+        - forensic
+        - optimization
+        type: string
+      detect_leaks:
+        default: false
+        description: Enable memory leak detection analysis
+        type: boolean
+      include_processes:
+        default: true
+        description: Include per-process memory breakdown
+        type: boolean
+      optimization_suggestions:
+        default: true
+        description: Generate AI-powered optimization recommendations
+        type: boolean
+      unit:
+        default: auto
+        description: Display unit (auto-selects best unit)
+        enum:
+        - bytes
+        - kb
+        - mb
+        - gb
+        - auto
+        type: string
+    required: []
+    type: object
+  routing:
+    type: ai_memory_analyzer
+    config: null
+  annotations: null
+  hidden: true
+  enabled: true
+  sampling_strategy: null
+  elicitation_strategy: null
+- name: intelligent_process_monitor
+  description: AI-enhanced process monitoring with behavior analysis and anomaly detection
+  inputSchema:
+    properties:
+      ai_analysis:
+        default: true
+        description: Enable AI-powered process behavior analysis
+        type: boolean
+      analysis_mode:
+        default: behavioral
+        description: Process monitoring and analysis mode
+        enum:
+        - snapshot
+        - continuous
+        - behavioral
+        - security
+        type: string
+      limit:
+        default: 50
+        maximum: 500
+        minimum: 1
+        type: integer
+      process_filter:
         additionalProperties: false
-    
-    execution:
-      routing:
-        type: "enhanced_system_monitor"
-        primary:
-          command: "intelligent_df_analyzer"
-          args: ["--paths", "{paths}", "--mode", "{analysis_mode}", "--threshold", "{alert_threshold}"]
-          timeout_seconds: 120
-        fallback:
-          command: "df"
-          args: ["-h"]
-          timeout_seconds: 30
-      
-      security:
-        classification: "safe"
-        sandbox:
-          filesystem:
-            allowed_read_paths: ["/", "/var", "/home", "/tmp", "/opt", "/usr"]
-            denied_read_patterns: ["/etc/shadow", "/root/.ssh/*"]
-          resources:
-            max_memory_mb: 256
-            max_cpu_percent: 30
-            max_execution_seconds: 120
-          environment:
-            readonly_system: true
-      
-      performance:
-        estimated_duration:
-          basic_check: 5
-          detailed_analysis: 15
-          predictive_analysis: 30
-        complexity: "moderate"
-        supports_cancellation: true
-        supports_progress: true
-        cache_results: true
-        cache_ttl_seconds: 300
-    
-    discovery:
-      ai_enhanced:
-        description: >
-          Intelligent disk usage monitor that goes beyond basic df commands. Provides AI-powered 
-          trend analysis, predictive capacity planning, and smart alerting. Automatically identifies 
-          space hogs, predicts when disks will fill up, and suggests optimization strategies.
-        
-        usage_patterns:
-          - "check disk space on {paths}"
-          - "monitor disk usage and predict when it'll fill up"
-          - "analyze disk space trends for capacity planning"
-          - "find what's using disk space on the system"
-        
-        semantic_context:
-          primary_intent: "capacity_monitoring"
-          operations: ["monitor", "analyze", "predict", "alert", "optimize"]
-          data_types: ["filesystem", "capacity", "usage_metrics", "trends"]
-        
-        workflow_integration:
-          typically_follows: ["system_health_check"]
-          typically_precedes: ["cleanup_recommendations", "capacity_planning"]
-          chain_compatibility: ["infrastructure_monitoring", "capacity_management"]
-      
-      parameter_intelligence:
-        analysis_mode:
-          smart_recommendations:
-            - when: "regular_monitoring"
-              suggest: "detailed"
-            - when: "capacity_planning"
-              suggest: "predictive"
-            - when: "emergency_response"
-              suggest: "comprehensive"
-    
-    monitoring:
-      progress_tracking:
-        enabled: true
-        granularity: "standard"
-        sub_operations:
-          - id: "filesystem_discovery"
-            name: "Discovering filesystems"
-            estimated_percentage: 20
-          - id: "usage_analysis"
-            name: "Analyzing current usage"
-            estimated_percentage: 40
-          - id: "trend_calculation"
-            name: "Calculating usage trends"
-            estimated_percentage: 30
-          - id: "report_generation"
-            name: "Generating insights report"
-            estimated_percentage: 10
-      
-      cancellation:
-        enabled: true
-        graceful_timeout_seconds: 10
-        cleanup_required: false
-      
-      metrics:
-        track_execution_time: true
-        track_accuracy: true
-        custom_metrics: ["filesystems_analyzed", "predictions_generated"]
-    
-    access:
-      hidden: true
-      enabled: true
-      requires_permissions: ["system:monitor", "filesystem:read"]
-      user_groups: ["sre", "administrators", "monitoring"]
-
-  # Advanced memory analysis with AI insights
-  - name: "intelligent_memory_analyzer"
-    
-    core:
-      description: "AI-powered memory usage analysis with optimization recommendations"
-      input_schema:
-        type: object
         properties:
-          analysis_depth:
+          command_pattern:
+            description: Filter by command line pattern
             type: string
-            enum: ["basic", "detailed", "forensic", "optimization"]
-            default: "detailed"
-            description: "Depth of memory analysis"
-          include_processes:
-            type: boolean
-            default: true
-            description: "Include per-process memory breakdown"
-          detect_leaks:
-            type: boolean
-            default: false
-            description: "Enable memory leak detection analysis"
-          optimization_suggestions:
-            type: boolean
-            default: true
-            description: "Generate AI-powered optimization recommendations"
-          unit:
+          name_pattern:
+            description: Process name pattern (supports regex and wildcards)
             type: string
-            enum: ["bytes", "kb", "mb", "gb", "auto"]
-            default: "auto"
-            description: "Display unit (auto-selects best unit)"
-        required: []
-    
-    execution:
-      routing:
-        type: "ai_memory_analyzer"
-        config:
-          analysis_engine: "memory_intelligence"
-          ai_integration:
-            pattern_recognition: true
-            optimization_ai: true
-            anomaly_detection: true
-      
-      security:
-        classification: "restricted"
-        requires_approval: false
-        sandbox:
-          system_access:
-            allowed_proc_paths: ["/proc/meminfo", "/proc/*/status", "/proc/*/smaps"]
-            denied_sensitive_data: true
-          resources:
-            max_memory_mb: 512
-            max_cpu_percent: 40
-            max_execution_seconds: 180
-      
-      performance:
-        estimated_duration:
-          basic_analysis: 3
-          detailed_analysis: 10
-          forensic_analysis: 45
-        complexity: "complex"
-        supports_cancellation: true
-        supports_progress: true
-    
-    discovery:
-      ai_enhanced:
-        description: >
-          Advanced memory analyzer that provides comprehensive insights into system memory usage. 
-          Uses AI to detect patterns, identify memory hogs, detect potential leaks, and generate 
-          optimization recommendations. Perfect for performance tuning and troubleshooting.
-        
-        usage_patterns:
-          - "analyze memory usage in detail"
-          - "find processes using too much memory"
-          - "detect memory leaks in the system"
-          - "optimize memory usage recommendations"
-        
-        ai_capabilities:
-          pattern_recognition: true
-          anomaly_detection: true
-          optimization_suggestions: true
-          leak_detection: true
-    
-    monitoring:
-      progress_tracking:
-        enabled: true
-        granularity: "detailed"
-        sub_operations:
-          - id: "system_memory_scan"
-            name: "Scanning system memory"
-            estimated_percentage: 25
-          - id: "process_analysis"
-            name: "Analyzing process memory"
-            estimated_percentage: 35
-          - id: "pattern_detection"
-            name: "AI pattern detection"
-            estimated_percentage: 25
-          - id: "recommendation_gen"
-            name: "Generating recommendations"
-            estimated_percentage: 15
-    
-    access:
-      hidden: true
-      enabled: true
-      requires_permissions: ["system:monitor", "process:read"]
-      user_groups: ["sre", "developers", "performance_analysts"]
-
-  # Intelligent process monitoring with behavior analysis
-  - name: "intelligent_process_monitor"
-    
-    core:
-      description: "AI-enhanced process monitoring with behavior analysis and anomaly detection"
-      input_schema:
-        type: object
-        properties:
-          process_filter:
-            type: object
+          resource_threshold:
             properties:
-              name_pattern:
-                type: string
-                description: "Process name pattern (supports regex and wildcards)"
-              user:
-                type: string
-                description: "Filter by username"
-              command_pattern:
-                type: string
-                description: "Filter by command line pattern"
-              resource_threshold:
-                type: object
-                properties:
-                  cpu_percent:
-                    type: number
-                    minimum: 0
-                    maximum: 100
-                  memory_mb:
-                    type: number
-                    minimum: 0
-            additionalProperties: false
-          analysis_mode:
+              cpu_percent:
+                maximum: 100
+                minimum: 0
+                type: number
+              memory_mb:
+                minimum: 0
+                type: number
+            type: object
+          user:
+            description: Filter by username
             type: string
-            enum: ["snapshot", "continuous", "behavioral", "security"]
-            default: "behavioral"
-            description: "Process monitoring and analysis mode"
-          sort_by:
-            type: string
-            enum: ["cpu", "memory", "runtime", "priority", "anomaly_score"]
-            default: "anomaly_score"
-          limit:
-            type: integer
-            default: 50
-            minimum: 1
-            maximum: 500
-          ai_analysis:
-            type: boolean
-            default: true
-            description: "Enable AI-powered process behavior analysis"
-        required: []
-    
-    execution:
-      routing:
-        type: "ai_process_monitor"
-        config:
-          monitoring_engine: "process_intelligence"
-          behavioral_analysis: true
-          anomaly_detection: true
-      
-      security:
-        classification: "privileged"
-        requires_approval: true
-        approval_workflow: "process_monitoring_approval"
-        sandbox:
-          process_access:
-            allowed_proc_access: true
-            sensitive_process_filtering: true
-            privilege_escalation_prevention: true
-          resources:
-            max_memory_mb: 1024
-            max_cpu_percent: 50
-            max_execution_seconds: 300
-      
-      performance:
-        estimated_duration:
-          snapshot: 5
-          continuous: 60
-          behavioral: 120
-        complexity: "very_complex"
-        supports_cancellation: true
-        supports_progress: true
-    
-    discovery:
-      ai_enhanced:
-        description: >
-          Enterprise-grade process monitoring with AI-powered behavioral analysis. Detects anomalous 
-          processes, identifies resource hogs, monitors security threats, and provides intelligent 
-          recommendations for process optimization and system health.
-        
-        ai_capabilities:
-          behavioral_analysis: true
-          anomaly_detection: true
-          security_threat_detection: true
-          resource_optimization: true
-          pattern_learning: true
-    
-    monitoring:
-      progress_tracking:
-        enabled: true
-        granularity: "verbose"
-        real_time_metrics:
-          - processes_analyzed
-          - anomalies_detected
-          - cpu_utilization
-          - memory_utilization
-      
-      ai_monitoring:
-        behavioral_learning: true
-        threat_detection: true
-        performance_optimization: true
-    
-    access:
-      hidden: true
-      enabled: true
-      requires_permissions: ["system:admin", "process:monitor", "security:analyze"]
-      user_groups: ["administrators", "security_team", "sre"]
-      approval_required: true
-
-  # Advanced network diagnostics with intelligent analysis
-  - name: "intelligent_network_diagnostics"
-    
-    core:
-      description: "AI-powered network connectivity and performance diagnostics"
-      input_schema:
         type: object
-        properties:
-          targets:
-            type: array
-            description: "Network targets to test (hosts, IPs, services)"
-            items:
-              type: object
-              properties:
-                host:
-                  type: string
-                  description: "Hostname or IP address"
-                port:
-                  type: integer
-                  minimum: 1
-                  maximum: 65535
-                  description: "Port number (optional)"
-                protocol:
-                  type: string
-                  enum: ["icmp", "tcp", "udp", "http", "https"]
-                  default: "icmp"
-              required: ["host"]
-            default: [{"host": "8.8.8.8", "protocol": "icmp"}]
-          diagnostic_mode:
-            type: string
-            enum: ["basic", "comprehensive", "performance", "troubleshooting"]
-            default: "comprehensive"
-            description: "Level of network diagnostics"
-          ai_analysis:
-            type: boolean
-            default: true
-            description: "Enable AI-powered network analysis and recommendations"
-          timeout_seconds:
-            type: integer
-            default: 10
-            minimum: 1
-            maximum: 60
-          continuous_monitoring:
-            type: boolean
-            default: false
-            description: "Enable continuous monitoring mode"
-        required: []
-    
-    execution:
-      routing:
-        type: "ai_network_diagnostics"
-        config:
-          diagnostic_engine: "network_intelligence"
-          multi_protocol_support: true
-          performance_analysis: true
-      
-      security:
-        classification: "restricted"
-        sandbox:
-          network_access:
-            allowed_protocols: ["icmp", "tcp", "udp"]
-            port_restrictions: ["no_privileged_ports"]
-            rate_limiting: true
-          resources:
-            max_memory_mb: 512
-            max_cpu_percent: 40
-            max_execution_seconds: 600
-      
-      performance:
-        estimated_duration:
-          basic_test: 10
-          comprehensive_test: 60
-          performance_analysis: 180
-        complexity: "complex"
-        supports_cancellation: true
-        supports_progress: true
-    
-    discovery:
-      ai_enhanced:
-        description: >
-          Advanced network diagnostics tool that performs comprehensive connectivity testing, 
-          latency analysis, and intelligent troubleshooting. Uses AI to identify network 
-          issues, suggest optimizations, and provide detailed performance insights.
-        
-        ai_capabilities:
-          intelligent_routing_analysis: true
-          performance_bottleneck_detection: true
-          network_path_optimization: true
-          troubleshooting_recommendations: true
-    
-    monitoring:
-      progress_tracking:
-        enabled: true
-        granularity: "detailed"
-        real_time_metrics:
-          - targets_tested
-          - latency_measurements
-          - success_rate
-          - anomalies_detected
-    
-    access:
-      hidden: true
-      enabled: true
-      requires_permissions: ["network:diagnose", "system:monitor"]
-      user_groups: ["network_admins", "sre", "support"]
-
-  # Comprehensive service monitoring with predictive analysis
-  - name: "intelligent_service_monitor"
-    
-    core:
-      description: "AI-enhanced service monitoring with predictive health analysis"
-      input_schema:
-        type: object
-        properties:
-          service_scope:
-            type: string
-            enum: ["specific", "all_active", "critical_only", "custom_filter"]
-            default: "critical_only"
-            description: "Scope of service monitoring"
-          service_names:
-            type: array
-            description: "Specific service names to monitor"
-            items:
+      sort_by:
+        default: anomaly_score
+        enum:
+        - cpu
+        - memory
+        - runtime
+        - priority
+        - anomaly_score
+        type: string
+    required: []
+    type: object
+  routing:
+    type: ai_process_monitor
+    config: null
+  annotations: null
+  hidden: true
+  enabled: true
+  sampling_strategy: null
+  elicitation_strategy: null
+- name: intelligent_network_diagnostics
+  description: AI-powered network connectivity and performance diagnostics
+  inputSchema:
+    properties:
+      ai_analysis:
+        default: true
+        description: Enable AI-powered network analysis and recommendations
+        type: boolean
+      continuous_monitoring:
+        default: false
+        description: Enable continuous monitoring mode
+        type: boolean
+      diagnostic_mode:
+        default: comprehensive
+        description: Level of network diagnostics
+        enum:
+        - basic
+        - comprehensive
+        - performance
+        - troubleshooting
+        type: string
+      targets:
+        default:
+        - host: 8.8.8.8
+          protocol: icmp
+        description: Network targets to test (hosts, IPs, services)
+        items:
+          properties:
+            host:
+              description: Hostname or IP address
               type: string
-            maxItems: 100
-          health_analysis:
-            type: boolean
-            default: true
-            description: "Enable AI-powered service health analysis"
-          predictive_monitoring:
-            type: boolean
-            default: false
-            description: "Enable predictive failure analysis"
-          include_dependencies:
-            type: boolean
-            default: true
-            description: "Include service dependency analysis"
-        required: []
-    
-    execution:
-      routing:
-        type: "ai_service_monitor"
-        config:
-          monitoring_engine: "service_intelligence"
-          dependency_analysis: true
-          predictive_analytics: true
-      
-      security:
-        classification: "privileged"
-        requires_approval: true
-        sandbox:
-          system_access:
-            allowed_systemd_operations: ["status", "show", "list-units"]
-            denied_control_operations: true
-          resources:
-            max_memory_mb: 768
-            max_cpu_percent: 60
-            max_execution_seconds: 240
-      
-      performance:
-        estimated_duration:
-          specific_services: 15
-          all_services: 60
-          predictive_analysis: 120
-        complexity: "very_complex"
-        supports_cancellation: true
-        supports_progress: true
-    
-    discovery:
-      ai_enhanced:
-        description: >
-          Enterprise service monitoring with AI-powered health analysis and predictive capabilities. 
-          Monitors service status, analyzes dependencies, predicts potential failures, and provides 
-          intelligent recommendations for service optimization and reliability improvement.
-        
-        ai_capabilities:
-          health_trend_analysis: true
-          failure_prediction: true
-          dependency_mapping: true
-          optimization_recommendations: true
-    
-    monitoring:
-      progress_tracking:
-        enabled: true
-        granularity: "verbose"
-        sub_operations:
-          - id: "service_discovery"
-            name: "Discovering services"
-            estimated_percentage: 20
-          - id: "status_analysis"
-            name: "Analyzing service status"
-            estimated_percentage: 30
-          - id: "dependency_mapping"
-            name: "Mapping dependencies"
-            estimated_percentage: 25
-          - id: "health_assessment"
-            name: "AI health assessment"
-            estimated_percentage: 25
-      
-      ai_monitoring:
-        predictive_analysis: true
-        anomaly_detection: true
-        trend_analysis: true
-    
-    access:
-      hidden: true
-      enabled: true
-      requires_permissions: ["system:admin", "service:monitor"]
-      user_groups: ["administrators", "sre", "platform_team"]
-      approval_required: true
+            port:
+              description: Port number (optional)
+              maximum: 65535
+              minimum: 1
+              type: integer
+            protocol:
+              default: icmp
+              enum:
+              - icmp
+              - tcp
+              - udp
+              - http
+              - https
+              type: string
+          required:
+          - host
+          type: object
+        type: array
+      timeout_seconds:
+        default: 10
+        maximum: 60
+        minimum: 1
+        type: integer
+    required: []
+    type: object
+  routing:
+    type: ai_network_diagnostics
+    config: null
+  annotations: null
+  hidden: true
+  enabled: true
+  sampling_strategy: null
+  elicitation_strategy: null
+- name: intelligent_service_monitor
+  description: AI-enhanced service monitoring with predictive health analysis
+  inputSchema:
+    properties:
+      health_analysis:
+        default: true
+        description: Enable AI-powered service health analysis
+        type: boolean
+      include_dependencies:
+        default: true
+        description: Include service dependency analysis
+        type: boolean
+      predictive_monitoring:
+        default: false
+        description: Enable predictive failure analysis
+        type: boolean
+      service_names:
+        description: Specific service names to monitor
+        items:
+          type: string
+        maxItems: 100
+        type: array
+      service_scope:
+        default: critical_only
+        description: Scope of service monitoring
+        enum:
+        - specific
+        - all_active
+        - critical_only
+        - custom_filter
+        type: string
+    required: []
+    type: object
+  routing:
+    type: ai_service_monitor
+    config: null
+  annotations: null
+  hidden: true
+  enabled: true
+  sampling_strategy: null
+  elicitation_strategy: null
+enhanced_metadata: null
+enhanced_tools: null

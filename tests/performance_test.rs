@@ -7,7 +7,7 @@ use futures_util::{StreamExt, TryStreamExt};
 use magictunnel::config::RegistryConfig;
 use magictunnel::mcp::server::{
     health_check, list_tools_handler, call_tool_handler,
-    websocket_handler, sse_handler, streaming_tool_handler, McpServer
+    websocket_handler, sse_handler, sse_messages_handler, streaming_tool_handler, McpServer
 };
 use magictunnel::registry::RegistryService;
 use serde_json::{json, Value};
@@ -49,7 +49,8 @@ async fn create_test_server() -> TestServer {
             .route("/mcp/tools", web::get().to(list_tools_handler))
             .route("/mcp/call", web::post().to(call_tool_handler))
             .route("/mcp/ws", web::get().to(websocket_handler))
-            .route("/mcp/stream", web::get().to(sse_handler))
+            .route("/mcp/sse", web::get().to(sse_handler))
+            .route("/mcp/sse/messages", web::post().to(sse_messages_handler))
             .route("/mcp/call/stream", web::post().to(streaming_tool_handler))
     })
 }
@@ -180,7 +181,7 @@ async fn test_sse_connection_stability() {
     let srv = create_test_server().await;
     
     let response = srv
-        .get("/mcp/stream")
+        .get("/mcp/sse")
         .insert_header(("Accept", "text/event-stream"))
         .send()
         .await

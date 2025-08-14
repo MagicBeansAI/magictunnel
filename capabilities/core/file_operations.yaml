@@ -58,6 +58,8 @@ tools:
   annotations: null
   hidden: true
   enabled: true
+  sampling_strategy: null
+  elicitation_strategy: null
 - name: secure_file_writer
   description: AI-enhanced secure file writer with validation and permission checks
   inputSchema:
@@ -107,6 +109,8 @@ tools:
   annotations: null
   hidden: true
   enabled: true
+  sampling_strategy: null
+  elicitation_strategy: null
 - name: intelligent_directory_lister
   description: AI-enhanced directory listing with intelligent file analysis and metadata extraction
   inputSchema:
@@ -142,5 +146,7 @@ tools:
   annotations: null
   hidden: true
   enabled: true
+  sampling_strategy: null
+  elicitation_strategy: null
 enhanced_metadata: null
 enhanced_tools: null

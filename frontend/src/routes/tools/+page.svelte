@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, type Tool, type ToolsResponse } from '$lib/api';
+  import { api, type Tool, type ToolsResponse, type ToolManagementResult, type UpdateToolStateRequest } from '$lib/api';
   import ToolExecutionModal from '$lib/components/ToolExecutionModal.svelte';
 
   let toolsData: ToolsResponse | null = null;
@@ -23,6 +23,13 @@
   let lastExecutionResult: any = null;
   let lastExecutionError: string | null = null;
   let showDebugDetails = false;
+
+  // Tool management state
+  let managementMode = false;
+  let selectedTools: Set<string> = new Set();
+  let bulkActionLoading = false;
+  let lastManagementResult: ToolManagementResult | null = null;
+  let lastManagementError: string | null = null;
   
   // Helper function to safely parse JSON output
   function parseOutputSafely(output: string) {
@@ -109,6 +116,109 @@
     selectedTool = null;
   }
 
+  // Tool management functions
+  function toggleManagementMode() {
+    managementMode = !managementMode;
+    selectedTools.clear();
+    selectedTools = selectedTools; // Trigger reactivity
+  }
+
+  function toggleToolSelection(toolName: string) {
+    if (selectedTools.has(toolName)) {
+      selectedTools.delete(toolName);
+    } else {
+      selectedTools.add(toolName);
+    }
+    selectedTools = selectedTools; // Trigger reactivity
+  }
+
+  function selectAllFilteredTools() {
+    filteredTools.forEach(tool => selectedTools.add(tool.name));
+    selectedTools = selectedTools;
+  }
+
+  function clearSelectedTools() {
+    selectedTools.clear();
+    selectedTools = selectedTools;
+  }
+
+  async function updateToolState(toolName: string, update: UpdateToolStateRequest) {
+    try {
+      const result = await api.updateToolState(toolName, update);
+      lastManagementResult = result;
+      lastManagementError = null;
+      
+      // Refresh tools to show updated state
+      await loadTools();
+    } catch (err) {
+      lastManagementError = `Failed to update tool: ${err}`;
+      lastManagementResult = null;
+    }
+  }
+
+  async function performBulkAction(action: 'enable' | 'disable' | 'show' | 'hide') {
+    if (selectedTools.size === 0) {
+      lastManagementError = 'No tools selected for bulk action';
+      return;
+    }
+
+    bulkActionLoading = true;
+    lastManagementResult = null;
+    lastManagementError = null;
+
+    try {
+      const toolNames = Array.from(selectedTools);
+      let update: UpdateToolStateRequest = {};
+
+      switch (action) {
+        case 'enable':
+          update.enabled = true;
+          break;
+        case 'disable':
+          update.enabled = false;
+          break;
+        case 'show':
+          update.hidden = false;
+          break;
+        case 'hide':
+          update.hidden = true;
+          break;
+      }
+
+      const result = await api.bulkUpdateTools({
+        tool_names: toolNames,
+        ...update
+      });
+
+      lastManagementResult = result;
+      
+      // Clear selection and refresh tools
+      selectedTools.clear();
+      selectedTools = selectedTools;
+      await loadTools();
+    } catch (err) {
+      lastManagementError = `Bulk action failed: ${err}`;
+    } finally {
+      bulkActionLoading = false;
+    }
+  }
+
+  async function performQuickAction(action: 'hide_all' | 'show_all' | 'enable_all' | 'disable_all') {
+    bulkActionLoading = true;
+    lastManagementResult = null;
+    lastManagementError = null;
+
+    try {
+      const result = await api.quickActionTools({ action });
+      lastManagementResult = result;
+      await loadTools();
+    } catch (err) {
+      lastManagementError = `Quick action failed: ${err}`;
+    } finally {
+      bulkActionLoading = false;
+    }
+  }
+
   // Filter tools based on search, category, and status
   $: filteredTools = toolsData?.tools?.filter(tool => {
     const matchesSearch = tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -180,6 +290,67 @@
   });
 </script>
 
+<style>
+  .dot {
+    top: 50%;
+    left: 2px;
+    transform: translateY(-50%);
+  }
+  
+  .dot.translate-x-6 {
+    transform: translate(24px, -50%);
+  }
+  
+  /* Hover effects for toggles */
+  .toggle-container:hover .dot {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+  
+  /* Improved button hover states */
+  .btn-modern {
+    @apply px-4 py-2 rounded-lg font-medium shadow-sm transition-all duration-200 flex items-center gap-2;
+  }
+  
+  .btn-modern:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+  
+  .btn-modern:focus {
+    @apply ring-2 ring-offset-2 ring-opacity-50;
+  }
+  
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  /* Custom scrollbar styling for tool details panel */
+  .overflow-y-auto {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f1f5f9;
+  }
+  
+  .overflow-y-auto::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .overflow-y-auto::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+  }
+  
+  .overflow-y-auto::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+  
+  .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+</style>
+
 <svelte:head>
   <title>Tools - MagicTunnel Dashboard</title>
 </svelte:head>
@@ -190,10 +361,10 @@
     <header class="mb-8">
       <div class="flex items-center justify-between">
         <div>
-          <div class="mb-2">
-            <h1 class="text-4xl font-bold text-primary-700">Tools Management</h1>
-          </div>
-          <p class="text-gray-600">Manage and test available tools in your MagicTunnel instance</p>
+          <h1 class="text-4xl font-bold text-primary-700 mb-2">Tools Management</h1>
+          <p class="text-gray-600">
+            {managementMode ? 'Select tools to enable/disable or hide/show them dynamically' : 'Manage and test available tools in your MagicTunnel instance'}
+          </p>
           {#if selectedService !== 'all'}
             <div class="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
               <span class="text-sm text-blue-700">
@@ -247,6 +418,136 @@
         </div>
       </div>
 
+      <!-- Management Results Display -->
+      {#if lastManagementResult || lastManagementError}
+        <div class="card mb-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-700">
+              {lastManagementError ? '❌ Management Action Failed' : '✅ Management Action Successful'}
+            </h3>
+            <button
+              class="text-gray-400 hover:text-gray-600"
+              on:click={() => { lastManagementResult = null; lastManagementError = null; }}
+            >
+              ✕
+            </button>
+          </div>
+
+          {#if lastManagementError}
+            <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p class="text-red-800 font-medium mb-2">Error</p>
+              <p class="text-red-700 text-sm">{lastManagementError}</p>
+            </div>
+          {:else if lastManagementResult}
+            <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+              <p class="text-green-800 font-medium mb-2">{lastManagementResult.message}</p>
+              {#if lastManagementResult.affected_tools.length > 0 && lastManagementResult.affected_tools.length <= 10}
+                <div class="text-green-700 text-sm">
+                  <span class="font-medium">Affected tools:</span>
+                  {lastManagementResult.affected_tools.join(', ')}
+                </div>
+              {:else if lastManagementResult.total_affected > 0}
+                <div class="text-green-700 text-sm">
+                  <span class="font-medium">Total tools affected:</span>
+                  {lastManagementResult.total_affected}
+                </div>
+              {/if}
+            </div>
+          {/if}
+        </div>
+      {/if}
+
+      <!-- Management Toolbar (only in management mode) -->
+      {#if managementMode}
+        <div class="card mb-6">
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-medium text-gray-700">
+                {selectedTools.size} tool{selectedTools.size !== 1 ? 's' : ''} selected
+              </span>
+              <button 
+                class="btn-secondary text-sm" 
+                on:click={selectAllFilteredTools}
+                disabled={filteredTools.length === 0}
+              >
+                Select All ({filteredTools.length})
+              </button>
+              <button 
+                class="btn-secondary text-sm" 
+                on:click={clearSelectedTools}
+                disabled={selectedTools.size === 0}
+              >
+                Clear Selection
+              </button>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <!-- Bulk Actions -->
+              <button 
+                class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-all duration-200 flex items-center gap-2"
+                on:click={() => performBulkAction('enable')}
+                disabled={selectedTools.size === 0 || bulkActionLoading}
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                Enable
+              </button>
+              <button 
+                class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-all duration-200 flex items-center gap-2"
+                on:click={() => performBulkAction('disable')}
+                disabled={selectedTools.size === 0 || bulkActionLoading}
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+                Disable
+              </button>
+              <button 
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-all duration-200 flex items-center gap-2"
+                on:click={() => performBulkAction('show')}
+                disabled={selectedTools.size === 0 || bulkActionLoading}
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                </svg>
+                Show
+              </button>
+              <button 
+                class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-all duration-200 flex items-center gap-2"
+                on:click={() => performBulkAction('hide')}
+                disabled={selectedTools.size === 0 || bulkActionLoading}
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L15 15M21 3l-6.878 6.878"></path>
+                </svg>
+                Hide
+              </button>
+
+              <!-- Quick Actions -->
+              <div class="border-l border-gray-300 pl-3 ml-3">
+                <span class="text-xs text-gray-500 mr-3 font-medium">Quick Actions:</span>
+                <button 
+                  class="bg-slate-600 hover:bg-slate-700 text-white px-3 py-1.5 rounded-md text-xs font-medium shadow-sm transition-all duration-200"
+                  on:click={() => performQuickAction('enable_all')}
+                  disabled={bulkActionLoading}
+                >
+                  Enable All
+                </button>
+                <button 
+                  class="bg-slate-600 hover:bg-slate-700 text-white px-3 py-1.5 rounded-md text-xs font-medium shadow-sm transition-all duration-200 ml-2"
+                  on:click={() => performQuickAction('show_all')}
+                  disabled={bulkActionLoading}
+                >
+                  Show All
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      {/if}
+
       <!-- Search and Filters Section -->
       <div class="card mb-6">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -298,8 +599,27 @@
           </select>
         </div>
         
-        <!-- Refresh Button Row -->
-        <div class="mt-4 flex justify-end">
+        <!-- Action Buttons Row -->
+        <div class="mt-4 flex justify-between items-center">
+          <button 
+            class="bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-all duration-200 flex items-center gap-2"
+            on:click={toggleManagementMode}
+          >
+            {#if managementMode}
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+              </svg>
+              View Mode
+            {:else}
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+              </svg>
+              Manage Mode
+            {/if}
+          </button>
+          
           <button class="btn-secondary" on:click={loadTools} disabled={loading}>
             {loading ? '🔄 Loading...' : '🔄 Refresh'}
           </button>
@@ -420,11 +740,21 @@
         <div class="lg:col-span-2">
           <div class="space-y-4">
             {#each filteredTools as tool}
-              <div class="card hover:shadow-lg transition-shadow cursor-pointer border-l-4 {selectedTool?.name === tool.name ? 'border-l-primary-500 bg-primary-50' : 'border-l-gray-300'}"
-                   on:click={() => selectTool(tool)}>
+              <div class="card hover:shadow-lg transition-shadow border-l-4 {selectedTool?.name === tool.name ? 'border-l-primary-500 bg-primary-50' : managementMode && selectedTools.has(tool.name) ? 'border-l-blue-500 bg-blue-50' : 'border-l-gray-300'}"
+                   class:cursor-pointer={!managementMode}
+                   on:click={() => managementMode ? toggleToolSelection(tool.name) : selectTool(tool)}>
                 <div class="flex items-start justify-between">
                   <div class="flex-1">
                     <div class="flex items-center gap-2 mb-2">
+                      {#if managementMode}
+                        <input 
+                          type="checkbox" 
+                          checked={selectedTools.has(tool.name)}
+                          on:click|stopPropagation
+                          on:change={() => toggleToolSelection(tool.name)}
+                          class="mr-2"
+                        />
+                      {/if}
                       <h3 class="text-lg font-semibold text-gray-800">{tool.name}</h3>
                       <span class="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">
                         {tool.category}
@@ -450,12 +780,56 @@
                     </div>
                   </div>
                   
-                  <button 
-                    class="btn-primary text-sm ml-4"
-                    on:click|stopPropagation={() => openToolModal(tool)}
-                  >
-                    🧪 Test
-                  </button>
+                  {#if managementMode}
+                    <div class="flex flex-col gap-4 ml-6">
+                      <!-- Enable/Disable Toggle Switch -->
+                      <div class="flex items-center gap-3">
+                        <label class="flex items-center cursor-pointer group" on:click|stopPropagation>
+                          <div class="relative toggle-container">
+                            <input 
+                              type="checkbox" 
+                              checked={tool.enabled}
+                              on:click|stopPropagation
+                              on:change={() => updateToolState(tool.name, { enabled: !tool.enabled })}
+                              class="sr-only"
+                            />
+                            <div class="w-11 h-6 bg-gray-300 rounded-full shadow-inner transition-colors duration-200 {tool.enabled ? 'bg-emerald-500' : 'bg-gray-300'}"></div>
+                            <div class="dot absolute w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 {tool.enabled ? 'translate-x-6' : 'translate-x-0'}"></div>
+                          </div>
+                          <span class="ml-2 text-sm font-medium {tool.enabled ? 'text-emerald-700' : 'text-gray-600'}">
+                            {tool.enabled ? 'Enabled' : 'Disabled'}
+                          </span>
+                        </label>
+                      </div>
+                      
+                      <!-- Visible/Hidden Toggle Switch -->
+                      <div class="flex items-center gap-3">
+                        <label class="flex items-center cursor-pointer group" on:click|stopPropagation>
+                          <div class="relative toggle-container">
+                            <input 
+                              type="checkbox" 
+                              checked={!tool.hidden}
+                              on:click|stopPropagation
+                              on:change={() => updateToolState(tool.name, { hidden: !tool.hidden })}
+                              class="sr-only"
+                            />
+                            <div class="w-11 h-6 bg-gray-300 rounded-full shadow-inner transition-colors duration-200 {!tool.hidden ? 'bg-blue-500' : 'bg-amber-500'}"></div>
+                            <div class="dot absolute w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 {!tool.hidden ? 'translate-x-6' : 'translate-x-0'}"></div>
+                          </div>
+                          <span class="ml-2 text-sm font-medium {!tool.hidden ? 'text-blue-700' : 'text-amber-700'}">
+                            {tool.hidden ? 'Hidden' : 'Visible'}
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                  {:else}
+                    <button 
+                      class="btn-primary text-sm ml-4"
+                      on:click|stopPropagation={() => openToolModal(tool)}
+                    >
+                      🧪 Test
+                    </button>
+                  {/if}
                 </div>
               </div>
             {/each}
@@ -477,8 +851,8 @@
         <!-- Tool Details Panel -->
         <div class="lg:col-span-1">
           {#if selectedTool}
-            <div class="card sticky top-4">
-              <div class="flex items-center justify-between mb-4">
+            <div class="card sticky top-4 max-h-[85vh] flex flex-col">
+              <div class="flex items-center justify-between mb-4 flex-shrink-0">
                 <h3 class="text-xl font-semibold text-gray-800">Tool Details</h3>
                 <button 
                   class="text-gray-400 hover:text-gray-600"
@@ -488,7 +862,7 @@
                 </button>
               </div>
               
-              <div class="space-y-4">
+              <div class="space-y-4 overflow-y-auto flex-1 pr-2 -mr-2 pb-2">
                 <div>
                   <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
                   <p class="text-gray-900 font-mono text-sm bg-gray-50 p-2 rounded">
@@ -523,8 +897,62 @@
                   <pre class="text-xs bg-gray-50 p-3 rounded overflow-auto max-h-64 text-gray-700">
 {JSON.stringify(selectedTool.input_schema, null, 2)}</pre>
                 </div>
-                
-                <div class="border-t pt-4">
+              </div>
+              
+              <!-- Action buttons - always visible at bottom -->
+              <div class="border-t pt-4 mt-4 pb-2 flex-shrink-0 bg-white">
+                {#if managementMode}
+                  <div class="space-y-4">
+                    <!-- Enable/Disable Toggle Switch -->
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <span class="text-sm font-medium text-gray-700">Tool Status</span>
+                      <label class="flex items-center cursor-pointer" on:click|stopPropagation>
+                        <div class="relative toggle-container">
+                          <input 
+                            type="checkbox" 
+                            checked={selectedTool.enabled}
+                            on:click|stopPropagation
+                            on:change={() => selectedTool && updateToolState(selectedTool.name, { enabled: !selectedTool.enabled })}
+                            class="sr-only"
+                          />
+                          <div class="w-11 h-6 bg-gray-300 rounded-full shadow-inner transition-colors duration-200 {selectedTool.enabled ? 'bg-emerald-500' : 'bg-gray-300'}"></div>
+                          <div class="dot absolute w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 {selectedTool.enabled ? 'translate-x-6' : 'translate-x-0'}"></div>
+                        </div>
+                        <span class="ml-3 text-sm font-medium {selectedTool.enabled ? 'text-emerald-700' : 'text-gray-600'}">
+                          {selectedTool.enabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                      </label>
+                    </div>
+                    
+                    <!-- Visible/Hidden Toggle Switch -->
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <span class="text-sm font-medium text-gray-700">Visibility</span>
+                      <label class="flex items-center cursor-pointer" on:click|stopPropagation>
+                        <div class="relative toggle-container">
+                          <input 
+                            type="checkbox" 
+                            checked={!selectedTool.hidden}
+                            on:click|stopPropagation
+                            on:change={() => selectedTool && updateToolState(selectedTool.name, { hidden: !selectedTool.hidden })}
+                            class="sr-only"
+                          />
+                          <div class="w-11 h-6 bg-gray-300 rounded-full shadow-inner transition-colors duration-200 {!selectedTool.hidden ? 'bg-blue-500' : 'bg-amber-500'}"></div>
+                          <div class="dot absolute w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 {!selectedTool.hidden ? 'translate-x-6' : 'translate-x-0'}"></div>
+                        </div>
+                        <span class="ml-3 text-sm font-medium {!selectedTool.hidden ? 'text-blue-700' : 'text-amber-700'}">
+                          {selectedTool.hidden ? 'Hidden' : 'Visible'}
+                        </span>
+                      </label>
+                    </div>
+                    
+                    <button 
+                      class="btn-secondary w-full text-sm"
+                      on:click={() => selectedTool && toggleToolSelection(selectedTool.name)}
+                    >
+                      {selectedTools.has(selectedTool.name) ? 'Remove from Selection' : 'Add to Selection'}
+                    </button>
+                  </div>
+                {:else}
                   <button 
                     class="btn-primary w-full"
                     on:click={() => selectedTool && openToolModal(selectedTool)}
@@ -532,7 +960,7 @@
                   >
                     🧪 Test This Tool
                   </button>
-                </div>
+                {/if}
               </div>
             </div>
           {:else}
@@ -559,11 +987,3 @@
   on:execute={handleToolExecution}
 />
 
-<style>
-  .line-clamp-3 {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-</style>

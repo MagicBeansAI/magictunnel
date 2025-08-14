@@ -9,7 +9,19 @@ use std::sync::Arc;
 use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, warn, error};
+
+/// Analysis results for tool enhancement filtering
+#[derive(Debug, Clone)]
+pub struct ToolEnhancementAnalysis {
+    pub total_tools: usize,
+    pub regular_tools_count: usize,
+    pub external_tools_count: usize,
+    pub disabled_tools_count: usize,
+    pub generator_enhanced_count: usize,
+    pub already_enhanced: usize,
+    pub needs_enhancement: usize,
+}
 use futures_util::future;
 use sha2::{Sha256, Digest};
 
@@ -32,11 +44,11 @@ use crate::error::{Result, ProxyError};
 /// Configuration for tool enhancement
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolEnhancementConfig {
-    /// Enable sampling enhancement for tool descriptions
-    pub enable_sampling_enhancement: bool,
+    /// Enable description enhancement for tool descriptions (using LLM to improve base descriptions)
+    pub enable_description_enhancement: bool,
     
-    /// Enable elicitation enhancement for tool metadata
-    pub enable_elicitation_enhancement: bool,
+    /// Enable tool enhancement for tool metadata, descriptions, and keywords
+    pub enable_tool_enhancement: bool,
     
     /// Whether enhancements require human approval
     pub require_approval: bool,
@@ -57,8 +69,8 @@ pub struct ToolEnhancementConfig {
 impl Default for ToolEnhancementConfig {
     fn default() -> Self {
         Self {
-            enable_sampling_enhancement: true,
-            enable_elicitation_enhancement: true,
+            enable_description_enhancement: true,
+            enable_tool_enhancement: true,
             require_approval: false, // Default to auto-approval for development
             cache_enhancements: true,
             enhancement_timeout_seconds: 30,
@@ -132,8 +144,8 @@ impl ToolEnhancementPipeline {
             None
         };
         info!("Initializing tool enhancement service");
-        info!("  - Sampling enhancement: {}", config.enable_sampling_enhancement);
-        info!("  - Elicitation enhancement: {}", config.enable_elicitation_enhancement);
+        info!("  - Description enhancement: {}", config.enable_description_enhancement);
+        info!("  - Tool enhancement: {}", config.enable_tool_enhancement);
         info!("  - Require approval: {}", config.require_approval);
         info!("  - Cache enhancements: {}", config.cache_enhancements);
         
@@ -158,49 +170,199 @@ impl ToolEnhancementPipeline {
         tool_enhancement_service: Option<Arc<crate::mcp::tool_enhancement::ToolEnhancementService>>,
         elicitation_service: Option<Arc<ElicitationService>>,
     ) -> Self {
-        let enhancement_config = config.smart_discovery
+        // Check if tool enhancement is enabled and create config accordingly
+        let description_enhancement_enabled = config.sampling.as_ref().map(|s| s.enabled).unwrap_or(false);
+        let tool_enhancement_enabled = config.tool_enhancement
             .as_ref()
-            .and_then(|sd| {
-                // Check if sampling/elicitation are enabled via smart discovery config
-                let sampling_enabled = sd.enable_sampling.unwrap_or(false);
-                let elicitation_enabled = sd.enable_elicitation.unwrap_or(false);
-                
-                if sampling_enabled || elicitation_enabled {
-                    Some(ToolEnhancementConfig {
-                        enable_sampling_enhancement: sampling_enabled,
-                        enable_elicitation_enhancement: elicitation_enabled,
-                        ..ToolEnhancementConfig::default()
-                    })
-                } else {
+            .map(|te| te.enabled)
+            .unwrap_or(false);
+            
+        let enhancement_config = if tool_enhancement_enabled {
+            ToolEnhancementConfig {
+                enable_description_enhancement: description_enhancement_enabled, // Use global sampling config
+                enable_tool_enhancement: tool_enhancement_enabled,
+                ..ToolEnhancementConfig::default()
+            }
+        } else {
+            ToolEnhancementConfig::default()
+        };
+        
+        // Create enhancement storage service from config if present
+        let storage_service = if let Some(storage_config) = &config.enhancement_storage {
+            debug!("🔧 Creating enhancement storage service from config");
+            match EnhancementStorageService::new(storage_config.clone()) {
+                Ok(service) => {
+                    info!("✅ Enhancement storage service created successfully");
+                    Some(Arc::new(service))
+                }
+                Err(e) => {
+                    warn!("Failed to create enhancement storage service: {}. Enhancement storage disabled.", e);
                     None
                 }
-            })
-            .unwrap_or_else(|| {
-                // Check main config sections
-                let sampling_enabled = config.sampling.as_ref().map(|s| s.enabled).unwrap_or(false);
-                let elicitation_enabled = config.elicitation.as_ref().map(|e| e.enabled).unwrap_or(false);
-                
-                ToolEnhancementConfig {
-                    enable_sampling_enhancement: sampling_enabled,
-                    enable_elicitation_enhancement: elicitation_enabled,
-                    ..ToolEnhancementConfig::default()
-                }
-            });
+            }
+        } else {
+            debug!("🔧 No enhancement storage config found - storage disabled");
+            None
+        };
         
         let elicitation_config = config.elicitation.clone();
         let smart_discovery_enabled = config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false);
-        Self::new_with_storage(enhancement_config, registry, tool_enhancement_service, elicitation_service, None, elicitation_config, smart_discovery_enabled)
+        Self::new_with_storage(enhancement_config, registry, tool_enhancement_service, elicitation_service, storage_service, elicitation_config, smart_discovery_enabled)
+    }
+
+    /// Create from main config with injected storage service (for proper dependency injection)
+    pub fn from_config_with_storage(
+        config: &Config,
+        registry: Arc<RegistryService>,
+        tool_enhancement_service: Option<Arc<crate::mcp::tool_enhancement::ToolEnhancementService>>,
+        elicitation_service: Option<Arc<ElicitationService>>,
+        storage_service: Option<Arc<EnhancementStorageService>>,
+    ) -> Self {
+        // Check if tool enhancement is enabled and create config accordingly
+        let description_enhancement_enabled = config.sampling.as_ref().map(|s| s.enabled).unwrap_or(false);
+        let tool_enhancement_enabled = config.tool_enhancement
+            .as_ref()
+            .map(|te| te.enabled)
+            .unwrap_or(false);
+            
+        let enhancement_config = if tool_enhancement_enabled {
+            ToolEnhancementConfig {
+                enable_description_enhancement: description_enhancement_enabled, // Use global sampling config
+                enable_tool_enhancement: tool_enhancement_enabled,
+                ..ToolEnhancementConfig::default()
+            }
+        } else {
+            ToolEnhancementConfig::default()
+        };
+        
+        let elicitation_config = config.elicitation.clone();
+        let smart_discovery_enabled = config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false);
+        
+        // Use injected storage if provided, otherwise create from config (for backward compatibility)
+        let final_storage_service = if let Some(injected_storage) = storage_service {
+            info!("Using injected enhancement storage service");
+            Some(injected_storage)
+        } else if let Some(storage_config) = &config.enhancement_storage {
+            debug!("🔧 Creating enhancement storage service from config (fallback for backward compatibility)");
+            match EnhancementStorageService::new(storage_config.clone()) {
+                Ok(service) => {
+                    info!("✅ Enhancement storage service created successfully (backward compatibility)");
+                    Some(Arc::new(service))
+                }
+                Err(e) => {
+                    warn!("Failed to create enhancement storage service: {}. Enhancement storage disabled.", e);
+                    None
+                }
+            }
+        } else {
+            debug!("🔧 No enhancement storage config found - storage disabled");
+            None
+        };
+        
+        Self::new_with_storage(enhancement_config, registry, tool_enhancement_service, elicitation_service, final_storage_service, elicitation_config, smart_discovery_enabled)
     }
     
-    /// Check if a tool comes from external/remote MCP server
-    fn is_external_mcp_tool(tool: &ToolDefinition) -> bool {
-        matches!(tool.routing.r#type.as_str(), "external_mcp" | "websocket")
+    /// Check if a tool should be excluded from enhancement processing
+    /// Only excludes disabled tools - all enabled tools (including system tools) can be enhanced
+    fn should_exclude_tool(tool_def: &ToolDefinition) -> bool {
+        !tool_def.enabled
     }
+    
+    /// Check if a tool is from an external MCP server (using routing type)
+    fn is_external_mcp_tool(tool_def: &ToolDefinition) -> bool {
+        matches!(tool_def.routing.r#type.as_str(), "external_mcp" | "websocket")
+    }
+    
+    /// Check if a tool should be excluded from enhancement
+    fn should_exclude_from_enhancement(tool_def: &ToolDefinition) -> bool {
+        // Exclude smart discovery system tools (identified by routing type)
+        let is_smart_discovery = tool_def.routing.r#type == "smart_discovery";
+        
+        debug!("🔍 Enhancement exclusion check for '{}': routing='{}', is_smart_discovery={}", 
+               tool_def.name, tool_def.routing.r#type, is_smart_discovery);
+        
+        is_smart_discovery
+    }
+
+    /// Central method to check if tools need enhancement
+    /// This is used by both pre-generation and startup flows to ensure consistent logic
+    pub async fn analyze_tools_for_enhancement(
+        all_tools: &HashMap<String, ToolDefinition>,
+        enhancement_storage: &Option<Arc<EnhancementStorageService>>
+    ) -> Result<(Vec<(String, ToolDefinition)>, ToolEnhancementAnalysis)> {
+        let mut regular_tools = Vec::new();
+        let mut external_tools_count = 0;
+        let mut disabled_tools_count = 0;
+        let mut generator_enhanced_count = 0;
+
+        // Filter tools using centralized logic
+        for (tool_name, tool_def) in all_tools {
+            // Skip disabled tools
+            if Self::should_exclude_tool(tool_def) {
+                disabled_tools_count += 1;
+                continue;
+            }
+            
+            // Skip external MCP tools - they should get enhancements from their source
+            if Self::is_external_mcp_tool(tool_def) {
+                external_tools_count += 1;
+                continue;
+            }
+            
+            // Skip smart discovery system tool only
+            if Self::should_exclude_from_enhancement(tool_def) {
+                generator_enhanced_count += 1;
+                continue;
+            }
+            
+            // This is a regular tool that can be enhanced
+            regular_tools.push((tool_name.clone(), tool_def.clone()));
+        }
+
+        // Check which regular tools are missing enhancements
+        let mut tools_needing_enhancement = 0;
+        let mut already_enhanced = 0;
+        
+        if let Some(storage) = enhancement_storage {
+            debug!("✅ Enhancement storage service is available, checking {} regular tools", regular_tools.len());
+            for (tool_name, _tool_def) in &regular_tools {
+                debug!("🔍 Checking if tool '{}' has existing enhancement", tool_name);
+                // Check if this tool has existing enhancements
+                let has_enhancement = storage.load_enhanced_tool(tool_name).await
+                    .map(|enhancement| enhancement.is_some())
+                    .unwrap_or(false);
+                if !has_enhancement {
+                    debug!("❌ Tool '{}' needs enhancement", tool_name);
+                    tools_needing_enhancement += 1;
+                } else {
+                    debug!("✅ Tool '{}' already enhanced", tool_name);
+                    already_enhanced += 1;
+                }
+            }
+        } else {
+            debug!("❌ Enhancement storage service is None - cannot check for existing enhancements");
+            // No storage means we can't track what's enhanced, so enhance all regular tools
+            tools_needing_enhancement = regular_tools.len();
+        }
+
+        let analysis = ToolEnhancementAnalysis {
+            total_tools: all_tools.len(),
+            regular_tools_count: regular_tools.len(),
+            external_tools_count,
+            disabled_tools_count,
+            generator_enhanced_count,
+            already_enhanced,
+            needs_enhancement: tools_needing_enhancement,
+        };
+
+        Ok((regular_tools, analysis))
+    }
+    
     
     /// Check if tool enhancement (keyword generation) should be used for this tool
     pub fn should_use_tool_enhancement(&self, tool: &ToolDefinition) -> bool {
-        // If elicitation enhancement is disabled, never use tool enhancement
-        if !self.config.enable_elicitation_enhancement {
+        // If tool enhancement is disabled, never use tool enhancement
+        if !self.config.enable_tool_enhancement {
             return false;
         }
         
@@ -225,74 +387,20 @@ impl ToolEnhancementPipeline {
         return true
     }
     
-    /// Check if a tool has original sampling/elicitation capabilities from external MCP server
-    fn has_original_mcp_capabilities(tool: &ToolDefinition) -> (bool, bool) {
-        let has_sampling = tool.annotations.as_ref()
-            .and_then(|ann| ann.get("has_sampling_capability"))
-            .map(|v| v == "true")
-            .unwrap_or(false);
-            
-        let has_elicitation = tool.annotations.as_ref()
-            .and_then(|ann| ann.get("has_elicitation_capability"))
-            .map(|v| v == "true")
-            .unwrap_or(false);
-            
-        (has_sampling, has_elicitation)
-    }
     
-    /// Check if we would be overwriting original MCP capabilities
-    fn would_overwrite_mcp_capabilities(tool: &ToolDefinition, config: &ToolEnhancementConfig, elicitation_config: Option<&crate::config::ElicitationConfig>) -> Vec<String> {
-        let mut warnings = Vec::new();
-        
-        if !Self::is_external_mcp_tool(tool) {
-            return warnings;
-        }
-        
-        let (has_sampling, has_elicitation) = Self::has_original_mcp_capabilities(tool);
-        
-        if has_sampling && config.enable_sampling_enhancement {
-            warnings.push(format!(
-                "Tool '{}' has original sampling capabilities from external MCP server but local sampling enhancement is enabled", 
-                tool.name
-            ));
-        }
-        
-        if has_elicitation && config.enable_elicitation_enhancement {
-            // Check if we should respect external authority
-            if let Some(elicit_config) = elicitation_config {
-                if elicit_config.respect_external_authority {
-                    // Check for per-tool override
-                    let tool_override = tool.annotations.as_ref()
-                        .and_then(|ann| ann.get("override_elicitation_authority"))
-                        .map(|v| v == "true")
-                        .unwrap_or(false);
-                    
-                    if !tool_override {
-                        warnings.push(format!(
-                            "Tool '{}' has original elicitation capabilities from external MCP server but local elicitation enhancement is enabled. Consider setting 'override_elicitation_authority: true' in YAML or disabling local elicitation.", 
-                            tool.name
-                        ));
-                    }
-                } else {
-                    warnings.push(format!(
-                        "Tool '{}' has original elicitation capabilities from external MCP server and will be overridden by local elicitation (respect_external_authority: false)", 
-                        tool.name
-                    ));
-                }
-            } else {
-                warnings.push(format!(
-                    "Tool '{}' has original elicitation capabilities from external MCP server but local elicitation enhancement is enabled", 
-                    tool.name
-                ));
-            }
-        }
-        
-        warnings
-    }
     
-    /// Initialize enhancement service and generate missing enhancements at startup
+    /// Fast initialization - just set up service structure without heavy I/O
     pub async fn initialize(&self) -> Result<()> {
-        info!("🚀 Initializing tool enhancement service and checking for missing enhancements");
+        info!("🚀 Fast initialization of tool enhancement service (deferred analysis)");
+        
+        // Just do basic setup without heavy analysis
+        info!("✅ Tool enhancement service initialized - background analysis will run separately");
+        Ok(())
+    }
+    
+    /// Full initialization with storage loading and tool analysis (runs in background)
+    pub async fn initialize_with_analysis(&self) -> Result<()> {
+        info!("🔍 Starting background tool enhancement analysis and initialization");
         
         // Load enhanced tools from persistent storage if available
         if let Some(storage) = &self.storage_service {
@@ -313,58 +421,42 @@ impl ToolEnhancementPipeline {
         let total_tools = all_tools.len();
         
         if total_tools == 0 {
-            info!("No tools found in registry, skipping initial enhancement generation");
+            info!("No tools found in registry, skipping enhancement generation");
             return Ok(());
         }
         
-        info!("📊 Found {} tools in registry, checking for missing enhancements", total_tools);
+        info!("📊 Found {} tools in registry, analyzing for missing enhancements", total_tools);
         
-        // Filter tools that need enhancement (missing enhancements) and check for warnings
-        let mut tools_needing_enhancement = Vec::new();
-        let mut capability_warnings = Vec::new();
+        // Use centralized logic to determine if enhancement is actually needed
+        let tools_map: HashMap<String, ToolDefinition> = all_tools.iter().cloned().collect();
+        let (regular_tools, analysis) = Self::analyze_tools_for_enhancement(&tools_map, &self.storage_service).await?;
         
-        for (tool_name, tool_def) in &all_tools {
-            // Skip smart_discovery_tool itself to avoid recursion
-            if tool_name == "smart_discovery_tool" || tool_name == "smart_tool_discovery" {
-                continue;
-            }
-            
-            // Check for potential capability overwrites (for all tools, not just external ones)
-            let warnings = Self::would_overwrite_mcp_capabilities(tool_def, &self.config, self.elicitation_config.as_ref());
-            capability_warnings.extend(warnings);
-            
-            // Skip external/remote MCP tools - they should get enhancements from their source MCP servers
-            if Self::is_external_mcp_tool(tool_def) {
-                debug!("Tool '{}' is from external MCP server, skipping automatic LLM generation", tool_name);
-                continue;
-            }
-            
-            // Check if enhancement should be regenerated (uses persistent storage and tool change detection)
-            if self.should_regenerate_enhancement(tool_name, tool_def).await {
-                debug!("Tool '{}' needs enhancement (new, changed, or missing)", tool_name);
-                tools_needing_enhancement.push((tool_name.clone(), tool_def.clone()));
-            } else {
-                debug!("Tool '{}' has current enhancement, skipping", tool_name);
-            }
+        info!("🔍 Enhancement analysis completed:");
+        info!("  - Total tools: {}", analysis.total_tools);
+        info!("  - Regular tools (can be enhanced): {}", analysis.regular_tools_count);
+        info!("  - External MCP tools (skip): {}", analysis.external_tools_count);
+        info!("  - Disabled tools (skip): {}", analysis.disabled_tools_count);
+        info!("  - Generator-enhanced tools (skip): {}", analysis.generator_enhanced_count);
+        info!("  - Already enhanced: {}", analysis.already_enhanced);
+        info!("  - Need enhancement: {}", analysis.needs_enhancement);
+        
+        if analysis.needs_enhancement == 0 {
+            info!("✅ All tools are already enhanced - no enhancement generation needed");
+            return Ok(());
+        }
+        
+        info!("⚡ {} tools need enhancement - proceeding with enhancement generation", analysis.needs_enhancement);
+        
+        // Use the pre-filtered regular tools from centralized analysis
+        // regular_tools from centralized analysis already contains ONLY tools that need enhancement
+        let tools_needing_enhancement = regular_tools.clone();
+        
+        // Log which tools will be enhanced
+        for (tool_name, _tool_def) in &regular_tools {
+            debug!("Tool '{}' needs enhancement (verified by centralized analysis)", tool_name);
         }
         
         let needing_count = tools_needing_enhancement.len();
-        let already_enhanced = total_tools - needing_count;
-        
-        info!("📈 Enhancement status:");
-        info!("  - Total tools: {}", total_tools);
-        info!("  - Already enhanced: {}", already_enhanced);
-        info!("  - Need enhancement: {}", needing_count);
-        
-        // Display capability override warnings
-        if !capability_warnings.is_empty() {
-            warn!("⚠️  {} MCP capability override warnings detected:", capability_warnings.len());
-            for warning in &capability_warnings {
-                warn!("   ❗ {}", warning);
-            }
-            warn!("   💡 Consider disabling local enhancement for tools with original MCP capabilities");
-            warn!("   💡 Use --show-mcp-warnings flag to see detailed capability information");
-        }
         
         if needing_count == 0 {
             info!("✅ All tools already have enhancements, initialization complete");
@@ -438,13 +530,20 @@ impl ToolEnhancementPipeline {
     }
 
     /// Filter tools that need enhancement generation (new or changed)
+    /// Only includes regular tools that should be enhanced (excludes external MCP tools and disabled tools)
     async fn filter_tools_needing_enhancement(&self, tools: &[(String, ToolDefinition)]) -> Vec<(String, ToolDefinition)> {
         let mut needs_enhancement = Vec::new();
         
         for (tool_name, tool_def) in tools {
+            // Skip disabled tools
+            if Self::should_exclude_tool(tool_def) {
+                debug!("Tool '{}' is excluded from enhancement (disabled tool)", tool_name);
+                continue;
+            }
+            
             // Skip external/remote MCP tools - they should get enhancements from their source MCP servers
             if Self::is_external_mcp_tool(tool_def) {
-                debug!("Tool '{}' is from external MCP server, skipping automatic LLM generation", tool_name);
+                debug!("Tool '{}' is from external MCP server, skipping automatic enhancement generation", tool_name);
                 continue;
             }
             
@@ -567,31 +666,37 @@ impl ToolEnhancementPipeline {
         let cache = self.enhanced_cache.read().await;
         
         for (tool_name, tool_def) in base_tools {
-            // Skip smart_discovery_tool itself to avoid recursion
-            if tool_name == "smart_discovery_tool" || tool_name == "smart_tool_discovery" {
-                enhanced_tools.insert(tool_name.clone(), EnhancedToolDefinition::from_base(tool_def.clone()));
-                continue;
-            }
+            // All enabled tools can be enhanced (including smart_discovery_tool)
+            // Skip disabled tools only
             
             // Try to get pre-generated enhancement from cache
             if let Some(enhanced_tool) = cache.get(&tool_name) {
                 enhanced_tools.insert(tool_name.clone(), enhanced_tool.clone());
                 from_cache += 1;
             } else {
-                // Fallback to base tool definition (should be rare after initial generation)
-                warn!("No pre-generated enhancement found for tool '{}', using base definition", tool_name);
+                // Fallback to base tool definition (expected for external MCP tools)
+                debug!("No pre-generated enhancement found for tool '{}', using base definition", tool_name);
                 enhanced_tools.insert(tool_name.clone(), EnhancedToolDefinition::from_base(tool_def.clone()));
                 fallback_to_base += 1;
             }
         }
         
         let duration = start_time.elapsed();
-        info!("📖 Loaded {} enhanced tools in {}ms", enhanced_tools.len(), duration.as_millis());
-        info!("  - From pre-generated cache: {}", from_cache);
-        info!("  - Fallback to base: {}", fallback_to_base);
         
-        if fallback_to_base > 0 {
-            warn!("⚠️  {} tools missing pre-generated enhancements. Consider running regeneration.", fallback_to_base);
+        // Only log detailed stats once per process, not on every call
+        static LOGGED_ONCE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if !LOGGED_ONCE.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            info!("📖 Loaded {} enhanced tools in {}ms", enhanced_tools.len(), duration.as_millis());
+            info!("  - From pre-generated cache: {}", from_cache);
+            info!("  - Fallback to base: {}", fallback_to_base);
+            
+            if fallback_to_base > 0 {
+                warn!("⚠️  {} tools missing pre-generated enhancements. Consider running regeneration.", fallback_to_base);
+            }
+        } else {
+            // Subsequent calls only get debug logging
+            debug!("📖 Loaded {} enhanced tools in {}ms (cached: {}, fallback: {})", 
+                   enhanced_tools.len(), duration.as_millis(), from_cache, fallback_to_base);
         }
         
         Ok(enhanced_tools)
@@ -650,8 +755,8 @@ impl ToolEnhancementPipeline {
         let start_time = Instant::now();
         let mut enhanced_tool = EnhancedToolDefinition::from_base(tool_def.clone());
         let mut generation_metadata = EnhancementGenerationMetadata {
-            sampling_model: None,
-            sampling_confidence: None,
+            llm_model: None,
+            llm_confidence: None,
             elicitation_template: None,
             required_review: self.config.require_approval,
             approved_by: None,
@@ -659,23 +764,23 @@ impl ToolEnhancementPipeline {
             generation_time_ms: None,
         };
         
-        // Step 1: Sampling enhancement (better descriptions)
-        if self.config.enable_sampling_enhancement {
+        // Step 1: Description enhancement (better descriptions using LLM)
+        if self.config.enable_description_enhancement {
             if let Some(request_generator) = &self.request_generator {
                 match request_generator.generate_enhanced_description(&tool_name, &tool_def).await {
                     Ok(result) => {
                         if result.success {
                             if let Some(enhanced_description) = result.content {
-                                enhanced_tool.sampling_enhanced_description = Some(enhanced_description);
-                                generation_metadata.sampling_model = result.metadata.model_used;
-                                generation_metadata.sampling_confidence = result.metadata.confidence_score;
-                                debug!("✅ Sampling enhancement completed for tool: {} ({}ms)", tool_name, result.metadata.generation_time_ms);
+                                enhanced_tool.llm_enhanced_description = Some(enhanced_description);
+                                generation_metadata.llm_model = result.metadata.model_used;
+                                generation_metadata.llm_confidence = result.metadata.confidence_score;
+                                debug!("✅ Description enhancement completed for tool: {} ({}ms)", tool_name, result.metadata.generation_time_ms);
                             }
                         } else {
                             let error_msg = result.error.unwrap_or("Unknown error".to_string());
-                            warn!("❌ Sampling enhancement failed for tool '{}': {}", tool_name, error_msg);
+                            warn!("❌ Description enhancement failed for tool '{}': {}", tool_name, error_msg);
                             if !self.config.graceful_degradation {
-                                return Err(ProxyError::validation(format!("Sampling enhancement failed: {}", error_msg)));
+                                return Err(ProxyError::validation(format!("Description enhancement failed: {}", error_msg)));
                             }
                         }
                     }
@@ -742,11 +847,11 @@ impl ToolEnhancementPipeline {
         
         // Determine final enhancement source
         enhanced_tool.enhancement_source = match (
-            enhanced_tool.sampling_enhanced_description.is_some(),
+            enhanced_tool.llm_enhanced_description.is_some(),
             enhanced_tool.elicitation_metadata.is_some()
         ) {
             (true, true) => EnhancementSource::Both,
-            (true, false) => EnhancementSource::Sampling,
+            (true, false) => EnhancementSource::LlmDescription,
             (false, true) => EnhancementSource::Elicitation,
             (false, false) => EnhancementSource::Base,
         };
@@ -780,10 +885,10 @@ impl ToolEnhancementPipeline {
         
         // Extract enhanced description from response
         if let crate::mcp::types::tool_enhancement::ToolEnhancementContent::Text(enhanced_description) = &response.message.content {
-            enhanced_tool.sampling_enhanced_description = Some(enhanced_description.clone());
-            generation_metadata.sampling_model = Some(response.model);
+            enhanced_tool.llm_enhanced_description = Some(enhanced_description.clone());
+            generation_metadata.llm_model = Some(response.model);
             // Confidence based on stop reason and usage
-            generation_metadata.sampling_confidence = Some(match response.stop_reason {
+            generation_metadata.llm_confidence = Some(match response.stop_reason {
                 crate::mcp::types::tool_enhancement::ToolEnhancementStopReason::EndTurn => 0.9,
                 crate::mcp::types::tool_enhancement::ToolEnhancementStopReason::MaxTokens => 0.7,
                 _ => 0.6,
@@ -852,8 +957,8 @@ impl ToolEnhancementPipeline {
             "enhanced_tools_cached": enhanced_cache.len(),
             "failed_enhancements_cached": failure_cache.len(),
             "cache_enabled": self.config.cache_enhancements,
-            "sampling_enhancement_enabled": self.config.enable_sampling_enhancement,
-            "elicitation_enhancement_enabled": self.config.enable_elicitation_enhancement
+            "description_enhancement_enabled": self.config.enable_description_enhancement,
+            "tool_enhancement_enabled": self.config.enable_tool_enhancement
         })
     }
 }
@@ -862,9 +967,72 @@ impl ToolEnhancementPipeline {
 #[async_trait::async_trait]
 impl EnhancementCallback for ToolEnhancementPipeline {
     async fn on_tools_changed(&self, changed_tools: Vec<(String, ToolDefinition)>) -> Result<()> {
-        info!("🔔 ToolEnhancementService received notification of {} changed tools", changed_tools.len());
+        info!("🔔 ToolEnhancementService received notification of {} changed tools - processing in background", changed_tools.len());
         
-        // Call our existing on_tools_changed method
-        self.on_tools_changed(changed_tools).await
+        // We need to create Arc references to the fields we need since self isn't Clone
+        let config = self.config.clone();
+        let registry = Arc::clone(&self.registry);
+        let tool_enhancement_service = self.tool_enhancement_service.clone();
+        let elicitation_service = self.elicitation_service.clone();
+        let storage_service = self.storage_service.clone();
+        let enhanced_cache = Arc::clone(&self.enhanced_cache);
+        let elicitation_config = self.elicitation_config.clone();
+        let smart_discovery_enabled = self.smart_discovery_enabled;
+        
+        // Process tool changes in background thread to avoid blocking
+        tokio::spawn(async move {
+            info!("🔄 Processing {} tool changes in background thread", changed_tools.len());
+            
+            // Create a temporary pipeline instance for processing
+            let temp_pipeline = ToolEnhancementPipeline {
+                config,
+                registry,
+                tool_enhancement_service,
+                elicitation_service,
+                request_generator: None, // Not needed for background processing
+                enhanced_cache,
+                failure_cache: Arc::new(RwLock::new(HashMap::new())), // Create new failure cache
+                storage_service,
+                elicitation_config,
+                smart_discovery_enabled,
+            };
+            
+            // Process tools that need enhancement directly 
+            let tools_needing_enhancement = temp_pipeline.filter_tools_needing_enhancement(&changed_tools).await;
+            
+            if tools_needing_enhancement.is_empty() {
+                info!("✅ No tools need enhancement in background processing");
+                return;
+            }
+
+            info!("🔄 Processing {} tools needing enhancement in background", tools_needing_enhancement.len());
+            
+            // Process tools in batches or individually
+            if temp_pipeline.config.batch_size > 1 && tools_needing_enhancement.len() > 1 {
+                if let Err(e) = temp_pipeline.process_tools_in_batches(tools_needing_enhancement).await {
+                    error!("Failed to process tool batches in background: {}", e);
+                } else {
+                    info!("✅ Tool batches processed successfully in background");
+                }
+            } else {
+                let mut success_count = 0;
+                let mut failure_count = 0;
+                
+                for (tool_name, tool_def) in tools_needing_enhancement {
+                    match temp_pipeline.generate_and_store_enhancement(&tool_name, &tool_def).await {
+                        Ok(_) => success_count += 1,
+                        Err(e) => {
+                            failure_count += 1;
+                            error!("Failed to enhance tool '{}' in background: {}", tool_name, e);
+                        }
+                    }
+                }
+                
+                info!("✅ Background tool enhancement completed: {} success, {} failures", success_count, failure_count);
+            }
+        });
+        
+        // Return immediately without blocking
+        Ok(())
     }
 }

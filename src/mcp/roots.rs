@@ -589,6 +589,135 @@ impl RootsService {
             }
         })
     }
+
+    /// Trigger root discovery manually
+    pub async fn trigger_discovery(&self) -> std::result::Result<Value, RootsError> {
+        if !self.config.enabled {
+            return Err(RootsError {
+                code: RootsErrorCode::InvalidRequest,
+                message: "Roots capability is not enabled".to_string(),
+                details: None,
+            });
+        }
+
+        info!("Triggering manual root discovery");
+        
+        // Clear the cache to force rediscovery
+        self.invalidate_cache().await;
+        
+        // Trigger discovery by calling get_all_roots
+        let start_time = std::time::Instant::now();
+        let roots = self.get_all_roots().await?;
+        let discovery_duration = start_time.elapsed();
+        
+        let result = json!({
+            "success": true,
+            "discovered_count": roots.len(),
+            "discovery_duration_ms": discovery_duration.as_millis(),
+            "timestamp": Utc::now()
+        });
+        
+        info!("Manual discovery completed: {} roots found in {}ms", 
+              roots.len(), discovery_duration.as_millis());
+        
+        Ok(result)
+    }
+
+    /// Get detailed service status for monitoring
+    pub async fn get_service_status(&self) -> Value {
+        let cache_info = {
+            let cache = self.cache.read().await;
+            if let Some(ref cached) = *cache {
+                let cache_age_seconds = (Utc::now() - cached.cached_at).num_seconds();
+                let cache_remaining_seconds = (cached.expires_at - Utc::now()).num_seconds().max(0);
+                
+                json!({
+                    "status": "active",
+                    "cached_at": cached.cached_at,
+                    "expires_at": cached.expires_at,
+                    "cached_count": cached.roots.len(),
+                    "cache_age_seconds": cache_age_seconds,
+                    "cache_remaining_seconds": cache_remaining_seconds
+                })
+            } else {
+                json!({
+                    "status": "inactive",
+                    "cached_count": 0
+                })
+            }
+        };
+
+        let manual_count = self.manual_roots.read().await.len();
+        
+        // Calculate accessibility metrics
+        let roots = match self.get_all_roots().await {
+            Ok(roots) => roots,
+            Err(_) => vec![], // On error, return empty vec for stats
+        };
+        
+        let total_roots = roots.len();
+        let accessible_roots = roots.iter().filter(|r| r.accessible).count();
+        
+        json!({
+            "healthy": self.config.enabled,
+            "total_roots": total_roots,
+            "accessible_roots": accessible_roots,
+            "manual_roots": manual_count,
+            "predefined_roots": self.config.predefined_roots.len(),
+            "cache_status": cache_info["status"].as_str().unwrap_or("unknown"),
+            "last_discovery": cache_info.get("cached_at"),
+            "discovery_duration_ms": null, // Will be populated during actual discovery
+            "config": {
+                "enabled": self.config.enabled,
+                "auto_discover_filesystem": self.config.auto_discover_filesystem,
+                "security_enabled": self.config.security.enabled,
+                "max_roots_count": self.config.security.max_roots_count,
+                "cache_duration_seconds": self.config.discovery.cache_duration_seconds
+            }
+        })
+    }
+
+    /// Update service configuration
+    pub async fn update_config(&self, updates: Value) -> std::result::Result<Value, RootsError> {
+        // Note: This is a read-only implementation since config is immutable in the current design
+        // In a production system, you'd want to implement config persistence
+        
+        warn!("Config update requested but not implemented: {:?}", updates);
+        
+        Err(RootsError {
+            code: RootsErrorCode::InvalidRequest,
+            message: "Configuration updates are not supported in the current implementation".to_string(),
+            details: Some([
+                ("requested_updates".to_string(), updates),
+                ("note".to_string(), json!("Configuration is currently read-only from the main config file"))
+            ].into_iter().collect()),
+        })
+    }
+
+    /// Get configuration as JSON
+    pub fn get_config(&self) -> Value {
+        json!({
+            "enabled": self.config.enabled,
+            "auto_discover_filesystem": self.config.auto_discover_filesystem,
+            "predefined_roots_count": self.config.predefined_roots.len(),
+            "security": {
+                "enabled": self.config.security.enabled,
+                "blocked_patterns_count": self.config.security.blocked_patterns.len(),
+                "allowed_patterns_count": self.config.security.allowed_patterns.as_ref().map(|p| p.len()),
+                "max_discovery_depth": self.config.security.max_discovery_depth,
+                "follow_symlinks": self.config.security.follow_symlinks,
+                "blocked_extensions_count": self.config.security.blocked_extensions.len(),
+                "max_roots_count": self.config.security.max_roots_count
+            },
+            "discovery": {
+                "scan_common_locations": self.config.discovery.scan_common_locations,
+                "custom_paths_count": self.config.discovery.custom_paths.len(),
+                "supported_schemes": self.config.discovery.supported_schemes,
+                "check_accessibility": self.config.discovery.check_accessibility,
+                "cache_duration_seconds": self.config.discovery.cache_duration_seconds
+            }
+        })
+    }
 }
 
 #[cfg(test)]

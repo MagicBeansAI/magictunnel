@@ -83,6 +83,29 @@ impl EnhancementStorageService {
             storage_dir,
         })
     }
+    
+    /// Generate an enhancement filename 
+    fn generate_enhancement_filename(tool_name: &str, date: &str, time: &str, id: &str) -> String {
+        format!("{}_{}_{}_{}_enhanced.json", tool_name, date, time, id)
+    }
+    
+    /// Parse an enhancement filename to extract tool name and timestamp
+    fn parse_enhancement_filename(filename: &str) -> Option<(String, String)> {
+        if !filename.ends_with("_enhanced.json") {
+            return None;
+        }
+        
+        // Split filename into 5 parts from the end: [enhanced.json, id, time, date, tool_name]
+        let parts: Vec<&str> = filename.rsplitn(5, '_').collect();
+        
+        if parts.len() >= 5 {
+            let tool_name = parts[4].to_string();
+            let timestamp = format!("{}_{}", parts[3], parts[2]);
+            Some((tool_name, timestamp))
+        } else {
+            None
+        }
+    }
 
     /// Initialize storage directories and perform cleanup if configured
     pub async fn initialize(&self) -> Result<()> {
@@ -104,8 +127,11 @@ impl EnhancementStorageService {
         base_tool_hash: String,
     ) -> Result<()> {
         let id = Uuid::new_v4().to_string();
-        let version = chrono::Utc::now().format("%Y%m%d_%H%M%S").to_string();
-        let file_name = format!("{}_{}_{}_{}.json", tool_name, version, &id[..8], "enhanced");
+        let now = chrono::Utc::now();
+        let date = now.format("%Y%m%d").to_string();
+        let time = now.format("%H%M%S").to_string();
+        let version = format!("{}_{}", date, time);
+        let file_name = Self::generate_enhancement_filename(tool_name, &date, &time, &id[..8]);
         let file_path = self.storage_dir.join("enhancements").join(&file_name);
 
         let storage_metadata = EnhancementStorageMetadata {
@@ -142,6 +168,7 @@ impl EnhancementStorageService {
 
     /// Load enhanced tool descriptions from storage
     pub async fn load_enhanced_tool(&self, tool_name: &str) -> Result<Option<EnhancedToolDefinition>> {
+        debug!("🔍 Looking for enhanced tool: '{}'", tool_name);
         // Find the latest version for this tool
         let latest_file = self.find_latest_version_for_tool(tool_name).await?;
         
@@ -184,21 +211,18 @@ impl EnhancementStorageService {
             let path = entry.path();
             if path.is_file() && path.extension().map_or(false, |ext| ext == "json") {
                 if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                    // Parse filename: toolname_version_id_enhanced.json
-                    let parts: Vec<&str> = file_name.splitn(4, '_').collect();
-                    if parts.len() >= 4 && parts[3].starts_with("enhanced") {
-                        let tool_name = parts[0].to_string();
-                        let version = parts[1].to_string();
+                    // Use centralized filename parsing
+                    if let Some((tool_name, timestamp)) = Self::parse_enhancement_filename(file_name) {
                         
-                        // Keep only the latest version for each tool
+                        // Keep only the latest timestamp for each tool
                         match tool_files.get(&tool_name) {
-                            Some((_, existing_version)) => {
-                                if version > *existing_version {
-                                    tool_files.insert(tool_name, (path, version));
+                            Some((_, existing_timestamp)) => {
+                                if timestamp > *existing_timestamp {
+                                    tool_files.insert(tool_name, (path, timestamp));
                                 }
                             }
                             None => {
-                                tool_files.insert(tool_name, (path, version));
+                                tool_files.insert(tool_name, (path, timestamp));
                             }
                         }
                     }
@@ -324,8 +348,10 @@ impl EnhancementStorageService {
     /// Find the latest version file for a specific tool
     async fn find_latest_version_for_tool(&self, tool_name: &str) -> Result<Option<PathBuf>> {
         let enhancements_dir = self.storage_dir.join("enhancements");
+        debug!("🔍 Searching for tool '{}' in directory: {}", tool_name, enhancements_dir.display());
         
         if !enhancements_dir.exists() {
+            debug!("❌ Enhancements directory does not exist: {}", enhancements_dir.display());
             return Ok(None);
         }
 
@@ -340,26 +366,35 @@ impl EnhancementStorageService {
             let path = entry.path();
             if path.is_file() && path.extension().map_or(false, |ext| ext == "json") {
                 if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                    // Parse filename: toolname_version_id_enhanced.json
-                    if file_name.starts_with(&format!("{}_", tool_name)) && file_name.ends_with("_enhanced.json") {
-                        let parts: Vec<&str> = file_name.splitn(4, '_').collect();
-                        if parts.len() >= 2 {
-                            let version = parts[1].to_string();
+                    // Use centralized filename parsing
+                    if let Some((parsed_tool_name, timestamp)) = Self::parse_enhancement_filename(file_name) {
+                        debug!("📁 Parsed filename '{}': tool='{}', timestamp='{}'", file_name, parsed_tool_name, timestamp);
+                        // Check if this file belongs to the tool we're looking for
+                        if parsed_tool_name == tool_name {
+                            debug!("✅ Found matching file for tool '{}': {}", tool_name, file_name);
                             
                             match &latest_file {
-                                Some((_, existing_version)) => {
-                                    if version > *existing_version {
-                                        latest_file = Some((path, version));
+                                Some((_, existing_timestamp)) => {
+                                    if timestamp > *existing_timestamp {
+                                        latest_file = Some((path, timestamp));
                                     }
                                 }
                                 None => {
-                                    latest_file = Some((path, version));
+                                    latest_file = Some((path, timestamp));
                                 }
                             }
+                        } else {
+                            debug!("❌ Tool name mismatch: looking for '{}', found '{}'", tool_name, parsed_tool_name);
                         }
                     }
                 }
             }
+        }
+
+        if let Some((ref path, ref timestamp)) = latest_file {
+            debug!("✅ Found latest file for tool '{}': {} (timestamp: {})", tool_name, path.display(), timestamp);
+        } else {
+            debug!("❌ No files found for tool '{}'", tool_name);
         }
 
         Ok(latest_file.map(|(path, _)| path))
@@ -376,7 +411,7 @@ impl EnhancementStorageService {
         let mut entries = fs::read_dir(&enhancements_dir).await
             .map_err(|e| ProxyError::config(format!("Failed to read enhancements directory: {}", e)))?;
         
-        let mut tool_files: Vec<(PathBuf, String)> = Vec::new(); // (path, version)
+        let mut tool_files: Vec<(PathBuf, String)> = Vec::new(); // (path, timestamp)
         
         while let Some(entry) = entries.next_entry().await
             .map_err(|e| ProxyError::config(format!("Failed to read directory entry: {}", e)))? {
@@ -384,28 +419,28 @@ impl EnhancementStorageService {
             let path = entry.path();
             if path.is_file() && path.extension().map_or(false, |ext| ext == "json") {
                 if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                    if file_name.starts_with(&format!("{}_", tool_name)) && file_name.ends_with("_enhanced.json") {
-                        let parts: Vec<&str> = file_name.splitn(4, '_').collect();
-                        if parts.len() >= 2 {
-                            let version = parts[1].to_string();
-                            tool_files.push((path, version));
+                    // Use centralized filename parsing
+                    if let Some((parsed_tool_name, timestamp)) = Self::parse_enhancement_filename(file_name) {
+                        // Check if this file belongs to the tool we're looking for
+                        if parsed_tool_name == tool_name {
+                            tool_files.push((path, timestamp));
                         }
                     }
                 }
             }
         }
 
-        // Sort by version (descending) to keep the newest ones
+        // Sort by timestamp (descending) to keep the newest ones
         tool_files.sort_by(|a, b| b.1.cmp(&a.1));
 
         // Remove old versions beyond the limit
         let max_versions = self.config.cleanup_policy.max_versions_per_tool as usize;
         if tool_files.len() > max_versions {
-            for (old_file_path, version) in tool_files.iter().skip(max_versions) {
+            for (old_file_path, timestamp) in tool_files.iter().skip(max_versions) {
                 if let Err(e) = fs::remove_file(old_file_path).await {
-                    warn!("Failed to remove old version '{}' for tool '{}': {}", version, tool_name, e);
+                    warn!("Failed to remove old timestamp '{}' for tool '{}': {}", timestamp, tool_name, e);
                 } else {
-                    debug!("Removed old version '{}' for tool '{}'", version, tool_name);
+                    debug!("Removed old timestamp '{}' for tool '{}'", timestamp, tool_name);
                 }
             }
         }

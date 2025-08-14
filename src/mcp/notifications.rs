@@ -37,10 +37,10 @@ pub struct NotificationCapabilities {
 impl Default for NotificationCapabilities {
     fn default() -> Self {
         Self {
-            resources_list_changed: true,
-            prompts_list_changed: true,
-            tools_list_changed: true,
-            resource_subscriptions: true,
+            resources_list_changed: false, // NOT IMPLEMENTED - see TODO.md
+            prompts_list_changed: false,   // NOT IMPLEMENTED - see TODO.md  
+            tools_list_changed: true,      // IMPLEMENTED - Full notification support
+            resource_subscriptions: false, // Backend exists but MCP protocol methods not exposed
         }
     }
 }

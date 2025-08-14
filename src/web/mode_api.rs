@@ -74,6 +74,9 @@ pub struct NavigationItem {
     pub visible: bool,
     /// Whether item requires advanced mode
     pub requires_advanced: bool,
+    /// Child navigation items
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<NavigationItem>>,
 }
 
 /// Status indicator configuration
@@ -218,7 +221,7 @@ impl ModeApiHandler {
     }
 
     /// Get human-readable mode description
-    fn get_mode_description(mode: &RuntimeMode) -> String {
+    pub fn get_mode_description(mode: &RuntimeMode) -> String {
         match mode {
             RuntimeMode::Proxy => "Core MCP proxy functionality with essential tools and basic web interface".to_string(),
             RuntimeMode::Advanced => "Full enterprise features including security, authentication, audit logging, and advanced management".to_string(),
@@ -226,7 +229,7 @@ impl ModeApiHandler {
     }
 
     /// Get available features for runtime mode
-    fn get_available_features(mode: &RuntimeMode) -> Vec<String> {
+    pub fn get_available_features(mode: &RuntimeMode) -> Vec<String> {
         let mut features = vec![
             "MCP Server".to_string(),
             "Tool Registry".to_string(),
@@ -259,7 +262,7 @@ impl ModeApiHandler {
     }
 
     /// Get hidden features for runtime mode
-    fn get_hidden_features(mode: &RuntimeMode) -> Vec<String> {
+    pub fn get_hidden_features(mode: &RuntimeMode) -> Vec<String> {
         match mode {
             RuntimeMode::Proxy => vec![
                 "Security Management".to_string(),
@@ -292,7 +295,7 @@ impl ModeApiHandler {
     }
 
     /// Create navigation sections based on runtime mode
-    fn create_navigation_sections(mode: &RuntimeMode) -> Vec<NavigationSection> {
+    pub fn create_navigation_sections(mode: &RuntimeMode) -> Vec<NavigationSection> {
         let mut sections = vec![
             // Main section (always visible)
             NavigationSection {
@@ -308,6 +311,7 @@ impl ModeApiHandler {
                         icon: "dashboard".to_string(),
                         visible: true,
                         requires_advanced: false,
+                        children: None,
                     },
                     NavigationItem {
                         id: "monitoring".to_string(),
@@ -316,6 +320,7 @@ impl ModeApiHandler {
                         icon: "dashboard".to_string(),
                         visible: true,
                         requires_advanced: false,
+                        children: None,
                     },
                 ],
             },
@@ -333,6 +338,7 @@ impl ModeApiHandler {
                         icon: "chat".to_string(),
                         visible: true,
                         requires_advanced: false,
+                        children: None,
                     },
                     NavigationItem {
                         id: "tools".to_string(),
@@ -341,30 +347,17 @@ impl ModeApiHandler {
                         icon: "build".to_string(),
                         visible: true,
                         requires_advanced: false,
-                    },
-                    NavigationItem {
-                        id: "mcp-commands".to_string(),
-                        name: "MCP Commands".to_string(),
-                        path: "/mcp-commands".to_string(),
-                        icon: "settings".to_string(),
-                        visible: true,
-                        requires_advanced: false,
-                    },
-                    NavigationItem {
-                        id: "services".to_string(),
-                        name: "Services".to_string(),
-                        path: "/services".to_string(),
-                        icon: "settings".to_string(),
-                        visible: true,
-                        requires_advanced: false,
-                    },
-                    NavigationItem {
-                        id: "llm-services".to_string(),
-                        name: "LLM Services".to_string(),
-                        path: "/llm-services".to_string(),
-                        icon: "chat".to_string(),
-                        visible: true,
-                        requires_advanced: false,
+                        children: Some(vec![
+                            NavigationItem {
+                                id: "tool-metrics".to_string(),
+                                name: "Tool Metrics".to_string(),
+                                path: "/tool-metrics".to_string(),
+                                icon: "chart".to_string(),
+                                visible: true,
+                                requires_advanced: false,
+                                children: None,
+                            },
+                        ]),
                     },
                     NavigationItem {
                         id: "resources".to_string(),
@@ -373,6 +366,7 @@ impl ModeApiHandler {
                         icon: "folder".to_string(),
                         visible: true,
                         requires_advanced: false,
+                        children: None,
                     },
                     NavigationItem {
                         id: "prompts".to_string(),
@@ -381,39 +375,52 @@ impl ModeApiHandler {
                         icon: "chat".to_string(),
                         visible: true,
                         requires_advanced: false,
-                    },
-                ],
-            },
-            // Administration section (always visible)
-            NavigationSection {
-                id: "administration".to_string(),
-                name: "Administration".to_string(),
-                icon: "settings".to_string(),
-                visible: true,
-                items: vec![
-                    NavigationItem {
-                        id: "configuration".to_string(),
-                        name: "Configuration".to_string(),
-                        path: "/config".to_string(),
-                        icon: "settings".to_string(),
-                        visible: true,
-                        requires_advanced: false,
+                        children: None,
                     },
                     NavigationItem {
-                        id: "logs".to_string(),
-                        name: "System Logs".to_string(),
-                        path: "/logs".to_string(),
+                        id: "roots".to_string(),
+                        name: "Roots".to_string(),
+                        path: "/roots".to_string(),
                         icon: "folder".to_string(),
                         visible: true,
                         requires_advanced: false,
+                        children: None,
                     },
                     NavigationItem {
-                        id: "build-commands".to_string(),
-                        name: "Build Commands".to_string(),
-                        path: "/build-commands".to_string(),
-                        icon: "build".to_string(),
+                        id: "mcp-commands".to_string(),
+                        name: "MCP Commands".to_string(),
+                        path: "/mcp-commands".to_string(),
+                        icon: "settings".to_string(),
                         visible: true,
                         requires_advanced: false,
+                        children: None,
+                    },
+                    NavigationItem {
+                        id: "services".to_string(),
+                        name: "Services".to_string(),
+                        path: "/services".to_string(),
+                        icon: "settings".to_string(),
+                        visible: true,
+                        requires_advanced: false,
+                        children: None,
+                    },
+                    NavigationItem {
+                        id: "llm-services".to_string(),
+                        name: "LLM Services".to_string(),
+                        path: "/llm-services".to_string(),
+                        icon: "chat".to_string(),
+                        visible: true,
+                        requires_advanced: false,
+                        children: None,
+                    },
+                    NavigationItem {
+                        id: "mcp-servers".to_string(),
+                        name: "MCP Servers".to_string(),
+                        path: "/mcp-servers".to_string(),
+                        icon: "settings".to_string(),
+                        visible: true,
+                        requires_advanced: false,
+                        children: None,
                     },
                 ],
             },
@@ -422,7 +429,7 @@ impl ModeApiHandler {
         // Add advanced sections in advanced mode
         if matches!(mode, RuntimeMode::Advanced) {
             sections.extend([
-                // Security Section with comprehensive sub-options
+                // Security Section with hierarchical structure (only in advanced mode)
                 NavigationSection {
                     id: "security".to_string(),
                     name: "Security".to_string(),
@@ -436,6 +443,16 @@ impl ModeApiHandler {
                             icon: "shield".to_string(),
                             visible: true,
                             requires_advanced: true,
+                            children: None,
+                        },
+                        NavigationItem {
+                            id: "allowlist".to_string(),
+                            name: "Tool Allowlisting".to_string(),
+                            path: "/security/allowlist".to_string(),
+                            icon: "check".to_string(),
+                            visible: true,
+                            requires_advanced: true,
+                            children: None,
                         },
                         NavigationItem {
                             id: "security-policies".to_string(),
@@ -444,14 +461,7 @@ impl ModeApiHandler {
                             icon: "policy".to_string(),
                             visible: true,
                             requires_advanced: true,
-                        },
-                        NavigationItem {
-                            id: "security-config".to_string(),
-                            name: "Security Config".to_string(),
-                            path: "/security/config".to_string(),
-                            icon: "settings".to_string(),
-                            visible: true,
-                            requires_advanced: true,
+                            children: None,
                         },
                         NavigationItem {
                             id: "rbac".to_string(),
@@ -460,30 +470,35 @@ impl ModeApiHandler {
                             icon: "people".to_string(),
                             visible: true,
                             requires_advanced: true,
-                        },
-                        NavigationItem {
-                            id: "rbac-users".to_string(),
-                            name: "Users".to_string(),
-                            path: "/security/rbac/users".to_string(),
-                            icon: "user".to_string(),
-                            visible: true,
-                            requires_advanced: true,
-                        },
-                        NavigationItem {
-                            id: "rbac-roles".to_string(),
-                            name: "Roles".to_string(),
-                            path: "/security/rbac/roles".to_string(),
-                            icon: "badge".to_string(),
-                            visible: true,
-                            requires_advanced: true,
-                        },
-                        NavigationItem {
-                            id: "rbac-permissions".to_string(),
-                            name: "Permissions".to_string(),
-                            path: "/security/rbac/permissions".to_string(),
-                            icon: "key".to_string(),
-                            visible: true,
-                            requires_advanced: true,
+                            children: Some(vec![
+                                NavigationItem {
+                                    id: "rbac-users".to_string(),
+                                    name: "Users".to_string(),
+                                    path: "/security/rbac/users".to_string(),
+                                    icon: "user".to_string(),
+                                    visible: true,
+                                    requires_advanced: true,
+                                    children: None,
+                                },
+                                NavigationItem {
+                                    id: "rbac-roles".to_string(),
+                                    name: "Roles".to_string(),
+                                    path: "/security/rbac/roles".to_string(),
+                                    icon: "badge".to_string(),
+                                    visible: true,
+                                    requires_advanced: true,
+                                    children: None,
+                                },
+                                NavigationItem {
+                                    id: "rbac-permissions".to_string(),
+                                    name: "Permissions".to_string(),
+                                    path: "/security/rbac/permissions".to_string(),
+                                    icon: "key".to_string(),
+                                    visible: true,
+                                    requires_advanced: true,
+                                    children: None,
+                                },
+                            ]),
                         },
                         NavigationItem {
                             id: "audit-logs".to_string(),
@@ -492,175 +507,129 @@ impl ModeApiHandler {
                             icon: "history".to_string(),
                             visible: true,
                             requires_advanced: true,
-                        },
-                        NavigationItem {
-                            id: "audit-search".to_string(),
-                            name: "Audit Search".to_string(),
-                            path: "/security/audit/search".to_string(),
-                            icon: "search".to_string(),
-                            visible: true,
-                            requires_advanced: true,
-                        },
-                        NavigationItem {
-                            id: "audit-violations".to_string(),
-                            name: "Violations".to_string(),
-                            path: "/security/audit/violations".to_string(),
-                            icon: "warning".to_string(),
-                            visible: true,
-                            requires_advanced: true,
-                        },
-                        NavigationItem {
-                            id: "allowlist".to_string(),
-                            name: "Allowlist".to_string(),
-                            path: "/security/allowlist".to_string(),
-                            icon: "check".to_string(),
-                            visible: true,
-                            requires_advanced: true,
+                            children: Some(vec![
+                                NavigationItem {
+                                    id: "audit-search".to_string(),
+                                    name: "Audit Search".to_string(),
+                                    path: "/security/audit/search".to_string(),
+                                    icon: "search".to_string(),
+                                    visible: true,
+                                    requires_advanced: true,
+                                    children: None,
+                                },
+                                NavigationItem {
+                                    id: "audit-violations".to_string(),
+                                    name: "Violations".to_string(),
+                                    path: "/security/audit/violations".to_string(),
+                                    icon: "warning".to_string(),
+                                    visible: true,
+                                    requires_advanced: true,
+                                    children: None,
+                                },
+                            ]),
                         },
                         NavigationItem {
                             id: "sanitization".to_string(),
-                            name: "Sanitization".to_string(),
+                            name: "Request Sanitization".to_string(),
                             path: "/security/sanitization".to_string(),
                             icon: "clean".to_string(),
                             visible: true,
                             requires_advanced: true,
+                            children: Some(vec![
+                                NavigationItem {
+                                    id: "sanitization-filtering".to_string(),
+                                    name: "Filtering".to_string(),
+                                    path: "/security/sanitization/filtering".to_string(),
+                                    icon: "filter".to_string(),
+                                    visible: true,
+                                    requires_advanced: true,
+                                    children: None,
+                                },
+                                NavigationItem {
+                                    id: "sanitization-secrets".to_string(),
+                                    name: "Secrets".to_string(),
+                                    path: "/security/sanitization/secrets".to_string(),
+                                    icon: "lock".to_string(),
+                                    visible: true,
+                                    requires_advanced: true,
+                                    children: None,
+                                },
+                                NavigationItem {
+                                    id: "sanitization-policies".to_string(),
+                                    name: "Sanitization Policies".to_string(),
+                                    path: "/security/sanitization/policies".to_string(),
+                                    icon: "document".to_string(),
+                                    visible: true,
+                                    requires_advanced: true,
+                                    children: None,
+                                },
+                                NavigationItem {
+                                    id: "sanitization-testing".to_string(),
+                                    name: "Testing".to_string(),
+                                    path: "/security/sanitization/testing".to_string(),
+                                    icon: "test".to_string(),
+                                    visible: true,
+                                    requires_advanced: true,
+                                    children: None,
+                                },
+                            ]),
                         },
                         NavigationItem {
-                            id: "sanitization-filtering".to_string(),
-                            name: "Filtering".to_string(),
-                            path: "/security/sanitization/filtering".to_string(),
-                            icon: "filter".to_string(),
-                            visible: true,
-                            requires_advanced: true,
-                        },
-                        NavigationItem {
-                            id: "sanitization-secrets".to_string(),
-                            name: "Secrets".to_string(),
-                            path: "/security/sanitization/secrets".to_string(),
-                            icon: "lock".to_string(),
-                            visible: true,
-                            requires_advanced: true,
-                        },
-                        NavigationItem {
-                            id: "sanitization-policies".to_string(),
-                            name: "Sanitization Policies".to_string(),
-                            path: "/security/sanitization/policies".to_string(),
-                            icon: "document".to_string(),
-                            visible: true,
-                            requires_advanced: true,
-                        },
-                        NavigationItem {
-                            id: "sanitization-testing".to_string(),
-                            name: "Testing".to_string(),
-                            path: "/security/sanitization/testing".to_string(),
-                            icon: "test".to_string(),
-                            visible: true,
-                            requires_advanced: true,
-                        },
-                    ],
-                },
-                // MCP Services Section
-                NavigationSection {
-                    id: "mcp-services".to_string(),
-                    name: "MCP Services".to_string(),
-                    icon: "link".to_string(),
-                    visible: true,
-                    items: vec![
-                        NavigationItem {
-                            id: "services".to_string(),
-                            name: "External MCP".to_string(),
-                            path: "/services".to_string(),
-                            icon: "link".to_string(),
-                            visible: true,
-                            requires_advanced: true,
-                        },
-                        NavigationItem {
-                            id: "llm-services".to_string(),
-                            name: "LLM Services".to_string(),
-                            path: "/llm-services".to_string(),
-                            icon: "brain".to_string(),
-                            visible: true,
-                            requires_advanced: true,
-                        },
-                    ],
-                },
-                // Administration Section
-                NavigationSection {
-                    id: "administration".to_string(),
-                    name: "Administration".to_string(),
-                    icon: "settings".to_string(),
-                    visible: true,
-                    items: vec![
-                        NavigationItem {
-                            id: "config".to_string(),
-                            name: "Configuration".to_string(),
-                            path: "/config".to_string(),
+                            id: "security-config".to_string(),
+                            name: "Security Config".to_string(),
+                            path: "/security/config".to_string(),
                             icon: "settings".to_string(),
                             visible: true,
                             requires_advanced: true,
-                        },
-                        NavigationItem {
-                            id: "monitoring".to_string(),
-                            name: "Monitoring".to_string(),
-                            path: "/monitoring".to_string(),
-                            icon: "analytics".to_string(),
-                            visible: true,
-                            requires_advanced: true,
-                        },
-                        NavigationItem {
-                            id: "tool-metrics".to_string(),
-                            name: "Tool Metrics".to_string(),
-                            path: "/tool-metrics".to_string(),
-                            icon: "chart".to_string(),
-                            visible: true,
-                            requires_advanced: true,
-                        },
-                        NavigationItem {
-                            id: "logs".to_string(),
-                            name: "Logs".to_string(),
-                            path: "/logs".to_string(),
-                            icon: "document".to_string(),
-                            visible: true,
-                            requires_advanced: true,
-                        },
-                    ],
-                },
-            ]);
-        } else {
-            // In proxy mode, still show some basic sections but fewer advanced features
-            sections.extend([
-                NavigationSection {
-                    id: "administration".to_string(),
-                    name: "Administration".to_string(),
-                    icon: "settings".to_string(),
-                    visible: true,
-                    items: vec![
-                        NavigationItem {
-                            id: "config".to_string(),
-                            name: "Configuration".to_string(),
-                            path: "/config".to_string(),
-                            icon: "settings".to_string(),
-                            visible: true,
-                            requires_advanced: false,
-                        },
-                        NavigationItem {
-                            id: "logs".to_string(),
-                            name: "Logs".to_string(),
-                            path: "/logs".to_string(),
-                            icon: "document".to_string(),
-                            visible: true,
-                            requires_advanced: false,
+                            children: None,
                         },
                     ],
                 },
             ]);
         }
 
+        // Add Administration section (always visible) - after Security in advanced mode
+        sections.push(NavigationSection {
+            id: "administration".to_string(),
+            name: "Administration".to_string(),
+            icon: "settings".to_string(),
+            visible: true,
+            items: vec![
+                NavigationItem {
+                    id: "configuration".to_string(),
+                    name: "Configuration".to_string(),
+                    path: "/config".to_string(),
+                    icon: "settings".to_string(),
+                    visible: true,
+                    requires_advanced: false,
+                    children: None,
+                },
+                NavigationItem {
+                    id: "logs".to_string(),
+                    name: "System Logs".to_string(),
+                    path: "/logs".to_string(),
+                    icon: "folder".to_string(),
+                    visible: true,
+                    requires_advanced: false,
+                    children: None,
+                },
+                NavigationItem {
+                    id: "build-commands".to_string(),
+                    name: "Build Commands".to_string(),
+                    path: "/build-commands".to_string(),
+                    icon: "build".to_string(),
+                    visible: true,
+                    requires_advanced: false,
+                    children: None,
+                },
+            ],
+        });
+
         sections
     }
 
     /// Create status indicators based on runtime mode
-    fn create_status_indicators(mode: &RuntimeMode) -> Vec<StatusIndicator> {
+    pub fn create_status_indicators(mode: &RuntimeMode) -> Vec<StatusIndicator> {
         let mut indicators = vec![
             StatusIndicator {
                 id: "mcp-server".to_string(),

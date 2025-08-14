@@ -324,6 +324,30 @@ impl McpServer {
         }
     }
 
+    /// Create MCP server with full configuration and injected enhancement storage (deferred initialization)
+    pub async fn with_config_and_storage(
+        config: &crate::config::Config,
+        enhancement_storage: Option<Arc<crate::discovery::EnhancementStorageService>>,
+    ) -> Result<Self> {
+        info!("Creating MCP server with full configuration and enhancement storage (deferred initialization)");
+        
+        // Create server with full config first
+        let mut server = Self::with_config(config).await?;
+        
+        // Store enhancement storage for later use, but don't initialize enhancement service yet
+        // This allows HTTP server to start immediately
+        if enhancement_storage.is_some() {
+            info!("Enhancement storage provided - will initialize enhancement service after server startup");
+        }
+        
+        info!("✅ MCP server created with deferred enhancement initialization - HTTP server can start immediately");
+        
+        // TODO: In the future, we can store the enhancement_storage and config in the server
+        // and provide a method to initialize the enhancement service asynchronously
+        
+        Ok(server)
+    }
+
     /// Create MCP server with full configuration
     pub async fn with_config(config: &crate::config::Config) -> Result<Self> {
         info!("Initializing MCP server with full configuration");
@@ -391,8 +415,6 @@ impl McpServer {
 
         // Set notification manager on registry for list_changed notifications
         registry.set_notification_manager(notification_manager.clone());
-
-
 
         // Create session manager with default configuration
         let session_manager = Arc::new(McpSessionManager::new());
@@ -537,29 +559,20 @@ impl McpServer {
             server = server.with_security(security_config.clone()).await?;
         }
 
-        // Configure sampling service if enabled (via smart_discovery.enable_sampling or sampling.enabled)
-        let sampling_enabled = config.smart_discovery.as_ref()
-            .and_then(|sd| sd.enable_sampling)
-            .unwrap_or(false) || 
-            config.sampling.as_ref().map(|s| s.enabled).unwrap_or(false);
+        // Configure sampling service if enabled (via sampling.enabled config)
+        let sampling_enabled = config.sampling.as_ref().map(|s| s.enabled).unwrap_or(false);
         if sampling_enabled {
             server = server.with_sampling_service(&config)?;
         }
         
-        // Configure tool enhancement service if enabled (via smart_discovery.enable_sampling or tool_enhancement.enabled)
-        let tool_enhancement_enabled = config.smart_discovery.as_ref()
-            .and_then(|sd| sd.enable_sampling)
-            .unwrap_or(false) || 
-            config.tool_enhancement.as_ref().map(|s| s.enabled).unwrap_or(false);
+        // Configure tool enhancement service if enabled (via tool_enhancement.enabled config)
+        let tool_enhancement_enabled = config.tool_enhancement.as_ref().map(|s| s.enabled).unwrap_or(false);
         if tool_enhancement_enabled {
             server = server.with_tool_enhancement_service(&config)?;
         }
 
-        // Configure elicitation service if enabled (via smart_discovery.enable_elicitation or elicitation.enabled)
-        let elicitation_enabled = config.smart_discovery.as_ref()
-            .and_then(|sd| sd.enable_elicitation)
-            .unwrap_or(false) || 
-            config.elicitation.as_ref().map(|e| e.enabled).unwrap_or(false);
+        // Configure elicitation service if enabled (via elicitation.enabled config)
+        let elicitation_enabled = config.elicitation.as_ref().map(|e| e.enabled).unwrap_or(false);
         if elicitation_enabled {
             server = server.with_elicitation_service(&config)?;
         }
@@ -1070,11 +1083,13 @@ impl McpServer {
 
                 // Streaming endpoints
                 .route("/mcp/ws", web::get().to(websocket_handler))
-                .route("/mcp/stream", web::get().to(sse_handler)) // Deprecated but maintained for backward compatibility
+                .route("/mcp/sse", web::get().to(sse_handler)) // MCP SSE endpoint
+                .route("/mcp/sse/messages", web::post().to(sse_messages_handler)) // MCP SSE messages endpoint
                 .route("/mcp/call/stream", web::post().to(streaming_tool_handler))
                 
                 // MCP 2025-06-18 Streamable HTTP Transport (preferred over deprecated SSE)
-                .route("/mcp/streamable", web::post().to(streamable_http_handler))
+                .route("/mcp/streamable", web::post().to(streamable_http_post_handler))
+                .route("/mcp/streamable", web::get().to(streamable_http_get_handler))
 
                 // OAuth authentication endpoints
                 .route("/auth/oauth/authorize", web::get().to(oauth_authorize_handler))
@@ -1091,6 +1106,18 @@ impl McpServer {
                     let discovery = mcp_server.smart_discovery.clone();
                     let service_container_clone = service_container.clone();
                     move |cfg| configure_dashboard_api(cfg, registry, mcp_server, external_mcp, resource_manager, prompt_manager, discovery, service_container_clone)
+                })
+
+                // Roots API routes
+                .configure({
+                    let mcp_server = mcp_server_data.get_ref().clone();
+                    move |cfg| {
+                        if let Some(roots_service) = &mcp_server.roots_service {
+                            let roots_api_handler = crate::web::RootsApiHandler::new(roots_service.clone());
+                            cfg.app_data(web::Data::new(roots_api_handler));
+                            crate::web::roots_api::configure_routes(cfg);
+                        }
+                    }
                 })
 
                 // Security API routes
@@ -1712,19 +1739,9 @@ impl McpServer {
         // Get the server-level default sampling strategy
         let strategy = self.get_default_sampling_strategy().await;
         
-        match strategy {
-            crate::config::SamplingElicitationStrategy::MagictunnelHandled => {
-                self.handle_sampling_with_magictunnel(&request).await
-            }
-            crate::config::SamplingElicitationStrategy::ClientForwarded => {
-                self.forward_sampling_to_client(&request).await
-            }
-            _ => {
-                // For now, default to MagicTunnel handling
-                debug!("Using MagicTunnel handling for complex routing strategy: {:?}", strategy);
-                self.handle_sampling_with_magictunnel(&request).await
-            }
-        }
+        // Since only ClientForwarded is supported, always forward to client
+        debug!("Forwarding sampling request to client (only supported strategy)");
+        self.forward_sampling_to_client(&request).await
     }
     
     /// Handle elicitation request with routing strategy
@@ -1734,19 +1751,9 @@ impl McpServer {
         // Get the server-level default elicitation strategy
         let strategy = self.get_default_elicitation_strategy().await;
         
-        match strategy {
-            crate::config::SamplingElicitationStrategy::MagictunnelHandled => {
-                self.handle_elicitation_with_magictunnel(&request).await
-            }
-            crate::config::SamplingElicitationStrategy::ClientForwarded => {
-                self.forward_elicitation_to_client(&request).await
-            }
-            _ => {
-                // For now, default to MagicTunnel handling
-                debug!("Using MagicTunnel handling for complex routing strategy: {:?}", strategy);
-                self.handle_elicitation_with_magictunnel(&request).await
-            }
-        }
+        // Since only ClientForwarded is supported, always forward to client
+        debug!("Forwarding elicitation request to client (only supported strategy)");
+        self.forward_elicitation_to_client(&request).await
     }
     
     /// Handle sampling request from specific external MCP server with server-specific routing
@@ -1756,41 +1763,9 @@ impl McpServer {
         // Get the server-specific sampling strategy
         let strategy = self.get_external_server_sampling_strategy(server_name).await;
         
-        match strategy {
-            crate::config::SamplingElicitationStrategy::MagictunnelHandled => {
-                debug!("Using MagicTunnel LLM for sampling request from server '{}'", server_name);
-                self.handle_sampling_with_magictunnel(&request).await
-            }
-            crate::config::SamplingElicitationStrategy::ClientForwarded => {
-                debug!("Forwarding sampling request from server '{}' to original client", server_name);
-                self.forward_sampling_to_client(&request).await
-            }
-            crate::config::SamplingElicitationStrategy::MagictunnelFirst => {
-                debug!("Trying MagicTunnel first for sampling request from server '{}'", server_name);
-                match self.handle_sampling_with_magictunnel(&request).await {
-                    Ok(response) => Ok(response),
-                    Err(e) => {
-                        warn!("MagicTunnel sampling failed for server '{}', falling back to client: {}", server_name, e);
-                        self.forward_sampling_to_client(&request).await
-                    }
-                }
-            }
-            crate::config::SamplingElicitationStrategy::ClientFirst => {
-                debug!("Trying client first for sampling request from server '{}'", server_name);
-                match self.forward_sampling_to_client(&request).await {
-                    Ok(response) => Ok(response),
-                    Err(e) => {
-                        warn!("Client sampling failed for server '{}', falling back to MagicTunnel: {}", server_name, e);
-                        self.handle_sampling_with_magictunnel(&request).await
-                    }
-                }
-            }
-            _ => {
-                // For complex routing strategies (Parallel, Hybrid), default to MagicTunnel for now
-                debug!("Using MagicTunnel handling for complex routing strategy: {:?}", strategy);
-                self.handle_sampling_with_magictunnel(&request).await
-            }
-        }
+        // Since only ClientForwarded is supported, always forward to client
+        debug!("Forwarding sampling request from server '{}' to original client (only supported strategy)", server_name);
+        self.forward_sampling_to_client(&request).await
     }
     
     /// Handle sampling request for specific tool with tool-specific routing
@@ -1800,41 +1775,9 @@ impl McpServer {
         // Get the tool-specific sampling strategy (with full hierarchy resolution)
         let strategy = self.get_tool_sampling_strategy(tool_name).await;
         
-        match strategy {
-            crate::config::SamplingElicitationStrategy::MagictunnelHandled => {
-                debug!("Using MagicTunnel LLM for sampling request for tool '{}'", tool_name);
-                self.handle_sampling_with_magictunnel(&request).await
-            }
-            crate::config::SamplingElicitationStrategy::ClientForwarded => {
-                debug!("Forwarding sampling request for tool '{}' to original client", tool_name);
-                self.forward_sampling_to_client(&request).await
-            }
-            crate::config::SamplingElicitationStrategy::MagictunnelFirst => {
-                debug!("Trying MagicTunnel first for sampling request for tool '{}'", tool_name);
-                match self.handle_sampling_with_magictunnel(&request).await {
-                    Ok(response) => Ok(response),
-                    Err(e) => {
-                        warn!("MagicTunnel sampling failed for tool '{}', falling back to client: {}", tool_name, e);
-                        self.forward_sampling_to_client(&request).await
-                    }
-                }
-            }
-            crate::config::SamplingElicitationStrategy::ClientFirst => {
-                debug!("Trying client first for sampling request for tool '{}'", tool_name);
-                match self.forward_sampling_to_client(&request).await {
-                    Ok(response) => Ok(response),
-                    Err(e) => {
-                        warn!("Client sampling failed for tool '{}', falling back to MagicTunnel: {}", tool_name, e);
-                        self.handle_sampling_with_magictunnel(&request).await
-                    }
-                }
-            }
-            _ => {
-                // For complex routing strategies (Parallel, Hybrid), default to MagicTunnel for now
-                debug!("Using MagicTunnel handling for complex routing strategy: {:?}", strategy);
-                self.handle_sampling_with_magictunnel(&request).await
-            }
-        }
+        // Since only ClientForwarded is supported, always forward to client
+        debug!("Forwarding sampling request for tool '{}' to original client (only supported strategy)", tool_name);
+        self.forward_sampling_to_client(&request).await
     }
     
     /// Handle elicitation request for specific tool with tool-specific routing
@@ -1844,41 +1787,9 @@ impl McpServer {
         // Get the tool-specific elicitation strategy (with full hierarchy resolution)
         let strategy = self.get_tool_elicitation_strategy(tool_name).await;
         
-        match strategy {
-            crate::config::SamplingElicitationStrategy::MagictunnelHandled => {
-                debug!("Using MagicTunnel LLM for elicitation request for tool '{}'", tool_name);
-                self.handle_elicitation_with_magictunnel(&request).await
-            }
-            crate::config::SamplingElicitationStrategy::ClientForwarded => {
-                debug!("Forwarding elicitation request for tool '{}' to original client", tool_name);
-                self.forward_elicitation_to_client(&request).await
-            }
-            crate::config::SamplingElicitationStrategy::MagictunnelFirst => {
-                debug!("Trying MagicTunnel first for elicitation request for tool '{}'", tool_name);
-                match self.handle_elicitation_with_magictunnel(&request).await {
-                    Ok(response) => Ok(response),
-                    Err(e) => {
-                        warn!("MagicTunnel elicitation failed for tool '{}', falling back to client: {}", tool_name, e);
-                        self.forward_elicitation_to_client(&request).await
-                    }
-                }
-            }
-            crate::config::SamplingElicitationStrategy::ClientFirst => {
-                debug!("Trying client first for elicitation request for tool '{}'", tool_name);
-                match self.forward_elicitation_to_client(&request).await {
-                    Ok(response) => Ok(response),
-                    Err(e) => {
-                        warn!("Client elicitation failed for tool '{}', falling back to MagicTunnel: {}", tool_name, e);
-                        self.handle_elicitation_with_magictunnel(&request).await
-                    }
-                }
-            }
-            _ => {
-                // For complex routing strategies (Parallel, Hybrid), default to MagicTunnel for now
-                debug!("Using MagicTunnel handling for complex routing strategy: {:?}", strategy);
-                self.handle_elicitation_with_magictunnel(&request).await
-            }
-        }
+        // Since only ClientForwarded is supported, always forward to client
+        debug!("Forwarding elicitation request for tool '{}' to original client (only supported strategy)", tool_name);
+        self.forward_elicitation_to_client(&request).await
     }
 
     /// Handle elicitation request from specific external MCP server with server-specific routing
@@ -1888,41 +1799,9 @@ impl McpServer {
         // Get the server-specific elicitation strategy
         let strategy = self.get_external_server_elicitation_strategy(server_name).await;
         
-        match strategy {
-            crate::config::SamplingElicitationStrategy::MagictunnelHandled => {
-                debug!("Using MagicTunnel LLM for elicitation request from server '{}'", server_name);
-                self.handle_elicitation_with_magictunnel(&request).await
-            }
-            crate::config::SamplingElicitationStrategy::ClientForwarded => {
-                debug!("Forwarding elicitation request from server '{}' to original client", server_name);
-                self.forward_elicitation_to_client(&request).await
-            }
-            crate::config::SamplingElicitationStrategy::MagictunnelFirst => {
-                debug!("Trying MagicTunnel first for elicitation request from server '{}'", server_name);
-                match self.handle_elicitation_with_magictunnel(&request).await {
-                    Ok(response) => Ok(response),
-                    Err(e) => {
-                        warn!("MagicTunnel elicitation failed for server '{}', falling back to client: {}", server_name, e);
-                        self.forward_elicitation_to_client(&request).await
-                    }
-                }
-            }
-            crate::config::SamplingElicitationStrategy::ClientFirst => {
-                debug!("Trying client first for elicitation request from server '{}'", server_name);
-                match self.forward_elicitation_to_client(&request).await {
-                    Ok(response) => Ok(response),
-                    Err(e) => {
-                        warn!("Client elicitation failed for server '{}', falling back to MagicTunnel: {}", server_name, e);
-                        self.handle_elicitation_with_magictunnel(&request).await
-                    }
-                }
-            }
-            _ => {
-                // For complex routing strategies (Parallel, Hybrid), default to MagicTunnel for now
-                debug!("Using MagicTunnel handling for complex routing strategy: {:?}", strategy);
-                self.handle_elicitation_with_magictunnel(&request).await
-            }
-        }
+        // Since only ClientForwarded is supported, always forward to client
+        debug!("Forwarding elicitation request from server '{}' to original client (only supported strategy)", server_name);
+        self.forward_elicitation_to_client(&request).await
     }
 
     /// Handle MCP JSON-RPC 2.0 request (unified handler for all transports)
@@ -2240,64 +2119,26 @@ impl McpServer {
         
         // First, try to route to external MCP servers using external routing configuration
         if let Some(external_integration) = &self.external_integration {
-            debug!("🔗 Checking external MCP servers for sampling capability with external routing");
+            debug!("🔗 Checking external MCP servers for sampling capability");
             
             let integration_guard = external_integration.read().await;
+            let available_servers = integration_guard.get_sampling_capable_servers().await;
             
-            // Get external routing configuration for sampling
-            let routing_config = self.config.as_ref()
-                .and_then(|c| c.external_mcp.as_ref())
-                .and_then(|ext| ext.external_routing.as_ref())
-                .and_then(|routing| routing.sampling.as_ref());
-            
-            if let Some(external_config) = routing_config {
-                if external_config.fallback_to_magictunnel {
-                    debug!("🎯 Using external routing strategy: {:?} with fallback to magictunnel", external_config.default_strategy);
-                    
-                    // Try external servers based on routing strategy
-                    match self.try_external_sampling_with_routing(&integration_guard, &request, external_config).await {
-                        Ok(response) => {
-                            info!("✅ Successfully routed sampling request via external routing");
-                            return Ok(response);
-                        }
-                        Err(e) => {
-                            warn!("⚠️ All external servers failed via external routing, falling back to internal: {}", e);
-                            // Continue to internal fallback below
-                        }
+            if !available_servers.is_empty() {
+                info!("📡 Routing sampling request to external MCP server: {}", available_servers[0]);
+                
+                match integration_guard.forward_sampling_request(&available_servers[0], &request).await {
+                    Ok(response) => {
+                        info!("✅ Successfully routed sampling request to external server");
+                        return Ok(response);
                     }
-                } else {
-                    // Chaining enabled but no internal fallback - only try external
-                    match self.try_external_sampling_with_routing(&integration_guard, &request, external_config).await {
-                        Ok(response) => return Ok(response),
-                        Err(e) => {
-                            return Err(SamplingError {
-                                code: SamplingErrorCode::InternalError,
-                                message: format!("All external MCP servers failed and internal fallback disabled: {}", e),
-                                details: None,
-                            });
-                        }
+                    Err(e) => {
+                        warn!("⚠️ Failed to route sampling to external server, falling back to internal: {}", e);
+                        // Continue to internal fallback below
                     }
                 }
             } else {
-                // No external routing config - use simple first-available strategy (backward compatibility)
-                let available_servers = integration_guard.get_sampling_capable_servers().await;
-                
-                if !available_servers.is_empty() {
-                    info!("📡 Routing sampling request to external MCP server: {}", available_servers[0]);
-                    
-                    match integration_guard.forward_sampling_request(&available_servers[0], &request).await {
-                        Ok(response) => {
-                            info!("✅ Successfully routed sampling request to external server");
-                            return Ok(response);
-                        }
-                        Err(e) => {
-                            warn!("⚠️ Failed to route sampling to external server, falling back to internal: {}", e);
-                            // Continue to internal fallback below
-                        }
-                    }
-                } else {
-                    debug!("🏠 No external MCP servers support sampling, using internal service");
-                }
+                debug!("🏠 No external MCP servers support sampling, using internal service");
             }
         }
         
@@ -2321,123 +2162,6 @@ impl McpServer {
         }
     }
 
-    /// Try external sampling with external routing configuration (Phase 3: MCP Chaining)
-    async fn try_external_sampling_with_routing(
-        &self,
-        integration: &crate::mcp::external_integration::ExternalMcpIntegration,
-        request: &SamplingRequest,
-        external_config: &crate::config::ExternalRoutingStrategyConfig,
-    ) -> std::result::Result<SamplingResponse, SamplingError> {
-        let available_servers = integration.get_sampling_capable_servers().await;
-        
-        if available_servers.is_empty() {
-            return Err(SamplingError {
-                code: SamplingErrorCode::InternalError,
-                message: "No external MCP servers support sampling".to_string(),
-                details: None,
-            });
-        }
-        
-        // Get ordered server list based on strategy
-        let ordered_servers = self.get_ordered_servers_for_sampling(&available_servers, external_config);
-        
-        debug!("🔗 Trying {} external servers in order: {:?}", ordered_servers.len(), ordered_servers);
-        
-        let mut last_error = None;
-        
-        // Try each server in order
-        for (attempt, server_name) in ordered_servers.iter().enumerate() {
-            info!("📡 Attempting sampling request on server '{}' (attempt {}/{})", server_name, attempt + 1, ordered_servers.len());
-            
-            // Try this server with retries
-            for retry in 0..external_config.max_retry_attempts {
-                if retry > 0 {
-                    debug!("🔄 Retrying sampling request on server '{}' (retry {}/{})", server_name, retry + 1, external_config.max_retry_attempts);
-                }
-                
-                match integration.forward_sampling_request(server_name, request).await {
-                    Ok(response) => {
-                        info!("✅ Successfully routed sampling request to server '{}' on attempt {}, retry {}", server_name, attempt + 1, retry + 1);
-                        return Ok(response);
-                    }
-                    Err(e) => {
-                        warn!("⚠️ Sampling request failed on server '{}' (attempt {}, retry {}): {}", server_name, attempt + 1, retry + 1, e.message);
-                        last_error = Some(e);
-                        
-                        // If this is not the last retry for this server, continue to next retry
-                        if retry < external_config.max_retry_attempts - 1 {
-                            debug!("🔄 Will retry on same server");
-                            continue;
-                        }
-                        
-                        // If this is the last retry for this server, break to try next server
-                        warn!("❌ All retries exhausted for server '{}', trying next server", server_name);
-                        break;
-                    }
-                }
-            }
-        }
-        
-        // All servers and retries exhausted
-        let error_msg = if let Some(last_err) = last_error {
-            format!("All external MCP servers failed. Last error: {}", last_err.message)
-        } else {
-            "All external MCP servers failed with unknown errors".to_string()
-        };
-        
-        Err(SamplingError {
-            code: SamplingErrorCode::InternalError,
-            message: error_msg,
-            details: None,
-        })
-    }
-    
-    /// Get ordered list of servers for sampling based on chaining strategy
-    fn get_ordered_servers_for_sampling(
-        &self,
-        available_servers: &[String],
-        external_config: &crate::config::ExternalRoutingStrategyConfig,
-    ) -> Vec<String> {
-        // Use simple first-available strategy for external server chaining
-        // TODO: Implement proper routing strategy mapping
-        match external_config.default_strategy {
-            crate::config::SamplingElicitationStrategy::MagictunnelFirst |
-            crate::config::SamplingElicitationStrategy::ClientFirst => {
-                let mut ordered = Vec::new();
-                
-                // First, add servers in priority order
-                for priority_server in &external_config.priority_order {
-                    if available_servers.contains(priority_server) {
-                        ordered.push(priority_server.clone());
-                    }
-                }
-                
-                // Then add any remaining available servers not in priority list
-                for server in available_servers {
-                    if !ordered.contains(server) {
-                        ordered.push(server.clone());
-                    }
-                }
-                
-                ordered
-            }
-            crate::config::SamplingElicitationStrategy::Parallel => {
-                // For parallel, use all available servers
-                available_servers.to_vec()
-            }
-            _ => {
-                // For other strategies, just use first available server
-                debug!("Using first available strategy for external server chaining");
-                available_servers.iter().take(1).cloned().collect()
-            }
-        }
-    }
-    
-    /// Get a hash source for pseudo-round-robin (simple implementation)
-    fn get_request_hash_source(&self) -> Option<&str> {
-        // Simple hash source - in a real implementation this might use request content
-        Some("sampling_request")
-    }
 
     /// Handle elicitation request for structured data collection
     async fn handle_elicitation_request_internal(
@@ -2891,12 +2615,13 @@ impl McpServer {
     }
 
     /// Determine if we should use local elicitation for this tool
+    /// Simplified version since only client_forwarded strategy is supported
     fn should_use_local_elicitation(&self, tool_def: &crate::registry::ToolDefinition) -> bool {
         // Get elicitation config from server config
         let elicitation_config = self.config.as_ref()
             .and_then(|c| c.elicitation.as_ref());
         
-        let config = match elicitation_config {
+        let _config = match elicitation_config {
             Some(config) if config.enabled => config,
             _ => {
                 debug!("Elicitation is disabled, skipping local elicitation for tool '{}'", tool_def.name);
@@ -2904,53 +2629,10 @@ impl McpServer {
             }
         };
 
-        // Check if tool has external MCP elicitation capability
-        let has_external_elicitation = tool_def.annotations.as_ref()
-            .and_then(|ann| ann.get("has_elicitation_capability"))
-            .map(|v| v == "true")
-            .unwrap_or(false);
-
-        // Check if tool is from external MCP server
-        let is_external_mcp = tool_def.routing.r#type == "external_mcp";
-
-        // Per-tool override check
-        if config.allow_tool_override {
-            if let Some(override_local) = tool_def.annotations.as_ref()
-                .and_then(|ann| ann.get("override_elicitation_authority"))
-                .and_then(|v| v.parse::<bool>().ok()) {
-                debug!("Tool '{}' has elicitation authority override: use_local={}", tool_def.name, override_local);
-                return override_local;
-            }
-        }
-
-        // Apply global configuration rules
-        match (is_external_mcp, has_external_elicitation) {
-            // External MCP tool with elicitation capability
-            (true, true) => {
-                if config.respect_external_authority {
-                    debug!("Tool '{}' is external MCP with elicitation capability, respecting external authority", tool_def.name);
-                    false // Respect external server's elicitation
-                } else {
-                    debug!("Tool '{}' is external MCP but configured to override external elicitation authority", tool_def.name);
-                    true // Override external authority
-                }
-            }
-            // External MCP tool without elicitation capability
-            (true, false) => {
-                if config.enable_hybrid_elicitation {
-                    debug!("Tool '{}' is external MCP without elicitation capability, enabling local elicitation (hybrid mode)", tool_def.name);
-                    true // Provide local elicitation for external tools that don't have it
-                } else {
-                    debug!("Tool '{}' is external MCP without elicitation capability, hybrid elicitation disabled", tool_def.name);
-                    false // No elicitation for external tools
-                }
-            }
-            // Local tool (always use local elicitation if enabled)
-            (false, _) => {
-                debug!("Tool '{}' is local, using local elicitation", tool_def.name);
-                true
-            }
-        }
+        // Since we only support client_forwarded strategy, elicitation is always handled by the client
+        // Local elicitation is never used - all elicitation requests are forwarded to the original client
+        debug!("Tool '{}' uses client-forwarded elicitation strategy - no local elicitation", tool_def.name);
+        false
     }
 
     /// Check if an error message indicates a parameter validation issue that could trigger elicitation
@@ -2978,18 +2660,10 @@ impl McpServer {
                     return strategy.clone();
                 }
             }
-            
-            // Check smart discovery config as fallback
-            if let Some(smart_discovery) = &config.smart_discovery {
-                if let Some(strategy) = &smart_discovery.default_sampling_strategy {
-                    debug!("Using smart discovery sampling strategy: {:?}", strategy);
-                    return strategy.clone();
-                }
-            }
         }
         
-        debug!("No server sampling strategy configured, defaulting to MagicTunnel handling");
-        crate::config::SamplingElicitationStrategy::MagictunnelHandled
+        debug!("No server sampling strategy configured, defaulting to ClientForwarded");
+        crate::config::SamplingElicitationStrategy::ClientForwarded
     }
     
     /// Get the server-level default elicitation strategy
@@ -3002,18 +2676,10 @@ impl McpServer {
                     return strategy.clone();
                 }
             }
-            
-            // Check smart discovery config as fallback
-            if let Some(smart_discovery) = &config.smart_discovery {
-                if let Some(strategy) = &smart_discovery.default_elicitation_strategy {
-                    debug!("Using smart discovery elicitation strategy: {:?}", strategy);
-                    return strategy.clone();
-                }
-            }
         }
         
-        debug!("No server elicitation strategy configured, defaulting to MagicTunnel handling");
-        crate::config::SamplingElicitationStrategy::MagictunnelHandled
+        debug!("No server elicitation strategy configured, defaulting to ClientForwarded");
+        crate::config::SamplingElicitationStrategy::ClientForwarded
     }
     
     /// Handle sampling request using MagicTunnel's own LLM
@@ -3176,32 +2842,9 @@ impl McpServer {
     
     /// Get sampling strategy for a specific external MCP server
     async fn get_external_server_sampling_strategy(&self, server_name: &str) -> crate::config::SamplingElicitationStrategy {
-        if let Some(config) = &self.config {
-            // Check server-specific strategy first
-            if let Some(external_mcp) = &config.external_mcp {
-                if let Some(external_routing) = &external_mcp.external_routing {
-                    if let Some(sampling_config) = &external_routing.sampling {
-                        // Check server-specific overrides
-                        if let Some(server_strategies) = &sampling_config.server_strategies {
-                            if let Some(strategy) = server_strategies.get(server_name) {
-                                debug!("Using server-specific sampling strategy for '{}': {:?}", server_name, strategy);
-                                return strategy.clone();
-                            }
-                        }
-                        
-                        // Use default strategy for external routing
-                        debug!("Using default external sampling strategy for '{}': {:?}", server_name, sampling_config.default_strategy);
-                        return sampling_config.default_strategy.clone();
-                    }
-                }
-            }
-            
-            // Fall back to server-level defaults
-            return self.get_default_sampling_strategy().await;
-        }
-        
-        debug!("No configuration available for external server '{}', using default strategy", server_name);
-        crate::config::SamplingElicitationStrategy::MagictunnelHandled
+        // Use the service-level sampling strategy for all external servers
+        debug!("Using service-level sampling strategy for external server '{}'", server_name);
+        self.get_default_sampling_strategy().await
     }
     
     /// Get sampling strategy for a specific tool (with full hierarchy resolution)
@@ -3260,32 +2903,9 @@ impl McpServer {
 
     /// Get elicitation strategy for a specific external MCP server
     async fn get_external_server_elicitation_strategy(&self, server_name: &str) -> crate::config::SamplingElicitationStrategy {
-        if let Some(config) = &self.config {
-            // Check server-specific strategy first
-            if let Some(external_mcp) = &config.external_mcp {
-                if let Some(external_routing) = &external_mcp.external_routing {
-                    if let Some(elicitation_config) = &external_routing.elicitation {
-                        // Check server-specific overrides
-                        if let Some(server_strategies) = &elicitation_config.server_strategies {
-                            if let Some(strategy) = server_strategies.get(server_name) {
-                                debug!("Using server-specific elicitation strategy for '{}': {:?}", server_name, strategy);
-                                return strategy.clone();
-                            }
-                        }
-                        
-                        // Use default strategy for external routing
-                        debug!("Using default external elicitation strategy for '{}': {:?}", server_name, elicitation_config.default_strategy);
-                        return elicitation_config.default_strategy.clone();
-                    }
-                }
-            }
-            
-            // Fall back to server-level defaults
-            return self.get_default_elicitation_strategy().await;
-        }
-        
-        debug!("No configuration available for external server '{}', using default strategy", server_name);
-        crate::config::SamplingElicitationStrategy::MagictunnelHandled
+        // Use the service-level elicitation strategy for all external servers
+        debug!("Using service-level elicitation strategy for external server '{}'", server_name);
+        self.get_default_elicitation_strategy().await
     }
 
     /// Check if any connected client supports elicitation capability
@@ -3858,6 +3478,33 @@ async fn handle_websocket_session(
         }
     };
 
+    // Subscribe to notifications and forward them to this WebSocket client
+    let mut notification_receiver = server.notification_manager.subscribe();
+    let mut session_clone = session.clone();
+    let session_id_clone = session_id.clone();
+    tokio::spawn(async move {
+        debug!("Started notification forwarding for WebSocket session {}", session_id_clone);
+        while let Ok(notification) = notification_receiver.recv().await {
+            let notification_json = match serde_json::to_string(&json!({
+                "jsonrpc": "2.0",
+                "method": notification.method,
+                "params": notification.params.unwrap_or_default()
+            })) {
+                Ok(json) => json,
+                Err(e) => {
+                    warn!("Failed to serialize notification: {}", e);
+                    continue;
+                }
+            };
+            
+            if let Err(e) = session_clone.text(notification_json).await {
+                debug!("Failed to send notification to WebSocket client (client likely disconnected): {}", e);
+                break;
+            }
+        }
+        debug!("Notification forwarding ended for WebSocket session {}", session_id_clone);
+    });
+
     while let Some(msg) = msg_stream.next().await {
         match msg {
             Ok(Message::Text(text)) => {
@@ -4031,7 +3678,73 @@ pub async fn sse_handler(
 
     info!("SSE connection established (deprecated transport - consider upgrading to Streamable HTTP)");
 
-    // Set SSE headers
+    // Create the SSE stream with notification subscription
+    let server_clone = mcp_server.get_ref().clone();
+    let sse_stream = async_stream::stream! {
+        // Subscribe to notifications inside the stream
+        let mut notification_receiver = server_clone.notification_manager.subscribe();
+        
+        // Send initialization message
+        let init_data = format!(
+            "event: message\ndata: {}\n\n",
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "transport": "sse",
+                    "deprecated": true,
+                    "upgradeRecommended": true,
+                    "newTransport": "streamable-http",
+                    "newEndpoint": "/mcp/streamable"
+                }
+            })
+        );
+        yield Ok::<actix_web::web::Bytes, actix_web::Error>(
+            actix_web::web::Bytes::from(init_data)
+        );
+
+        // Set up heartbeat interval
+        let mut heartbeat_interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
+
+        loop {
+            tokio::select! {
+                // Handle notifications
+                notification_result = notification_receiver.recv() => {
+                    match notification_result {
+                        Ok(notification) => {
+                            let notification_data = format!(
+                                "event: notification\ndata: {}\n\n",
+                                serde_json::json!({
+                                    "jsonrpc": "2.0",
+                                    "method": notification.method,
+                                    "params": notification.params.unwrap_or_default()
+                                })
+                            );
+                            
+                            debug!("Sending SSE notification: {}", notification.method);
+                            yield Ok(actix_web::web::Bytes::from(notification_data));
+                        }
+                        Err(e) => {
+                            debug!("SSE notification receiver error: {}", e);
+                            continue;
+                        }
+                    }
+                }
+                
+                // Send periodic heartbeats
+                _ = heartbeat_interval.tick() => {
+                    let heartbeat_data = format!(
+                        "event: heartbeat\ndata: {{\"timestamp\": \"{}\"}}\n\n",
+                        chrono::Utc::now().to_rfc3339()
+                    );
+                    yield Ok(actix_web::web::Bytes::from(heartbeat_data));
+                }
+            }
+        }
+    };
+
+    // Set SSE headers and return streaming response
     HttpResponse::Ok()
         .insert_header((header::CONTENT_TYPE, "text/event-stream"))
         .insert_header((header::CACHE_CONTROL, "no-cache"))
@@ -4041,36 +3754,96 @@ pub async fn sse_handler(
         .insert_header(("X-MCP-Version", "2024-11-05")) // Old version for SSE
         .insert_header(("X-MCP-Deprecated", "true"))
         .insert_header(("X-MCP-Upgrade-To", "streamable-http"))
-        .streaming(stream::iter(vec![
-            Ok::<actix_web::web::Bytes, actix_web::Error>(
-                actix_web::web::Bytes::from(format!(
-                    "event: message\ndata: {}\n\n",
-                    serde_json::json!({
-                        "jsonrpc": "2.0",
-                        "method": "notifications/initialized",
-                        "params": {
-                            "protocolVersion": "2024-11-05",
-                            "transport": "sse",
-                            "deprecated": true,
-                            "upgradeRecommended": true,
-                            "newTransport": "streamable-http",
-                            "newEndpoint": "/mcp/streamable"
-                        }
-                    })
-                ))
-            ),
-            // Keep connection alive with periodic heartbeats
-            Ok(actix_web::web::Bytes::from("event: heartbeat\ndata: {\"timestamp\": \"".to_string() + &chrono::Utc::now().to_rfc3339() + "\"}\n\n")),
-        ]))
+        .streaming(sse_stream)
 }
 
-/// Streamable HTTP handler for MCP 2025-06-18 compliance (preferred over deprecated SSE)
-pub async fn streamable_http_handler(
+/// SSE Messages handler for client requests (MCP SSE specification)
+/// Handles POST requests to /mcp/sse/messages for bidirectional SSE communication
+pub async fn sse_messages_handler(
+    req: HttpRequest,
+    body: web::Json<McpRequest>,
+    server: web::Data<Arc<McpServer>>,
+) -> HttpResponse {
+    // Check authentication
+    if let Err(auth_error) = check_authentication(&req, &server.auth_middleware, "write").await {
+        return auth_error;
+    }
+    
+    debug!("SSE Messages endpoint received request: {}", body.method);
+    
+    // Extract ID before moving the request for error handling
+    let request_id = body.id.as_ref().map(|v| v.to_string()).unwrap_or_else(|| "null".to_string());
+    
+    // Process the MCP request using the existing infrastructure
+    let request = body.into_inner();
+    match server.handle_mcp_request(request).await {
+        Ok(Some(response)) => {
+            // Parse the JSON response to return as proper JSON
+            match serde_json::from_str::<serde_json::Value>(&response) {
+                Ok(json_response) => HttpResponse::Ok()
+                    .insert_header(("Content-Type", "application/json"))
+                    .insert_header(("Access-Control-Allow-Origin", "*"))
+                    .insert_header(("X-MCP-Transport", "sse"))
+                    .insert_header(("X-MCP-Version", "2024-11-05"))
+                    .insert_header(("X-MCP-Deprecated", "true"))
+                    .insert_header(("X-MCP-Upgrade-To", "streamable-http"))
+                    .json(json_response),
+                Err(_) => HttpResponse::Ok()
+                    .insert_header(("Content-Type", "application/json"))
+                    .insert_header(("Access-Control-Allow-Origin", "*"))
+                    .insert_header(("X-MCP-Transport", "sse"))
+                    .insert_header(("X-MCP-Version", "2024-11-05"))
+                    .insert_header(("X-MCP-Deprecated", "true"))
+                    .insert_header(("X-MCP-Upgrade-To", "streamable-http"))
+                    .body(response), // Fallback to string response
+            }
+        }
+        Ok(None) => {
+            // No response needed (e.g., for notifications)
+            HttpResponse::Ok()
+                .insert_header(("Content-Type", "application/json"))
+                .insert_header(("Access-Control-Allow-Origin", "*"))
+                .insert_header(("X-MCP-Transport", "sse"))
+                .insert_header(("X-MCP-Version", "2024-11-05"))
+                .insert_header(("X-MCP-Deprecated", "true"))
+                .insert_header(("X-MCP-Upgrade-To", "streamable-http"))
+                .json(serde_json::json!({"jsonrpc": "2.0"}))
+        }
+        Err(e) => {
+            error!("SSE Messages handler error: {}", e);
+            HttpResponse::InternalServerError()
+                .insert_header(("Content-Type", "application/json"))
+                .insert_header(("Access-Control-Allow-Origin", "*"))
+                .insert_header(("X-MCP-Transport", "sse"))
+                .insert_header(("X-MCP-Deprecated", "true"))
+                .json(serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": -32603,
+                        "message": "Internal error",
+                        "data": e.to_string()
+                    }
+                }))
+        }
+    }
+}
+
+/// Streamable HTTP POST handler - Command Channel for client requests (MCP 2025-06-18)
+pub async fn streamable_http_post_handler(
     req: HttpRequest,
     body: web::Bytes,
     server: web::Data<Arc<McpServer>>,
 ) -> HttpResponse {
     use crate::mcp::streamable_http::{StreamableHttpTransport, StreamableHttpConfig};
+    
+    // Extract session ID from mcp-session-id header (if present)
+    let session_id = req.headers()
+        .get("mcp-session-id")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
+
+    debug!("Streamable HTTP POST (Command Channel) request, session: {:?}", session_id);
     
     // Create transport configuration from server config or use default
     let config = if let Some(config) = &server.config {
@@ -4094,23 +3867,167 @@ pub async fn streamable_http_handler(
     let transport = StreamableHttpTransport::with_server(config, Arc::clone(&server));
     
     match transport.handle_streamable_request(req, body).await {
-        Ok(response) => response,
+        Ok(mut response) => {
+            // Add MCP Streamable HTTP headers
+            response.headers_mut().insert(
+                actix_web::http::header::HeaderName::from_static("x-mcp-transport"),
+                actix_web::http::header::HeaderValue::from_static("streamable-http")
+            );
+            response.headers_mut().insert(
+                actix_web::http::header::HeaderName::from_static("x-mcp-version"),
+                actix_web::http::header::HeaderValue::from_static("2025-06-18")
+            );
+            response.headers_mut().insert(
+                actix_web::http::header::HeaderName::from_static("x-mcp-channel"),
+                actix_web::http::header::HeaderValue::from_static("command")
+            );
+            
+            // Add session ID if present
+            if let Some(session_id) = &session_id {
+                response.headers_mut().insert(
+                    actix_web::http::header::HeaderName::from_static("mcp-session-id"),
+                    actix_web::http::header::HeaderValue::from_str(session_id).unwrap_or_else(|_| 
+                        actix_web::http::header::HeaderValue::from_static("invalid"))
+                );
+            }
+            
+            response
+        },
         Err(e) => {
             error!("Streamable HTTP transport error: {}", e);
-            HttpResponse::BadRequest()
-                .insert_header(("X-MCP-Transport", "streamable-http"))
-                .insert_header(("X-MCP-Version", "2025-06-18"))
-                .insert_header(("X-MCP-Error", "transport_error"))
-                .json(json!({
-                    "jsonrpc": "2.0",
-                    "error": {
-                        "code": -32603,
-                        "message": "Streamable HTTP transport error",
-                        "data": e.to_string()
-                    }
-                }))
+            
+            // Build error response
+            if let Some(session_id) = &session_id {
+                HttpResponse::BadRequest()
+                    .insert_header(("X-MCP-Transport", "streamable-http"))
+                    .insert_header(("X-MCP-Version", "2025-06-18"))
+                    .insert_header(("X-MCP-Channel", "command"))
+                    .insert_header(("X-MCP-Error", "transport_error"))
+                    .insert_header(("mcp-session-id", session_id.as_str()))
+                    .json(json!({
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -32603,
+                            "message": "Streamable HTTP transport error",
+                            "data": e.to_string()
+                        }
+                    }))
+            } else {
+                HttpResponse::BadRequest()
+                    .insert_header(("X-MCP-Transport", "streamable-http"))
+                    .insert_header(("X-MCP-Version", "2025-06-18"))
+                    .insert_header(("X-MCP-Channel", "command"))
+                    .insert_header(("X-MCP-Error", "transport_error"))
+                    .json(json!({
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -32603,
+                            "message": "Streamable HTTP transport error",
+                            "data": e.to_string()
+                        }
+                    }))
+            }
         }
     }
+}
+
+/// Streamable HTTP GET handler - Announcement Channel for server notifications (MCP 2025-06-18)
+pub async fn streamable_http_get_handler(
+    req: HttpRequest,
+    server: web::Data<Arc<McpServer>>,
+) -> HttpResponse {
+    use actix_web::http::header;
+    
+    // Check authentication
+    if let Err(auth_error) = check_authentication(&req, &server.auth_middleware, "read").await {
+        return auth_error;
+    }
+
+    // Extract session ID from mcp-session-id header
+    let session_id = req.headers()
+        .get("mcp-session-id")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
+
+    info!("Streamable HTTP GET (Announcement Channel) connection established, session: {:?}", session_id);
+
+    // Create the notification stream for MCP 2025-06-18 Streamable HTTP
+    let server_clone = server.get_ref().clone();
+    let session_id_clone = session_id.clone();
+    let announcement_stream = async_stream::stream! {
+        // Subscribe to notifications inside the stream
+        let mut notification_receiver = server_clone.notification_manager().subscribe();
+        
+        // Send initialization message for announcement channel
+        // Note: Capabilities are advertised during the initialize handshake, not here
+        let init_data = format!(
+            "event: initialized\ndata: {}\n\n",
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized",
+                "params": {
+                    "protocolVersion": "2025-06-18",
+                    "transport": "streamable-http",
+                    "channel": "announcement",
+                    "sessionId": session_id_clone
+                }
+            })
+        );
+        yield Ok::<actix_web::web::Bytes, actix_web::Error>(
+            actix_web::web::Bytes::from(init_data)
+        );
+
+        // Set up heartbeat interval
+        let mut heartbeat_interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
+
+        loop {
+            tokio::select! {
+                // Handle notifications
+                notification_result = notification_receiver.recv() => {
+                    match notification_result {
+                        Ok(notification) => {
+                            let notification_data = format!(
+                                "event: notification\ndata: {}\n\n",
+                                serde_json::json!({
+                                    "jsonrpc": "2.0",
+                                    "method": notification.method,
+                                    "params": notification.params.unwrap_or_default()
+                                })
+                            );
+                            
+                            debug!("Sending Streamable HTTP notification: {}", notification.method);
+                            yield Ok(actix_web::web::Bytes::from(notification_data));
+                        }
+                        Err(e) => {
+                            debug!("Streamable HTTP notification receiver error: {}", e);
+                            continue;
+                        }
+                    }
+                }
+                
+                // Send periodic heartbeats
+                _ = heartbeat_interval.tick() => {
+                    let heartbeat_data = format!(
+                        "event: heartbeat\ndata: {{\"timestamp\": \"{}\"}}\n\n",
+                        chrono::Utc::now().to_rfc3339()
+                    );
+                    yield Ok(actix_web::web::Bytes::from(heartbeat_data));
+                }
+            }
+        }
+    };
+
+    // Set MCP Streamable HTTP headers for Announcement Channel (SSE)
+    HttpResponse::Ok()
+        .insert_header((header::CONTENT_TYPE, "text/event-stream"))
+        .insert_header((header::CACHE_CONTROL, "no-cache"))
+        .insert_header((header::CONNECTION, "keep-alive"))
+        .insert_header(("Access-Control-Allow-Origin", "*"))
+        .insert_header(("X-MCP-Transport", "streamable-http"))
+        .insert_header(("X-MCP-Version", "2025-06-18"))
+        .insert_header(("X-MCP-Channel", "announcement"))
+        .insert_header(("X-MCP-Session-Id", session_id.unwrap_or_else(|| "none".to_string())))
+        .streaming(announcement_stream)
 }
 
 /// Streaming tool execution handler

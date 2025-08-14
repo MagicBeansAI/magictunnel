@@ -685,7 +685,7 @@ async fn show_mcp_warnings(config: &Config, detailed: bool) -> Result<()> {
     println!("MCP Capability Override Warnings");
     println!("================================");
     
-    if !enhancement_config.enable_sampling_enhancement && !enhancement_config.enable_elicitation_enhancement {
+    if !enhancement_config.enable_description_enhancement && !enhancement_config.enable_tool_enhancement {
         println!("✅ No local enhancement features are enabled, no capability override warnings.");
         return Ok(());
     }
@@ -764,11 +764,18 @@ async fn show_mcp_warnings(config: &Config, detailed: bool) -> Result<()> {
         println!("   • External MCP servers should provide their own sampling/elicitation enhancements");
         println!("   • Use capability file metadata to track external MCP tool sources");
         
-        if enhancement_config.enable_sampling_enhancement {
-            println!("   • Disable sampling enhancement: Set smart_discovery.enable_sampling = false in config");
+        // Provide specific recommendations based on actual service configurations
+        if let Some(sampling_config) = &config.sampling {
+            if sampling_config.enabled {
+                println!("   • Disable sampling service: Set sampling.enabled = false in config");
+                println!("   • Or forward sampling to client: Set sampling.default_sampling_strategy = 'client_forwarded' in config");
+            }
         }
-        if enhancement_config.enable_elicitation_enhancement {
-            println!("   • Disable elicitation enhancement: Set smart_discovery.enable_elicitation = false in config");
+        if let Some(elicitation_config) = &config.elicitation {
+            if elicitation_config.enabled {
+                println!("   • Disable elicitation service: Set elicitation.enabled = false in config");
+                println!("   • Or forward elicitation to client: Set elicitation.default_elicitation_strategy = 'client_forwarded' in config");
+            }
         }
     } else {
         println!("✅ No capability override issues detected");
@@ -779,34 +786,21 @@ async fn show_mcp_warnings(config: &Config, detailed: bool) -> Result<()> {
 
 /// Create enhancement config from main config (mirrors logic from ToolEnhancementService)
 fn create_enhancement_config_from_main(config: &Config) -> ToolEnhancementConfig {
-    config.smart_discovery
+    let description_enhancement_enabled = config.sampling.as_ref().map(|s| s.enabled).unwrap_or(false);
+    let tool_enhancement_enabled = config.tool_enhancement
         .as_ref()
-        .and_then(|sd| {
-            // Check if sampling/elicitation are enabled via smart discovery config
-            let sampling_enabled = sd.enable_sampling.unwrap_or(false);
-            let elicitation_enabled = sd.enable_elicitation.unwrap_or(false);
-            
-            if sampling_enabled || elicitation_enabled {
-                Some(ToolEnhancementConfig {
-                    enable_sampling_enhancement: sampling_enabled,
-                    enable_elicitation_enhancement: elicitation_enabled,
-                    ..ToolEnhancementConfig::default()
-                })
-            } else {
-                None
-            }
-        })
-        .unwrap_or_else(|| {
-            // Check main config sections
-            let sampling_enabled = config.sampling.as_ref().map(|s| s.enabled).unwrap_or(false);
-            let elicitation_enabled = config.elicitation.as_ref().map(|e| e.enabled).unwrap_or(false);
-            
-            ToolEnhancementConfig {
-                enable_sampling_enhancement: sampling_enabled,
-                enable_elicitation_enhancement: elicitation_enabled,
-                ..ToolEnhancementConfig::default()
-            }
-        })
+        .map(|te| te.enabled)
+        .unwrap_or(false);
+        
+    if tool_enhancement_enabled {
+        ToolEnhancementConfig {
+            enable_description_enhancement: description_enhancement_enabled,
+            enable_tool_enhancement: tool_enhancement_enabled,
+            ..ToolEnhancementConfig::default()
+        }
+    } else {
+        ToolEnhancementConfig::default()
+    }
 }
 
 /// Check if a tool comes from external/remote MCP server (mirrors logic from ToolEnhancementService)
@@ -839,14 +833,14 @@ fn would_overwrite_mcp_capabilities(tool: &ToolDefinition, config: &ToolEnhancem
     
     let (has_sampling, has_elicitation) = has_original_mcp_capabilities(tool);
     
-    if has_sampling && config.enable_sampling_enhancement {
+    if has_sampling && config.enable_description_enhancement {
         warnings.push(format!(
-            "Tool '{}' has original sampling capabilities from external MCP server but local sampling enhancement is enabled", 
+            "Tool '{}' has original sampling capabilities from external MCP server but local description enhancement is enabled", 
             tool.name
         ));
     }
     
-    if has_elicitation && config.enable_elicitation_enhancement {
+    if has_elicitation && config.enable_tool_enhancement {
         warnings.push(format!(
             "Tool '{}' has original elicitation capabilities from external MCP server but local elicitation enhancement is enabled", 
             tool.name

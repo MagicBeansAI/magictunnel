@@ -9,7 +9,7 @@ use crate::discovery::cache::{DiscoveryCache, DiscoveryCacheConfig, ToolMatchCac
 use crate::discovery::fallback::{FallbackManager, FallbackConfig, ErrorCategory, SmartDiscoveryError};
 use crate::discovery::semantic::{SemanticSearchService, SemanticSearchConfig};
 use crate::discovery::embedding_manager::{EmbeddingManager, EmbeddingManagerConfig};
-use crate::discovery::enhancement::{ToolEnhancementPipeline, ToolEnhancementConfig};
+use crate::discovery::enhancement::ToolEnhancementPipeline;
 use crate::error::{ProxyError, Result};
 use crate::registry::service::RegistryService;
 use crate::registry::types::ToolDefinition;
@@ -103,12 +103,6 @@ pub struct SmartDiscoveryConfig {
     /// Whether to use fuzzy matching for tool names (rule-based mode only)
     pub use_fuzzy_matching: bool,
     
-    /// Enable sampling service for enhanced LLM interactions (MCP 2025-06-18)
-    pub enable_sampling: Option<bool>,
-    
-    /// Enable elicitation service for structured data collection (MCP 2025-06-18)
-    pub enable_elicitation: Option<bool>,
-    
     /// LLM mapper configuration
     pub llm_mapper: LlmMapperConfig,
     
@@ -130,12 +124,6 @@ pub struct SmartDiscoveryConfig {
     
     /// Whether to enable tool metrics collection
     pub tool_metrics_enabled: Option<bool>,
-    
-    /// Default sampling routing strategy for tools discovered through smart discovery
-    pub default_sampling_strategy: Option<crate::config::SamplingElicitationStrategy>,
-    
-    /// Default elicitation routing strategy for tools discovered through smart discovery
-    pub default_elicitation_strategy: Option<crate::config::SamplingElicitationStrategy>,
 }
 
 impl Default for SmartDiscoveryConfig {
@@ -148,8 +136,6 @@ impl Default for SmartDiscoveryConfig {
             max_high_quality_matches: 5,
             high_quality_threshold: 0.95,
             use_fuzzy_matching: true,
-            enable_sampling: Some(false), // Disabled by default, enable via config
-            enable_elicitation: Some(false), // Disabled by default, enable via config
             llm_mapper: LlmMapperConfig::default(),
             llm_tool_selection: LlmToolSelectionConfig::default(),
             cache: DiscoveryCacheConfig::default(),
@@ -157,8 +143,6 @@ impl Default for SmartDiscoveryConfig {
             semantic_search: SemanticSearchConfig::default(),
             enable_sequential_mode: true,
             tool_metrics_enabled: Some(true),
-            default_sampling_strategy: None, // Inherit from server-level config
-            default_elicitation_strategy: None, // Inherit from server-level config
         }
     }
 }
@@ -219,32 +203,9 @@ impl SmartDiscoveryService {
         let cache = DiscoveryCache::new(config.cache.clone());
         let fallback_manager = std::sync::Mutex::new(FallbackManager::new(config.fallback.clone()));
         
-        // Initialize tool enhancement service first if sampling/elicitation enabled
-        let enhancement_service = if config.enable_sampling.unwrap_or(false) || config.enable_elicitation.unwrap_or(false) {
-            info!("🚀 Initializing tool enhancement service for sampling/elicitation pipeline");
-            let enhancement_config = ToolEnhancementConfig {
-                enable_sampling_enhancement: config.enable_sampling.unwrap_or(false),
-                enable_elicitation_enhancement: config.enable_elicitation.unwrap_or(false),
-                require_approval: false, // TODO: Make configurable
-                cache_enhancements: true,
-                enhancement_timeout_seconds: 30,
-                batch_size: 10,
-                graceful_degradation: true,
-            };
-            
-            let service = ToolEnhancementPipeline::new_with_storage(
-                enhancement_config,
-                Arc::clone(&registry),
-                tool_enhancement_service,
-                elicitation_service,
-                None, // No storage service here
-                None, // No elicitation config here
-                config.enabled, // Pass smart discovery enabled state
-            );
-            Some(Arc::new(service))
-        } else {
-            None
-        };
+        // Tool enhancement is now managed by the separate tool_enhancement service
+        // Smart discovery no longer directly manages tool enhancement
+        let enhancement_service = None;
         
         // Initialize semantic search service with enhancement support if enabled
         let semantic_search = if config.semantic_search.enabled {
@@ -353,7 +314,7 @@ impl SmartDiscoveryService {
             let enhanced_tools = enhancement_service.get_enhanced_tools().await?;
             
             // Count enhanced descriptions before consuming the HashMap
-            let enhanced_count = enhanced_tools.values().filter(|t| t.sampling_enhanced_description.is_some()).count();
+            let enhanced_count = enhanced_tools.values().filter(|t| t.llm_enhanced_description.is_some()).count();
             
             // Convert EnhancedToolDefinition back to (String, ToolDefinition) for compatibility
             // Use effective_description() to get enhanced description if available
@@ -363,7 +324,7 @@ impl SmartDiscoveryService {
                     let mut tool_def = enhanced_tool.base.clone();
                     
                     // Replace description with enhanced description if available
-                    if let Some(enhanced_desc) = &enhanced_tool.sampling_enhanced_description {
+                    if let Some(enhanced_desc) = &enhanced_tool.llm_enhanced_description {
                         tool_def.description = enhanced_desc.clone();
                     }
                     
@@ -985,7 +946,7 @@ impl SmartDiscoveryService {
         if desc_similarity > 0.3 {
             let desc_score = desc_similarity * 0.4;
             confidence += desc_score;
-            let desc_type = if enhanced_tool.sampling_enhanced_description.is_some() { 
+            let desc_type = if enhanced_tool.llm_enhanced_description.is_some() { 
                 "enhanced_desc" 
             } else { 
                 "base_desc" 
@@ -1033,7 +994,7 @@ impl SmartDiscoveryService {
         }
         
         // Enhanced description info
-        if enhanced_tool.sampling_enhanced_description.is_some() {
+        if enhanced_tool.llm_enhanced_description.is_some() {
             reasons.push("sampling-enhanced description".to_string());
         }
         
@@ -1074,7 +1035,7 @@ impl SmartDiscoveryService {
         // Enhancement source info
         let source_info = match enhanced_tool.enhancement_source {
             crate::discovery::types::EnhancementSource::Both => "sampling + elicitation",
-            crate::discovery::types::EnhancementSource::Sampling => "sampling only",
+            crate::discovery::types::EnhancementSource::LlmDescription => "LLM description only",
             crate::discovery::types::EnhancementSource::Elicitation => "elicitation only", 
             crate::discovery::types::EnhancementSource::Base => "base tool",
             crate::discovery::types::EnhancementSource::Manual => "manual enhancement",
@@ -1717,9 +1678,9 @@ impl SmartDiscoveryService {
                 }
                 
                 let confidence = self.calculate_enhanced_confidence_for_tool(enhanced_tool, request);
-                debug!("Enhanced Tool Evaluation: {} -> confidence: {:.3} (base: \"{}\", sampling: {:?})", 
+                debug!("Enhanced Tool Evaluation: {} -> confidence: {:.3} (base: \"{}\", llm_enhanced: {:?})", 
                        tool_name, confidence, enhanced_tool.base.description, 
-                       enhanced_tool.sampling_enhanced_description.as_ref().map(|s| &s[..50.min(s.len())]));
+                       enhanced_tool.llm_enhanced_description.as_ref().map(|s| &s[..50.min(s.len())]));
                 
                 // Only include if confidence is reasonable
                 if confidence > 0.1 {
@@ -3372,8 +3333,6 @@ Respond in JSON format:
             max_high_quality_matches: 5,
             high_quality_threshold: 0.95,
             use_fuzzy_matching: true,
-            enable_sampling: Some(false),
-            enable_elicitation: Some(false),
             llm_mapper: LlmMapperConfig {
                 provider: "mock".to_string(),
                 model: "test-model".to_string(),
@@ -3401,8 +3360,6 @@ Respond in JSON format:
             semantic_search: SemanticSearchConfig::default(),
             enable_sequential_mode: true,
             tool_metrics_enabled: Some(true),
-            default_sampling_strategy: Some(crate::config::SamplingElicitationStrategy::MagictunnelHandled),
-            default_elicitation_strategy: Some(crate::config::SamplingElicitationStrategy::MagictunnelHandled),
         }
     }
 }

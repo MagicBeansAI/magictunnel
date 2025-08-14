@@ -139,7 +139,7 @@ tools:
 Or generate from existing APIs:
 ```bash
 # From OpenAPI specs
-./target/release/openapi-generator --spec https://api.example.com/openapi.json --output tools.yaml
+magictunnel-cli openapi --spec https://api.example.com/openapi.json --output tools.yaml
 ```
 
 🔧 **[Complete Tools Guide](docs/tools.md)** - Tool creation, API generation, and management
@@ -185,7 +185,7 @@ MagicTunnel is **fully compliant** with the latest MCP 2025-06-18 specification:
 ### 🌐 **Transport Layer**
 - **✅ Triple Transport Support**: 
   - **WebSocket**: `GET /mcp/ws` - Real-time bidirectional communication (enabled by default)
-  - **HTTP-SSE**: `GET /mcp/stream` - Server-Sent Events (deprecated, backward compatibility)
+  - **HTTP-SSE**: `GET /mcp/sse` + `POST /mcp/sse/messages` - Server-Sent Events (deprecated, backward compatibility)
   - **Streamable HTTP**: `POST /mcp/streamable` - **MCP 2025-06-18 preferred transport**
 - **✅ Enhanced Batching**: JSON-RPC batch processing with NDJSON streaming
 - **✅ Graceful Migration**: Automatic upgrade recommendations with deprecation headers
@@ -201,8 +201,8 @@ MagicTunnel is **fully compliant** with the latest MCP 2025-06-18 specification:
 - **✅ Granular Progress Tracking**: Real-time monitoring of long-running operations with sub-operations
 - **✅ Runtime Tool Validation**: Security sandboxing with classification-based policies
 
-### 🎯 **"Super-Charged MCP" Hybrid Processing System**
-- **✅ Hybrid Processing Strategies**: Six configurable processing modes (LocalOnly, ProxyOnly, ProxyFirst, LocalFirst, Parallel, Hybrid)
+### 🎯 **"Super-Charged MCP" Proxy System**
+- **✅ Client Forwarding Strategy**: All sampling/elicitation requests forwarded to original client
 - **✅ Intelligent Local Processing**: Enhanced context analysis, multimodal support, and schema intelligence
 - **✅ Multi-Hop Proxy Chains**: Forward requests through MagicTunnel server chains with automatic fallback
 - **✅ Parallel Execution**: Simultaneous local and proxy processing with `tokio::select!` for optimal performance

@@ -4,8 +4,8 @@
 //! This service was previously called "sampling" but has been renamed to avoid confusion with
 //! true MCP sampling (server→client LLM requests) which is now implemented separately.
 
-use crate::config::Config;
-use crate::error::Result;
+use crate::config::{Config, ToolEnhancementConfig as ConfigToolEnhancementConfig};
+use crate::error::{Result, ProxyError};
 use crate::mcp::types::tool_enhancement::*;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -147,76 +147,100 @@ impl ToolEnhancementService {
     /// Create tool enhancement service from main config
     pub fn from_config(config: &Config) -> Result<Self> {
         // Extract tool enhancement configuration from main config
-        let tool_enhancement_config = ToolEnhancementConfig {
-            enabled: config.smart_discovery.as_ref()
-                .map(|sd| sd.enabled)
-                .unwrap_or(false),
-            default_model: config.sampling.as_ref()
-                .and_then(|s| s.llm_config.as_ref())
-                .map(|llm| llm.model.clone())
-                .or_else(|| config.sampling.as_ref().map(|s| s.default_model.clone()))
-                .unwrap_or_else(|| "gpt-4o-mini".to_string()), // Use llm_config.model or fallback
-            max_tokens_limit: 4000,
-            rate_limit: Some(ToolEnhancementRateLimit {
-                requests_per_minute: 60,
-                burst_size: 10,
-                window_seconds: 60,
-            }),
-            content_filter: Some(ContentFilterConfig {
-                enabled: true,
-                blocked_patterns: vec![
-                    r"(?i)(password|secret|key|token)".to_string(),
-                    r"(?i)(hack|exploit|vulnerability)".to_string(),
-                ],
-                approval_patterns: vec![],
-                max_content_length: 50000,
-            }),
-            providers: Self::create_default_providers(config),
-            default_params: ToolEnhancementParams {
-                temperature: 0.7,
-                top_p: 0.9,
-                max_tokens: 1000,
-                stop: vec![],
-            },
+        let tool_enhancement_config = match &config.tool_enhancement {
+            Some(te_config) if te_config.enabled => {
+                let llm_config = te_config.llm_config.as_ref()
+                    .ok_or_else(|| ProxyError::config("Tool enhancement enabled but llm_config is missing"))?;
+                
+                ToolEnhancementConfig {
+                    enabled: true,
+                    default_model: llm_config.model.clone(),
+                    max_tokens_limit: llm_config.max_tokens.unwrap_or(4000),
+                    rate_limit: Some(ToolEnhancementRateLimit {
+                        requests_per_minute: 60,
+                        burst_size: 10,
+                        window_seconds: 60,
+                    }),
+                    content_filter: Some(ContentFilterConfig {
+                        enabled: true,
+                        blocked_patterns: vec![
+                            r"(?i)(password|secret|key|token)".to_string(),
+                            r"(?i)(hack|exploit|vulnerability)".to_string(),
+                        ],
+                        approval_patterns: vec![],
+                        max_content_length: 50000,
+                    }),
+                    providers: Self::create_providers_from_config(te_config),
+                    default_params: ToolEnhancementParams {
+                        temperature: llm_config.temperature.unwrap_or(0.7),
+                        top_p: 0.9,
+                        max_tokens: llm_config.max_tokens.unwrap_or(4000),
+                        stop: vec![],
+                    },
+                }
+            }
+            _ => {
+                return Err(ProxyError::config("Tool enhancement service is not enabled or configured"));
+            }
         };
 
         Self::new(tool_enhancement_config)
     }
 
-    /// Create default LLM providers from config
-    fn create_default_providers(config: &Config) -> Vec<LLMProviderConfig> {
+    /// Create LLM providers from tool enhancement config
+    fn create_providers_from_config(te_config: &ConfigToolEnhancementConfig) -> Vec<LLMProviderConfig> {
         let mut providers = Vec::new();
 
-        // Add OpenAI from LLM mapper config if available
-        if let Some(smart_discovery) = &config.smart_discovery {
-            let llm_mapper = &smart_discovery.llm_mapper;
-            if llm_mapper.provider == "openai" {
-                providers.push(LLMProviderConfig {
-                    name: "openai".to_string(),
-                    provider_type: LLMProviderType::OpenAI,
-                    endpoint: llm_mapper.base_url.clone().unwrap_or_else(|| "https://api.openai.com/v1".to_string()),
-                    api_key: llm_mapper.api_key.clone(),
-                    models: vec![llm_mapper.model.clone()],
-                    config: HashMap::new(),
-                });
-            } else if llm_mapper.provider == "anthropic" {
-                providers.push(LLMProviderConfig {
-                    name: "anthropic".to_string(),
-                    provider_type: LLMProviderType::Anthropic,
-                    endpoint: llm_mapper.base_url.clone().unwrap_or_else(|| "https://api.anthropic.com".to_string()),
-                    api_key: llm_mapper.api_key.clone(),
-                    models: vec![llm_mapper.model.clone()],
-                    config: HashMap::new(),
-                });
-            } else if llm_mapper.provider == "ollama" {
-                providers.push(LLMProviderConfig {
-                    name: "ollama".to_string(),
-                    provider_type: LLMProviderType::Ollama,
-                    endpoint: llm_mapper.base_url.clone().unwrap_or_else(|| "http://localhost:11434".to_string()),
-                    api_key: None,
-                    models: vec![llm_mapper.model.clone()],
-                    config: HashMap::new(),
-                });
+        if let Some(llm_config) = &te_config.llm_config {
+            // Get API key from environment variable if specified
+            let api_key = llm_config.api_key_env.as_ref()
+                .and_then(|env_var| std::env::var(env_var).ok());
+
+            match llm_config.provider.as_str() {
+                "openai" => {
+                    providers.push(LLMProviderConfig {
+                        name: "openai".to_string(),
+                        provider_type: LLMProviderType::OpenAI,
+                        endpoint: llm_config.api_base_url.clone()
+                            .unwrap_or_else(|| "https://api.openai.com/v1".to_string()),
+                        api_key,
+                        models: vec![llm_config.model.clone()],
+                        config: HashMap::new(),
+                    });
+                },
+                "anthropic" => {
+                    providers.push(LLMProviderConfig {
+                        name: "anthropic".to_string(),
+                        provider_type: LLMProviderType::Anthropic,
+                        endpoint: llm_config.api_base_url.clone()
+                            .unwrap_or_else(|| "https://api.anthropic.com".to_string()),
+                        api_key,
+                        models: vec![llm_config.model.clone()],
+                        config: HashMap::new(),
+                    });
+                },
+                "ollama" => {
+                    providers.push(LLMProviderConfig {
+                        name: "ollama".to_string(),
+                        provider_type: LLMProviderType::Ollama,
+                        endpoint: llm_config.api_base_url.clone()
+                            .unwrap_or_else(|| "http://localhost:11434".to_string()),
+                        api_key: None, // Ollama doesn't require API key
+                        models: vec![llm_config.model.clone()],
+                        config: HashMap::new(),
+                    });
+                },
+                _ => {
+                    // Fallback to OpenAI for unknown providers
+                    providers.push(LLMProviderConfig {
+                        name: "openai".to_string(),
+                        provider_type: LLMProviderType::OpenAI,
+                        endpoint: "https://api.openai.com/v1".to_string(),
+                        api_key,
+                        models: vec![llm_config.model.clone()],
+                        config: HashMap::new(),
+                    });
+                }
             }
         }
 
@@ -611,18 +635,168 @@ impl ToolEnhancementService {
         model: &str,
         provider: &LLMProviderConfig,
     ) -> std::result::Result<ToolEnhancementResponse, ToolEnhancementError> {
-        // Implementation same as original but adapted for tool enhancement types
+        info!("🔥 Calling OpenAI API for tool enhancement with model: {}", model);
+        
+        // Get API key
+        let api_key = if let Some(key) = &provider.api_key {
+            key.clone()
+        } else if let Ok(key) = std::env::var("OPENAI_API_KEY") {
+            key
+        } else {
+            return Err(ToolEnhancementError {
+                code: ToolEnhancementErrorCode::InvalidRequest,
+                message: "OpenAI API key not found".to_string(),
+                details: None,
+            });
+        };
+
+        // Build messages for OpenAI format
+        let mut messages = Vec::new();
+        
+        // Add system prompt if present
+        if let Some(system_prompt) = &request.system_prompt {
+            messages.push(json!({
+                "role": "system",
+                "content": system_prompt
+            }));
+        }
+        
+        // Add request messages
+        for msg in &request.messages {
+            let content = match &msg.content {
+                ToolEnhancementContent::Text(text) => text.clone(),
+                ToolEnhancementContent::Parts(_) => {
+                    return Err(ToolEnhancementError {
+                        code: ToolEnhancementErrorCode::InvalidRequest,
+                        message: "Multimodal content not supported for tool enhancement".to_string(),
+                        details: None,
+                    });
+                }
+            };
+            
+            messages.push(json!({
+                "role": match msg.role {
+                    ToolEnhancementMessageRole::User => "user",
+                    ToolEnhancementMessageRole::Assistant => "assistant",
+                    ToolEnhancementMessageRole::System => "system",
+                    ToolEnhancementMessageRole::Tool => "user", // Treat tool messages as user messages
+                },
+                "content": content
+            }));
+        }
+
+        // Build request payload
+        let mut payload = json!({
+            "model": model,
+            "messages": messages,
+            "max_tokens": request.max_tokens.unwrap_or(self.config.default_params.max_tokens),
+            "temperature": request.temperature.unwrap_or(self.config.default_params.temperature),
+        });
+
+        if let Some(top_p) = request.top_p {
+            payload["top_p"] = json!(top_p);
+        }
+
+        if let Some(stop) = &request.stop {
+            payload["stop"] = json!(stop);
+        }
+
+        // Build endpoint URL for OpenAI
+        let endpoint = if provider.endpoint.contains("chat/completions") {
+            provider.endpoint.clone()
+        } else if provider.endpoint.ends_with("/") {
+            format!("{}chat/completions", provider.endpoint)
+        } else {
+            format!("{}/chat/completions", provider.endpoint)
+        };
+
+        // Make API call
+        let response = self.http_client
+            .post(&endpoint)
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json")
+            .json(&payload)
+            .send()
+            .await
+            .map_err(|e| ToolEnhancementError {
+                code: ToolEnhancementErrorCode::InvalidRequest,
+                message: format!("OpenAI API request failed: {}", e),
+                details: None,
+            })?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(ToolEnhancementError {
+                code: ToolEnhancementErrorCode::InvalidRequest,
+                message: format!("OpenAI API error {}: {}", status, error_text),
+                details: None,
+            });
+        }
+
+        let response_data: Value = response.json().await.map_err(|e| ToolEnhancementError {
+            code: ToolEnhancementErrorCode::InvalidRequest,
+            message: format!("Failed to parse OpenAI response: {}", e),
+            details: None,
+        })?;
+
+        // Extract response content
+        let choice = response_data["choices"]
+            .as_array()
+            .and_then(|choices| choices.first())
+            .ok_or_else(|| ToolEnhancementError {
+                code: ToolEnhancementErrorCode::InvalidRequest,
+                message: "No choices in OpenAI response".to_string(),
+                details: None,
+            })?;
+
+        let message = choice["message"].as_object().ok_or_else(|| ToolEnhancementError {
+            code: ToolEnhancementErrorCode::InvalidRequest,
+            message: "No message in OpenAI choice".to_string(),
+            details: None,
+        })?;
+
+        let content = message["content"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+
+        let stop_reason = choice["finish_reason"]
+            .as_str()
+            .map(|reason| match reason {
+                "stop" => ToolEnhancementStopReason::EndTurn,
+                "length" => ToolEnhancementStopReason::MaxTokens,
+                _ => ToolEnhancementStopReason::EndTurn,
+            })
+            .unwrap_or(ToolEnhancementStopReason::EndTurn);
+
+        // Extract usage info
+        let usage = response_data["usage"].as_object().map(|usage_obj| {
+            ToolEnhancementUsage {
+                input_tokens: usage_obj.get("prompt_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                output_tokens: usage_obj.get("completion_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                total_tokens: usage_obj.get("total_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                cost_usd: None,
+            }
+        });
+
+        info!("✅ OpenAI API call successful, generated {} chars", content.len());
+
         Ok(ToolEnhancementResponse {
             message: ToolEnhancementMessage {
                 role: ToolEnhancementMessageRole::Assistant,
-                content: ToolEnhancementContent::Text("Enhanced description placeholder".to_string()),
+                content: ToolEnhancementContent::Text(content),
                 name: None,
                 metadata: None,
             },
             model: model.to_string(),
-            stop_reason: ToolEnhancementStopReason::EndTurn,
-            usage: None,
-            metadata: None,
+            stop_reason,
+            usage,
+            metadata: Some(json!({
+                "provider": "openai",
+                "api_endpoint": endpoint,
+                "timestamp": Utc::now().to_rfc3339()
+            }).as_object().unwrap().clone().into_iter().collect()),
         })
     }
 
@@ -633,18 +807,158 @@ impl ToolEnhancementService {
         model: &str,
         provider: &LLMProviderConfig,
     ) -> std::result::Result<ToolEnhancementResponse, ToolEnhancementError> {
-        // Implementation same as original but adapted for tool enhancement types
+        info!("🔥 Calling Anthropic API for tool enhancement with model: {}", model);
+        
+        // Get API key
+        let api_key = if let Some(key) = &provider.api_key {
+            key.clone()
+        } else if let Ok(key) = std::env::var("ANTHROPIC_API_KEY") {
+            key
+        } else {
+            return Err(ToolEnhancementError {
+                code: ToolEnhancementErrorCode::InvalidRequest,
+                message: "Anthropic API key not found".to_string(),
+                details: None,
+            });
+        };
+
+        // Build messages for Anthropic format
+        let mut messages = Vec::new();
+        
+        // Anthropic system prompt is separate from messages
+        let system_prompt = request.system_prompt.as_deref().unwrap_or("You are a helpful assistant.");
+        
+        // Add request messages (filter out system messages as they go in system parameter)
+        for msg in &request.messages {
+            if matches!(msg.role, ToolEnhancementMessageRole::System) {
+                continue; // Skip system messages, they're handled separately
+            }
+            
+            let content = match &msg.content {
+                ToolEnhancementContent::Text(text) => text.clone(),
+                ToolEnhancementContent::Parts(_) => {
+                    return Err(ToolEnhancementError {
+                        code: ToolEnhancementErrorCode::InvalidRequest,
+                        message: "Multimodal content not supported for tool enhancement".to_string(),
+                        details: None,
+                    });
+                }
+            };
+            
+            messages.push(json!({
+                "role": match msg.role {
+                    ToolEnhancementMessageRole::User => "user",
+                    ToolEnhancementMessageRole::Assistant => "assistant",
+                    ToolEnhancementMessageRole::System => "user", // Should not reach here
+                    ToolEnhancementMessageRole::Tool => "user", // Treat tool messages as user messages
+                },
+                "content": content
+            }));
+        }
+
+        // Build request payload
+        let mut payload = json!({
+            "model": model,
+            "system": system_prompt,
+            "messages": messages,
+            "max_tokens": request.max_tokens.unwrap_or(self.config.default_params.max_tokens),
+            "temperature": request.temperature.unwrap_or(self.config.default_params.temperature),
+        });
+
+        if let Some(top_p) = request.top_p {
+            payload["top_p"] = json!(top_p);
+        }
+
+        if let Some(stop) = &request.stop {
+            payload["stop_sequences"] = json!(stop);
+        }
+
+        // Build endpoint URL for Anthropic
+        let endpoint = if provider.endpoint.contains("messages") {
+            provider.endpoint.clone()
+        } else if provider.endpoint.ends_with("/") {
+            format!("{}v1/messages", provider.endpoint)
+        } else {
+            format!("{}/v1/messages", provider.endpoint)
+        };
+
+        // Make API call
+        let response = self.http_client
+            .post(&endpoint)
+            .header("x-api-key", api_key)
+            .header("Content-Type", "application/json")
+            .header("anthropic-version", "2023-06-01")
+            .json(&payload)
+            .send()
+            .await
+            .map_err(|e| ToolEnhancementError {
+                code: ToolEnhancementErrorCode::InvalidRequest,
+                message: format!("Anthropic API request failed: {}", e),
+                details: None,
+            })?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(ToolEnhancementError {
+                code: ToolEnhancementErrorCode::InvalidRequest,
+                message: format!("Anthropic API error {}: {}", status, error_text),
+                details: None,
+            });
+        }
+
+        let response_data: Value = response.json().await.map_err(|e| ToolEnhancementError {
+            code: ToolEnhancementErrorCode::InvalidRequest,
+            message: format!("Failed to parse Anthropic response: {}", e),
+            details: None,
+        })?;
+
+        // Extract response content
+        let content = response_data["content"]
+            .as_array()
+            .and_then(|content_array| content_array.first())
+            .and_then(|content_block| content_block["text"].as_str())
+            .unwrap_or("")
+            .to_string();
+
+        let stop_reason = response_data["stop_reason"]
+            .as_str()
+            .map(|reason| match reason {
+                "end_turn" => ToolEnhancementStopReason::EndTurn,
+                "max_tokens" => ToolEnhancementStopReason::MaxTokens,
+                "stop_sequence" => ToolEnhancementStopReason::StopSequence,
+                _ => ToolEnhancementStopReason::EndTurn,
+            })
+            .unwrap_or(ToolEnhancementStopReason::EndTurn);
+
+        // Extract usage info
+        let usage = response_data["usage"].as_object().map(|usage_obj| {
+            ToolEnhancementUsage {
+                input_tokens: usage_obj.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                output_tokens: usage_obj.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                total_tokens: (usage_obj.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0) + 
+                              usage_obj.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0)) as u32,
+                cost_usd: None,
+            }
+        });
+
+        info!("✅ Anthropic API call successful, generated {} chars", content.len());
+
         Ok(ToolEnhancementResponse {
             message: ToolEnhancementMessage {
                 role: ToolEnhancementMessageRole::Assistant,
-                content: ToolEnhancementContent::Text("Enhanced description placeholder".to_string()),
+                content: ToolEnhancementContent::Text(content),
                 name: None,
                 metadata: None,
             },
             model: model.to_string(),
-            stop_reason: ToolEnhancementStopReason::EndTurn,
-            usage: None,
-            metadata: None,
+            stop_reason,
+            usage,
+            metadata: Some(json!({
+                "provider": "anthropic",
+                "api_endpoint": endpoint,
+                "timestamp": Utc::now().to_rfc3339()
+            }).as_object().unwrap().clone().into_iter().collect()),
         })
     }
 
@@ -655,18 +969,166 @@ impl ToolEnhancementService {
         model: &str,
         provider: &LLMProviderConfig,
     ) -> std::result::Result<ToolEnhancementResponse, ToolEnhancementError> {
-        // Implementation same as original but adapted for tool enhancement types
+        info!("🔥 Calling Ollama API for tool enhancement with model: {}", model);
+        
+        // Build messages for Ollama format (OpenAI-compatible)
+        let mut messages = Vec::new();
+        
+        // Add system prompt if present
+        if let Some(system_prompt) = &request.system_prompt {
+            messages.push(json!({
+                "role": "system",
+                "content": system_prompt
+            }));
+        }
+        
+        // Add request messages
+        for msg in &request.messages {
+            let content = match &msg.content {
+                ToolEnhancementContent::Text(text) => text.clone(),
+                ToolEnhancementContent::Parts(_) => {
+                    return Err(ToolEnhancementError {
+                        code: ToolEnhancementErrorCode::InvalidRequest,
+                        message: "Multimodal content not supported for tool enhancement".to_string(),
+                        details: None,
+                    });
+                }
+            };
+            
+            messages.push(json!({
+                "role": match msg.role {
+                    ToolEnhancementMessageRole::User => "user",
+                    ToolEnhancementMessageRole::Assistant => "assistant",
+                    ToolEnhancementMessageRole::System => "system",
+                    ToolEnhancementMessageRole::Tool => "user", // Treat tool messages as user messages
+                },
+                "content": content
+            }));
+        }
+
+        // Build request payload for Ollama (uses /v1/chat/completions endpoint)
+        let mut payload = json!({
+            "model": model,
+            "messages": messages,
+            "temperature": request.temperature.unwrap_or(self.config.default_params.temperature),
+            "stream": false
+        });
+
+        if let Some(top_p) = request.top_p {
+            payload["top_p"] = json!(top_p);
+        }
+
+        if let Some(stop) = &request.stop {
+            payload["stop"] = json!(stop);
+        }
+
+        // For Ollama, we use max_tokens differently (it's called num_predict)
+        if let Some(max_tokens) = request.max_tokens {
+            payload["options"] = json!({
+                "num_predict": max_tokens
+            });
+        }
+
+        // Build endpoint URL
+        let endpoint = if provider.endpoint.ends_with("/") {
+            format!("{}v1/chat/completions", provider.endpoint)
+        } else {
+            format!("{}/v1/chat/completions", provider.endpoint)
+        };
+
+        // Make API call (Ollama typically doesn't require auth)
+        let mut req_builder = self.http_client
+            .post(&endpoint)
+            .header("Content-Type", "application/json");
+
+        // Add auth if API key is provided (some Ollama setups may use it)
+        if let Some(api_key) = &provider.api_key {
+            req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
+        }
+
+        let response = req_builder
+            .json(&payload)
+            .send()
+            .await
+            .map_err(|e| ToolEnhancementError {
+                code: ToolEnhancementErrorCode::InvalidRequest,
+                message: format!("Ollama API request failed: {}", e),
+                details: None,
+            })?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(ToolEnhancementError {
+                code: ToolEnhancementErrorCode::InvalidRequest,
+                message: format!("Ollama API error {}: {}", status, error_text),
+                details: None,
+            });
+        }
+
+        let response_data: Value = response.json().await.map_err(|e| ToolEnhancementError {
+            code: ToolEnhancementErrorCode::InvalidRequest,
+            message: format!("Failed to parse Ollama response: {}", e),
+            details: None,
+        })?;
+
+        // Extract response content (OpenAI-compatible format)
+        let choice = response_data["choices"]
+            .as_array()
+            .and_then(|choices| choices.first())
+            .ok_or_else(|| ToolEnhancementError {
+                code: ToolEnhancementErrorCode::InvalidRequest,
+                message: "No choices in Ollama response".to_string(),
+                details: None,
+            })?;
+
+        let message = choice["message"].as_object().ok_or_else(|| ToolEnhancementError {
+            code: ToolEnhancementErrorCode::InvalidRequest,
+            message: "No message in Ollama choice".to_string(),
+            details: None,
+        })?;
+
+        let content = message["content"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+
+        let stop_reason = choice["finish_reason"]
+            .as_str()
+            .map(|reason| match reason {
+                "stop" => ToolEnhancementStopReason::EndTurn,
+                "length" => ToolEnhancementStopReason::MaxTokens,
+                _ => ToolEnhancementStopReason::EndTurn,
+            })
+            .unwrap_or(ToolEnhancementStopReason::EndTurn);
+
+        // Extract usage info if available
+        let usage = response_data["usage"].as_object().map(|usage_obj| {
+            ToolEnhancementUsage {
+                input_tokens: usage_obj.get("prompt_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                output_tokens: usage_obj.get("completion_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                total_tokens: usage_obj.get("total_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                cost_usd: None,
+            }
+        });
+
+        info!("✅ Ollama API call successful, generated {} chars", content.len());
+
         Ok(ToolEnhancementResponse {
             message: ToolEnhancementMessage {
                 role: ToolEnhancementMessageRole::Assistant,
-                content: ToolEnhancementContent::Text("Enhanced description placeholder".to_string()),
+                content: ToolEnhancementContent::Text(content),
                 name: None,
                 metadata: None,
             },
             model: model.to_string(),
-            stop_reason: ToolEnhancementStopReason::EndTurn,
-            usage: None,
-            metadata: None,
+            stop_reason,
+            usage,
+            metadata: Some(json!({
+                "provider": "ollama",
+                "api_endpoint": endpoint,
+                "timestamp": Utc::now().to_rfc3339()
+            }).as_object().unwrap().clone().into_iter().collect()),
         })
     }
 
@@ -677,18 +1139,164 @@ impl ToolEnhancementService {
         model: &str,
         provider: &LLMProviderConfig,
     ) -> std::result::Result<ToolEnhancementResponse, ToolEnhancementError> {
-        // Implementation same as original but adapted for tool enhancement types
+        info!("🔥 Calling custom API for tool enhancement with model: {}", model);
+        
+        // For custom APIs, we'll try to use OpenAI-compatible format as a default
+        let mut messages = Vec::new();
+        
+        // Add system prompt if present
+        if let Some(system_prompt) = &request.system_prompt {
+            messages.push(json!({
+                "role": "system",
+                "content": system_prompt
+            }));
+        }
+        
+        // Add request messages
+        for msg in &request.messages {
+            let content = match &msg.content {
+                ToolEnhancementContent::Text(text) => text.clone(),
+                ToolEnhancementContent::Parts(_) => {
+                    return Err(ToolEnhancementError {
+                        code: ToolEnhancementErrorCode::InvalidRequest,
+                        message: "Multimodal content not supported for tool enhancement".to_string(),
+                        details: None,
+                    });
+                }
+            };
+            
+            messages.push(json!({
+                "role": match msg.role {
+                    ToolEnhancementMessageRole::User => "user",
+                    ToolEnhancementMessageRole::Assistant => "assistant",
+                    ToolEnhancementMessageRole::System => "system",
+                    ToolEnhancementMessageRole::Tool => "user", // Treat tool messages as user messages
+                },
+                "content": content
+            }));
+        }
+
+        // Build request payload (OpenAI-compatible by default)
+        let mut payload = json!({
+            "model": model,
+            "messages": messages,
+            "max_tokens": request.max_tokens.unwrap_or(self.config.default_params.max_tokens),
+            "temperature": request.temperature.unwrap_or(self.config.default_params.temperature),
+        });
+
+        if let Some(top_p) = request.top_p {
+            payload["top_p"] = json!(top_p);
+        }
+
+        if let Some(stop) = &request.stop {
+            payload["stop"] = json!(stop);
+        }
+
+        // Apply any custom config parameters
+        for (key, value) in &provider.config {
+            payload[key] = value.clone();
+        }
+
+        // Build request
+        let mut req_builder = self.http_client
+            .post(&provider.endpoint)
+            .header("Content-Type", "application/json");
+
+        // Add auth if API key is provided
+        if let Some(api_key) = &provider.api_key {
+            req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
+        }
+
+        let response = req_builder
+            .json(&payload)
+            .send()
+            .await
+            .map_err(|e| ToolEnhancementError {
+                code: ToolEnhancementErrorCode::InvalidRequest,
+                message: format!("Custom API request failed: {}", e),
+                details: None,
+            })?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(ToolEnhancementError {
+                code: ToolEnhancementErrorCode::InvalidRequest,
+                message: format!("Custom API error {}: {}", status, error_text),
+                details: None,
+            });
+        }
+
+        let response_data: Value = response.json().await.map_err(|e| ToolEnhancementError {
+            code: ToolEnhancementErrorCode::InvalidRequest,
+            message: format!("Failed to parse custom API response: {}", e),
+            details: None,
+        })?;
+
+        // Try to extract content in OpenAI format first, then fallback to simpler formats
+        let content = if let Some(choices) = response_data["choices"].as_array() {
+            // OpenAI-compatible format
+            choices.first()
+                .and_then(|choice| choice["message"]["content"].as_str())
+                .unwrap_or("")
+                .to_string()
+        } else if let Some(content_str) = response_data["content"].as_str() {
+            // Simple content field
+            content_str.to_string()
+        } else if let Some(text) = response_data["text"].as_str() {
+            // Alternative text field
+            text.to_string()
+        } else if let Some(response_text) = response_data["response"].as_str() {
+            // Another common field name
+            response_text.to_string()
+        } else {
+            return Err(ToolEnhancementError {
+                code: ToolEnhancementErrorCode::InvalidRequest,
+                message: "Unable to extract content from custom API response".to_string(),
+                details: Some(json!({
+                    "response_structure": response_data
+                }).as_object().unwrap().clone().into_iter().collect()),
+            });
+        };
+
+        let stop_reason = response_data["choices"]
+            .as_array()
+            .and_then(|choices| choices.first())
+            .and_then(|choice| choice["finish_reason"].as_str())
+            .map(|reason| match reason {
+                "stop" => ToolEnhancementStopReason::EndTurn,
+                "length" => ToolEnhancementStopReason::MaxTokens,
+                _ => ToolEnhancementStopReason::EndTurn,
+            })
+            .unwrap_or(ToolEnhancementStopReason::EndTurn);
+
+        // Extract usage info if available
+        let usage = response_data["usage"].as_object().map(|usage_obj| {
+            ToolEnhancementUsage {
+                input_tokens: usage_obj.get("prompt_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                output_tokens: usage_obj.get("completion_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                total_tokens: usage_obj.get("total_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                cost_usd: None,
+            }
+        });
+
+        info!("✅ Custom API call successful, generated {} chars", content.len());
+
         Ok(ToolEnhancementResponse {
             message: ToolEnhancementMessage {
                 role: ToolEnhancementMessageRole::Assistant,
-                content: ToolEnhancementContent::Text("Enhanced description placeholder".to_string()),
+                content: ToolEnhancementContent::Text(content),
                 name: None,
                 metadata: None,
             },
             model: model.to_string(),
-            stop_reason: ToolEnhancementStopReason::EndTurn,
-            usage: None,
-            metadata: None,
+            stop_reason,
+            usage,
+            metadata: Some(json!({
+                "provider": "custom",
+                "api_endpoint": provider.endpoint,
+                "timestamp": Utc::now().to_rfc3339()
+            }).as_object().unwrap().clone().into_iter().collect()),
         })
     }
 
@@ -718,8 +1326,8 @@ impl Default for ToolEnhancementConfig {
     fn default() -> Self {
         Self {
             enabled: false,
-            default_model: "gpt-4o-mini".to_string(), // Reasonable default, should be overridden in config
-            max_tokens_limit: 4000,
+            default_model: "gpt-4o-mini".to_string(), // Default model for test purposes
+            max_tokens_limit: 4000, // Default token limit for test purposes
             rate_limit: Some(ToolEnhancementRateLimit {
                 requests_per_minute: 60,
                 burst_size: 10,

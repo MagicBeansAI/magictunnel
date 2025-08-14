@@ -7,7 +7,7 @@ use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use magictunnel::config::RegistryConfig;
 use magictunnel::mcp::server::{
     health_check, list_tools_handler, call_tool_handler,
-    websocket_handler, sse_handler, streaming_tool_handler, McpServer
+    websocket_handler, sse_handler, sse_messages_handler, streaming_tool_handler, McpServer
 };
 use magictunnel::registry::RegistryService;
 use serde_json::{json, Value};
@@ -50,7 +50,8 @@ async fn create_test_server() -> TestServer {
             .route("/mcp/tools", web::get().to(list_tools_handler))
             .route("/mcp/call", web::post().to(call_tool_handler))
             .route("/mcp/ws", web::get().to(websocket_handler))
-            .route("/mcp/stream", web::get().to(sse_handler))
+            .route("/mcp/sse", web::get().to(sse_handler))
+            .route("/mcp/sse/messages", web::post().to(sse_messages_handler))
             .route("/mcp/call/stream", web::post().to(streaming_tool_handler))
     })
 }
@@ -111,7 +112,7 @@ async fn test_server_sent_events() {
     
     // Test SSE endpoint
     let response = srv
-        .get("/mcp/stream")
+        .get("/mcp/sse")
         .insert_header(("Accept", "text/event-stream"))
         .send()
         .await
@@ -333,4 +334,149 @@ async fn test_multiple_sequential_connections() {
     }
 
     println!("All 5 sequential requests completed successfully");
+}
+
+#[actix_rt::test]
+async fn test_sse_messages_endpoint() {
+    let srv = create_test_server().await;
+    
+    // Test MCP initialize request via SSE messages endpoint
+    let initialize_request = json!({
+        "jsonrpc": "2.0",
+        "id": "test-init-1",
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {
+                "roots": { "listChanged": true },
+                "sampling": {}
+            },
+            "clientInfo": {
+                "name": "SSE Test Client",
+                "version": "1.0.0"
+            }
+        }
+    });
+    
+    let mut response = srv
+        .post("/mcp/sse/messages")
+        .send_json(&initialize_request)
+        .await
+        .unwrap();
+    
+    assert!(response.status().is_success());
+    
+    // Check response headers
+    let headers = response.headers();
+    assert_eq!(headers.get("content-type").unwrap(), "application/json");
+    assert_eq!(headers.get("x-mcp-transport").unwrap(), "sse");
+    assert_eq!(headers.get("x-mcp-deprecated").unwrap(), "true");
+    
+    // Parse response body
+    let response_body: Value = response.json().await.unwrap();
+    assert_eq!(response_body["jsonrpc"], "2.0");
+    assert_eq!(response_body["id"], "test-init-1");
+    assert!(response_body["result"].is_object());
+    
+    // Test tools/list request
+    let tools_request = json!({
+        "jsonrpc": "2.0",
+        "id": "test-tools-1",
+        "method": "tools/list",
+        "params": {}
+    });
+    
+    let mut tools_response = srv
+        .post("/mcp/sse/messages")
+        .send_json(&tools_request)
+        .await
+        .unwrap();
+    
+    assert!(tools_response.status().is_success());
+    
+    let tools_body: Value = tools_response.json().await.unwrap();
+    assert_eq!(tools_body["jsonrpc"], "2.0");
+    assert_eq!(tools_body["id"], "test-tools-1");
+    assert!(tools_body["result"].is_object());
+    
+    // Test invalid request (should return error)
+    let invalid_request = json!({
+        "jsonrpc": "2.0",
+        "id": "test-invalid-1",
+        "method": "nonexistent/method",
+        "params": {}
+    });
+    
+    let mut error_response = srv
+        .post("/mcp/sse/messages")
+        .send_json(&invalid_request)
+        .await
+        .unwrap();
+    
+    // Should still return 200 but with JSON-RPC error in body
+    assert!(error_response.status().is_success());
+    
+    let error_body: Value = error_response.json().await.unwrap();
+    assert_eq!(error_body["jsonrpc"], "2.0");
+    assert_eq!(error_body["id"], "test-invalid-1");
+    assert!(error_body["error"].is_object());
+}
+
+#[actix_rt::test] 
+async fn test_sse_bidirectional_communication() {
+    let srv = create_test_server().await;
+    
+    // This test demonstrates the bidirectional SSE pattern:
+    // 1. SSE stream for receiving notifications
+    // 2. POST to /mcp/sse/messages for sending requests
+    
+    // Test the messages endpoint with a tool call
+    let tool_call_request = json!({
+        "jsonrpc": "2.0",
+        "id": "test-tool-call-1",
+        "method": "tools/call",
+        "params": {
+            "name": "smart_tool_discovery",
+            "arguments": {
+                "request": "test request"
+            }
+        }
+    });
+    
+    let mut tool_response = srv
+        .post("/mcp/sse/messages")
+        .send_json(&tool_call_request)
+        .await
+        .unwrap();
+    
+    assert!(tool_response.status().is_success());
+    
+    // Verify SSE deprecation headers are present
+    let headers = tool_response.headers();
+    assert_eq!(headers.get("x-mcp-transport").unwrap(), "sse");
+    assert_eq!(headers.get("x-mcp-deprecated").unwrap(), "true");
+    
+    // Check that the response follows MCP JSON-RPC format
+    let response_body: Value = tool_response.json().await.unwrap();
+    assert_eq!(response_body["jsonrpc"], "2.0");
+    assert_eq!(response_body["id"], "test-tool-call-1");
+    
+    // Should have either result or error
+    assert!(
+        response_body["result"].is_object() || response_body["error"].is_object(),
+        "Response should have either result or error field"
+    );
+    
+    // Test SSE stream endpoint accessibility (basic connection test)
+    let sse_response = srv
+        .get("/mcp/sse")
+        .insert_header(("Accept", "text/event-stream"))
+        .send()
+        .await
+        .unwrap();
+    
+    assert!(sse_response.status().is_success());
+    assert_eq!(sse_response.headers().get("content-type").unwrap(), "text/event-stream");
+    assert_eq!(sse_response.headers().get("x-mcp-transport").unwrap(), "sse");
+    assert_eq!(sse_response.headers().get("x-mcp-deprecated").unwrap(), "true");
 }

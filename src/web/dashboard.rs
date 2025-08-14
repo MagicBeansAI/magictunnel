@@ -459,6 +459,160 @@ impl DashboardApi {
         })))
     }
 
+    /// GET /dashboard/api/mcp-servers - MCP Server capabilities and status
+    pub async fn get_mcp_servers(&self) -> Result<HttpResponse> {
+        let mut servers = Vec::new();
+        
+        // Get external MCP servers if available
+        if let Some(external_mcp) = &self.external_mcp {
+            let integration = external_mcp.read().await;
+            if let Some(manager) = integration.get_manager() {
+                let server_capabilities = manager.get_all_server_capabilities().await;
+                
+                for (server_name, caps) in server_capabilities {
+                    let server_tools = manager.get_server_tools(&server_name).await.unwrap_or_default();
+                    
+                    servers.push(json!({
+                        "name": caps.server_name,
+                        "type": "external_mcp",
+                        "protocol_version": caps.protocol_version,
+                        "server_info": caps.server_info,
+                        "is_running": caps.is_running,
+                        "uptime_seconds": caps.uptime_seconds,
+                        "capabilities": {
+                            "sampling": caps.supports_sampling,
+                            "elicitation": caps.supports_elicitation,
+                            "tools": caps.supports_tools,
+                            "resources": caps.supports_resources,
+                            "prompts": caps.supports_prompts,
+                            "roots": caps.supports_roots
+                        },
+                        "tools_count": server_tools.len(),
+                        "tools": server_tools.iter().map(|tool| json!({
+                            "name": tool.name,
+                            "description": tool.description
+                        })).collect::<Vec<_>>()
+                    }));
+                }
+            }
+        }
+        
+        // Add internal MCP server info
+        let internal_tools = self.registry.get_all_tools();
+        servers.push(json!({
+            "name": "magictunnel-internal",
+            "type": "internal",
+            "protocol_version": "2025-06-18",
+            "server_info": Some(format!("MagicTunnel v{}", env!("CARGO_PKG_VERSION"))),
+            "is_running": true,
+            "uptime_seconds": self.start_time.elapsed().as_secs(),
+            "capabilities": {
+                "sampling": true,
+                "elicitation": true, 
+                "tools": true,
+                "resources": true,
+                "prompts": true,
+                "roots": true
+            },
+            "tools_count": internal_tools.len(),
+            "tools": internal_tools.iter().take(5).map(|(name, def)| json!({
+                "name": name,
+                "description": def.description
+            })).collect::<Vec<_>>()
+        }));
+        
+        // Count servers by type
+        let external_servers = servers.iter().filter(|s| s["type"] == "external_mcp").count();
+        let internal_servers = servers.len() - external_servers;
+        
+        Ok(HttpResponse::Ok().json(json!({
+            "servers": servers,
+            "total_servers": servers.len(),
+            "internal_servers": internal_servers,
+            "external_servers": external_servers
+        })))
+    }
+    
+    /// GET /dashboard/api/mcp-servers/{server_name} - Specific MCP Server details
+    pub async fn get_mcp_server_details(&self, path: web::Path<String>) -> Result<HttpResponse> {
+        let server_name = path.into_inner();
+        // Check external MCP servers first
+        if let Some(external_mcp) = &self.external_mcp {
+            let integration = external_mcp.read().await;
+            if let Some(manager) = integration.get_manager() {
+                if let Some(caps) = manager.get_server_capabilities(&server_name).await {
+                    let server_tools = manager.get_server_tools(&server_name).await.unwrap_or_default();
+                    
+                    return Ok(HttpResponse::Ok().json(json!({
+                        "name": caps.server_name,
+                        "type": "external_mcp",
+                        "protocol_version": caps.protocol_version,
+                        "server_info": caps.server_info,
+                        "is_running": caps.is_running,
+                        "uptime_seconds": caps.uptime_seconds,
+                        "capabilities": {
+                            "sampling": caps.supports_sampling,
+                            "elicitation": caps.supports_elicitation,
+                            "tools": caps.supports_tools,
+                            "resources": caps.supports_resources,
+                            "prompts": caps.supports_prompts,
+                            "roots": caps.supports_roots
+                        },
+                        "tools_count": server_tools.len(),
+                        "tools": server_tools.iter().map(|tool| json!({
+                            "name": tool.name,
+                            "description": tool.description,
+                            "input_schema": tool.input_schema
+                        })).collect::<Vec<_>>()
+                    })));
+                }
+            }
+        }
+        
+        // Check if it's the internal server
+        if server_name == "magictunnel-internal" {
+            let internal_tools = self.registry.get_all_tools();
+            
+            // Get notification capabilities from the MCP server
+            let notification_caps = self.mcp_server.notification_manager().capabilities();
+            
+            return Ok(HttpResponse::Ok().json(json!({
+                "name": "magictunnel-internal",
+                "type": "internal",
+                "protocol_version": "2025-06-18",
+                "server_info": Some(format!("MagicTunnel v{}", env!("CARGO_PKG_VERSION"))),
+                "is_running": true,
+                "uptime_seconds": self.start_time.elapsed().as_secs(),
+                "capabilities": {
+                    "sampling": true,
+                    "elicitation": true,
+                    "tools": true,
+                    "resources": true,
+                    "prompts": true,
+                    "roots": true
+                },
+                "notification_capabilities": {
+                    "tools_list_changed": notification_caps.tools_list_changed,
+                    "resources_list_changed": notification_caps.resources_list_changed,
+                    "prompts_list_changed": notification_caps.prompts_list_changed,
+                    "resource_subscriptions": notification_caps.resource_subscriptions
+                },
+                "tools_count": internal_tools.len(),
+                "tools": internal_tools.iter().map(|(name, def)| json!({
+                    "name": name,
+                    "description": def.description,
+                    "enabled": def.enabled,
+                    "hidden": def.hidden
+                })).collect::<Vec<_>>()
+            })));
+        }
+        
+        Ok(HttpResponse::NotFound().json(json!({
+            "error": "Server not found",
+            "server_name": server_name
+        })))
+    }
+
     /// GET /dashboard/api/capabilities - All capability tools including hidden/disabled
     pub async fn get_capabilities_catalog(&self) -> Result<HttpResponse> {
         // Get all tools including hidden ones to show the complete capability set
@@ -3427,6 +3581,15 @@ tools:
         Ok(HttpResponse::Ok().json(response))
     }
 
+    /// Get the tool enhancement model from configuration
+    fn get_tool_enhancement_model(&self) -> Option<String> {
+        Some(self.service_container.as_ref()?
+            .get_config()?
+            .tool_enhancement.as_ref()?
+            .llm_config.as_ref()?
+            .model.clone())
+    }
+
     /// Helper function to persist environment variables to file
     async fn persist_env_vars_to_file(&self, variables: &HashMap<String, String>, file_path: &str) -> Result<HashMap<String, serde_json::Value>, std::io::Error> {
         use tokio::fs::{OpenOptions, File};
@@ -4671,10 +4834,22 @@ tools:
         
         let sampling_available = self.mcp_server.has_sampling_service();
         let elicitation_available = self.mcp_server.has_elicitation_service();
-        let enhancement_available = self.mcp_server.enhancement_service().is_some();
+        let enhancement_available = self.mcp_server.has_tool_enhancement_service();
+        
+        // Debug logging
+        info!("🔧 [DEBUG] Service availability check:");
+        info!("🔧 [DEBUG] - Sampling service: {}", sampling_available);
+        info!("🔧 [DEBUG] - Elicitation service: {}", elicitation_available);
+        info!("🔧 [DEBUG] - Tool enhancement service: {}", enhancement_available);
+        info!("🔧 [DEBUG] - Tool enhancement service option: {:?}", self.mcp_server.tool_enhancement_service().is_some());
+        
+        // Determine overall status based on enhancement availability
+        let overall_status = if enhancement_available { "active" } else { "disabled" };
         
         let status = json!({
             "enabled": enhancement_available,
+            "service_type": "enhancement",
+            "status": overall_status,
             "pipeline_components": {
                 "sampling": {
                     "available": sampling_available,
@@ -4701,6 +4876,60 @@ tools:
         
         Ok(HttpResponse::Ok().json(status))
     }
+
+    /// GET /dashboard/api/sampling/status - Get sampling service status (for UI compatibility)
+    pub async fn get_sampling_status(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Getting sampling service status");
+        
+        let sampling_available = self.mcp_server.has_sampling_service();
+        
+        let status = json!({
+            "enabled": sampling_available,
+            "service_type": "sampling",
+            "status": if sampling_available { "active" } else { "disabled" },
+            "capabilities": if sampling_available { 
+                vec!["tool_description_enhancement", "llm_powered_analysis"] 
+            } else { 
+                vec![] 
+            },
+            "message": if sampling_available {
+                "Sampling service available as part of enhancement pipeline"
+            } else {
+                "Sampling service not configured"
+            },
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        });
+        
+        Ok(HttpResponse::Ok().json(status))
+    }
+
+
+    /// GET /dashboard/api/elicitation/status - Get elicitation service status (for UI compatibility)
+    pub async fn get_elicitation_status(&self) -> Result<HttpResponse> {
+        debug!("🔍 [DASHBOARD] Getting elicitation service status");
+        
+        let elicitation_available = self.mcp_server.has_elicitation_service();
+        
+        let status = json!({
+            "enabled": elicitation_available,
+            "service_type": "elicitation",
+            "status": if elicitation_available { "active" } else { "disabled" },
+            "capabilities": if elicitation_available { 
+                vec!["metadata_extraction", "keyword_generation", "tool_analysis"] 
+            } else { 
+                vec![] 
+            },
+            "message": if elicitation_available {
+                "Elicitation service available as part of enhancement pipeline"
+            } else {
+                "Elicitation service not configured"
+            },
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        });
+        
+        Ok(HttpResponse::Ok().json(status))
+    }
+
 
     /// POST /dashboard/api/enhancement/generate - Generate full enhancement pipeline for tool(s)
     pub async fn generate_enhancement_pipeline(&self, body: web::Json<EnhancementGenerateRequest>) -> Result<HttpResponse> {
@@ -4755,7 +4984,7 @@ tools:
                                 "success": true,
                                 "tool_name": tool_name,
                                 "enhancement_results": {
-                                    "sampling_enhanced": enhanced_tool.sampling_enhanced_description.is_some(),
+                                    "llm_enhanced": enhanced_tool.llm_enhanced_description.is_some(),
                                     "elicitation_enhanced": enhanced_tool.elicitation_metadata.is_some(),
                                     "enhanced_at": enhanced_tool.enhanced_at,
                                     "generation_metadata": enhanced_tool.enhancement_metadata
@@ -4813,6 +5042,43 @@ tools:
         };
 
         let all_tools = self.registry.get_enabled_tools();
+        
+        // Calculate accurate statistics for all enabled tools (not just filtered results)
+        let total_tools = all_tools.len();
+        
+        // Count only tools that actually have LLM enhancements (exclude external MCP tools marked as "enhanced")
+        let enhanced_count = enhanced_tools.iter()
+            .filter(|(_, enhanced_tool)| {
+                // Only count tools that actually have LLM enhancement or elicitation (not just external MCP tools)
+                enhanced_tool.llm_enhanced_description.is_some() || enhanced_tool.elicitation_metadata.is_some()
+            })
+            .count();
+        
+        // Count tools that should be enhanced but aren't yet (excluding external MCP and smart discovery)
+        let eligible_for_enhancement: Vec<_> = all_tools.iter()
+            .filter(|(name, tool)| {
+                // Exclude external MCP tools
+                if self.is_external_mcp_tool(tool) {
+                    return false;
+                }
+                // Exclude smart discovery tools (using routing type)
+                if tool.routing.r#type == "smart_discovery" {
+                    return false;
+                }
+                true
+            })
+            .collect();
+        
+        let eligible_count = eligible_for_enhancement.len();
+        let pending_count = eligible_for_enhancement.iter()
+            .filter(|(name, _)| !enhanced_tools.contains_key(name))
+            .count();
+        
+        // For now, we don't track failed enhancements separately, so this is 0
+        // In the future, this could track enhancement failures from storage
+        let failed_count = 0;
+        
+        // Apply filters for the tools list display
         let filtered_tools: Vec<_> = all_tools.iter()
             .filter(|(name, _)| {
                 if query.enhanced_only.unwrap_or(false) {
@@ -4838,7 +5104,7 @@ tools:
                     "is_external": self.is_external_mcp_tool(tool),
                     "enhancement_info": enhanced_tool.map(|et| json!({
                         "source": et.enhancement_source,
-                        "has_sampling": et.sampling_enhanced_description.is_some(),
+                        "has_llm_enhancement": et.llm_enhanced_description.is_some(),
                         "has_elicitation": et.elicitation_metadata.is_some(),
                         "enhanced_at": et.enhanced_at,
                         "last_generated_at": et.last_generated_at
@@ -4847,10 +5113,16 @@ tools:
             })
             .collect();
 
+        debug!("🔍 [DASHBOARD] Enhancement statistics: total={}, enhanced={}, eligible={}, pending={}, failed={}", 
+               total_tools, enhanced_count, eligible_count, pending_count, failed_count);
+
         Ok(HttpResponse::Ok().json(json!({
             "tools": filtered_tools,
-            "total": filtered_tools.len(),
-            "enhanced_count": enhanced_tools.len(),
+            "total": total_tools,
+            "enhanced_count": enhanced_count,
+            "pending_count": pending_count,
+            "failed_count": failed_count,
+            "eligible_count": eligible_count,
             "timestamp": chrono::Utc::now().to_rfc3339()
         })))
     }
@@ -6101,7 +6373,7 @@ tools:
                     "enhanced_description": "Advanced network connectivity testing tool with comprehensive latency analysis",
                     "quality_score": 0.85,
                     "enhancement_metadata": {
-                        "sampling_model": "claude-3-sonnet",
+                        "llm_model": self.get_tool_enhancement_model().unwrap_or("gpt-4o-mini".to_string()),
                         "elicitation_templates": ["network_tool_metadata"],
                         "cache_status": "stored"
                     }
@@ -6272,12 +6544,13 @@ tools:
     }
     
     /// GET /dashboard/api/mode - Get runtime mode information for frontend
+    /// Delegates to the proper ModeApiHandler for consistency
     pub async fn get_mode_info(&self) -> Result<HttpResponse> {
-        debug!("Fetching mode information for frontend");
+        debug!("🔄 [DASHBOARD] Delegating mode info request to ModeApiHandler for consistency");
         
-        // Get actual runtime mode from service container - this should always be available
-        let runtime_mode = match &self.service_container {
-            Some(container) => &container.runtime_mode,
+        // Get service container and config resolution 
+        let service_container = match &self.service_container {
+            Some(container) => container,
             None => {
                 error!("🚨 Service container not available - this indicates a critical configuration error");
                 return Ok(HttpResponse::InternalServerError().json(json!({
@@ -6287,61 +6560,46 @@ tools:
                 })));
             }
         };
+
+        // TODO: We need access to ConfigResolution to create ModeApiHandler properly
+        // For now, return a simplified response that delegates the navigation logic
+        // This is a temporary bridge until we can refactor to inject ModeApiHandler
         
+        warn!("🚧 [DASHBOARD] Using temporary mode info response - need to refactor to properly inject ModeApiHandler");
+        
+        let runtime_mode = &service_container.runtime_mode;
         info!("🎯 Runtime mode from service container: {:?}", runtime_mode);
         
-        let available_features = if matches!(runtime_mode, crate::config::RuntimeMode::Advanced) {
-            vec![
-                "tool_discovery".to_string(),
-                "external_mcp".to_string(),
-                "smart_discovery".to_string(),
-                "resource_management".to_string(),
-                "prompt_management".to_string(),
-                "analytics".to_string(),
-                "system_management".to_string(),
-            ]
-        } else {
-            vec![
-                "basic_tools".to_string(),
-                "system_status".to_string(),
-            ]
-        };
+        // Use the proper navigation creation from mode_api.rs logic
+        let navigation_sections = self.create_proper_navigation_sections(runtime_mode);
+        let status_indicators = crate::web::mode_api::ModeApiHandler::create_status_indicators(runtime_mode);
         
-        let hidden_features = if matches!(runtime_mode, crate::config::RuntimeMode::Advanced) {
-            vec![]
-        } else {
-            vec![
-                "external_mcp".to_string(),
-                "analytics".to_string(),
-                "resource_management".to_string(),
-                "prompt_management".to_string(),
-            ]
-        };
-        
-        // Create navigation sections based on runtime mode
-        let navigation_sections = Self::create_navigation_sections(runtime_mode);
-        let status_indicators = Self::create_status_indicators(runtime_mode);
+        // Use proper feature logic from mode_api.rs
+        let available_features = crate::web::mode_api::ModeApiHandler::get_available_features(runtime_mode);
+        let hidden_features = crate::web::mode_api::ModeApiHandler::get_hidden_features(runtime_mode);
+        let mode_description = crate::web::mode_api::ModeApiHandler::get_mode_description(runtime_mode);
         
         // Create UI configuration based on mode
         let is_advanced = matches!(runtime_mode, crate::config::RuntimeMode::Advanced);
         let ui_config = json!({
-            "show_security_ui": is_advanced,
-            "show_auth_settings": is_advanced, 
+            "show_security_ui": is_advanced && service_container.get_security_services().is_some(),
+            "show_auth_settings": is_advanced,
             "show_analytics": is_advanced,
             "show_audit_logs": is_advanced,
-            "show_external_mcp": self.external_mcp.is_some(),
+            "show_external_mcp": is_advanced,
             "show_rbac_management": is_advanced,
             "navigation_sections": navigation_sections,
-            "status_indicators": status_indicators
+            "status_indicators": status_indicators.into_iter().map(|indicator| json!({
+                "id": indicator.id,
+                "name": indicator.name,
+                "indicator_type": indicator.indicator_type,
+                "visible": indicator.visible
+            })).collect::<Vec<_>>()
         });
         
         let mode_info = json!({
             "runtime_mode": runtime_mode,
-            "mode_description": if is_advanced { 
-                "Advanced mode with full feature set" 
-            } else { 
-                "Proxy mode with basic functionality" 
-            },
+            "mode_description": mode_description,
             "available_features": available_features,
             "hidden_features": hidden_features,
             "ui_config": ui_config
@@ -6351,6 +6609,49 @@ tools:
               runtime_mode, available_features.len());
         
         Ok(HttpResponse::Ok().json(mode_info))
+    }
+    
+    /// Create proper navigation sections using the same logic as mode_api.rs
+    /// This ensures consistency between /api/mode and /dashboard/api/mode endpoints
+    fn create_proper_navigation_sections(&self, mode: &crate::config::RuntimeMode) -> Vec<serde_json::Value> {
+        debug!("🔄 [DASHBOARD] Using mode_api.rs navigation logic for consistency");
+        
+        // Use the navigation creation logic from mode_api.rs
+        let navigation_sections = crate::web::mode_api::ModeApiHandler::create_navigation_sections(mode);
+        
+        // Convert NavigationSection structs to JSON values for response
+        navigation_sections.into_iter().map(|section| {
+            json!({
+                "id": section.id,
+                "name": section.name,
+                "icon": section.icon,
+                "visible": section.visible,
+                "items": section.items.into_iter().map(|item| {
+                    let mut json_item = json!({
+                        "id": item.id,
+                        "name": item.name,
+                        "path": item.path,
+                        "icon": item.icon,
+                        "visible": item.visible,
+                        "requires_advanced": item.requires_advanced
+                    });
+                    
+                    // Add children if they exist
+                    if let Some(children) = item.children {
+                        json_item["children"] = json!(children.into_iter().map(|child| json!({
+                            "id": child.id,
+                            "name": child.name,
+                            "path": child.path,
+                            "icon": child.icon,
+                            "visible": child.visible,
+                            "requires_advanced": child.requires_advanced
+                        })).collect::<Vec<_>>());
+                    }
+                    
+                    json_item
+                }).collect::<Vec<_>>()
+            })
+        }).collect()
     }
 
 
@@ -6473,6 +6774,22 @@ tools:
                         ]
                     },
                     {
+                        "id": "resources",
+                        "name": "Resources",
+                        "path": "/resources",
+                        "icon": "folder",
+                        "visible": true,
+                        "requires_advanced": false
+                    },
+                    {
+                        "id": "prompts",
+                        "name": "Prompts",
+                        "path": "/prompts",
+                        "icon": "chat",
+                        "visible": true,
+                        "requires_advanced": false
+                    },
+                    {
                         "id": "mcp-commands",
                         "name": "MCP Commands",
                         "path": "/mcp-commands",
@@ -6494,25 +6811,7 @@ tools:
                         "path": "/llm-services",
                         "icon": "chat",
                         "visible": true,
-                        "requires_advanced": false,
-                        "children": [
-                            {
-                                "id": "resources",
-                                "name": "Resources",
-                                "path": "/resources",
-                                "icon": "folder",
-                                "visible": true,
-                                "requires_advanced": false
-                            },
-                            {
-                                "id": "prompts",
-                                "name": "Prompts",
-                                "path": "/prompts",
-                                "icon": "chat",
-                                "visible": true,
-                                "requires_advanced": false
-                            }
-                        ]
+                        "requires_advanced": false
                     }
                 ]
             })
@@ -6788,6 +7087,220 @@ pub struct LogEntry {
     pub fields: Option<serde_json::Value>,
 }
 
+impl DashboardApi {
+    /// Get all tool states for tool management
+    pub async fn get_tool_management_list(&self) -> Result<HttpResponse> {
+        if let Some(service_container) = &self.service_container {
+            if let Some(proxy_services) = &service_container.proxy_services {
+                let tool_management = proxy_services.get_tool_management();
+                match tool_management.get_all_tool_states().await {
+                    Ok(tools) => Ok(HttpResponse::Ok().json(serde_json::json!({
+                        "tools": tools,
+                        "total_count": tools.len(),
+                        "last_updated": chrono::Utc::now().to_rfc3339()
+                    }))),
+                    Err(e) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": "Failed to retrieve tool states",
+                        "details": e.to_string()
+                    })))
+                }
+            } else {
+                Ok(HttpResponse::ServiceUnavailable().json(serde_json::json!({
+                    "error": "Tool management service not available"
+                })))
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(serde_json::json!({
+                "error": "Service container not available"
+            })))
+        }
+    }
+
+    /// Get specific tool state
+    pub async fn get_tool_management_state(&self, path: web::Path<String>) -> Result<HttpResponse> {
+        let tool_name = path.into_inner();
+        
+        if let Some(service_container) = &self.service_container {
+            if let Some(proxy_services) = &service_container.proxy_services {
+                let tool_management = proxy_services.get_tool_management();
+                match tool_management.get_tool_state(&tool_name).await {
+                    Ok(tool_state) => Ok(HttpResponse::Ok().json(tool_state)),
+                    Err(e) => Ok(HttpResponse::NotFound().json(serde_json::json!({
+                        "error": "Tool not found",
+                        "tool_name": tool_name,
+                        "details": e.to_string()
+                    })))
+                }
+            } else {
+                Ok(HttpResponse::ServiceUnavailable().json(serde_json::json!({
+                    "error": "Tool management service not available"
+                })))
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(serde_json::json!({
+                "error": "Service container not available"
+            })))
+        }
+    }
+
+    /// Update specific tool state
+    pub async fn update_tool_management_state(
+        &self, 
+        path: web::Path<String>, 
+        request: web::Json<crate::services::tool_management::UpdateToolStateRequest>
+    ) -> Result<HttpResponse> {
+        let tool_name = path.into_inner();
+        
+        if let Some(service_container) = &self.service_container {
+            if let Some(proxy_services) = &service_container.proxy_services {
+                let tool_management = proxy_services.get_tool_management();
+                match tool_management.update_tool_state(&tool_name, request.into_inner()).await {
+                    Ok(result) => Ok(HttpResponse::Ok().json(result)),
+                    Err(e) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": "Failed to update tool",
+                        "tool_name": tool_name,
+                        "details": e.to_string()
+                    })))
+                }
+            } else {
+                Ok(HttpResponse::ServiceUnavailable().json(serde_json::json!({
+                    "error": "Tool management service not available"
+                })))
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(serde_json::json!({
+                "error": "Service container not available"
+            })))
+        }
+    }
+
+    /// Bulk update tool states
+    pub async fn bulk_update_tool_management(
+        &self, 
+        request: web::Json<crate::services::tool_management::BulkUpdateRequest>
+    ) -> Result<HttpResponse> {
+        if let Some(service_container) = &self.service_container {
+            if let Some(proxy_services) = &service_container.proxy_services {
+                let tool_management = proxy_services.get_tool_management();
+                match tool_management.bulk_update_tools(request.into_inner()).await {
+                    Ok(result) => Ok(HttpResponse::Ok().json(result)),
+                    Err(e) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": "Failed to bulk update tools",
+                        "details": e.to_string()
+                    })))
+                }
+            } else {
+                Ok(HttpResponse::ServiceUnavailable().json(serde_json::json!({
+                    "error": "Tool management service not available"
+                })))
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(serde_json::json!({
+                "error": "Service container not available"
+            })))
+        }
+    }
+    
+    /// Get tool management statistics
+    pub async fn get_tool_management_statistics(&self) -> Result<HttpResponse> {
+        if let Some(service_container) = &self.service_container {
+            if let Some(proxy_services) = &service_container.proxy_services {
+                let tool_management = proxy_services.get_tool_management();
+                match tool_management.get_tool_statistics().await {
+                    Ok(stats) => Ok(HttpResponse::Ok().json(stats)),
+                    Err(e) => {
+                        error!("Tool management statistics retrieval failed: {}", e);
+                        Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                            "error": "Failed to get tool management statistics",
+                            "details": e.to_string()
+                        })))
+                    }
+                }
+            } else {
+                Ok(HttpResponse::ServiceUnavailable().json(serde_json::json!({
+                    "error": "Proxy services not available"
+                })))
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(serde_json::json!({
+                "error": "Service container not available"
+            })))
+        }
+    }
+    
+    /// Refresh tool management cache
+    pub async fn refresh_tool_management_cache(&self) -> Result<HttpResponse> {
+        if let Some(service_container) = &self.service_container {
+            if let Some(proxy_services) = &service_container.proxy_services {
+                let tool_management = proxy_services.get_tool_management();
+                match tool_management.initialize().await {
+                    Ok(_) => Ok(HttpResponse::Ok().json(serde_json::json!({
+                        "success": true,
+                        "message": "Cache refreshed successfully"
+                    }))),
+                    Err(e) => {
+                        error!("Tool management cache refresh failed: {}", e);
+                        Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                            "error": "Failed to refresh cache",
+                            "details": e.to_string()
+                        })))
+                    }
+                }
+            } else {
+                Ok(HttpResponse::ServiceUnavailable().json(serde_json::json!({
+                    "error": "Proxy services not available"
+                })))
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(serde_json::json!({
+                "error": "Service container not available"
+            })))
+        }
+    }
+    
+    /// Handle tool management quick actions
+    pub async fn tool_management_quick_action(&self, body: web::Json<serde_json::Value>) -> Result<HttpResponse> {
+        if let Some(service_container) = &self.service_container {
+            if let Some(proxy_services) = &service_container.proxy_services {
+                let tool_management = proxy_services.get_tool_management();
+                
+                let action = body.get("action").and_then(|v| v.as_str()).unwrap_or("");
+                let target = body.get("target").and_then(|v| v.as_str()).unwrap_or("");
+                
+                // Handle quick actions (bulk operations)
+                let result = match action {
+                    "hide_all" => tool_management.hide_all_tools().await,
+                    "show_all" => tool_management.show_all_tools().await,
+                    "enable_all" => tool_management.enable_all_tools().await,
+                    "disable_all" => tool_management.disable_all_tools().await,
+                    _ => return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                        "error": "Unknown action",
+                        "details": format!("Action '{}' not supported", action)
+                    })))
+                };
+                match result {
+                    Ok(result) => Ok(HttpResponse::Ok().json(result)),
+                    Err(e) => {
+                        error!("Tool management quick action failed: {}", e);
+                        Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                            "error": "Quick action failed",
+                            "details": e.to_string()
+                        })))
+                    }
+                }
+            } else {
+                Ok(HttpResponse::ServiceUnavailable().json(serde_json::json!({
+                    "error": "Proxy services not available"
+                })))
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(serde_json::json!({
+                "error": "Service container not available"
+            })))
+        }
+    }
+}
+
 /// Configure dashboard API routes
 pub fn configure_dashboard_api(
     cfg: &mut web::ServiceConfig, 
@@ -6799,7 +7312,10 @@ pub fn configure_dashboard_api(
     discovery: Option<Arc<crate::discovery::service::SmartDiscoveryService>>,
     service_container: Option<Arc<crate::services::ServiceContainer>>,
 ) {
-    let dashboard_api = web::Data::new(DashboardApi::new(registry, mcp_server, external_mcp, resource_manager, prompt_manager, discovery, service_container));
+    // Debug log service container availability
+    info!("🔧 Dashboard API configuration starting - service_container present: {}", service_container.is_some());
+    
+    let dashboard_api = web::Data::new(DashboardApi::new(registry, mcp_server, external_mcp, resource_manager, prompt_manager, discovery, service_container.clone()));
     
     cfg.app_data(dashboard_api.clone())
         .service(
@@ -6815,6 +7331,28 @@ pub fn configure_dashboard_api(
                 }))
                 .route("/tools/{name}/execute", web::post().to(|api: web::Data<DashboardApi>, path: web::Path<String>, body: web::Json<serde_json::Value>| async move {
                     api.execute_tool(path, body).await
+                }))
+                // Tool Management API endpoints
+                .route("/tools/management/list", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_tool_management_list().await
+                }))
+                .route("/tools/management/statistics", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_tool_management_statistics().await
+                }))
+                .route("/tools/management/refresh", web::post().to(|api: web::Data<DashboardApi>| async move {
+                    api.refresh_tool_management_cache().await
+                }))
+                .route("/tools/management/quick-action", web::post().to(|api: web::Data<DashboardApi>, body: web::Json<serde_json::Value>| async move {
+                    api.tool_management_quick_action(body).await
+                }))
+                .route("/tools/management/bulk", web::put().to(|api: web::Data<DashboardApi>, body: web::Json<crate::services::tool_management::BulkUpdateRequest>| async move {
+                    api.bulk_update_tool_management(body).await
+                }))
+                .route("/tools/management/{name}", web::get().to(|api: web::Data<DashboardApi>, path: web::Path<String>| async move {
+                    api.get_tool_management_state(path).await
+                }))
+                .route("/tools/management/{name}", web::put().to(|api: web::Data<DashboardApi>, path: web::Path<String>, body: web::Json<crate::services::tool_management::UpdateToolStateRequest>| async move {
+                    api.update_tool_management_state(path, body).await
                 }))
                 .route("/mode", web::get().to(|api: web::Data<DashboardApi>| async move {
                     api.get_mode_info().await
@@ -6869,6 +7407,13 @@ pub fn configure_dashboard_api(
                 }))
                 .route("/mcp/execute/stdio", web::post().to(|api: web::Data<DashboardApi>, body: web::Json<McpExecuteRequest>| async move {
                     api.execute_mcp_stdio_command_endpoint(body).await
+                }))
+                // MCP Server Capabilities endpoints
+                .route("/mcp-servers", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_mcp_servers().await
+                }))
+                .route("/mcp-servers/{server_name}", web::get().to(|api: web::Data<DashboardApi>, path: web::Path<String>| async move {
+                    api.get_mcp_server_details(path).await
                 }))
                 .route("/system/restart", web::post().to(|api: web::Data<DashboardApi>| async move {
                     api.restart_magictunnel().await
@@ -6984,9 +7529,14 @@ pub fn configure_dashboard_api(
                 .route("/llm/providers/{provider_name}/status", web::get().to(|api: web::Data<DashboardApi>, path: web::Path<String>| async move {
                     api.get_llm_provider_status(path).await
                 }))
-                // REMOVED: All sampling dashboard APIs - Not required for MCP protocol
-                // Use proper LLM provider management at /llm/providers/* and tool enhancement at /enhancement*
-                // LLM Services - Elicitation endpoints
+                // LLM Services - Sampling Service endpoints (basic status for UI compatibility)
+                .route("/sampling/status", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_sampling_status().await
+                }))
+                // LLM Services - Elicitation Service endpoints (basic status for UI compatibility)
+                .route("/elicitation/status", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_elicitation_status().await
+                }))
                 // LLM Services - Enhancement Pipeline endpoints
                 .route("/enhancement/status", web::get().to(|api: web::Data<DashboardApi>| async move {
                     api.get_enhancement_status().await
@@ -7065,6 +7615,33 @@ pub fn configure_dashboard_api(
                     api.get_enhancement_statistics().await
                 }))
         );
+
+    // Add tool management app data and create separate service
+    if let Some(service_container) = &service_container {
+        info!("🔧 Service container found, proxy_services present: {}", service_container.proxy_services.is_some());
+        let tool_management_result = service_container.get_tool_management();
+        info!("🔧 get_tool_management() returned: {}", tool_management_result.is_some());
+        if let Some(tool_management) = tool_management_result {
+            info!("🔧 Tool management service found, configuring routes");
+            let handler = crate::web::tool_management_api::ToolManagementApiHandler::new(Arc::clone(tool_management));
+            cfg.app_data(web::Data::new(handler))
+               .service(
+                   web::scope("/dashboard/api/tools/management")
+                       .route("/list", web::get().to(crate::web::tool_management_api::list_tools_handler))
+                       .route("/statistics", web::get().to(crate::web::tool_management_api::get_statistics_handler))  
+                       .route("/refresh", web::post().to(crate::web::tool_management_api::refresh_cache_handler))
+                       .route("/quick-action", web::post().to(crate::web::tool_management_api::quick_action_handler))
+                       .route("/bulk", web::put().to(crate::web::tool_management_api::bulk_update_handler))
+                       .route("/{name}", web::get().to(crate::web::tool_management_api::get_tool_handler))
+                       .route("/{name}", web::put().to(crate::web::tool_management_api::update_tool_handler))
+               );
+            debug!("✅ Tool management routes configured at /dashboard/api/tools/management");
+        } else {
+            warn!("⚠️ Tool management service not available from service container - routes not configured");
+        }
+    } else {
+        warn!("⚠️ Service container not available - tool management routes not configured");
+    }
 }
 
 // ============================================================================
@@ -7500,10 +8077,8 @@ pub struct SetEnvVarsRequest {
     pub struct EnhancementGenerateRequest {
         /// Tool name to enhance (runs full pipeline: sampling + elicitation)
         pub tool_name: String,
-        /// Enable sampling enhancement
-        pub enable_sampling: Option<bool>,
-        /// Enable elicitation enhancement  
-        pub enable_elicitation: Option<bool>,
+        // Note: enable_sampling and enable_elicitation are deprecated
+        // Use default_sampling_strategy and default_elicitation_strategy in smart_discovery config instead
         /// Force generation even if external MCP tool
         pub force: Option<bool>,
         /// Batch size for multiple tools

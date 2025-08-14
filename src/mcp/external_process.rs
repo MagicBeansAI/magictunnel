@@ -267,7 +267,7 @@ impl ExternalMcpProcess {
         let request_json = serde_json::to_string(&request)
             .map_err(|e| ProxyError::mcp(format!("Failed to serialize request: {}", e)))?;
 
-        info!("Sending MCP request to '{}': {}", self.name, request_json);
+        debug!("Sending MCP request to '{}': {}", self.name, request_json);
 
         // Create response channel
         let (response_tx, response_rx) = tokio::sync::oneshot::channel();
@@ -289,7 +289,7 @@ impl ExternalMcpProcess {
         // Wait for response with timeout
         match timeout(Duration::from_secs(self.client_config.request_timeout_secs), response_rx).await {
             Ok(Ok(response)) => {
-                info!("Received MCP response from '{}': {:?}", self.name, response);
+                debug!("Received MCP response from '{}': {:?}", self.name, response);
                 Ok(response)
             },
             Ok(Err(_)) => Err(ProxyError::connection(format!("Response channel closed for MCP server '{}'", self.name))),

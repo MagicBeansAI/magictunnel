@@ -17,7 +17,7 @@ MagicTunnel now supports **both** transport protocols simultaneously:
 - **Content-Type**: `application/x-ndjson` or `application/json`
 
 ### **HTTP+SSE Transport** (Deprecated but Functional)
-- **Endpoint**: `GET /mcp/stream`
+- **Endpoint**: `GET /mcp/sse`
 - **Features**: Server-Sent Events streaming with deprecation guidance
 - **Headers**: `X-MCP-Transport: sse`, `X-MCP-Version: 2024-11-05`, `X-MCP-Deprecated: true`
 - **Migration**: Automatic upgrade recommendations via response headers

@@ -41,24 +41,31 @@ impl ServiceContainer {
         self.proxy_services.as_ref()?.get_registry()
     }
 
+    /// Get the tool management service from proxy services
+    pub fn get_tool_management(&self) -> Option<&Arc<crate::services::tool_management::ToolManagementService>> {
+        Some(self.proxy_services.as_ref()?.get_tool_management())
+    }
+
+    /// Get the configuration from proxy services
+    pub fn get_config(&self) -> Option<&crate::config::Config> {
+        self.proxy_services.as_ref().map(|ps| ps.get_config())
+    }
+
     /// Create a new MCP server instance for main.rs to own and start
     /// This avoids the Arc ownership issue by creating a fresh server
-    pub fn create_mcp_server_for_main(&self) -> Result<crate::mcp::McpServer> {
-        let registry = self.get_registry()
-            .ok_or_else(|| anyhow::anyhow!("Registry not available"))?;
+    pub async fn create_mcp_server_for_main(&self) -> Result<crate::mcp::McpServer> {
+        let config = self.get_config()
+            .ok_or_else(|| anyhow::anyhow!("Config not available"))?;
         
-        // Get smart discovery service from proxy services if available
-        let smart_discovery = self.proxy_services.as_ref()
-            .and_then(|ps| ps.get_smart_discovery())
-            .map(|sd| Arc::clone(sd));
+        // Get enhancement storage from proxy services if available
+        let enhancement_storage = self.proxy_services
+            .as_ref()
+            .and_then(|ps| ps.get_enhancement_storage())
+            .cloned();
         
-        // Create fresh server instance that main.rs will own
-        let mut server = crate::mcp::McpServer::with_registry(Arc::clone(registry));
-        
-        // Inject smart discovery service if available
-        if let Some(discovery_service) = smart_discovery {
-            server = server.with_smart_discovery_service(discovery_service);
-        }
+        // Create MCP server with full configuration (including enhancement services)
+        // This ensures the dashboard has access to all configured services
+        let server = crate::mcp::McpServer::with_config_and_storage(config, enhancement_storage).await?;
         
         Ok(server)
     }

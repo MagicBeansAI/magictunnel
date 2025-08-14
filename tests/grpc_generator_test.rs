@@ -19,19 +19,20 @@ fn test_grpc_generator_cli() {
     
     // Build the project to ensure the binary is available
     let build_status = Command::new("cargo")
-        .args(["build", "--bin", "grpc-generator"])
+        .args(["build", "--bin", "magictunnel-cli"])
         .status()
-        .expect("Failed to build grpc-generator");
+        .expect("Failed to build magictunnel-cli");
     
-    assert!(build_status.success(), "Failed to build grpc-generator");
+    assert!(build_status.success(), "Failed to build magictunnel-cli");
     
-    // Run the gRPC generator CLI
+    // Run the unified CLI gRPC generator
     let status = Command::new("cargo")
         .args([
             "run",
             "--bin",
-            "grpc-generator",
+            "magictunnel-cli",
             "--",
+            "grpc",
             "--proto",
             proto_path.to_str().unwrap(),
             "--output",
@@ -46,10 +47,10 @@ fn test_grpc_generator_cli() {
             "polling",
         ])
         .status()
-        .expect("Failed to run grpc-generator");
+        .expect("Failed to run magictunnel-cli grpc");
     
     // Check if the command executed successfully
-    assert!(status.success(), "grpc-generator command failed");
+    assert!(status.success(), "magictunnel-cli grpc command failed");
     
     // Check if the output file was created
     assert!(output_path.exists(), "Output file was not created");
@@ -73,20 +74,21 @@ fn test_grpc_generator_cli() {
 
 #[test]
 fn test_grpc_generator_cli_help() {
-    // Run the gRPC generator CLI with --help flag
+    // Run the unified CLI gRPC generator with --help flag
     let output = Command::new("cargo")
         .args([
             "run",
             "--bin",
-            "grpc-generator",
+            "magictunnel-cli",
             "--",
+            "grpc",
             "--help",
         ])
         .output()
-        .expect("Failed to run grpc-generator with --help");
+        .expect("Failed to run magictunnel-cli grpc with --help");
     
     // Check if the command executed successfully
-    assert!(output.status.success(), "grpc-generator --help command failed");
+    assert!(output.status.success(), "magictunnel-cli grpc --help command failed");
     
     // Convert output to string
     let help_text = String::from_utf8_lossy(&output.stdout);

@@ -44,37 +44,178 @@
     mcpResult = null;
   }
 
-  // Common MCP method templates
+  // Comprehensive MCP 2025-06-18 method templates
   const methodTemplates = [
+    // === CORE PROTOCOL ===
     {
-      name: 'List Tools',
-      method: 'tools/list',
-      params: '',
-      description: 'Get all available tools'
-    },
-    {
-      name: 'Call Tool',
-      method: 'tools/call',
-      params: '{\n  "name": "example_tool",\n  "arguments": {\n    "param": "value"\n  }\n}',
-      description: 'Execute a specific tool'
+      name: 'Initialize',
+      method: 'initialize',
+      params: '{\n  "protocolVersion": "2025-06-18",\n  "capabilities": {\n    "tools": {},\n    "resources": {},\n    "prompts": {},\n    "sampling": {},\n    "elicitation": {}\n  },\n  "clientInfo": {\n    "name": "MagicTunnel Dashboard",\n    "version": "0.3.14"\n  }\n}',
+      description: 'Initialize MCP connection with latest protocol',
+      category: 'Core'
     },
     {
       name: 'Get Capabilities',
       method: 'capabilities',
       params: '',
-      description: 'Get server capabilities'
+      description: 'Get server capabilities and protocol version',
+      category: 'Core'
     },
+    {
+      name: 'Ping',
+      method: 'ping',
+      params: '',
+      description: 'Test server connectivity and response time',
+      category: 'Core'
+    },
+
+    // === TOOLS ===
+    {
+      name: 'List Tools',
+      method: 'tools/list',
+      params: '',
+      description: 'Get all available tools',
+      category: 'Tools'
+    },
+    {
+      name: 'Call Tool',
+      method: 'tools/call',
+      params: '{\n  "name": "example_tool",\n  "arguments": {\n    "param": "value"\n  }\n}',
+      description: 'Execute a specific tool',
+      category: 'Tools'
+    },
+    {
+      name: 'Smart Tool Discovery',
+      method: 'smart_tool_discovery',
+      params: '{\n  "request": "ping google.com",\n  "max_tools": 3,\n  "confidence_threshold": 0.7\n}',
+      description: 'Find tools using natural language (MagicTunnel specific)',
+      category: 'Tools'
+    },
+
+    // === RESOURCES ===
     {
       name: 'List Resources',
       method: 'resources/list',
       params: '',
-      description: 'Get all available resources'
+      description: 'Get all available resources',
+      category: 'Resources'
     },
     {
-      name: 'Initialize',
-      method: 'initialize',
-      params: '{\n  "protocolVersion": "2024-11-05",\n  "capabilities": {}\n}',
-      description: 'Initialize MCP connection'
+      name: 'Read Resource',
+      method: 'resources/read',
+      params: '{\n  "uri": "file:///path/to/resource"\n}',
+      description: 'Read content from a specific resource',
+      category: 'Resources'
+    },
+    {
+      name: 'Subscribe to Resource',
+      method: 'resources/subscribe',
+      params: '{\n  "uri": "file:///path/to/resource"\n}',
+      description: 'Subscribe to resource change notifications',
+      category: 'Resources'
+    },
+    {
+      name: 'Unsubscribe from Resource',
+      method: 'resources/unsubscribe',
+      params: '{\n  "uri": "file:///path/to/resource"\n}',
+      description: 'Unsubscribe from resource notifications',
+      category: 'Resources'
+    },
+
+    // === PROMPTS ===
+    {
+      name: 'List Prompts',
+      method: 'prompts/list',
+      params: '',
+      description: 'Get all available prompt templates',
+      category: 'Prompts'
+    },
+    {
+      name: 'Get Prompt',
+      method: 'prompts/get',
+      params: '{\n  "name": "example_prompt",\n  "arguments": {\n    "variable": "value"\n  }\n}',
+      description: 'Get a specific prompt template with variables',
+      category: 'Prompts'
+    },
+
+    // === SAMPLING (MCP 2025-06-18) ===
+    {
+      name: 'Create Sample Message',
+      method: 'sampling/createMessage',
+      params: '{\n  "messages": [\n    {\n      "role": "user",\n      "content": {\n        "type": "text",\n        "text": "Help me analyze this data"\n      }\n    }\n  ],\n  "systemPrompt": "You are a helpful data analyst",\n  "maxTokens": 1000,\n  "temperature": 0.7\n}',
+      description: 'Request LLM message generation',
+      category: 'Sampling'
+    },
+
+    // === ELICITATION (MCP 2025-06-18) ===
+    {
+      name: 'Request User Input',
+      method: 'elicitation/request',
+      params: '{\n  "message": "What file would you like to analyze?",\n  "requestedSchema": {\n    "type": "object",\n    "properties": {\n      "filename": {\n        "type": "string",\n        "description": "Path to the file to analyze"\n      }\n    },\n    "required": ["filename"]\n  }\n}',
+      description: 'Request structured user input',
+      category: 'Elicitation'
+    },
+
+    // === ROOTS (MCP 2025-06-18) ===
+    {
+      name: 'List Roots',
+      method: 'roots/list',
+      params: '',
+      description: 'Get filesystem and URI access boundaries',
+      category: 'Roots'
+    },
+
+    // === NOTIFICATIONS ===
+    {
+      name: 'Progress Notification',
+      method: 'notifications/progress',
+      params: '{\n  "progressToken": "task-123",\n  "progress": 50,\n  "total": 100\n}',
+      description: 'Send progress update notification',
+      category: 'Notifications'
+    },
+    {
+      name: 'Resource Updated',
+      method: 'notifications/resources/updated',
+      params: '{\n  "uri": "file:///path/to/resource"\n}',
+      description: 'Notify about resource changes',
+      category: 'Notifications'
+    },
+    {
+      name: 'Tool List Changed',
+      method: 'notifications/tools/list_changed',
+      params: '',
+      description: 'Notify about tool list changes',
+      category: 'Notifications'
+    },
+
+    // === MAGICTUNNEL SPECIFIC ===
+    {
+      name: 'System Health',
+      method: 'system/health',
+      params: '',
+      description: 'Get system health and metrics',
+      category: 'System'
+    },
+    {
+      name: 'List External Servers',
+      method: 'external_mcp/list',
+      params: '',
+      description: 'List connected external MCP servers',
+      category: 'System'
+    },
+    {
+      name: 'Registry Status',
+      method: 'registry/status',
+      params: '',
+      description: 'Get registry service status',
+      category: 'System'
+    },
+    {
+      name: 'Enhancement Status',
+      method: 'enhancement/status',
+      params: '',
+      description: 'Get tool enhancement service status',
+      category: 'System'
     }
   ];
 
@@ -83,6 +224,28 @@
     mcpParams = template.params;
     mcpResult = null;
   }
+
+  // Group templates by category
+  $: groupedTemplates = methodTemplates.reduce((groups, template) => {
+    const category = template.category || 'Other';
+    if (!groups[category]) {
+      groups[category] = [];
+    }
+    groups[category].push(template);
+    return groups;
+  }, {} as Record<string, typeof methodTemplates>);
+
+  // Category display order and icons
+  const categoryInfo = {
+    'Core': { icon: '⚙️', description: 'Essential protocol operations' },
+    'Tools': { icon: '🔧', description: 'Tool discovery and execution' },
+    'Resources': { icon: '📁', description: 'Resource access and management' },
+    'Prompts': { icon: '💬', description: 'Prompt templates and variables' },
+    'Sampling': { icon: '🧠', description: 'LLM message generation (MCP 2025)' },
+    'Elicitation': { icon: '❓', description: 'Structured user input requests (MCP 2025)' },
+    'Notifications': { icon: '🔔', description: 'Event notifications and progress' },
+    'System': { icon: '📊', description: 'MagicTunnel system commands' }
+  };
 </script>
 
 <svelte:head>
@@ -102,20 +265,41 @@
 
     <!-- Quick Templates -->
     <div class="card mb-8">
-      <h3 class="text-xl font-semibold text-gray-700 mb-4">🚀 Quick Templates</h3>
-      <p class="text-gray-600 mb-4">Use these common MCP command templates to get started quickly.</p>
+      <h3 class="text-xl font-semibold text-gray-700 mb-4">🚀 MCP Command Templates</h3>
+      <p class="text-gray-600 mb-6">Complete MCP 2025-06-18 protocol command templates organized by category. Click any template to load it.</p>
       
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {#each methodTemplates as template}
-          <button
-            class="text-left p-4 bg-white border border-gray-200 hover:border-blue-300 hover:shadow-md rounded-lg transition-all duration-200"
-            on:click={() => useTemplate(template)}
-            disabled={executingMcpCommand}
-          >
-            <div class="font-medium text-gray-800 mb-1">{template.name}</div>
-            <div class="text-sm font-mono text-blue-600 mb-2">{template.method}</div>
-            <div class="text-xs text-gray-500">{template.description}</div>
-          </button>
+      <div class="space-y-8">
+        {#each Object.keys(categoryInfo) as category}
+          {#if groupedTemplates[category]}
+            <div class="space-y-4">
+              <!-- Category Header -->
+              <div class="flex items-center gap-3 border-b border-gray-200 pb-2">
+                <span class="text-2xl">{categoryInfo[category].icon}</span>
+                <div>
+                  <h4 class="text-lg font-semibold text-gray-800">{category}</h4>
+                  <p class="text-sm text-gray-600">{categoryInfo[category].description}</p>
+                </div>
+                <div class="ml-auto text-sm text-gray-500">
+                  {groupedTemplates[category].length} command{groupedTemplates[category].length !== 1 ? 's' : ''}
+                </div>
+              </div>
+              
+              <!-- Category Templates -->
+              <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {#each groupedTemplates[category] as template}
+                  <button
+                    class="text-left p-4 bg-white border border-gray-200 hover:border-blue-300 hover:shadow-md rounded-lg transition-all duration-200 group"
+                    on:click={() => useTemplate(template)}
+                    disabled={executingMcpCommand}
+                  >
+                    <div class="font-medium text-gray-800 mb-1 group-hover:text-blue-700">{template.name}</div>
+                    <div class="text-sm font-mono text-blue-600 mb-2 bg-blue-50 px-2 py-1 rounded">{template.method}</div>
+                    <div class="text-xs text-gray-500 line-clamp-2">{template.description}</div>
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
         {/each}
       </div>
     </div>
@@ -244,27 +428,27 @@
 
     <!-- Help & Documentation -->
     <div class="card">
-      <h3 class="text-xl font-semibold text-gray-700 mb-4">📚 MCP Protocol Reference</h3>
-      <div class="space-y-4">
+      <h3 class="text-xl font-semibold text-gray-700 mb-4">📚 MCP 2025-06-18 Protocol Reference</h3>
+      <div class="space-y-6">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h4 class="text-lg font-medium text-gray-700 mb-3">Common Methods</h4>
+            <h4 class="text-lg font-medium text-gray-700 mb-3">Protocol Highlights</h4>
             <div class="space-y-2">
               <div class="text-sm">
-                <code class="bg-blue-100 text-blue-800 px-2 py-1 rounded">tools/list</code>
-                <span class="ml-2 text-gray-600">List all available tools</span>
+                <code class="bg-purple-100 text-purple-800 px-2 py-1 rounded">sampling/createMessage</code>
+                <span class="ml-2 text-gray-600">New LLM message generation</span>
               </div>
               <div class="text-sm">
-                <code class="bg-blue-100 text-blue-800 px-2 py-1 rounded">tools/call</code>
-                <span class="ml-2 text-gray-600">Execute a specific tool</span>
+                <code class="bg-purple-100 text-purple-800 px-2 py-1 rounded">elicitation/request</code>
+                <span class="ml-2 text-gray-600">New structured user input</span>
               </div>
               <div class="text-sm">
-                <code class="bg-blue-100 text-blue-800 px-2 py-1 rounded">capabilities</code>
-                <span class="ml-2 text-gray-600">Get server capabilities</span>
+                <code class="bg-purple-100 text-purple-800 px-2 py-1 rounded">roots/list</code>
+                <span class="ml-2 text-gray-600">New filesystem boundaries</span>
               </div>
               <div class="text-sm">
-                <code class="bg-blue-100 text-blue-800 px-2 py-1 rounded">resources/list</code>
-                <span class="ml-2 text-gray-600">List available resources</span>
+                <code class="bg-green-100 text-green-800 px-2 py-1 rounded">smart_tool_discovery</code>
+                <span class="ml-2 text-gray-600">MagicTunnel AI discovery</span>
               </div>
             </div>
           </div>
@@ -280,18 +464,50 @@
                 <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 mr-2">❌ ERROR</span>
                 <span class="text-gray-600">Command failed or invalid</span>
               </div>
+              <div class="text-sm">
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 mr-2">⚠️ PARTIAL</span>
+                <span class="text-gray-600">Partial success with warnings</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Protocol Categories Overview -->
+        <div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border border-blue-200">
+          <h4 class="text-lg font-medium text-gray-800 mb-4">🎯 Command Categories Overview</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="text-center">
+              <div class="text-2xl mb-2">⚙️</div>
+              <div class="font-medium text-gray-800">Core Protocol</div>
+              <div class="text-xs text-gray-600">Initialize, capabilities, ping</div>
+            </div>
+            <div class="text-center">
+              <div class="text-2xl mb-2">🔧</div>
+              <div class="font-medium text-gray-800">Tools</div>
+              <div class="text-xs text-gray-600">Discovery, execution, smart AI</div>
+            </div>
+            <div class="text-center">
+              <div class="text-2xl mb-2">🧠</div>
+              <div class="font-medium text-gray-800">LLM Services</div>
+              <div class="text-xs text-gray-600">Sampling, elicitation (2025)</div>
+            </div>
+            <div class="text-center">
+              <div class="text-2xl mb-2">📊</div>
+              <div class="font-medium text-gray-800">System</div>
+              <div class="text-xs text-gray-600">Health, metrics, management</div>
             </div>
           </div>
         </div>
         
-        <div class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+        <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
           <h5 class="text-sm font-medium text-blue-800 mb-2">💡 Usage Tips</h5>
           <ul class="text-sm text-blue-700 space-y-1">
-            <li>• Use the quick templates above to get started with common commands</li>
-            <li>• All parameters must be valid JSON format</li>
-            <li>• Leave parameters empty for methods that don't require them</li>
-            <li>• Check the response data for detailed results and error information</li>
-            <li>• Use tools/list first to see what tools are available for tools/call</li>
+            <li>• <strong>Start with Core:</strong> Use initialize and capabilities to establish connection</li>
+            <li>• <strong>Explore Tools:</strong> Try tools/list then tools/call with specific tools</li>
+            <li>• <strong>Test Smart Discovery:</strong> Use natural language with smart_tool_discovery</li>
+            <li>• <strong>Try MCP 2025 Features:</strong> Sampling and elicitation for advanced workflows</li>
+            <li>• <strong>System Commands:</strong> Monitor health and performance with system/* commands</li>
+            <li>• <strong>JSON Format:</strong> All parameters must be valid JSON (or leave empty)</li>
           </ul>
         </div>
       </div>

@@ -8,6 +8,7 @@ pub mod proxy_services;
 pub mod advanced_services;
 pub mod service_loader;
 pub mod service_container;
+pub mod tool_management;
 pub mod types;
 
 pub use proxy_services::ProxyServices;

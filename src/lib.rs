@@ -18,13 +18,12 @@ pub mod security;
 pub mod services;
 pub mod supervisor;
 pub mod tls;
+pub mod utils;
 pub mod web;
-
-#[cfg(test)]
-mod test_enhanced_parsing;
 
 pub use config::{Config, ExternalMcpServersConfig, HttpServiceConfig, SseServiceConfig, HttpAuthType, SseAuthType};
 pub use error::{ProxyError, Result};
+pub use utils::*;
 
 /// Version information
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -85,8 +85,11 @@ impl ConfigResolver {
             let content = std::fs::read_to_string(config_path)
                 .map_err(|e| ProxyError::config(format!("Failed to read config file {:?}: {}", config_path, e)))?;
 
-            serde_yaml::from_str(&content)
-                .map_err(|e| ProxyError::config(format!("Failed to parse config file {:?}: {}", config_path, e)))
+            let config: Config = serde_yaml::from_str(&content)
+                .map_err(|e| ProxyError::config(format!("Failed to parse config file {:?}: {}", config_path, e)))?;
+            
+            debug!("🔧 Config loaded - enhancement_storage present: {}", config.enhancement_storage.is_some());
+            Ok(config)
         } else {
             info!("Config file not found, using built-in proxy mode defaults");
             Ok(Self::create_proxy_mode_defaults())

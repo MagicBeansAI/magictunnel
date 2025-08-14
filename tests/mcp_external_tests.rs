@@ -79,7 +79,6 @@ mod tests {
                 network_mode: Some("bridge".to_string()),
                 run_args: vec!["--rm".to_string(), "-i".to_string()],
             }),
-            external_routing: None,
         };
 
         let client_config = create_test_client_config();
@@ -222,7 +221,6 @@ mod tests {
             capabilities_output_dir: "./test-capabilities".to_string(),
             refresh_interval_minutes: 1, // Short interval for testing
             containers: None,
-            external_routing: None,
         };
 
         let client_config = create_test_client_config();
@@ -262,7 +260,6 @@ mod tests {
             capabilities_output_dir: "./test-capabilities".to_string(),
             refresh_interval_minutes: 60,
             containers: None,
-            external_routing: None,
         };
 
         let client_config = create_test_client_config();
@@ -287,7 +284,6 @@ mod tests {
             capabilities_output_dir: "./test-capabilities".to_string(),
             refresh_interval_minutes: 60,
             containers: None,
-            external_routing: None,
         };
 
         let client_config = create_test_client_config();

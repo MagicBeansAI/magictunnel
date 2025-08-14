@@ -1,8 +1,10 @@
 # MagicTunnel MCP Sampling/Elicitation Routing Guide
 
+> **⚠️ ARCHITECTURE SIMPLIFIED**: As of recent updates, MagicTunnel has simplified its routing strategy to support only **ClientForwarded** strategy. This document describes the previous complex routing system for reference, but the current implementation forwards all sampling/elicitation requests to the original client.
+
 ## Overview
 
-MagicTunnel implements a comprehensive 4-level routing system for MCP (Model Context Protocol) 2025-06-18 sampling and elicitation capabilities. This system provides granular control over how sampling/elicitation requests are processed, offering flexibility from individual tools to organization-wide defaults.
+MagicTunnel previously implemented a comprehensive 4-level routing system for MCP (Model Context Protocol) 2025-06-18 sampling and elicitation capabilities. The current simplified implementation uses **ClientForwarded** strategy exclusively, ensuring all requests are forwarded to the original client (Claude Desktop, etc.).
 
 ## Architecture
 
@@ -16,7 +18,7 @@ MagicTunnel processes sampling/elicitation requests through a sophisticated hier
 │   ├── sampling_strategy: Option<SamplingElicitationStrategy>
 │   └── elicitation_strategy: Option<SamplingElicitationStrategy>
 ├── 2. External MCP Server-Level (ExternalRoutingStrategyConfig)
-│   ├── server_strategies: HashMap<String, SamplingElicitationStrategy>
+│   ├──  HashMap<String, SamplingElicitationStrategy>
 │   └── default_strategy: SamplingElicitationStrategy
 ├── 3. Server-Level Defaults (SamplingConfig/ElicitationConfig)
 │   ├── sampling.default_sampling_strategy
@@ -139,9 +141,7 @@ sampling:
 
 elicitation:
   enabled: true
-  default_elicitation_strategy: client_first       # Organization default
-  max_schema_complexity: "WithArrays"
-  default_timeout_seconds: 300
+  default_elicitation_strategy: client_forwarded   # Organization default
 
 # =============================================================================
 # LEVEL 2: EXTERNAL MCP SERVER-LEVEL
@@ -153,21 +153,12 @@ external_mcp:
   external_routing:
     enabled: true
     sampling:
-      default_strategy: magictunnel_handled        # Default for all external MCP servers
-      server_strategies:                           # Per-server overrides
-        "filesystem": client_forwarded             # Override for filesystem server
-        "database": magictunnel_first              # Override for database server
-      fallback_to_magictunnel: true
-      max_retry_attempts: 3
-      timeout_seconds: 30
+      default_strategy: client_forwarded
+      fallback_to_magictunnel: false
       
     elicitation:
-      default_strategy: client_forwarded           # Default for all external MCP servers
-      server_strategies:                           # Per-server overrides
-        "web_search": magictunnel_handled          # Override for web search server
-      fallback_to_magictunnel: true
-      max_retry_attempts: 2
-      timeout_seconds: 60
+      default_strategy: client_forwarded
+      fallback_to_magictunnel: false
 
 # =============================================================================
 # LEVEL 1: TOOL-LEVEL OVERRIDES (Highest Priority)
@@ -223,8 +214,7 @@ sampling:
     timeout_seconds: 45                       # Allow time for quality processing
 
 elicitation:
-  default_elicitation_strategy: hybrid        # Intelligent elicitation combination
-  enable_hybrid_elicitation: true             # Enable response merging
+  default_elicitation_strategy: client_forwarded  # Intelligent elicitation combination
 ```
 
 **Expected Behavior**:
@@ -268,24 +258,17 @@ sampling:
     timeout_seconds: 60                         # Generous timeout for reliability
 
 elicitation:
-  default_elicitation_strategy: magictunnel_first  # Reliable MagicTunnel processing first
-  max_schema_complexity: "Complex"                # Support complex schemas
-  default_timeout_seconds: 300                    # 5-minute timeout for complex elicitation
+  default_elicitation_strategy: client_forwarded  # Reliable MagicTunnel processing first
 
 # External MCP server configuration with fallbacks
 external_mcp:
   external_routing:
     sampling:
-      default_strategy: magictunnel_handled       # Consistent MagicTunnel processing
-      server_strategies:
-        "primary-server": magictunnel_first        # Try MagicTunnel first for primary
-        "backup-server": client_first              # Try client first for backup
-      fallback_to_magictunnel: true
-      max_retry_attempts: 5
+      default_strategy: client_forwarded
+      fallback_to_magictunnel: false
     elicitation:
-      default_strategy: magictunnel_handled       # Consistent MagicTunnel processing
-      fallback_to_magictunnel: true
-      max_retry_attempts: 3
+      default_strategy: client_forwarded       # Consistent MagicTunnel processing
+      fallback_to_magictunnel: false
 ```
 
 **Expected Behavior**:
@@ -500,13 +483,11 @@ external_mcp:
   
   external_routing:
     sampling:
-      default_strategy: client_forwarded      # Start with free client processing
-      server_strategies:
-        "server1": magictunnel_first          # Override for specific server
-      fallback_to_magictunnel: true
+      default_strategy: client_forwarded
+      fallback_to_magictunnel: false
     elicitation:
       default_strategy: client_forwarded      # Start with free client processing
-      fallback_to_magictunnel: true
+      fallback_to_magictunnel: false
 ```
 
 This guide provides comprehensive coverage of MagicTunnel's MCP sampling/elicitation routing architecture, enabling you to configure and optimize request processing with granular control at tool, external MCP server, server, and smart discovery levels for your specific deployment needs.

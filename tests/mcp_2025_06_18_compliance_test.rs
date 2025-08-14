@@ -28,10 +28,6 @@ async fn create_test_server_with_2025_capabilities() -> Result<Arc<McpServer>, B
         semantic_search: magictunnel::discovery::SemanticSearchConfig::default(),
         enable_sequential_mode: true,
         tool_metrics_enabled: Some(true),
-        enable_sampling: Some(true),
-        enable_elicitation: Some(true),
-        default_sampling_strategy: None,
-        default_elicitation_strategy: None,
     });
     
     // Set up registry config

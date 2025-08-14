@@ -12,6 +12,33 @@ This document outlines current tasks and future development plans for MagicTunne
 - **❌ Web Admin Authentication System** - **NOT IMPLEMENTED** (Separate system for web dashboard admin access)
 - **❌ MCP Client Authentication Injection** - **NOT IMPLEMENTED** (Credential injection for tool calls)
 
+### 🗂️ MCP Features Status Summary
+- **✅ MCP Roots Backend** - **COMPLETE** (Filesystem/URI boundary discovery - 547 lines production-ready)
+- **❌ MCP Roots UI** - **NOT IMPLEMENTED** (Frontend interface for roots management)
+
+### 📡 MCP Notifications Status Summary
+- **✅ Tools List Changed** - **COMPLETE** (Full notification support across all transports)
+- **❌ Prompts List Changed** - **NOT IMPLEMENTED** (MCP 2025-06-18 prompts/list_changed notifications)
+  - [ ] **Implement prompts/list_changed notification support**
+    - [ ] Add prompt tracking to registry service
+    - [ ] Implement notification trigger on prompt changes
+    - [ ] Add client-side handling for prompt notifications
+    - [ ] Test across all transport methods (stdio, ws, sse, streamable http)
+- **❌ Resources List Changed** - **NOT IMPLEMENTED** (MCP 2025-06-18 resources/list_changed notifications)
+  - [ ] **Implement resources/list_changed notification support**
+    - [ ] Add resource tracking to registry service
+    - [ ] Implement notification trigger on resource changes
+    - [ ] Add client-side handling for resource notifications
+    - [ ] Test across all transport methods (stdio, ws, sse, streamable http)
+- **❌ Resource Subscriptions** - **PARTIALLY IMPLEMENTED** (Backend exists but MCP protocol methods not exposed)
+  - [ ] **Complete resource subscription support**
+    - [ ] Add MCP protocol methods (resources/subscribe, resources/unsubscribe)
+    - [ ] Connect existing backend `McpNotificationManager.subscribe_to_resource()` to MCP server handlers
+    - [ ] Implement MCP server routing for "resources/subscribe" and "resources/unsubscribe" methods
+    - [ ] Add proper error handling and validation for subscription requests
+    - [ ] Test subscription/unsubscription flows across all transport methods
+    - [ ] Update notification capabilities to reflect true implementation status
+
 ---
 
 ## ⚠️ **MEDIUM PRIORITY: OAuth 2.1 Code Quality & Production Polish**
@@ -80,6 +107,273 @@ This document outlines current tasks and future development plans for MagicTunne
 - Multi-mode architecture is **implemented and functional**
 - Testing provides additional validation and confidence
 - System works correctly without tests - testing is for regression prevention
+
+---
+
+## 📋 **HIGH PRIORITY: MCP Roots UI Implementation**
+
+**Status**: Backend complete (547 lines) - Frontend UI needed for management interface  
+**Priority**: **HIGH** - Missing user interface for filesystem/URI boundary management
+
+### Phase 1: MCP Roots UI Foundation (2-3 days)
+
+#### 1.1 Navigation & Page Structure
+- [ ] **Add Roots navigation entry** under LLM Services section (after Resources and Prompts)
+- [ ] **Create base Roots page** (`frontend/src/routes/roots/+page.svelte`)
+- [ ] **Design page layout** with tabs for Discovery, Security, Management
+- [ ] **Add breadcrumb navigation** and page title
+- [ ] **Create responsive design** for mobile and desktop
+
+#### 1.2 Backend API Integration
+- [ ] **Create roots API endpoints** in backend (`src/web/roots_api.rs`)
+  - [ ] `GET /api/roots/list` - List discovered roots with pagination
+  - [ ] `POST /api/roots/discover` - Trigger manual discovery
+  - [ ] `GET /api/roots/status` - Service health and statistics
+  - [ ] `PUT /api/roots/config` - Update security configuration
+  - [ ] `POST /api/roots/manual` - Add manual root entry
+  - [ ] `DELETE /api/roots/manual/{id}` - Remove manual root
+
+#### 1.3 Core UI Components
+- [ ] **RootsDiscoveryCard** - Shows discovered filesystem/URI roots
+- [ ] **SecurityConfigPanel** - Manage blocked patterns and permissions
+- [ ] **ManualRootsManager** - Add/remove custom roots
+- [ ] **RootsStatusMonitor** - Real-time service health display
+- [ ] **PermissionsMatrix** - Visual permission management grid
+
+### Phase 2: Advanced Features (2-3 days)
+
+#### 2.1 Real-time Features
+- [ ] **Live discovery updates** using WebSocket/SSE
+- [ ] **Real-time permission validation** with instant feedback
+- [ ] **Dynamic security pattern testing** before applying
+- [ ] **Auto-refresh** for discovery results every 5 minutes
+
+#### 2.2 Security & Validation
+- [ ] **Pattern validation** with regex testing interface
+- [ ] **Permission conflict detection** and resolution
+- [ ] **Access testing** - test if paths/URIs are accessible
+- [ ] **Security risk assessment** for new root entries
+
+### Phase 3: Enterprise Features (1-2 days)
+
+#### 3.1 Management & Monitoring
+- [ ] **Bulk operations** for managing multiple roots
+- [ ] **Import/export** root configurations
+- [ ] **Audit logging** for all root management actions
+- [ ] **Performance metrics** for discovery operations
+
+### Technical Implementation
+
+```typescript
+// Root Management API Types
+interface Root {
+  id: string;
+  type: 'filesystem' | 'uri' | 'custom';
+  path: string;
+  permissions: Permission[];
+  accessible: boolean;
+  discoveredAt: string;
+  manual: boolean;
+}
+
+// UI Components Structure
+frontend/src/routes/roots/
+├── +page.svelte (main page)
+├── components/
+│   ├── RootsDiscoveryCard.svelte
+│   ├── SecurityConfigPanel.svelte  
+│   ├── ManualRootsManager.svelte
+│   ├── PermissionsMatrix.svelte
+│   └── RootsStatusMonitor.svelte
+└── api/
+    └── roots.ts (API client functions)
+```
+
+**Impact**: Provides essential UI for managing filesystem/URI access boundaries - critical for security and usability
+
+---
+
+## 🏗️ **HIGH PRIORITY: Configuration Architecture Restructuring**
+
+**Status**: Current configuration mixing concerns - needs hierarchical separation  
+**Priority**: **HIGH** - Clean architecture foundation for maintainable configuration system
+
+**Context**: Smart Discovery was incorrectly mixed with MCP protocol routing concerns. Configuration needs proper separation between Tool Selection, Protocol Services, and External Integration.
+
+### Phase 1: Hierarchical Configuration Structure (3-4 days)
+
+#### 1.1 Define Clean Configuration Hierarchy
+- [ ] **Establish three-level configuration precedence system**:
+  - **Global Level**: Default system-wide strategies 
+  - **MCP Level**: Per-MCP-server strategy overrides
+  - **Tool Level**: Individual tool strategy overrides (highest priority)
+- [ ] **Implement configuration inheritance logic**
+  - [ ] Tool config overrides MCP config overrides Global config
+  - [ ] Fallback chain: Tool → MCP → Service → Hard-coded defaults
+  - [ ] Configuration validation at all levels
+- [ ] **Create consistent configuration schema across all levels**
+  - [ ] Same property structure at Global/MCP/Tool levels
+  - [ ] Standardized strategy enumeration
+  - [ ] Common validation rules and constraints
+
+#### 1.2 Separate Architectural Concerns
+- [ ] **Smart Discovery Service (Tool Selection Only)**
+  - [ ] Remove all MCP protocol routing logic from SmartDiscoveryConfig
+  - [ ] Focus purely on: tool matching, confidence scoring, semantic search
+  - [ ] Clean separation from sampling/elicitation routing
+- [ ] **MCP Protocol Services (Sampling/Elicitation Routing)**
+  - [ ] Move sampling/elicitation strategy configuration to dedicated service configs
+  - [ ] Implement proper service-level strategy resolution
+  - [ ] Support hierarchical strategy override system
+- [ ] **External Integration Services (External MCP Routing)**
+  - [ ] Keep external routing at individual MCP server level
+  - [ ] Remove proxy-level server strategies and priority orders
+  - [ ] Support only client_forwarded strategy at proxy level currently
+
+### Phase 2: Configuration Migration & Validation (2-3 days)
+
+#### 2.1 Configuration File Updates
+- [ ] **Update all configuration templates**
+  - [ ] Fix config.yaml.template hierarchical structure
+  - [ ] Update magictunnel-config.yaml production config
+  - [ ] Migrate external-mcp-servers.yaml.template
+  - [ ] Add comprehensive configuration examples
+- [ ] **Create configuration validation system**
+  - [ ] Validate configuration hierarchy consistency
+  - [ ] Check for conflicting strategies across levels
+  - [ ] Warn about deprecated configuration patterns
+  - [ ] Provide migration suggestions for old configs
+
+#### 2.2 Service Configuration Restructuring
+- [ ] **Sampling Service Configuration**
+  - [ ] Move from smart_discovery to dedicated sampling config section
+  - [ ] Implement Global → MCP → Tool level precedence
+  - [ ] Support future LLM provider prioritization (claude, openai, ollama)
+  - [ ] Remove incorrect server strategy implementations
+- [ ] **Elicitation Service Configuration**
+  - [ ] Move from smart_discovery to dedicated elicitation config section
+  - [ ] Implement hierarchical strategy resolution
+  - [ ] Remove LLM-based priority ordering (no LLM component planned)
+  - [ ] Keep client_forwarded as only supported strategy currently
+
+#### 2.3 Code Architecture Updates
+- [ ] **Update service initialization logic**
+  - [ ] Fix service configuration loading to use new hierarchy
+  - [ ] Update fallback logic to respect configuration precedence
+  - [ ] Remove smart_discovery configuration dependencies from MCP services
+- [ ] **Update configuration structs**
+  - [ ] Create hierarchical configuration types
+  - [ ] Add proper configuration inheritance traits
+  - [ ] Implement configuration merging logic
+  - [ ] Add comprehensive configuration validation
+
+### Phase 3: Testing & Documentation (1-2 days)
+
+#### 3.1 Configuration System Testing
+- [ ] **Add comprehensive configuration tests**
+  - [ ] Test hierarchical precedence system
+  - [ ] Validate configuration inheritance logic
+  - [ ] Test configuration migration scenarios
+  - [ ] Verify service configuration isolation
+- [ ] **Update integration tests**
+  - [ ] Fix tests using old configuration patterns
+  - [ ] Add tests for new configuration hierarchy
+  - [ ] Test configuration validation system
+  - [ ] Verify proper service configuration loading
+
+#### 3.2 Documentation Updates
+- [ ] **Update configuration documentation**
+  - [ ] Document new hierarchical configuration system
+  - [ ] Provide migration guide from old configuration format
+  - [ ] Add comprehensive configuration examples
+  - [ ] Document architectural separation of concerns
+- [ ] **Update CLI help and error messages**
+  - [ ] Fix CLI tools to use correct configuration paths
+  - [ ] Update error messages to reference new configuration structure
+  - [ ] Add configuration validation error messages
+  - [ ] Update help text for new configuration options
+
+### Technical Architecture
+
+```rust
+// New Configuration Hierarchy Structure
+
+// Global Level (System Defaults)
+struct GlobalConfig {
+    sampling: SamplingConfig,
+    elicitation: ElicitationConfig,
+    smart_discovery: SmartDiscoveryConfig, // Tool selection only
+}
+
+// MCP Level (Per-Server Overrides) 
+struct McpServerConfig {
+    name: String,
+    sampling_strategy_override: Option<Strategy>,
+    elicitation_strategy_override: Option<Strategy>,
+    // ... other MCP-specific config
+}
+
+// Tool Level (Highest Priority Overrides)
+struct ToolConfig {
+    name: String,
+    sampling_strategy_override: Option<Strategy>,
+    elicitation_strategy_override: Option<Strategy>,
+    // ... other tool-specific config
+}
+
+// Configuration Resolution Logic
+impl ConfigResolver {
+    fn resolve_sampling_strategy(&self, tool_name: &str) -> Strategy {
+        // Tool Level → MCP Level → Service Level → Hard-coded Default
+        self.get_tool_strategy(tool_name)
+            .or_else(|| self.get_mcp_strategy(tool_name))
+            .or_else(|| self.get_service_default())
+            .unwrap_or(Strategy::ClientForwarded)
+    }
+}
+```
+
+### Configuration Examples
+
+```yaml
+# Clean Separation of Concerns
+
+# Smart Discovery - Tool Selection Only  
+smart_discovery:
+  enabled: true
+  tool_selection_mode: "hybrid"
+  # NO sampling/elicitation routing configuration here
+
+# MCP Protocol Services - Routing Only
+sampling:
+  enabled: false
+  default_strategy: "client_forwarded"
+  # Global default - can be overridden at MCP/Tool level
+  
+elicitation:
+  enabled: false  
+  default_strategy: "client_forwarded"
+  # Global default - can be overridden at MCP/Tool level
+
+# External MCP Integration - Individual Server Level
+external_mcp:
+  enabled: false
+  external_routing:
+    # Only client_forwarded supported at proxy level currently
+    sampling:
+      default_strategy: "client_forwarded"
+    elicitation:
+      default_strategy: "client_forwarded"
+```
+
+**Impact**: 
+- **Clean Architecture**: Proper separation between Tool Selection, Protocol Services, and External Integration
+- **Maintainable Configuration**: Clear hierarchical precedence system
+- **Future-Proof**: Foundation for advanced routing strategies at appropriate levels
+- **Developer Experience**: Intuitive configuration structure with clear inheritance rules
+
+**Dependencies**: None - can be implemented independently  
+**Risk**: Medium - requires careful migration of existing configurations
 
 ---
 
@@ -234,6 +528,72 @@ This document outlines current tasks and future development plans for MagicTunne
 **Total Estimated Time**: 5-7 days
 **Dependencies**: None - can start immediately
 **Impact**: Transform security system from mock/stub to fully functional enterprise-grade security
+
+---
+
+## 🔥 **URGENT: MCP Server Capability Management Improvements**
+
+### **MCP Server Lifecycle & Storage Enhancement** ⚠️ **CRITICAL - PRODUCTION READY**
+**Status**: Memory leak fixed ✅, storage and lifecycle management needs implementation  
+**Priority**: **HIGH** - Essential for production MCP server management
+
+#### **Persistent Capability Storage** 
+- [ ] **Add persistent storage for MCP server capabilities** (`src/mcp/capability_storage.rs`)
+  - [ ] Design `CapabilityStorage` trait for pluggable storage backends (JSON file, SQLite, Redis)
+  - [ ] Implement JSON file storage backend for simple deployments
+  - [ ] Add capability versioning and change tracking  
+  - [ ] Create capability backup and restore mechanisms
+  - [ ] Add capability conflict resolution for server restarts
+  - [ ] Implement capability TTL and expiration handling
+  - [ ] Add storage health monitoring and corruption detection
+
+#### **Dynamic Server Management**
+- [ ] **Implement dynamic add_server() method for runtime server registration**
+  - [ ] Create `add_server(name, config) -> Result<()>` method
+  - [ ] Add server configuration validation before registration
+  - [ ] Implement capability discovery during server addition
+  - [ ] Add persistent configuration updates (save to config file)
+  - [ ] Create server registration conflict resolution
+  - [ ] Add rollback mechanism for failed server additions
+
+#### **Enhanced Lifecycle Event Hooks**
+- [ ] **Add capability refresh hooks for server lifecycle events**
+  - [ ] Create `on_server_connected()` hook for automatic capability refresh
+  - [ ] Add `on_server_disconnected()` hook for offline state management  
+  - [ ] Implement `on_capability_changed()` hook for real-time updates
+  - [ ] Create webhook support for external capability change notifications
+  - [ ] Add capability validation hooks with schema checking
+  - [ ] Implement capability caching with intelligent refresh policies
+
+#### **Production Capability Management Features**
+- [ ] **Server Health & Capability Monitoring**
+  - [ ] Add capability freshness tracking (last updated timestamps)
+  - [ ] Implement capability drift detection (server vs cached capabilities)
+  - [ ] Create capability validation pipeline (schema compliance, completeness)
+  - [ ] Add capability performance monitoring (discovery latency, success rates)
+  - [ ] Implement capability alerts for missing/changed capabilities
+
+- [ ] **Enterprise Capability Governance** 
+  - [ ] Add capability approval workflows for new servers
+  - [ ] Implement capability change notifications and audit logging
+  - [ ] Create capability versioning and rollback system
+  - [ ] Add capability policy enforcement (required capabilities, forbidden tools)
+  - [ ] Implement capability compliance reporting and dashboards
+
+#### **API Extensions for Dynamic Management**
+- [ ] **Dashboard API Enhancements** (`src/web/dashboard.rs`)
+  - [ ] `POST /dashboard/api/mcp-servers` - Add new MCP server dynamically
+  - [ ] `DELETE /dashboard/api/mcp-servers/{server_name}` - Remove server and cleanup
+  - [ ] `POST /dashboard/api/mcp-servers/{server_name}/refresh` - Force capability refresh
+  - [ ] `GET /dashboard/api/mcp-servers/health` - Server health and capability status
+  - [ ] `PUT /dashboard/api/mcp-servers/{server_name}/config` - Update server configuration
+  - [ ] `POST /dashboard/api/mcp-servers/bulk/refresh` - Bulk capability refresh
+
+#### **Memory Leak Fix** ✅ **COMPLETED**
+- [x] ✅ **Fixed stop_server() memory leak**: `version_info` HashMap now properly cleaned up when servers are stopped
+
+**Timeline**: 1-2 weeks  
+**Impact**: **CRITICAL** - Transforms MCP server management from basic startup-only configuration to full dynamic lifecycle management with persistence and enterprise features
 
 ---
 
@@ -1223,6 +1583,182 @@ make release VERSION=  # Full release workflow
 3. **Error handling** - Graceful degradation when APIs unavailable
 
 **Expected Impact**: Transform frontend from demo/mock interface to fully functional production system with real backend integration
+
+---
+
+## 🚀 **Phase 9: Startup Performance Optimizations (v0.3.14)**
+
+**Status**: Architectural improvements to reduce startup time and improve user experience  
+**Priority**: **MEDIUM** - Significant UX improvement for development and production deployments
+
+### **9.1 Smart Discovery Mode Registry Optimization** ⚡ **HIGH IMPACT**
+
+**Status**: Registry hot-reload capability enables deferred tool loading for smart discovery scenarios  
+**Priority**: **HIGH** - Can dramatically reduce startup time when smart discovery is enabled
+
+#### **9.1.1 Conditional Tool Loading Strategy**
+- [ ] **Smart Discovery Mode Detection** (`src/registry/service.rs`)
+  - [ ] Add `is_smart_discovery_enabled()` check during registry initialization
+  - [ ] Create `RegistryLoadingStrategy` enum (Full, Minimal, Deferred)
+  - [ ] Implement strategy selection based on smart discovery configuration
+  - [ ] Add configuration option for loading strategy override
+  
+- [ ] **Deferred Tool Loading Implementation**
+  - [ ] Create `MinimalToolRegistry` with only essential tools for smart discovery
+  - [ ] Load core system tools (smart_discovery, health checks) synchronously
+  - [ ] Move bulk tool loading to background thread with progress tracking
+  - [ ] Implement tool-on-demand loading when smart discovery requests specific tools
+  - [ ] Add tool loading progress indicators and status reporting
+
+- [ ] **Background Tool Loading Service** (`src/registry/background_loader.rs`)
+  - [ ] Create `BackgroundToolLoader` service for async tool discovery
+  - [ ] Implement priority-based tool loading (system tools first, external MCP tools last)
+  - [ ] Add tool loading queue management and batch processing
+  - [ ] Create tool availability notifications for smart discovery service
+  - [ ] Implement graceful handling of tool requests during background loading
+
+#### **9.1.2 Smart Discovery Compatibility**
+- [ ] **Tool Availability Integration**
+  - [ ] Modify smart discovery to handle partial tool availability
+  - [ ] Implement "tool loading in progress" responses with estimated completion time
+  - [ ] Add tool availability caching and prefetching based on usage patterns
+  - [ ] Create tool loading prioritization based on smart discovery request patterns
+
+- [ ] **Fallback and Error Handling**
+  - [ ] Implement graceful degradation when tools are not yet loaded
+  - [ ] Add "tool not available yet" user-friendly error messages
+  - [ ] Create tool loading retry mechanisms for failed tool discoveries
+  - [ ] Implement tool loading timeout handling and error recovery
+
+#### **9.1.3 Configuration Framework**
+```yaml
+registry:
+  loading_strategy: "auto"  # auto, full, minimal, deferred
+  smart_discovery_optimized: true
+  background_loading:
+    enabled: true
+    batch_size: 10
+    parallel_external_mcp: true
+    priority_tools: ["smart_discovery", "health_check"]
+    
+performance:
+  startup_optimization:
+    defer_external_mcp_when_smart_discovery: true
+    parallel_service_initialization: true
+    lazy_embedding_generation: true
+```
+
+#### **9.1.4 Non-Smart Discovery Mode Protection**
+- [ ] **Full Compatibility Assurance**
+  - [ ] Ensure traditional MCP clients get full tool availability immediately
+  - [ ] Add registry loading strategy validation based on enabled services
+  - [ ] Create warning system when deferred loading might impact functionality
+  - [ ] Implement automatic fallback to full loading for non-smart discovery scenarios
+
+**Expected Impact**: 
+- **Smart Discovery Mode**: 60-80% startup time reduction (3-5 seconds instead of 15+ seconds)
+- **Traditional Mode**: No impact - maintains full immediate tool availability
+- **Development Experience**: Much faster iteration cycles during development
+
+### **9.2 Service Initialization Parallelization** 🔧 **MEDIUM IMPACT**
+
+#### **9.2.1 Parallel Service Loading**
+- [ ] **Service Dependency Analysis** (`src/services/dependency_graph.rs`)
+  - [ ] Create service dependency graph for parallel initialization
+  - [ ] Identify services that can be initialized concurrently
+  - [ ] Implement service initialization ordering based on dependencies
+  - [ ] Add service initialization timeout and error handling
+
+- [ ] **Concurrent Service Initialization**
+  - [ ] Modify `ProxyServices::new()` to use parallel initialization where possible
+  - [ ] Create service initialization task pools with proper error propagation
+  - [ ] Implement service health verification during parallel startup
+  - [ ] Add service initialization progress tracking and reporting
+
+#### **9.2.2 External MCP Discovery Optimization**
+- [ ] **Parallel External Server Discovery**
+  - [ ] Initialize external MCP servers concurrently instead of sequentially
+  - [ ] Implement connection timeout reduction for faster failure detection
+  - [ ] Add external server discovery result caching between restarts
+  - [ ] Create external server health pre-checking before full initialization
+
+- [ ] **External MCP Connection Pooling**
+  - [ ] Pre-establish connection pools during startup
+  - [ ] Implement connection warmup strategies
+  - [ ] Add connection pooling configuration options
+  - [ ] Create connection health monitoring and automatic recovery
+
+### **9.3 Enhanced Service Initialization** ⚙️ **LOW IMPACT**
+
+#### **9.3.1 Lazy Initialization Patterns**
+- [ ] **Enhancement Service Lazy Loading** (Already implemented ✅)
+  - [ ] ✅ Tool enhancement service initialization moved to background
+  - [ ] ✅ Enhancement storage creation moved to ProxyServices level
+  - [ ] ✅ HTTP server startup no longer blocked by enhancement service
+  
+- [ ] **Additional Service Lazy Loading**
+  - [ ] Defer semantic search embedding generation until first use
+  - [ ] Implement lazy smart discovery service initialization
+  - [ ] Add lazy initialization for monitoring and metrics services
+  - [ ] Create lazy loading for security services in proxy mode
+
+#### **9.3.2 Service Health Monitoring**
+- [ ] **Startup Health Verification**
+  - [ ] Add service initialization success/failure tracking
+  - [ ] Implement service initialization timeout detection
+  - [ ] Create service startup retry mechanisms for transient failures
+  - [ ] Add service startup performance monitoring and alerting
+
+### **9.4 Configuration and Environment Optimizations** 📋 **LOW IMPACT**
+
+#### **9.4.1 Configuration Loading Optimization**
+- [ ] **Configuration Caching**
+  - [ ] Cache parsed configuration between restarts
+  - [ ] Implement configuration file change detection
+  - [ ] Add configuration validation caching
+  - [ ] Create configuration loading performance monitoring
+
+#### **9.4.2 Environment Detection Optimization**
+- [ ] **Startup Environment Analysis**
+  - [ ] Optimize development vs production environment detection
+  - [ ] Implement configuration preset loading based on environment
+  - [ ] Add environment-specific service initialization strategies
+  - [ ] Create environment-aware logging and monitoring configuration
+
+### **9.5 Implementation Priority and Timeline**
+
+#### **Phase 1: Smart Discovery Registry Optimization (1-2 weeks)**
+1. **Smart Discovery Mode Detection**: Add configuration and mode detection
+2. **Minimal Tool Registry**: Implement essential-tools-only loading for smart discovery
+3. **Background Tool Loading**: Move bulk tool loading to background threads
+4. **Compatibility Assurance**: Ensure non-smart discovery modes remain fully functional
+
+#### **Phase 2: Service Parallelization (1 week)**
+1. **Service Dependency Analysis**: Map service dependencies for parallel initialization
+2. **Parallel External MCP**: Initialize external MCP servers concurrently
+3. **Service Progress Tracking**: Add initialization progress monitoring
+
+#### **Phase 3: Additional Optimizations (1 week)**
+1. **Lazy Service Initialization**: Additional services that can be deferred
+2. **Configuration Optimization**: Caching and performance improvements
+3. **Monitoring Integration**: Startup performance monitoring and alerting
+
+**Dependencies**: 
+- Smart discovery service (✅ **Available**)
+- Registry hot-reload capability (✅ **Available**)
+- Service container architecture (✅ **Available**)
+
+**Expected Total Impact**: 
+- **Smart Discovery Enabled**: 70-80% startup time reduction (major UX improvement)
+- **Traditional MCP Usage**: Maintained full compatibility with existing performance
+- **Development Experience**: Significantly faster iteration cycles
+- **Production Deployments**: Faster scaling and restart times
+
+**Risk Mitigation**:
+- **Compatibility**: Extensive testing to ensure non-smart discovery modes unaffected
+- **Fallback**: Automatic fallback to full loading when deferred loading fails
+- **Configuration**: Clear documentation about when optimizations apply
+- **Monitoring**: Comprehensive startup performance monitoring
 
 ---
 

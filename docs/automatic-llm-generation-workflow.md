@@ -343,9 +343,7 @@ curl http://localhost:3001/dashboard/api/enhancement/status
 curl -X POST http://localhost:3001/dashboard/api/enhancement/generate \
   -H "Content-Type: application/json" \
   -d '{
-    "tool_name": "execute_command",
-    "enable_sampling": true,
-    "enable_elicitation": true
+    "tool_name": "execute_command"
   }'
 
 # Extract metadata (REMOVED in v0.3.7 - use enhancement pipeline instead)

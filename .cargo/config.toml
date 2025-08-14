@@ -1,0 +1,27 @@
+# Cargo build configuration for MagicTunnel
+# Optimized for faster builds and development workflow
+
+[build]
+jobs = 12                   # Full M2 Max CPU utilization (12 cores)
+incremental = true          # Enable incremental compilation
+pipelining = true           # Enable build pipelining
+
+[env]
+RUST_INCREMENTAL = "1"      # Force enable incremental compilation
+# RUSTC_WRAPPER = "sccache" # Uncomment if you have sccache installed
+
+# Faster linker settings per platform
+# Using LLD linker for maximum performance (now properly installed)
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+# Optional: Use mold linker on Linux (if installed)
+# [target.x86_64-unknown-linux-gnu]
+# rustflags = ["-C", "link-arg=-fuse-ld=mold"]

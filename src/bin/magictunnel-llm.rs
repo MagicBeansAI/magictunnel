@@ -518,8 +518,8 @@ async fn initialize_services(config: &Config) -> Result<LLMServices> {
     let enhancement = if sampling.is_some() || elicitation.is_some() {
         info!("🚀 Initializing tool enhancement service");
         let enhancement_config = magictunnel::discovery::ToolEnhancementConfig {
-            enable_sampling_enhancement: sampling.is_some(),
-            enable_elicitation_enhancement: elicitation.is_some(),
+            enable_description_enhancement: sampling.is_some(),
+            enable_tool_enhancement: elicitation.is_some(),
             require_approval: false,
             cache_enhancements: true,
             enhancement_timeout_seconds: 60,

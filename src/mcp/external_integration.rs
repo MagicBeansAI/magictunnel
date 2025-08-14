@@ -114,6 +114,7 @@ impl ExternalMcpIntegration {
         }
     }
 
+
     /// Start background monitoring task
     async fn start_monitoring_task(&mut self, manager: Arc<ExternalMcpManager>) {
         let handle = tokio::spawn(async move {

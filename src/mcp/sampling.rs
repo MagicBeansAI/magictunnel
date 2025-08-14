@@ -152,9 +152,11 @@ impl SamplingService {
             default_model: config.sampling.as_ref()
                 .and_then(|s| s.llm_config.as_ref())
                 .map(|llm| llm.model.clone())
-                .or_else(|| config.sampling.as_ref().map(|s| s.default_model.clone()))
-                .unwrap_or_else(|| "gpt-4o-mini".to_string()), // Use llm_config.model, fallback to default_model, then fallback
-            max_tokens_limit: 4000,
+                .unwrap_or_else(|| "gpt-4o-mini".to_string()), // Use llm_config.model, fallback to default
+            max_tokens_limit: config.sampling.as_ref()
+                .and_then(|s| s.llm_config.as_ref())
+                .and_then(|llm| llm.max_tokens)
+                .unwrap_or(4000), // Use llm_config.max_tokens, fallback to 4000
             rate_limit: Some(SamplingRateLimit {
                 requests_per_minute: 60,
                 burst_size: 10,

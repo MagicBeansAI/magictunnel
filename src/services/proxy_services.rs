@@ -3,6 +3,7 @@
 use crate::config::Config;
 use crate::error::{ProxyError, Result};
 use crate::services::{ServiceStatus, ServiceState};
+use crate::services::tool_management::ToolManagementService;
 use std::sync::Arc;
 use tracing::{info, debug, warn, error};
 
@@ -31,8 +32,12 @@ pub struct ProxyServices {
     /// Note: MCP server is created by factory method, not stored here
     /// Tool registry service
     registry: Arc<crate::registry::RegistryService>,
+    /// Tool management service for dynamic visibility control
+    tool_management: Arc<ToolManagementService>,
     /// Smart discovery service (optional)
     smart_discovery: Option<Arc<crate::discovery::SmartDiscoveryService>>,
+    /// Enhancement storage service (optional)
+    enhancement_storage: Option<Arc<crate::discovery::EnhancementStorageService>>,
     /// Service status tracking
     services: Vec<ServiceStatus>,
     /// Configuration snapshot
@@ -62,7 +67,31 @@ impl ProxyServices {
         services.last_mut().unwrap().status = ServiceState::Running;
         info!("✅ Registry service initialized with {} tools", registry.get_all_tools().len());
         
-        // Step 2: Initialize MCP Server (core protocol handling)
+        // Step 2: Initialize Tool Management Service (dynamic visibility control)
+        debug!("Initializing tool management service");
+        services.push(ServiceStatus {
+            name: "Tool Management".to_string(),
+            status: ServiceState::Initializing,
+            message: None,
+        });
+        
+        let tool_management = Arc::new(
+            ToolManagementService::new(Arc::new(config.clone()))
+                .with_registry_service(Arc::clone(&registry))
+        );
+        match tool_management.initialize().await {
+            Ok(_) => {
+                services.last_mut().unwrap().status = ServiceState::Running;
+                info!("✅ Tool management service initialized");
+            }
+            Err(e) => {
+                warn!("Tool management initialization failed: {}", e);
+                services.last_mut().unwrap().status = ServiceState::Warning;
+                services.last_mut().unwrap().message = Some(format!("Failed: {}", e));
+            }
+        }
+        
+        // Step 3: Initialize MCP Server (core protocol handling)
         debug!("Initializing MCP server");
         services.push(ServiceStatus {
             name: "MCP Server".to_string(),
@@ -88,7 +117,34 @@ impl ProxyServices {
             debug!("Tool Enhancement service not configured");
         }
         
-        // Step 4: Initialize Smart Discovery (optional, based on config)
+        // Step 4: Initialize Enhancement Storage Service (optional, for persistent tool enhancements)
+        let enhancement_storage = if let Some(storage_config) = &config.enhancement_storage {
+            debug!("Initializing enhancement storage service");
+            services.push(ServiceStatus {
+                name: "Enhancement Storage".to_string(),
+                status: ServiceState::Initializing,
+                message: None,
+            });
+            
+            match crate::discovery::EnhancementStorageService::new(storage_config.clone()) {
+                Ok(storage_service) => {
+                    services.last_mut().unwrap().status = ServiceState::Running;
+                    info!("✅ Enhancement storage service initialized at: {}", storage_config.storage_dir);
+                    Some(Arc::new(storage_service))
+                }
+                Err(e) => {
+                    warn!("Failed to initialize enhancement storage service: {}", e);
+                    services.last_mut().unwrap().status = ServiceState::Warning;
+                    services.last_mut().unwrap().message = Some(format!("Failed: {}", e));
+                    None
+                }
+            }
+        } else {
+            debug!("Enhancement storage service not configured");
+            None
+        };
+        
+        // Step 5: Initialize Smart Discovery (optional, based on config)
         let smart_discovery = if config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false) {
             debug!("Initializing smart discovery service");
             services.push(ServiceStatus {
@@ -120,7 +176,9 @@ impl ProxyServices {
         
         let proxy_services = Self {
             registry,
+            tool_management,
             smart_discovery,
+            enhancement_storage,
             services,
             config,
         };
@@ -177,9 +235,24 @@ impl ProxyServices {
         Some(&self.registry)
     }
     
+    /// Get tool management service reference
+    pub fn get_tool_management(&self) -> &Arc<ToolManagementService> {
+        &self.tool_management
+    }
+    
     /// Get smart discovery service (if enabled)
     pub fn get_smart_discovery(&self) -> Option<&Arc<crate::discovery::SmartDiscoveryService>> {
         self.smart_discovery.as_ref()
+    }
+    
+    /// Get enhancement storage service (if enabled)
+    pub fn get_enhancement_storage(&self) -> Option<&Arc<crate::discovery::EnhancementStorageService>> {
+        self.enhancement_storage.as_ref()
+    }
+    
+    /// Get configuration reference
+    pub fn get_config(&self) -> &Config {
+        &self.config
     }
     
     /// Get web functionality status

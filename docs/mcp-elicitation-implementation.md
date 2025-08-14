@@ -218,12 +218,7 @@ MagicTunnel supports intelligent routing strategies for elicitation requests:
 
 #### Available Strategies
 
-1. **MagictunnelHandled** - Process locally with MagicTunnel's elicitation service
-2. **ClientForwarded** - Forward to the original MCP client for user interaction
-3. **MagictunnelFirst** - Try local processing first, fallback to client
-4. **ClientFirst** - Try client first, fallback to local processing
-5. **Parallel** - Execute both simultaneously, use best result
-6. **Hybrid** - Intelligent combination based on request type and context
+1. **ClientForwarded** - Forward to the original MCP client for user interaction (only supported strategy)
 
 #### Configuration
 

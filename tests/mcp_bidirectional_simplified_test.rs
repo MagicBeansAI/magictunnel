@@ -12,8 +12,7 @@
 #[cfg(test)]
 mod tests {
     use magictunnel::config::{
-        Config, ExternalMcpConfig, McpClientConfig,
-        SamplingElicitationStrategy, SamplingConfig, ElicitationConfig
+        Config, ElicitationConfig, ExternalMcpConfig, LlmConfig, McpClientConfig, SamplingConfig, SamplingElicitationStrategy
     };
     // Legacy client import removed - focusing on data structure and configuration tests
     use magictunnel::mcp::external_manager::ExternalMcpManager;
@@ -34,7 +33,6 @@ mod tests {
                 capabilities_output_dir: "./test-capabilities".to_string(),
                 refresh_interval_minutes: 60,
                 containers: None,
-                external_routing: None,
             }),
             mcp_client: Some(McpClientConfig {
                 connect_timeout_secs: 30,
@@ -48,20 +46,21 @@ mod tests {
             }),
             sampling: Some(SamplingConfig {
                 enabled: true,
-                default_model: "gpt-4".to_string(),
-                max_tokens_limit: 4000,
-                default_sampling_strategy: Some(SamplingElicitationStrategy::MagictunnelFirst),
-                default_elicitation_strategy: Some(SamplingElicitationStrategy::ClientFirst),
-                llm_config: None,
+                default_sampling_strategy: Some(SamplingElicitationStrategy::ClientForwarded),
+                default_elicitation_strategy: Some(SamplingElicitationStrategy::ClientForwarded),
+                llm_config: Some(LlmConfig {
+                    provider: "openai".to_string(),
+                    model: "gpt-4".to_string(),
+                    api_key_env: Some("OPENAI_API_KEY".to_string()),
+                    api_base_url: None,
+                    max_tokens: Some(4000),
+                    temperature: Some(0.7),
+                    additional_params: None,
+                }),
             }),
             elicitation: Some(ElicitationConfig {
                 enabled: true,
-                default_elicitation_strategy: Some(SamplingElicitationStrategy::ClientFirst),
-                respect_external_authority: true,
-                allow_tool_override: true,
-                enable_hybrid_elicitation: false,
-                default_timeout_seconds: 300,
-                max_schema_complexity: "100".to_string(),
+                default_elicitation_strategy: Some(SamplingElicitationStrategy::ClientForwarded),
             }),
             ..Default::default()
         }
@@ -88,14 +87,13 @@ mod tests {
         // Verify sampling configuration
         let sampling = config.sampling.as_ref().unwrap();
         assert!(sampling.enabled);
-        assert_eq!(sampling.default_model, "gpt-4");
-        assert_eq!(sampling.default_sampling_strategy, Some(SamplingElicitationStrategy::MagictunnelFirst));
+        assert_eq!(sampling.llm_config.as_ref().unwrap().model, "gpt-4");
+        assert_eq!(sampling.default_sampling_strategy, Some(SamplingElicitationStrategy::ClientForwarded));
         
         // Verify elicitation configuration
         let elicitation = config.elicitation.as_ref().unwrap();
         assert!(elicitation.enabled);
-        assert_eq!(elicitation.default_elicitation_strategy, Some(SamplingElicitationStrategy::ClientFirst));
-        assert!(elicitation.respect_external_authority);
+        assert_eq!(elicitation.default_elicitation_strategy, Some(SamplingElicitationStrategy::ClientForwarded));
         
         println!("✅ Configuration creation and validation verified");
     }
@@ -103,54 +101,21 @@ mod tests {
     /// Test: SamplingElicitationStrategy Enum Validation
     #[tokio::test]
     async fn test_sampling_elicitation_strategy_enum() {
-        let strategies = vec![
-            SamplingElicitationStrategy::MagictunnelHandled,
-            SamplingElicitationStrategy::ClientForwarded,
-            SamplingElicitationStrategy::MagictunnelFirst,
-            SamplingElicitationStrategy::ClientFirst,
-            SamplingElicitationStrategy::Parallel,
-            SamplingElicitationStrategy::Hybrid,
-        ];
+        let strategy = SamplingElicitationStrategy::ClientForwarded;
 
-        for strategy in &strategies {
-            // Test validation
-            assert!(strategy.validate().is_ok());
-            
-            // Test LLM configuration requirements
-            let requires_llm = strategy.requires_llm_config();
-            let requires_client = strategy.requires_client_forwarding();
-            
-            match strategy {
-                SamplingElicitationStrategy::MagictunnelHandled => {
-                    assert!(requires_llm);
-                    assert!(!requires_client);
-                }
-                SamplingElicitationStrategy::ClientForwarded => {
-                    assert!(!requires_llm);
-                    assert!(requires_client);
-                }
-                SamplingElicitationStrategy::MagictunnelFirst => {
-                    assert!(requires_llm);
-                    assert!(!requires_client);
-                }
-                SamplingElicitationStrategy::ClientFirst => {
-                    assert!(!requires_llm);
-                    assert!(requires_client);
-                }
-                SamplingElicitationStrategy::Parallel => {
-                    assert!(requires_llm);
-                    assert!(requires_client);
-                }
-                SamplingElicitationStrategy::Hybrid => {
-                    assert!(requires_llm);
-                    assert!(requires_client);
-                }
-            }
-            
-            println!("✅ Strategy validated: {:?}", strategy);
-        }
+        // Test validation
+        assert!(strategy.validate().is_ok());
         
-        println!("✅ All SamplingElicitationStrategy variants validated");
+        // Test LLM configuration requirements
+        let requires_llm = strategy.requires_llm_config();
+        let requires_client = strategy.requires_client_forwarding();
+        
+        // ClientForwarded strategy should not require LLM but should require client forwarding
+        assert!(!requires_llm, "ClientForwarded should not require LLM config");
+        assert!(requires_client, "ClientForwarded should require client forwarding");
+        
+        println!("✅ Strategy validated: {:?}", strategy);
+        println!("✅ SamplingElicitationStrategy::ClientForwarded validated (only supported strategy)");
     }
 
     /// Test: Sampling Request Structure and Serialization

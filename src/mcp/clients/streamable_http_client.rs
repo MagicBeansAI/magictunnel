@@ -328,7 +328,7 @@ impl StreamableHttpMcpClient {
         base_url: String,
         auth_headers: HashMap<String, String>,
     ) {
-        let Some(forwarder) = request_forwarder else {
+        let Some(forwarder) = request_forwarder.as_ref() else {
             warn!("No request forwarder available for bidirectional request from server '{}'", server_name);
             Self::send_error_response_to_server(&http_client, &base_url, &auth_headers, &request, &server_name, "No request forwarder configured").await;
             return;
@@ -341,12 +341,52 @@ impl StreamableHttpMcpClient {
         };
 
         match request.method.as_str() {
+            "notifications/tools/list_changed" => {
+                // Handle tools list_changed notification from external server
+                info!("📥 MCP CLIENT RECEIVED NOTIFICATION - Server '{}' sent tools/list_changed notification", server_name);
+                
+                // Forward the notification to internal MagicTunnel server
+                info!("🔔 MCP CLIENT FORWARDING NOTIFICATION - Forwarding tools/list_changed to internal MagicTunnel server from '{}'", server_name);
+                
+                // Forward the notification using the request forwarder
+                if let Err(e) = forwarder.forward_notification("notifications/tools/list_changed", &server_name, &client_id).await {
+                    error!("Failed to forward tools/list_changed notification from {}: {}", server_name, e);
+                } else {
+                    info!("✅ Successfully forwarded tools/list_changed notification from {}", server_name);
+                }
+                
+                // Notifications don't require responses, so we don't send anything back
+                return;
+            }
+            "notifications/resources/list_changed" => {
+                // Handle resources list_changed notification from external server  
+                info!("📥 MCP CLIENT RECEIVED NOTIFICATION - Server '{}' sent resources/list_changed notification", server_name);
+                debug!("Resources list changed notification received from external server: {}", server_name);
+                // Notifications don't require responses
+                return;
+            }
+            "notifications/prompts/list_changed" => {
+                // Handle prompts list_changed notification from external server
+                info!("📥 MCP CLIENT RECEIVED NOTIFICATION - Server '{}' sent prompts/list_changed notification", server_name);
+                debug!("Prompts list changed notification received from external server: {}", server_name);
+                // Notifications don't require responses
+                return;
+            }
             "sampling/createMessage" => {
+                // Log MCP sampling request received from remote server
+                info!("📥 MCP CLIENT RECEIVED SAMPLING - Server '{}' sent sampling/createMessage request", server_name);
+                
                 // Convert to SamplingRequest and forward
                 match Self::convert_mcp_to_sampling_request(&request) {
                     Ok(sampling_request) => {
+                        // Log forwarding to internal MagicTunnel server
+                        info!("🔄 MCP CLIENT FORWARDING SAMPLING - Forwarding to internal MagicTunnel server from '{}'", server_name);
+                        
                         match forwarder.forward_sampling_request(sampling_request, &server_name, &client_id).await {
                             Ok(sampling_response) => {
+                                // Log successful response received from internal processing
+                                info!("✅ MCP CLIENT SAMPLING SUCCESS - Received response from internal server, sending back to '{}'", server_name);
+                                
                                 // Send successful response back to external server
                                 let response = McpResponse {
                                     jsonrpc: "2.0".to_string(),
@@ -357,7 +397,7 @@ impl StreamableHttpMcpClient {
                                 Self::send_response_to_server(&http_client, &base_url, &auth_headers, response, &server_name).await;
                             }
                             Err(e) => {
-                                error!("Failed to forward sampling request from server '{}': {}", server_name, e);
+                                error!("❌ MCP CLIENT SAMPLING FORWARDING FAILED - Failed to forward sampling request from server '{}': {}", server_name, e);
                                 Self::send_error_response_to_server(&http_client, &base_url, &auth_headers, &request, &server_name, &e.to_string()).await;
                             }
                         }
@@ -369,11 +409,20 @@ impl StreamableHttpMcpClient {
                 }
             }
             "elicitation/request" => {
+                // Log MCP elicitation request received from remote server
+                info!("📥 MCP CLIENT RECEIVED ELICITATION - Server '{}' sent elicitation/request request", server_name);
+                
                 // Convert to ElicitationRequest and forward
                 match Self::convert_mcp_to_elicitation_request(&request) {
                     Ok(elicitation_request) => {
+                        // Log forwarding to internal MagicTunnel server
+                        info!("🔄 MCP CLIENT FORWARDING ELICITATION - Forwarding to internal MagicTunnel server from '{}'", server_name);
+                        
                         match forwarder.forward_elicitation_request(elicitation_request, &server_name, &client_id).await {
                             Ok(elicitation_response) => {
+                                // Log successful response received from internal processing
+                                info!("✅ MCP CLIENT ELICITATION SUCCESS - Received response from internal server, sending back to '{}'", server_name);
+                                
                                 // Send successful response back to external server
                                 let response = McpResponse {
                                     jsonrpc: "2.0".to_string(),
@@ -384,7 +433,7 @@ impl StreamableHttpMcpClient {
                                 Self::send_response_to_server(&http_client, &base_url, &auth_headers, response, &server_name).await;
                             }
                             Err(e) => {
-                                error!("Failed to forward elicitation request from server '{}': {}", server_name, e);
+                                error!("❌ MCP CLIENT ELICITATION FORWARDING FAILED - Failed to forward elicitation request from server '{}': {}", server_name, e);
                                 Self::send_error_response_to_server(&http_client, &base_url, &auth_headers, &request, &server_name, &e.to_string()).await;
                             }
                         }

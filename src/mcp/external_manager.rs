@@ -6,9 +6,10 @@
 use crate::config::{ExternalMcpConfig, ExternalMcpServersConfig, ContainerConfig, McpClientConfig};
 use crate::error::{ProxyError, Result};
 use crate::mcp::external_process::ExternalMcpProcess;
-use crate::mcp::types::{Tool, McpRequest, McpResponse};
+use crate::mcp::types::{Tool, McpRequest, McpResponse, McpNotification};
 use crate::mcp::metrics::{McpMetricsCollector, McpHealthThresholds, HealthStatus};
 use crate::mcp::health_checker::{McpHealthChecker, HealthCheckConfig};
+use crate::mcp::notifications::McpNotificationManager;
 use crate::registry::types::{CapabilityFile, ToolDefinition, RoutingConfig};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -19,6 +20,35 @@ use tokio::sync::RwLock;
 use tokio::time::{interval, Duration};
 use tracing::{debug, error, info, warn};
 use tokio::fs;
+use serde::{Deserialize, Serialize};
+
+
+/// Server capabilities information for UI display
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerCapabilitiesInfo {
+    /// Server name
+    pub server_name: String,
+    /// MCP protocol version (e.g., "2024-11-05", "2025-06-18")
+    pub protocol_version: String,
+    /// Server version/info from the server itself
+    pub server_info: Option<String>,
+    /// Whether the server supports sampling (MCP 2025-06-18)
+    pub supports_sampling: bool,
+    /// Whether the server supports elicitation (MCP 2025-06-18)
+    pub supports_elicitation: bool,
+    /// Whether the server supports tools
+    pub supports_tools: bool,
+    /// Whether the server supports resources
+    pub supports_resources: bool,
+    /// Whether the server supports prompts
+    pub supports_prompts: bool,
+    /// Whether the server supports roots
+    pub supports_roots: bool,
+    /// Whether the server is currently running
+    pub is_running: bool,
+    /// Server uptime in seconds (if running)
+    pub uptime_seconds: Option<u64>,
+}
 
 /// Server version and capability information
 #[derive(Debug, Clone, Default)]
@@ -171,11 +201,11 @@ impl ExternalMcpManager {
         // Initialize metrics for all servers
         self.initialize_server_metrics().await;
 
-        // Start periodic capability discovery and health monitoring
-        self.start_periodic_monitoring().await;
-
-        // Perform initial capability discovery
+        // Perform initial capability discovery FIRST
         self.discover_all_capabilities().await?;
+
+        // Start periodic monitoring AFTER initial discovery completes
+        self.start_periodic_monitoring().await;
 
         info!("External MCP Manager started successfully");
         Ok(())
@@ -398,7 +428,72 @@ mcpServers:
 
     /// Initialize MCP server with handshake
     async fn initialize_server(&self, process: &ExternalMcpProcess) -> Result<Value> {
-        self.initialize_server_with_capabilities(process, None).await
+        let result = self.initialize_server_with_capabilities(process, None).await?;
+        
+        // Parse and store server capabilities from initialize response
+        let mut version_info = ServerVersionInfo::default();
+        self.parse_server_capabilities(&result, &mut version_info, &process.name);
+        
+        // Store the capabilities for this server
+        {
+            let mut version_info_guard = self.version_info.write().await;
+            version_info_guard.insert(process.name.clone(), version_info);
+        }
+        
+        Ok(result)
+    }
+    
+    /// Parse server capabilities from initialize response and update ServerVersionInfo
+    fn parse_server_capabilities(&self, initialize_result: &Value, version_info: &mut ServerVersionInfo, server_name: &str) {
+        if let Some(server_capabilities) = initialize_result.get("capabilities") {
+            // Check for sampling support
+            if server_capabilities.get("sampling").is_some() {
+                version_info.supports_sampling = true;
+                debug!("Server supports sampling capability");
+            }
+            
+            // Check for elicitation support  
+            if server_capabilities.get("elicitation").is_some() {
+                version_info.supports_elicitation = true;
+                debug!("Server supports elicitation capability");
+            }
+            
+            // Check for tools support
+            if server_capabilities.get("tools").is_some() {
+                version_info.supports_tools = true;
+            }
+            
+            // Check for resources support
+            if server_capabilities.get("resources").is_some() {
+                version_info.supports_resources = true;
+            }
+            
+            // Check for prompts support
+            if server_capabilities.get("prompts").is_some() {
+                version_info.supports_prompts = true;
+            }
+            
+            // Check for roots support
+            if server_capabilities.get("roots").is_some() {
+                version_info.supports_roots = true;
+            }
+            
+            // Store raw response for debugging
+            version_info.raw_init_response = Some(initialize_result.clone());
+            
+            info!("📋 Server '{}' capabilities: sampling={}, elicitation={}, tools={}, resources={}, prompts={}, roots={}", 
+                  server_name,
+                  version_info.supports_sampling,
+                  version_info.supports_elicitation, 
+                  version_info.supports_tools,
+                  version_info.supports_resources,
+                  version_info.supports_prompts,
+                  version_info.supports_roots);
+            
+            debug!("Raw capabilities from server '{}': {:?}", server_name, server_capabilities);
+        } else {
+            debug!("No capabilities found in initialize response");
+        }
     }
     
     /// Initialize MCP server with handshake using client capabilities for safe advertisement
@@ -479,6 +574,7 @@ mcpServers:
         ).await;
 
         info!("Successfully initialized External MCP server: {}", process.name);
+        debug!("Initialize response from server '{}': {}", process.name, result);
         Ok(result)
     }
 
@@ -506,6 +602,9 @@ mcpServers:
             
             // Health check interval (shorter)
             let mut health_interval = interval(Duration::from_secs(30)); // Every 30 seconds
+
+            // Skip the first immediate tick for discovery since we just completed initial discovery
+            discovery_interval.tick().await;
 
             loop {
                 tokio::select! {
@@ -672,15 +771,28 @@ mcpServers:
                     }
                 };
 
-                // Step 2: Query for MCP 2025-06-18 enhanced capabilities (sampling/elicitation)
-                info!("Querying MCP 2025-06-18 enhanced capabilities for server '{}'", server_name);
-                Self::enhance_tools_with_2025_capabilities(process, server_name, &mut tools).await;
+                // Step 2: Use properly detected capabilities from initialize handshake
+                let server_capabilities = {
+                    let version_info_guard = version_info.read().await;
+                    version_info_guard.get(server_name).cloned().unwrap_or_default()
+                };
                 
-                // Step 3: Fetch sampling and elicitation lists if server supports them
-                Self::fetch_2025_capability_lists(process, server_name).await;
+                info!("Using server capabilities from initialize handshake for '{}': sampling={}, elicitation={}, tools={}, resources={}, prompts={}", 
+                      server_name, 
+                      server_capabilities.supports_sampling,
+                      server_capabilities.supports_elicitation,
+                      server_capabilities.supports_tools,
+                      server_capabilities.supports_resources,
+                      server_capabilities.supports_prompts);
                 
-                // Step 4: Fetch prompts and resources if server supports them
-                Self::fetch_prompts_and_resources_lists(process, server_name).await;
+                // Step 3: Only call supported endpoints based on capabilities
+                if server_capabilities.supports_prompts {
+                    Self::fetch_prompts_if_supported(process, server_name).await;
+                }
+                
+                if server_capabilities.supports_resources {
+                    Self::fetch_resources_if_supported(process, server_name).await;
+                }
                 
                 // Return the enhanced tools
                 tools
@@ -690,14 +802,10 @@ mcpServers:
             }
         };
 
-        // Detect server version and capabilities
+        // Get server version and capabilities (already stored during initialization)
         let server_version_info = {
-            let processes_guard = processes.read().await;
-            if let Some(process) = processes_guard.get(server_name) {
-                Self::detect_server_version_info(process, server_name).await
-            } else {
-                ServerVersionInfo::default()
-            }
+            let version_info_guard = version_info.read().await;
+            version_info_guard.get(server_name).cloned().unwrap_or_default()
         };
 
         // Store discovered capabilities
@@ -781,6 +889,10 @@ mcpServers:
                         });
                         debug!("✅ Marked tool '{}' as sampling-capable on server '{}'", tool.name, server_name);
                     }
+                } else if let Some(error) = &response.error {
+                    if error.code != -32601 { // Only log if it's not "Method not found"
+                        debug!("Server '{}' sampling error for tool '{}': {}", server_name, tool.name, error.message);
+                    }
                 }
             }
             Err(_) => {
@@ -796,7 +908,7 @@ mcpServers:
         process: &ExternalMcpProcess,
         server_name: &str,
     ) {
-        debug!("Testing MCP 2025-06-18 advanced capabilities for server '{}'", server_name);
+        debug!("Testing MCP 2025-06-18 advanced capabilities for server '{}' (method not found errors are expected for basic MCP servers)", server_name);
         
         // Test sampling capability by attempting a simple sampling request
         match process.send_request("sampling/createMessage", Some(json!({
@@ -812,9 +924,12 @@ mcpServers:
             Ok(response) => {
                 if response.error.is_none() {
                     info!("✅ Server '{}' supports MCP sampling capability", server_name);
-                } else {
-                    debug!("Server '{}' doesn't support sampling: {}", server_name, 
-                           response.error.as_ref().map(|e| e.message.as_str()).unwrap_or("unknown error"));
+                } else if let Some(error) = &response.error {
+                    if error.code == -32601 { // Method not found
+                        debug!("Server '{}' doesn't support sampling (method not found)", server_name);
+                    } else {
+                        debug!("Server '{}' sampling error: {}", server_name, error.message);
+                    }
                 }
             }
             Err(_) => {
@@ -831,23 +946,29 @@ mcpServers:
             Ok(response) => {
                 if response.error.is_none() {
                     info!("✅ Server '{}' supports MCP elicitation capability", server_name);
-                } else {
-                    debug!("Server '{}' doesn't support elicitation: {}", server_name,
-                           response.error.as_ref().map(|e| e.message.as_str()).unwrap_or("unknown error"));
+                } else if let Some(error) = &response.error {
+                    if error.code == -32601 { // Method not found
+                        debug!("Server '{}' doesn't support elicitation (method not found)", server_name);
+                    } else {
+                        debug!("Server '{}' elicitation error: {}", server_name, error.message);
+                    }
                 }
             }
             Err(_) => {
                 debug!("Server '{}' doesn't support elicitation/create endpoint", server_name);
             }
         }
+        
+        // Log summary of capability detection
+        debug!("Capability detection completed for server '{}'", server_name);
     }
     
-    /// Fetch prompts and resources lists from external MCP server
-    async fn fetch_prompts_and_resources_lists(
+    /// Fetch prompts list from external MCP server (only if supported)
+    async fn fetch_prompts_if_supported(
         process: &ExternalMcpProcess,
         server_name: &str,
     ) {
-        debug!("Fetching prompts and resources lists for server '{}'", server_name);
+        debug!("Fetching prompts list for server '{}' (server advertised prompts support)", server_name);
         
         // Fetch prompts list
         match process.send_request("prompts/list", Some(json!({}))).await {
@@ -868,6 +989,14 @@ mcpServers:
                 debug!("Server '{}' doesn't support prompts list endpoint", server_name);
             }
         }
+    }
+    
+    /// Fetch resources list from external MCP server (only if supported)
+    async fn fetch_resources_if_supported(
+        process: &ExternalMcpProcess,
+        server_name: &str,
+    ) {
+        debug!("Fetching resources list for server '{}' (server advertised resources support)", server_name);
         
         // Fetch resources list
         match process.send_request("resources/list", Some(json!({}))).await {
@@ -923,6 +1052,10 @@ mcpServers:
                             generated_at: Some(chrono::Utc::now()),
                         });
                         debug!("✅ Marked tool '{}' as elicitation-capable on server '{}'", tool.name, server_name);
+                    }
+                } else if let Some(error) = &response.error {
+                    if error.code != -32601 { // Only log if it's not "Method not found"
+                        debug!("Server '{}' elicitation error for tool '{}': {}", server_name, tool.name, error.message);
                     }
                 }
             }
@@ -1140,6 +1273,10 @@ mcpServers:
                     version_info.supports_sampling = true;
                     version_info.protocol_version = Some("2025-06-18".to_string());
                     debug!("Server '{}' supports MCP sampling capability", server_name);
+                } else if let Some(error) = &response.error {
+                    if error.code != -32601 { // Only log if it's not "Method not found"
+                        debug!("Server '{}' sampling test error: {}", server_name, error.message);
+                    }
                 }
             }
             Err(_) => {
@@ -1160,6 +1297,10 @@ mcpServers:
                         version_info.protocol_version = Some("2025-06-18".to_string());
                     }
                     debug!("Server '{}' supports MCP elicitation capability", server_name);
+                } else if let Some(error) = &response.error {
+                    if error.code != -32601 { // Only log if it's not "Method not found"
+                        debug!("Server '{}' elicitation test error: {}", server_name, error.message);
+                    }
                 }
             }
             Err(_) => {
@@ -1570,6 +1711,73 @@ impl ExternalMcpManager {
         let capabilities = self.capabilities.read().await;
         capabilities.get(server_name).cloned()
     }
+    
+    /// Get server capabilities for all servers (for UI display)
+    pub async fn get_all_server_capabilities(&self) -> HashMap<String, ServerCapabilitiesInfo> {
+        let version_info_guard = self.version_info.read().await;
+        let mut capabilities_map = HashMap::new();
+        
+        for (server_name, version_info) in version_info_guard.iter() {
+            let caps = ServerCapabilitiesInfo {
+                server_name: server_name.clone(),
+                protocol_version: version_info.protocol_version.clone().unwrap_or_default(),
+                server_info: version_info.server_info.clone(),
+                supports_sampling: version_info.supports_sampling,
+                supports_elicitation: version_info.supports_elicitation,
+                supports_tools: version_info.supports_tools,
+                supports_resources: version_info.supports_resources,
+                supports_prompts: version_info.supports_prompts,
+                supports_roots: version_info.supports_roots,
+                is_running: self.is_server_running(server_name).await,
+                uptime_seconds: self.get_server_uptime(server_name).await,
+            };
+            capabilities_map.insert(server_name.clone(), caps);
+        }
+        
+        capabilities_map
+    }
+    
+    /// Get server capabilities for a specific server (for UI display)
+    pub async fn get_server_capabilities(&self, server_name: &str) -> Option<ServerCapabilitiesInfo> {
+        let version_info_guard = self.version_info.read().await;
+        if let Some(version_info) = version_info_guard.get(server_name) {
+            Some(ServerCapabilitiesInfo {
+                server_name: server_name.to_string(),
+                protocol_version: version_info.protocol_version.clone().unwrap_or_default(),
+                server_info: version_info.server_info.clone(),
+                supports_sampling: version_info.supports_sampling,
+                supports_elicitation: version_info.supports_elicitation,
+                supports_tools: version_info.supports_tools,
+                supports_resources: version_info.supports_resources,
+                supports_prompts: version_info.supports_prompts,
+                supports_roots: version_info.supports_roots,
+                is_running: self.is_server_running(server_name).await,
+                uptime_seconds: self.get_server_uptime(server_name).await,
+            })
+        } else {
+            None
+        }
+    }
+    
+    /// Check if a server is running
+    async fn is_server_running(&self, server_name: &str) -> bool {
+        let processes_guard = self.processes.read().await;
+        if let Some(process) = processes_guard.get(server_name) {
+            process.is_running().await
+        } else {
+            false
+        }
+    }
+    
+    /// Get server uptime in seconds
+    async fn get_server_uptime(&self, server_name: &str) -> Option<u64> {
+        let processes_guard = self.processes.read().await;
+        if let Some(process) = processes_guard.get(server_name) {
+            process.get_start_time().map(|start_time| start_time.elapsed().as_secs())
+        } else {
+            None
+        }
+    }
 
     /// Get list of active server names
     pub async fn get_active_servers(&self) -> Vec<String> {
@@ -1674,6 +1882,12 @@ impl ExternalMcpManager {
             let mut capabilities = self.capabilities.write().await;
             capabilities.remove(server_name);
         }
+        
+        // Clear version_info (capabilities metadata) for this server 
+        {
+            let mut version_info = self.version_info.write().await;
+            version_info.remove(server_name);
+        }
 
         info!("External MCP server '{}' stopped and removed from active servers", server_name);
         Ok(())
@@ -1747,6 +1961,7 @@ impl ExternalMcpManager {
     pub fn health_checker(&self) -> Arc<McpHealthChecker> {
         Arc::clone(&self.health_checker)
     }
+
 
     /// Send a request to a specific external MCP server
     pub async fn send_request_to_server(&self, server_name: &str, method: &str, params: Option<serde_json::Value>) -> Result<McpResponse> {

@@ -1,7 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
-use tracing::{info, error, warn};
+use std::collections::HashMap;
+use tracing::{info, error, warn, debug};
 use serde_json::json;
 
 mod auth;
@@ -25,6 +26,7 @@ use config::Config;
 use mcp::{McpServer, McpErrorCode, ExternalMcpIntegration};
 use grpc::McpGrpcServer;
 use services::{ServiceLoader, ServiceContainer};
+use registry::types::ToolDefinition;
 use std::sync::Arc;
 use tonic::transport::Server;
 
@@ -173,7 +175,7 @@ async fn run_http_server_mode(resolution: &config::ConfigResolution) -> Result<(
     
     // Create MCP server for main.rs to own and start
     // This avoids the Arc ownership issue since we get an owned server
-    let mcp_server = service_container.create_mcp_server_for_main()?;
+    let mcp_server = service_container.create_mcp_server_for_main().await?;
     
     let registry = service_container.get_registry()
         .ok_or_else(|| anyhow::anyhow!("Registry not available from service container"))?;
@@ -253,15 +255,53 @@ async fn run_http_server_mode(resolution: &config::ConfigResolution) -> Result<(
 async fn run_stdio_mode(config: Config) -> Result<()> {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
     use serde_json::json;
+    use tokio::sync::Mutex;
+    use std::sync::Arc;
 
     // Initialize MCP server with full configuration (including external MCP integration)
     let mcp_server = McpServer::with_config(&config).await?;
 
-    // Set up stdin/stdout
+    // Set up stdin/stdout - wrap stdout in Arc<Mutex> for sharing between tasks
     let stdin = tokio::io::stdin();
-    let mut stdout = tokio::io::stdout();
+    let stdout = Arc::new(Mutex::new(tokio::io::stdout()));
     let mut reader = BufReader::new(stdin);
     let mut line = String::new();
+
+    // Subscribe to notifications and forward them to stdio
+    let mut notification_receiver = mcp_server.notification_manager().subscribe();
+    let stdout_clone = stdout.clone();
+    tokio::spawn(async move {
+        debug!("Started notification forwarding for stdio mode");
+        while let Ok(notification) = notification_receiver.recv().await {
+            let notification_json = match serde_json::to_string(&json!({
+                "jsonrpc": "2.0",
+                "method": notification.method,
+                "params": notification.params.unwrap_or_default()
+            })) {
+                Ok(json) => json,
+                Err(e) => {
+                    warn!("Failed to serialize notification: {}", e);
+                    continue;
+                }
+            };
+            
+            let mut stdout_guard = stdout_clone.lock().await;
+            if let Err(e) = stdout_guard.write_all(notification_json.as_bytes()).await {
+                debug!("Failed to write notification to stdout (client likely disconnected): {}", e);
+                break;
+            }
+            if let Err(e) = stdout_guard.write_all(b"\n").await {
+                debug!("Failed to write notification newline to stdout: {}", e);
+                break;
+            }
+            if let Err(e) = stdout_guard.flush().await {
+                debug!("Failed to flush notification to stdout: {}", e);
+                break;
+            }
+            debug!("Sent notification via stdio: {}", notification.method);
+        }
+        debug!("Notification forwarding ended for stdio mode");
+    });
 
     info!("MCP Proxy stdio mode ready - waiting for JSON-RPC messages");
 
@@ -281,15 +321,16 @@ async fn run_stdio_mode(config: Config) -> Result<()> {
 
                 match handle_stdio_message(&mcp_server, trimmed_line).await {
                     Ok(Some(response)) => {
-                        if let Err(e) = stdout.write_all(response.as_bytes()).await {
+                        let mut stdout_guard = stdout.lock().await;
+                        if let Err(e) = stdout_guard.write_all(response.as_bytes()).await {
                             error!("Failed to write response to stdout: {}", e);
                             break;
                         }
-                        if let Err(e) = stdout.write_all(b"\n").await {
+                        if let Err(e) = stdout_guard.write_all(b"\n").await {
                             error!("Failed to write newline to stdout: {}", e);
                             break;
                         }
-                        if let Err(e) = stdout.flush().await {
+                        if let Err(e) = stdout_guard.flush().await {
                             error!("Failed to flush stdout: {}", e);
                             break;
                         }
@@ -308,15 +349,16 @@ async fn run_stdio_mode(config: Config) -> Result<()> {
                                 "message": format!("Internal error: {}", e)
                             }
                         });
-                        if let Err(write_err) = stdout.write_all(error_response.to_string().as_bytes()).await {
+                        let mut stdout_guard = stdout.lock().await;
+                        if let Err(write_err) = stdout_guard.write_all(error_response.to_string().as_bytes()).await {
                             error!("Failed to write error response: {}", write_err);
                             break;
                         }
-                        if let Err(write_err) = stdout.write_all(b"\n").await {
+                        if let Err(write_err) = stdout_guard.write_all(b"\n").await {
                             error!("Failed to write error newline: {}", write_err);
                             break;
                         }
-                        let _ = stdout.flush().await;
+                        let _ = stdout_guard.flush().await;
                     }
                 }
             }
@@ -486,8 +528,7 @@ async fn pregenerate_embeddings_and_exit(config: Config) -> Result<()> {
     info!("🧠 Using embedding model: {}", smart_discovery_config.semantic_search.model_name);
     
     // Initialize sampling service for MCP-compliant sampling/createMessage functionality
-    let sampling_service = if config.sampling.as_ref().map(|s| s.enabled).unwrap_or(false) ||
-                             smart_discovery_config.enable_sampling.unwrap_or(false) {
+    let sampling_service = if config.sampling.as_ref().map(|s| s.enabled).unwrap_or(false) {
         info!("🎯 Initializing sampling service for MCP-compliant LLM message generation");
         match mcp::sampling::SamplingService::from_config(&config) {
             Ok(service) => Some(Arc::new(service)),
@@ -514,8 +555,7 @@ async fn pregenerate_embeddings_and_exit(config: Config) -> Result<()> {
         None
     };
     
-    let elicitation_service = if config.elicitation.as_ref().map(|e| e.enabled).unwrap_or(false) ||
-                                smart_discovery_config.enable_elicitation.unwrap_or(false) {
+    let elicitation_service = if config.elicitation.as_ref().map(|e| e.enabled).unwrap_or(false) {
         info!("🎯 Initializing elicitation service for enhanced metadata");
         match mcp::elicitation::ElicitationService::from_config(&config) {
             Ok(service) => Some(Arc::new(service)),
@@ -610,6 +650,7 @@ async fn pregenerate_embeddings_and_exit(config: Config) -> Result<()> {
     };
     
     // Initialize enhancement storage service
+    debug!("🔧 Enhancement storage config: {:?}", config.enhancement_storage.is_some());
     let enhancement_storage = if let Some(storage_config) = &config.enhancement_storage {
         info!("💾 Initializing enhancement storage service");
         match discovery::EnhancementStorageService::new(storage_config.clone()) {
@@ -630,12 +671,28 @@ async fn pregenerate_embeddings_and_exit(config: Config) -> Result<()> {
         None
     };
     
-    // Initialize tool enhancement service if sampling/elicitation enabled
-    let enhancement_service = if sampling_service.is_some() || tool_enhancement_service.is_some() || elicitation_service.is_some() {
+    // Check if tool enhancement is enabled (separate from MCP sampling/elicitation)
+    let tool_enhancement_enabled = config.tool_enhancement
+        .as_ref()
+        .map(|te| te.enabled)
+        .unwrap_or(false);
+    
+    // Check if tools need enhancement before initializing the service
+    // Only run enhancement if tool enhancement is enabled in config
+    let tools_need_enhancement = if tool_enhancement_enabled {
+        info!("🔍 Tool enhancement enabled in config - checking if tools need enhancement");
+        check_if_tools_need_enhancement(&registry, &enhancement_storage).await.unwrap_or(true) // Default to true if check fails
+    } else {
+        info!("📭 Tool enhancement disabled in config - skipping enhancement pipeline");
+        false
+    };
+    
+    // Initialize tool enhancement service only if enabled and tools actually need enhancement
+    let enhancement_service = if tools_need_enhancement {
         info!("🚀 Initializing tool enhancement pipeline for embedding generation");
         let enhancement_config = discovery::ToolEnhancementConfig {
-            enable_sampling_enhancement: sampling_service.is_some() || tool_enhancement_service.is_some(),
-            enable_elicitation_enhancement: elicitation_service.is_some(),
+            enable_description_enhancement: tool_enhancement_service.is_some(),
+            enable_tool_enhancement: tool_enhancement_enabled,
             require_approval: false, // No approval needed for embedding generation
             cache_enhancements: true,
             enhancement_timeout_seconds: 60, // Longer timeout for batch processing
@@ -661,15 +718,28 @@ async fn pregenerate_embeddings_and_exit(config: Config) -> Result<()> {
         registry.set_enhancement_callback(Arc::clone(&enhancement_service) as Arc<dyn registry::service::EnhancementCallback>);
         info!("🔔 Enhancement service registered for tool change notifications");
         
-        // Initialize enhancement service (generate missing enhancements at startup)
-        if let Err(e) = enhancement_service.initialize().await {
-            error!("Failed to initialize enhancement service: {}", e);
-            return Err(e.into());
-        }
+        // Run ALL enhancement initialization in background to avoid blocking server startup
+        let enhancement_service_clone = Arc::clone(&enhancement_service);
+        tokio::spawn(async move {
+            info!("🔄 Starting tool enhancement service in background thread");
+            
+            // Fast initialization
+            if let Err(e) = enhancement_service_clone.initialize().await {
+                error!("Failed to do fast initialization of enhancement service: {}", e);
+                return;
+            }
+            
+            // Full analysis
+            if let Err(e) = enhancement_service_clone.initialize_with_analysis().await {
+                error!("Failed to complete enhancement service analysis in background: {}", e);
+            } else {
+                info!("✅ Tool enhancement background analysis completed");
+            }
+        });
         
         Some(enhancement_service)
     } else {
-        info!("🔧 No enhancement services available - using base descriptions");
+        info!("✅ All tools already enhanced - skipping enhancement pipeline initialization completely");
         None
     };
     
@@ -731,6 +801,54 @@ async fn pregenerate_embeddings_and_exit(config: Config) -> Result<()> {
     
     info!("🎉 Pre-generation complete! Server startup will now be faster.");
     Ok(())
+}
+
+/// Check if tools need enhancement by analyzing existing enhancement storage
+/// Only counts regular tools that should be enhanced (excludes external MCP tools and system tools)
+async fn check_if_tools_need_enhancement(
+    registry: &Arc<registry::RegistryService>,
+    enhancement_storage: &Option<Arc<discovery::EnhancementStorageService>>
+) -> Result<bool> {
+    // Get all enabled tools from registry  
+    let all_tools = registry.get_enabled_tools();
+    if all_tools.is_empty() {
+        info!("📭 No tools found in registry - skipping enhancement");
+        return Ok(false);
+    }
+
+    info!("🔍 Analyzing {} tools to determine enhancement needs", all_tools.len());
+
+    // Convert Vec to HashMap for the centralized method
+    let tools_map: HashMap<String, ToolDefinition> = all_tools.into_iter().collect();
+    
+    // Use centralized logic for tool analysis
+    let (regular_tools, analysis) = discovery::ToolEnhancementPipeline::analyze_tools_for_enhancement(&tools_map, enhancement_storage).await?;
+
+    info!("📊 Tool categorization:");
+    info!("  - Total tools: {}", analysis.total_tools);
+    info!("  - Regular tools (can be enhanced): {}", analysis.regular_tools_count);
+    info!("  - External MCP tools (skip): {}", analysis.external_tools_count);
+    info!("  - Disabled tools (skip): {}", analysis.disabled_tools_count);
+    info!("  - Generator-enhanced tools (skip): {}", analysis.generator_enhanced_count);
+
+    if regular_tools.is_empty() {
+        info!("✅ No regular tools found that need enhancement");
+        return Ok(false);
+    }
+
+    let needs_enhancement = analysis.needs_enhancement > 0;
+    
+    info!("🎯 Enhancement analysis results:");
+    info!("  - Already enhanced: {}", analysis.already_enhanced);
+    info!("  - Need enhancement: {}", analysis.needs_enhancement);
+    
+    if needs_enhancement {
+        info!("⚡ Will initialize enhancement service for {} tools", analysis.needs_enhancement);
+    } else {
+        info!("✅ All regular tools already enhanced - skipping enhancement service initialization");
+    }
+
+    Ok(needs_enhancement)
 }
 
 fn init_logging(level: &str) -> Result<()> {

@@ -400,11 +400,20 @@ impl WebSocketMcpClient {
 
         match request.method.as_str() {
             "sampling/createMessage" => {
+                // Log MCP sampling request received from remote server
+                info!("📥 MCP WS CLIENT RECEIVED SAMPLING - Server '{}' sent sampling/createMessage request", server_name);
+                
                 // Convert to SamplingRequest and forward
                 match Self::convert_mcp_to_sampling_request(&request) {
                     Ok(sampling_request) => {
+                        // Log forwarding to internal MagicTunnel server
+                        info!("🔄 MCP WS CLIENT FORWARDING SAMPLING - Forwarding to internal MagicTunnel server from '{}'", server_name);
+                        
                         match forwarder.forward_sampling_request(sampling_request, &server_name, &client_id).await {
                             Ok(sampling_response) => {
+                                // Log successful response received from internal processing
+                                info!("✅ MCP WS CLIENT SAMPLING SUCCESS - Received response from internal server, sending back to '{}'", server_name);
+                                
                                 // Send successful response back to external server
                                 let response = McpResponse {
                                     jsonrpc: "2.0".to_string(),
@@ -415,7 +424,7 @@ impl WebSocketMcpClient {
                                 Self::send_response_to_server(&message_sender, response, &server_name).await;
                             }
                             Err(e) => {
-                                error!("Failed to forward sampling request from WebSocket server '{}': {}", server_name, e);
+                                error!("❌ MCP WS CLIENT SAMPLING FORWARDING FAILED - Failed to forward sampling request from WebSocket server '{}': {}", server_name, e);
                                 Self::send_error_response_to_server(&message_sender, &request, &server_name, &e.to_string()).await;
                             }
                         }
@@ -427,11 +436,20 @@ impl WebSocketMcpClient {
                 }
             }
             "elicitation/request" => {
+                // Log MCP elicitation request received from remote server
+                info!("📥 MCP WS CLIENT RECEIVED ELICITATION - Server '{}' sent elicitation/request request", server_name);
+                
                 // Convert to ElicitationRequest and forward
                 match Self::convert_mcp_to_elicitation_request(&request) {
                     Ok(elicitation_request) => {
+                        // Log forwarding to internal MagicTunnel server
+                        info!("🔄 MCP WS CLIENT FORWARDING ELICITATION - Forwarding to internal MagicTunnel server from '{}'", server_name);
+                        
                         match forwarder.forward_elicitation_request(elicitation_request, &server_name, &client_id).await {
                             Ok(elicitation_response) => {
+                                // Log successful response received from internal processing
+                                info!("✅ MCP WS CLIENT ELICITATION SUCCESS - Received response from internal server, sending back to '{}'", server_name);
+                                
                                 // Send successful response back to external server
                                 let response = McpResponse {
                                     jsonrpc: "2.0".to_string(),
@@ -442,7 +460,7 @@ impl WebSocketMcpClient {
                                 Self::send_response_to_server(&message_sender, response, &server_name).await;
                             }
                             Err(e) => {
-                                error!("Failed to forward elicitation request from WebSocket server '{}': {}", server_name, e);
+                                error!("❌ MCP WS CLIENT ELICITATION FORWARDING FAILED - Failed to forward elicitation request from WebSocket server '{}': {}", server_name, e);
                                 Self::send_error_response_to_server(&message_sender, &request, &server_name, &e.to_string()).await;
                             }
                         }

@@ -319,9 +319,9 @@ pub struct EnhancedToolDefinition {
     /// Base tool definition (original from registry)
     pub base: ToolDefinition,
     
-    /// Enhanced description generated via sampling (if available)
+    /// Enhanced description generated via LLM (if available)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sampling_enhanced_description: Option<String>,
+    pub llm_enhanced_description: Option<String>,
     
     /// Additional metadata generated via elicitation (if available)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -408,11 +408,11 @@ pub struct ElicitationMetadata {
 pub enum EnhancementSource {
     /// Base tool only (no enhancement)
     Base,
-    /// Enhanced via sampling only
-    Sampling,
+    /// Enhanced via LLM description generation only
+    LlmDescription,
     /// Enhanced via elicitation only
     Elicitation,
-    /// Enhanced via both sampling and elicitation
+    /// Enhanced via both LLM description and elicitation
     Both,
     /// Enhanced manually by user
     Manual,
@@ -423,13 +423,13 @@ pub enum EnhancementSource {
 /// Metadata about how the enhancement was generated
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnhancementGenerationMetadata {
-    /// Model used for sampling enhancement (if applicable)
+    /// Model used for LLM description enhancement (if applicable)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sampling_model: Option<String>,
+    pub llm_model: Option<String>,
     
-    /// Confidence score of the sampling enhancement (0.0-1.0)
+    /// Confidence score of the LLM description enhancement (0.0-1.0)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sampling_confidence: Option<f64>,
+    pub llm_confidence: Option<f64>,
     
     /// Template used for elicitation enhancement (if applicable)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -464,7 +464,7 @@ impl EnhancedToolDefinition {
         
         Self {
             base,
-            sampling_enhanced_description: None,
+            llm_enhanced_description: None,
             elicitation_metadata: None,
             enhancement_source: if is_external {
                 EnhancementSource::External
@@ -515,7 +515,7 @@ impl EnhancedToolDefinition {
     
     /// Get the effective description (enhanced if available, otherwise base)
     pub fn effective_description(&self) -> &str {
-        self.sampling_enhanced_description
+        self.llm_enhanced_description
             .as_ref()
             .unwrap_or(&self.base.description)
     }
@@ -543,7 +543,7 @@ impl EnhancedToolDefinition {
     pub fn enhancement_summary(&self) -> String {
         match &self.enhancement_source {
             EnhancementSource::Base => "Base tool definition".to_string(),
-            EnhancementSource::Sampling => "Enhanced with AI-generated description".to_string(),
+            EnhancementSource::LlmDescription => "Enhanced with AI-generated description".to_string(),
             EnhancementSource::Elicitation => "Enhanced with structured metadata".to_string(),
             EnhancementSource::Both => "Enhanced with AI description and structured metadata".to_string(),
             EnhancementSource::Manual => "Manually enhanced by user".to_string(),

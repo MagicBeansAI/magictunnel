@@ -148,19 +148,14 @@ MagicTunnel supports intelligent routing strategies for sampling requests:
 
 #### Available Strategies
 
-1. **MagictunnelHandled** - Process with MagicTunnel's LLM providers
-2. **ClientForwarded** - Forward to the original MCP client
-3. **MagictunnelFirst** - Try MagicTunnel first, fallback to client
-4. **ClientFirst** - Try client first, fallback to MagicTunnel
-5. **Parallel** - Execute both simultaneously, use best result
-6. **Hybrid** - Intelligent combination based on request type
+1. **ClientForwarded** - Forward to the original MCP client (only supported strategy)
 
 #### Configuration
 
 ```yaml
 sampling:
   enabled: true
-  default_strategy: "hybrid"
+  default_sampling_strategy: "client_forwarded"
   providers:
     openai:
       api_key: "${OPENAI_API_KEY}"

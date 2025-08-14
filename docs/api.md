@@ -18,11 +18,13 @@ MagicTunnel provides multiple API interfaces for different client needs and perf
 - **Features**: Simple request/response, easy integration
 - **Best For**: Simple integrations, testing, curl-based workflows
 
-### 3. Server-Sent Events (SSE)
-- **Endpoint**: `/mcp/stream`
-- **Protocol**: Server-Sent Events with JSON
-- **Features**: One-way streaming, progress updates
-- **Best For**: Long-running operations, progress monitoring
+### 3. Server-Sent Events (SSE) - Deprecated
+- **Stream Endpoint**: `GET /mcp/sse`
+- **Messages Endpoint**: `POST /mcp/sse/messages`
+- **Protocol**: Server-Sent Events with JSON for streaming, HTTP POST for requests
+- **Features**: Bidirectional communication using two endpoints
+- **Status**: Deprecated in favor of Streamable HTTP
+- **Best For**: Legacy clients that require SSE support
 
 ### 4. gRPC Streaming
 - **Port**: HTTP port + 1000 (default: 4000)
@@ -602,13 +604,76 @@ ws.onmessage = (event) => {
 };
 ```
 
-### Server-Sent Events
+### Server-Sent Events (Bidirectional)
 ```javascript
-const eventSource = new EventSource('/mcp/stream');
+// 1. Establish SSE stream for receiving notifications and responses
+const eventSource = new EventSource('/mcp/sse');
 eventSource.onmessage = (event) => {
   const data = JSON.parse(event.data);
-  console.log('Stream update:', data);
+  console.log('SSE notification:', data);
+  
+  // Handle different message types
+  if (data.method === 'notifications/initialized') {
+    console.log('SSE connection initialized');
+  } else if (data.method === 'notifications/tools/list_changed') {
+    console.log('Tools list changed notification received');
+  }
 };
+
+// 2. Send MCP requests via the messages endpoint
+async function sendMcpRequest(method, params = {}) {
+  const request = {
+    jsonrpc: "2.0",
+    id: Date.now().toString(),
+    method: method,
+    params: params
+  };
+  
+  const response = await fetch('/mcp/sse/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request)
+  });
+  
+  return await response.json();
+}
+
+// Example usage
+async function initializeAndListTools() {
+  // Initialize MCP session
+  const initResponse = await sendMcpRequest('initialize', {
+    protocolVersion: "2024-11-05",
+    capabilities: {
+      roots: { listChanged: true },
+      sampling: {}
+    },
+    clientInfo: {
+      name: "SSE Test Client",
+      version: "1.0.0"
+    }
+  });
+  
+  console.log('Initialize response:', initResponse);
+  
+  // List available tools
+  const toolsResponse = await sendMcpRequest('tools/list');
+  console.log('Available tools:', toolsResponse.result.tools);
+  
+  // Call a tool
+  const callResponse = await sendMcpRequest('tools/call', {
+    name: "smart_tool_discovery",
+    arguments: {
+      request: "ping google.com"
+    }
+  });
+  
+  console.log('Tool call result:', callResponse.result);
+}
+
+// Start the bidirectional SSE communication
+initializeAndListTools();
 ```
 
 ### HTTP Streaming

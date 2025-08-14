@@ -3,7 +3,7 @@
 use magictunnel::config::{
     Config, ServerConfig, RegistryConfig, ValidationConfig, AuthConfig, LoggingConfig, OAuthConfig,
     McpServerConfig, McpClientConfig, ExternalMcpConfig, SamplingElicitationStrategy, LlmConfig,
-    ExternalRoutingStrategyConfig, McpExternalRoutingConfig, SamplingConfig, ElicitationConfig
+    SamplingConfig, ElicitationConfig
 };
 
 use std::env;
@@ -399,7 +399,6 @@ fn test_external_mcp_config_validation() {
             capabilities_output_dir: "./capabilities".to_string(),
             refresh_interval_minutes: 60,
             containers: None,
-            external_routing: None,
         }),
         mcp_client: None,
         conflict_resolution: None,
@@ -480,21 +479,11 @@ fn test_sampling_elicitation_strategy_validation() {
     // Test all strategy variants - validation logic is in Config
     println!("SamplingElicitationStrategy validation is handled at Config level");
     
-    // Test LLM requirement detection - these are associated functions
-    assert!(SamplingElicitationStrategy::MagictunnelHandled.requires_llm_config());
+    // Test LLM requirement detection - ClientForwarded never requires LLM
     assert!(!SamplingElicitationStrategy::ClientForwarded.requires_llm_config());
-    assert!(SamplingElicitationStrategy::MagictunnelFirst.requires_llm_config());
-    assert!(!SamplingElicitationStrategy::ClientFirst.requires_llm_config());
-    assert!(SamplingElicitationStrategy::Parallel.requires_llm_config());
-    assert!(SamplingElicitationStrategy::Hybrid.requires_llm_config());
 
-    // Test client forwarding requirement detection
-    assert!(!SamplingElicitationStrategy::MagictunnelHandled.requires_client_forwarding());
+    // Test client forwarding requirement detection - ClientForwarded always requires it
     assert!(SamplingElicitationStrategy::ClientForwarded.requires_client_forwarding());
-    assert!(!SamplingElicitationStrategy::MagictunnelFirst.requires_client_forwarding());
-    assert!(SamplingElicitationStrategy::ClientFirst.requires_client_forwarding());
-    assert!(SamplingElicitationStrategy::Parallel.requires_client_forwarding());
-    assert!(SamplingElicitationStrategy::Hybrid.requires_client_forwarding());
 }
 
 #[test]
@@ -516,9 +505,7 @@ fn test_llm_config_validation() {
         streamable_http: None,
         sampling: Some(SamplingConfig {
             enabled: true,
-            default_model: "gpt-4o-mini".to_string(),
-            max_tokens_limit: 4000,
-            default_sampling_strategy: Some(SamplingElicitationStrategy::MagictunnelHandled),
+            default_sampling_strategy: Some(SamplingElicitationStrategy::ClientForwarded),
             default_elicitation_strategy: Some(SamplingElicitationStrategy::ClientForwarded),
             llm_config: Some(LlmConfig {
                 provider: "openai".to_string(),
@@ -542,33 +529,6 @@ fn test_llm_config_validation() {
     println!("Valid OpenAI config result: {:?}", result);
 }
 
-#[test]
-fn test_external_routing_strategy_config_validation() {
-    // ExternalRoutingStrategyConfig validation is handled at Config level
-    let _valid_config = ExternalRoutingStrategyConfig {
-        default_strategy: SamplingElicitationStrategy::ClientForwarded,
-        server_strategies: Some([
-            ("server1".to_string(), SamplingElicitationStrategy::MagictunnelHandled),
-            ("server2".to_string(), SamplingElicitationStrategy::Parallel),
-        ].into_iter().collect()),
-        priority_order: vec!["server1".to_string(), "server2".to_string()],
-        fallback_to_magictunnel: true,
-        max_retry_attempts: 3,
-        timeout_seconds: 60,
-    };
-    println!("External routing strategy config validation is handled at Config level");
-
-    // Test LLM requirement detection
-    let llm_requiring_config = ExternalRoutingStrategyConfig {
-        default_strategy: SamplingElicitationStrategy::MagictunnelHandled,
-        server_strategies: None,
-        priority_order: vec!["server1".to_string()],
-        fallback_to_magictunnel: false,
-        max_retry_attempts: 3,
-        timeout_seconds: 60,
-    };
-    assert!(llm_requiring_config.requires_llm_config());
-}
 
 #[test]
 fn test_routing_strategy_dependencies_validation() {
@@ -589,9 +549,7 @@ fn test_routing_strategy_dependencies_validation() {
         streamable_http: None,
         sampling: Some(SamplingConfig {
             enabled: true,
-            default_model: "gpt-4o-mini".to_string(),
-            max_tokens_limit: 4000,
-            default_sampling_strategy: Some(SamplingElicitationStrategy::MagictunnelHandled),
+            default_sampling_strategy: Some(SamplingElicitationStrategy::ClientForwarded),
             default_elicitation_strategy: Some(SamplingElicitationStrategy::ClientForwarded),
             llm_config: Some(LlmConfig {
                 provider: "openai".to_string(),
@@ -631,9 +589,7 @@ fn test_routing_strategy_dependencies_validation() {
         streamable_http: None,
         sampling: Some(SamplingConfig {
             enabled: true,
-            default_model: "gpt-4o-mini".to_string(),
-            max_tokens_limit: 4000,
-            default_sampling_strategy: Some(SamplingElicitationStrategy::MagictunnelHandled),
+            default_sampling_strategy: Some(SamplingElicitationStrategy::ClientForwarded),
             default_elicitation_strategy: Some(SamplingElicitationStrategy::ClientForwarded),
             llm_config: None, // Missing LLM config
         }),
