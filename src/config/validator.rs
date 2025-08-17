@@ -106,9 +106,9 @@ impl ConfigValidator {
             suggestions.push("Add security configuration to enable enterprise security features".to_string());
         } else if let Some(ref security) = config.security {
             // Validate security configuration structure
-            if security.policies.is_none() && security.allowlist.is_none() {
-                warnings.push("Security configuration present but no policies or allowlist defined".to_string());
-                suggestions.push("Define security policies or allowlist to enable security enforcement".to_string());
+            if security.allowlist.is_none() {
+                warnings.push("Security configuration present but no allowlist defined".to_string());
+                suggestions.push("Define allowlist rules to enable security enforcement".to_string());
             }
         }
         
@@ -309,7 +309,7 @@ impl ConfigValidator {
             RuntimeMode::Advanced => vec![
                 "Advanced mode provides enterprise security and management features".to_string(),
                 "Configure authentication (auth.api_keys or auth.oauth2) for secure access".to_string(),
-                "Set up security policies (security.policies) to control tool access".to_string(),
+                "Set up allowlist rules (security.allowlist) to control tool access".to_string(),
                 "Consider external_mcp configuration for integrating with other MCP servers".to_string(),
             ],
         }

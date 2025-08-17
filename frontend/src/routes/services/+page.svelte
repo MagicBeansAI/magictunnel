@@ -412,7 +412,7 @@
                   </div>
 
                   <!-- Enhanced Metrics Section -->
-                  {#if service.metrics.has_metrics}
+                  {#if service.metrics && service.metrics.has_metrics}
                   <div class="mt-4 pt-4 border-t border-gray-200">
                     <h5 class="text-sm font-medium text-gray-700 mb-3">📊 Performance Metrics</h5>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -478,8 +478,8 @@
                       <button 
                         class="btn-primary text-sm" 
                         on:click={() => handleViewDetailedMetrics(service.name)}
-                        disabled={!service.metrics.has_metrics}
-                        title={service.metrics.has_metrics ? 'View detailed metrics' : 'No metrics available'}
+                        disabled={!service.metrics || !service.metrics.has_metrics}
+                        title={service.metrics && service.metrics.has_metrics ? 'View detailed metrics' : 'No metrics available'}
                       >
                         📊 Detailed Metrics
                       </button>

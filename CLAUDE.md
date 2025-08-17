@@ -76,7 +76,7 @@ cargo run --bin magictunnel-visibility -- -c config.yaml status
 - MCP Authentication middleware
 
 #### **Advanced Services** (Enterprise only):
-- **Enterprise Security Suite**: Tool allowlisting, RBAC, request sanitization, audit logging, security policies, emergency lockdown
+- **Enterprise Security Suite**: Tool allowlisting, RBAC, request sanitization, audit logging, emergency lockdown
 - **Future**: MagicTunnel Authentication (separate from MCP protocol auth)
 
 ### Smart Discovery System (Core Innovation)
@@ -369,7 +369,7 @@ smart_discovery:
 - **Batch Processing**: Enhanced operations
 
 #### **Security & Tools**
-- **Security CLI**: `magictunnel-security` policy management
+- **Security CLI**: `magictunnel-security` allowlist management
 - **Auth Framework**: OAuth 2.1, API keys, audit logging
 - **CLI Suite**: Enterprise management tools
 - **OpenAPI 3.1**: Custom GPT support
@@ -451,7 +451,7 @@ cargo run --bin magictunnel-llm -- providers test --all                     # Pr
 
 ### 3. Security Management 🆕
 ```bash
-cargo run --bin magictunnel-security -- policies list                    # Policy management
+cargo run --bin magictunnel-security -- allowlist status                 # Allowlist management
 cargo run --bin magictunnel-security -- allowlist add-tool tool_name     # Allowlist management
 ```
 

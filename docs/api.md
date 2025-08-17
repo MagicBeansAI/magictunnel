@@ -7,13 +7,13 @@ MagicTunnel provides multiple API interfaces for different client needs and perf
 ## Supported Protocols
 
 ### 1. WebSocket (Primary)
-- **Endpoint**: `ws://localhost:3000/mcp/ws`
+- **Endpoint**: `ws://localhost:3001/mcp/ws`
 - **Protocol**: JSON-RPC 2.0
 - **Features**: Real-time bidirectional communication, tool streaming
 - **Best For**: Interactive clients, real-time applications
 
 ### 2. HTTP REST API
-- **Base URL**: `http://localhost:3000`
+- **Base URL**: `http://localhost:3001`
 - **Protocol**: Standard HTTP with JSON
 - **Features**: Simple request/response, easy integration
 - **Best For**: Simple integrations, testing, curl-based workflows
@@ -36,7 +36,7 @@ MagicTunnel provides multiple API interfaces for different client needs and perf
 
 ### Connection
 ```javascript
-const ws = new WebSocket('ws://localhost:3000/mcp/ws');
+const ws = new WebSocket('ws://localhost:3001/mcp/ws');
 ws.onopen = () => console.log('Connected to MagicTunnel');
 ```
 
@@ -90,7 +90,7 @@ Response:
 
 ### Health Check
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:3001/health
 ```
 
 Response:
@@ -100,12 +100,12 @@ Response:
 
 ### List Tools
 ```bash
-curl http://localhost:3000/tools
+curl http://localhost:3001/tools
 ```
 
 ### Call Tool
 ```bash
-curl -X POST http://localhost:3000/tools/call \
+curl -X POST http://localhost:3001/tools/call \
   -H "Content-Type: application/json" \
   -d '{
     "name": "execute_command",
@@ -540,12 +540,12 @@ The MCP logging system provides RFC 5424 syslog-compliant logging with 8 severit
 **Dynamic Log Level Control via HTTP**:
 ```bash
 # Set log level to debug
-curl -X POST http://localhost:3000/mcp/logging/setLevel \
+curl -X POST http://localhost:3001/mcp/logging/setLevel \
   -H "Content-Type: application/json" \
   -d '{"level": "debug"}'
 
 # Set log level for specific logger
-curl -X POST http://localhost:3000/mcp/logging/setLevel \
+curl -X POST http://localhost:3001/mcp/logging/setLevel \
   -H "Content-Type: application/json" \
   -d '{"level": "info", "logger": "agent-router"}'
 ```
@@ -597,7 +597,7 @@ The notification system provides real-time updates for resource changes, server 
 
 ### WebSocket Connection
 ```javascript
-const ws = new WebSocket('ws://localhost:3000/mcp/ws');
+const ws = new WebSocket('ws://localhost:3001/mcp/ws');
 ws.onmessage = (event) => {
   const message = JSON.parse(event.data);
   console.log('Received:', message);
@@ -678,14 +678,14 @@ initializeAndListTools();
 
 ### HTTP Streaming
 ```bash
-curl -N http://localhost:3000/mcp/call/stream \
+curl -N http://localhost:3001/mcp/call/stream \
   -H "Content-Type: application/json" \
   -d '{"name": "long_running_task", "arguments": {}}'
 ```
 
 ### gRPC Client Example
 ```rust
-let mut client = McpServiceClient::connect("http://localhost:4000").await?;
+let mut client = McpServiceClient::connect("http://localhost:4001").await?;
 let request = tonic::Request::new(ListToolsRequest {});
 let response = client.list_tools(request).await?;
 ```
@@ -721,22 +721,22 @@ let response = client.list_tools(request).await?;
 ### API Key Authentication
 ```bash
 curl -H "Authorization: Bearer your-api-key" \
-  http://localhost:3000/tools
+  http://localhost:3001/tools
 ```
 
 ### JWT Authentication
 ```bash
 curl -H "Authorization: Bearer your-jwt-token" \
-  http://localhost:3000/tools
+  http://localhost:3001/tools
 ```
 
 ### OAuth 2.0
 ```bash
 # Get authorization URL
-curl http://localhost:3000/auth/oauth/authorize?provider=github
+curl http://localhost:3001/auth/oauth/authorize?provider=github
 
 # Exchange code for token
-curl -X POST http://localhost:3000/auth/oauth/callback \
+curl -X POST http://localhost:3001/auth/oauth/callback \
   -d "code=authorization_code&state=state_value"
 ```
 
@@ -764,7 +764,7 @@ X-RateLimit-Reset: 1609459200
 
 ### Health Check
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:3001/health
 ```
 
 Response:
@@ -779,7 +779,7 @@ Response:
 
 ### Detailed Status
 ```bash
-curl http://localhost:3000/status
+curl http://localhost:3001/status
 ```
 
 Response:
@@ -806,7 +806,7 @@ Response:
 
 ### Metrics
 ```bash
-curl http://localhost:3000/metrics
+curl http://localhost:3001/metrics
 ```
 
 Response:
@@ -906,7 +906,7 @@ class MagicTunnelClient {
 }
 
 // Usage
-const client = new MagicTunnelClient('ws://localhost:3000/mcp/ws');
+const client = new MagicTunnelClient('ws://localhost:3001/mcp/ws');
 const result = await client.callTool('smart_tool_discovery', {
   request: 'ping google.com'
 });
@@ -942,7 +942,7 @@ class MagicTunnelClient:
             return json.loads(response)
 
 # Usage
-client = MagicTunnelClient('ws://localhost:3000/mcp/ws')
+client = MagicTunnelClient('ws://localhost:3001/mcp/ws')
 result = await client.call_tool('smart_tool_discovery', {
     'request': 'ping google.com'
 })
@@ -955,7 +955,7 @@ use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let (ws_stream, _) = connect_async("ws://localhost:3000/mcp/ws").await?;
+    let (ws_stream, _) = connect_async("ws://localhost:3001/mcp/ws").await?;
     let (mut write, mut read) = ws_stream.split();
 
     // Send tool call

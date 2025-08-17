@@ -1158,7 +1158,7 @@
         
         {#if $runtimeMode === 'advanced'}
         <a 
-          href="/security/allowlist" 
+          href="/security/management?tab=rules" 
           class="flex flex-col items-center gap-2 px-3 py-3 bg-white hover:bg-gray-50 border border-gray-200 hover:border-gray-300 rounded-lg transition-all duration-200 text-center group hover:shadow-sm"
         >
           <div class="text-xl group-hover:scale-110 transition-transform duration-200">✅</div>

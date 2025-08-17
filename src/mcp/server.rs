@@ -74,6 +74,8 @@ pub struct McpServer {
     sampling_service: Option<Arc<crate::mcp::sampling::SamplingService>>,
     /// Tool Enhancement service for tool description/keyword/example generation (renamed from sampling)
     tool_enhancement_service: Option<Arc<crate::mcp::tool_enhancement::ToolEnhancementService>>,
+    /// Enhancement pipeline service for orchestrating tool enhancement workflow
+    enhancement_service: Option<Arc<crate::discovery::ToolEnhancementPipeline>>,
     /// Elicitation service for structured data collection ✅ **NEW**
     elicitation_service: Option<Arc<crate::mcp::elicitation::ElicitationService>>,
     /// Roots service for filesystem/URI boundary discovery ✅ **NEW**
@@ -280,6 +282,7 @@ impl McpServer {
             config: None, // No config by default
             sampling_service: None, // No sampling service by default
             tool_enhancement_service: None, // No tool enhancement service by default
+            enhancement_service: None, // No enhancement pipeline service by default
             elicitation_service: None, // No elicitation service by default
             roots_service: None, // No roots service by default
             client_sender: None, // No client sender by default
@@ -318,6 +321,7 @@ impl McpServer {
             config: None, // No config by default
             sampling_service: None, // No sampling service by default
             tool_enhancement_service: None, // No tool enhancement service by default
+            enhancement_service: None, // No enhancement pipeline service by default
             elicitation_service: None, // No elicitation service by default
             roots_service: None, // No roots service by default
             client_sender: None, // No client sender by default
@@ -330,20 +334,35 @@ impl McpServer {
         enhancement_storage: Option<Arc<crate::discovery::EnhancementStorageService>>,
     ) -> Result<Self> {
         info!("Creating MCP server with full configuration and enhancement storage (deferred initialization)");
+        info!("🔍 Enhancement storage provided: {}", enhancement_storage.is_some());
         
         // Create server with full config first
         let mut server = Self::with_config(config).await?;
         
-        // Store enhancement storage for later use, but don't initialize enhancement service yet
-        // This allows HTTP server to start immediately
-        if enhancement_storage.is_some() {
-            info!("Enhancement storage provided - will initialize enhancement service after server startup");
+        // If enhancement storage is provided, initialize the enhancement service with background loading
+        if let Some(storage) = enhancement_storage {
+            info!("Enhancement storage provided - initializing enhancement service with background loading");
+            server = server.with_enhancement_service(config).await?;
+            
+            // Spawn background thread to load stored enhanced tools
+            if let Some(enhancement_service) = server.enhancement_service() {
+                let enhancement_service_clone = Arc::clone(enhancement_service);
+                tokio::spawn(async move {
+                    info!("🔄 Starting deferred tool enhancement service background loading");
+                    
+                    // Run the full initialization with storage loading
+                    if let Err(e) = enhancement_service_clone.initialize_with_analysis().await {
+                        error!("Failed to complete deferred enhancement service initialization: {}", e);
+                    } else {
+                        info!("✅ Deferred tool enhancement background loading completed");
+                    }
+                });
+            } else {
+                warn!("Enhancement service not available after initialization - background loading skipped");
+            }
         }
         
-        info!("✅ MCP server created with deferred enhancement initialization - HTTP server can start immediately");
-        
-        // TODO: In the future, we can store the enhancement_storage and config in the server
-        // and provide a method to initialize the enhancement service asynchronously
+        info!("✅ MCP server created with enhancement service initialized");
         
         Ok(server)
     }
@@ -541,6 +560,7 @@ impl McpServer {
             config: Some(Arc::new(config.clone())), // Store config for dynamic protocol version
             sampling_service: None, // Will be set if configured
             tool_enhancement_service: None, // Will be set if configured
+            enhancement_service: None, // Will be set if configured
             elicitation_service: None, // Will be set if configured
             roots_service: None, // Will be set if configured
             cancellation_manager: Arc::new(CancellationManager::new(CancellationConfig::default())),
@@ -624,6 +644,7 @@ impl McpServer {
             config: None, // No config by default
             sampling_service: None, // No sampling service by default
             tool_enhancement_service: None, // No tool enhancement service by default
+            enhancement_service: None, // No enhancement pipeline service by default
             elicitation_service: None, // No elicitation service by default
             roots_service: None, // No roots service by default
             client_sender: None, // No client sender by default
@@ -684,7 +705,6 @@ impl McpServer {
                     security_config.allowlist.as_ref().map(|c| c.enabled).unwrap_or(false),
                     security_config.sanitization.as_ref().map(|c| c.enabled).unwrap_or(false),
                     security_config.rbac.as_ref().map(|c| c.enabled).unwrap_or(false),
-                    security_config.policies.as_ref().map(|c| c.enabled).unwrap_or(false),
                     security_config.audit.as_ref().map(|c| c.enabled).unwrap_or(false),
                 ].iter().filter(|&&enabled| enabled).count()
             );
@@ -2274,6 +2294,9 @@ impl McpServer {
                 // Don't fail server startup, just log the warning
             }
             
+            // Store the enhancement service in the server
+            self.enhancement_service = Some(enhancement_service);
+            
             Ok(self)
         } else if let Some(tool_enhancement_service) = &self.tool_enhancement_service {
             let enhancement_service = Arc::new(crate::discovery::ToolEnhancementPipeline::from_config(
@@ -2293,6 +2316,9 @@ impl McpServer {
                 // Don't fail server startup, just log the warning
             }
             
+            // Store the enhancement service in the server
+            self.enhancement_service = Some(enhancement_service);
+            
             Ok(self)
         } else if let Some(elicitation_service) = &self.elicitation_service {
             let enhancement_service = Arc::new(crate::discovery::ToolEnhancementPipeline::from_config(
@@ -2311,6 +2337,9 @@ impl McpServer {
                 warn!("Failed to initialize enhancement service: {}", e);
                 // Don't fail server startup, just log the warning
             }
+            
+            // Store the enhancement service in the server
+            self.enhancement_service = Some(enhancement_service);
             
             Ok(self)
         } else {
@@ -2457,9 +2486,7 @@ impl McpServer {
 
     /// Get the enhancement service if available
     pub fn enhancement_service(&self) -> Option<&Arc<crate::discovery::ToolEnhancementPipeline>> {
-        // Enhancement service is not currently stored as a field in McpServer
-        // It would need to be added to the struct and initialized in the constructor
-        None
+        self.enhancement_service.as_ref()
     }
 
     /// Check if sampling service is configured

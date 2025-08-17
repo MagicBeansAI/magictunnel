@@ -1378,4 +1378,88 @@ This major architectural enhancement provides two distinct runtime modes to addr
 
 This document serves as a comprehensive archive of all completed work on MagicTunnel. The project has achieved a remarkable level of functionality and compliance with modern MCP specifications, providing a solid foundation for future enhancements.
 
+### ✅ Allowlist System UI/API Modernization & Navigation Cleanup (v0.3.15) ✅ COMPLETE
+**Implementation Complete: August 16, 2025 (v0.3.15)**
+
+#### **Major Achievement**: Allowlist System UI/API Modernization & Navigation Consolidation ✅
+
+**Complete navigation architecture improvements and API modernization delivering a production-ready allowlist management system with clean UI integration and functional backend APIs.**
+
+#### **Navigation Architecture Improvements** ✅ COMPLETE
+1. **✅ Consolidated Navigation Structure**: Fixed allowlist access through Security Management dashboard
+   - **Security Overview** → **Management** (submenu) → **Allowlist Rules** tab
+   - Removed redundant "Tool Allowlisting" navigation menu item
+   - Cleaned hierarchical navigation structure with proper parent-child relationships
+
+2. **✅ Removed Legacy Redirect Pages**: Eliminated unnecessary redirect infrastructure
+   - Removed `/security/allowlist/` directory and redirect page
+   - Streamlined navigation paths without intermediate redirects
+
+#### **API Modernization & Integration** ✅ COMPLETE
+3. **✅ Fixed Allowlist UI Loading Issues**: Replaced mock APIs with functional backend integration
+   - **Root Cause**: UI was calling non-functional `securityApi.getAllowlistRules()` mock method
+   - **Solution**: Direct API calls to working `/api/security/allowlist/rules` endpoint
+   - **Field Mapping**: Added backend-to-frontend field translation (`enabled`↔`active`, `rule_type`↔`type`, etc.)
+
+4. **✅ Comprehensive CRUD Operations**: All allowlist operations now functional
+   - **Create**: Direct POST to `/api/security/allowlist/rules` with proper field mapping
+   - **Read**: GET with backend field translation to frontend expectations
+   - **Update**: PUT with field mapping for status changes and rule modifications
+   - **Delete**: DELETE with proper error handling
+   - **Bulk Operations**: Individual API calls for enable/disable/delete multiple rules
+
+5. **✅ Mock API Cleanup**: Removed obsolete security API abstractions
+   - Removed 7 mock allowlist methods from `securityApi` client
+   - Cleaned up imports and exports in security API types
+   - Added clear documentation explaining the architectural change
+
+#### **User Experience Enhancements** ✅ COMPLETE
+6. **✅ Simplified Allowlist Actions**: Removed workflow complexity from tool-level access control
+   - **Before**: `allow | deny | require_approval` (mixing tool access with workflow approval)
+   - **After**: `allow | deny` (clean binary tool access decisions)
+   - **Rationale**: `require_approval` belongs in Security Policies (organizational workflows), not Allowlisting (tool access control)
+
+7. **✅ Updated UI Components**: All frontend components reflect simplified action model
+   - Updated allowlist rule editor dropdown options
+   - Fixed rule card display logic
+   - Updated filter options in rule management interface
+   - Corrected statistics calculations
+
+#### **Technical Architecture Validation** ✅ COMPLETE
+8. **✅ API Endpoint Validation**: Comprehensive testing of allowlist API functionality
+   - **Working APIs**: All CRUD operations, bulk operations, status endpoints
+   - **Performance**: 6.4M evaluations/second for rule evaluation
+   - **Data Persistence**: In-memory storage (intentional for current implementation)
+   - **Field Compatibility**: Proper backend/frontend field mapping established
+
+#### **Documentation & Design Clarity** ✅ COMPLETE
+9. **✅ Clear Architectural Separation**: Documented distinction between allowlisting and security policies
+   - **Allowlisting**: Fast, binary tool access control (`allow`/`deny`)
+   - **Security Policies**: Complex organizational workflows with approval processes
+   - **Layered Security**: Allowlist → Security Policies → Tool Execution
+
+#### **Implementation Status**: Allowlist System Production-Ready ✅ COMPLETE
+- ✅ **Navigation**: Clean, intuitive access through Security Management
+- ✅ **APIs**: Functional integration with working backend endpoints  
+- ✅ **UI**: Modern, responsive interface with proper error handling
+- ✅ **Architecture**: Clean separation between tool access and workflow approval
+- ✅ **Performance**: Ultra-high performance rule evaluation maintained
+
+#### **Files Modified**:
+- `src/web/mode_api.rs` - Navigation hierarchy updates
+- `frontend/src/routes/security/management/components/RuleManagement.svelte` - API integration
+- `frontend/src/lib/api/security.ts` - Mock API removal
+- `frontend/src/lib/types/security.ts` - Type simplification
+- `frontend/src/lib/components/security/AllowlistRuleEditor.svelte` - UI updates
+- `frontend/src/lib/components/security/AllowlistRuleCard.svelte` - Display logic fixes
+
+#### **Technical Achievement**:
+- **Navigation Integration**: Seamless allowlist access through Security Management dashboard
+- **API Modernization**: Complete replacement of mock APIs with functional backend integration
+- **Field Mapping Layer**: Robust translation between backend and frontend data formats
+- **Action Simplification**: Clean binary access control without workflow complexity
+- **Production Ready**: Fully functional allowlist management system
+
+---
+
 For current tasks and future development plans, please refer to [TODO.md](TODO.md).

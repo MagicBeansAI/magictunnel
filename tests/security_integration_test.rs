@@ -10,7 +10,7 @@ use serde_json::json;
 use magictunnel::security::{
     SecurityConfig, SecurityMiddleware, SecurityContext, SecurityUser, SecurityRequest, SecurityTool,
     AllowlistConfig, AllowlistAction, SanitizationConfig, RbacConfig,
-    ToolAllowlistRule
+    AllowlistRule
 };
 
 #[tokio::test]
@@ -23,10 +23,11 @@ async fn test_security_integration_basic() {
     security_config.allowlist = Some(AllowlistConfig {
         enabled: true,
         default_action: AllowlistAction::Allow,
+        emergency_lockdown: false,
         tools: HashMap::new(),
-        resources: HashMap::new(),
-        prompts: HashMap::new(),
-        global_rules: vec![],
+        servers: HashMap::new(),
+        capability_patterns: vec![],
+        global_patterns: vec![],
     });
     
     // Initialize security middleware
@@ -87,23 +88,23 @@ async fn test_security_integration_blocked() {
     
     // Enable strict allowlisting that blocks by default
     let mut tool_rules = HashMap::new();
-    tool_rules.insert("allowed_tool".to_string(), ToolAllowlistRule {
-        name: "allowed_tool".to_string(),
+    tool_rules.insert("allowed_tool".to_string(), AllowlistRule {
         action: AllowlistAction::Allow,
-        required_permissions: vec!["read".to_string()],
-        allowed_api_keys: None,
-        allowed_roles: None,
-        parameter_rules: None,
-        rate_limit: None,
+        reason: Some("Explicitly allowed tool".to_string()),
+        pattern: None,
+        priority: None,
+        name: Some("allowed_tool".to_string()),
+        enabled: true,
     });
     
     security_config.allowlist = Some(AllowlistConfig {
         enabled: true,
         default_action: AllowlistAction::Deny,
+        emergency_lockdown: false,
         tools: tool_rules,
-        resources: HashMap::new(),
-        prompts: HashMap::new(),
-        global_rules: vec![],
+        servers: HashMap::new(),
+        capability_patterns: vec![],
+        global_patterns: vec![],
     });
     
     // Initialize security middleware

@@ -5,6 +5,21 @@ All notable changes to the MagicTunnel project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.15]
+
+### Added - Tool Allowlisting
+
+### Fixed - Security System Cleanup ✅
+- **Security Metrics API**: Implemented missing `/api/security/metrics` endpoint with comprehensive metrics calculation and time range filtering
+- **Audit Logs**: Fixed allowlist audit logs loading by correcting endpoint path and response structure mapping
+- **Security Policies Removal**: Removed mock Security Policies functionality while preserving functional allowlist system (6.4M+ evaluations/second)
+- **Documentation Updates**: Updated all documentation to reflect removal of Security Policies and focus on implemented allowlist management
+
+### Improved - Code Quality ✅
+- **API Consistency**: Unified security endpoints with proper error handling and response formatting
+- **Performance Optimization**: Maintained ultra-high performance allowlist system while cleaning up non-functional components
+- **Documentation Accuracy**: Ensured all references reflect only implemented and functional security features
+
 ## [0.3.14]
 
 ### Fixed - Navigation Architecture ✅
@@ -535,7 +550,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation - Comprehensive Platform Documentation
 - **Automatic LLM Generation Workflow**: Complete documentation with architecture diagrams and implementation details
-- **Enterprise Security Guide**: Comprehensive security documentation with policy management and compliance
+- **Enterprise Security Guide**: Comprehensive security documentation with allowlist management and compliance
 - **Accessibility Implementation**: Detailed accessibility fixes and WCAG 2.1 AA compliance documentation
 - **Platform Migration Guide**: Step-by-step migration guide for existing installations
 

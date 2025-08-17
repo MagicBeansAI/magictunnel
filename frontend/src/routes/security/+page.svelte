@@ -63,10 +63,6 @@
     securityStatus?.components.sanitization.enabled || false,
     securityStatus?.components.sanitization.status || 'unknown'
   );
-  $: policiesProps = getComponentStatusProps(
-    securityStatus?.components.policies.enabled || false,
-    securityStatus?.components.policies.status || 'unknown'
-  );
   
   function calculateSecurityMetrics(status: SecurityStatus | null): SecurityMetric[] {
     if (!status) return [];
@@ -75,8 +71,7 @@
       {
         label: 'Active Rules',
         value: (status.components.allowlist.metrics?.rulesCount || 0) + 
-               (status.components.sanitization.metrics?.policiesCount || 0) +
-               (status.components.policies.metrics?.policiesCount || 0),
+               (status.components.sanitization.metrics?.policiesCount || 0),
         format: 'number'
       },
       {
@@ -101,11 +96,11 @@
   // Quick actions
   function navigateToComponent(component: string) {
     const routes: Record<string, string> = {
-      allowlist: '/security/allowlist',
+      management: '/security/management',
+      allowlist: '/security/management?tab=rules', // Redirect to security management with rules tab
       rbac: '/security/rbac', 
       audit: '/security/audit',
       sanitization: '/security/sanitization',
-      policies: '/security/policies',
       config: '/security/config'
     };
     
@@ -218,16 +213,26 @@
       </div>
     </div>
   {:else if securityStatus}
-    <!-- Emergency Quick Actions -->
-    <div class="security-card bg-gradient-to-r from-red-50 to-orange-50 border-red-200">
+    <!-- Enterprise Management Dashboard -->
+    <div class="security-card bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
       <div class="security-card-header">
-        <h3 class="security-card-title text-red-800">🚨 Emergency Actions</h3>
-        <div class="text-sm text-red-600">
-          Critical security controls
+        <h3 class="security-card-title text-blue-800">🎛️ Enterprise Management</h3>
+        <div class="text-sm text-blue-600">
+          Advanced security management dashboard
         </div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Management Dashboard -->
+        <a
+          href="/security/management"
+          class="flex items-center justify-center px-4 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          title="Enterprise Security Management Dashboard"
+        >
+          <span class="mr-3 text-lg">🎛️</span>
+          <span>Management Dashboard</span>
+        </a>
+        
         <!-- Emergency Lockdown -->
         <button
           class="flex items-center justify-center px-4 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
@@ -241,7 +246,7 @@
         <!-- Export Configuration -->
         <a
           href="/security/config"
-          class="flex items-center justify-center px-4 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          class="flex items-center justify-center px-4 py-3 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors"
           title="Export security configuration"
         >
           <span class="mr-3 text-lg">📤</span>
@@ -394,26 +399,6 @@
           {/if}
         </button>
 
-        <!-- Security Policies -->
-        <button
-          class="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
-          on:click={() => navigateToComponent('policies')}
-        >
-          <div class="flex items-center justify-between mb-2">
-            <h4 class="font-medium text-gray-900">Security Policies</h4>
-            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {policiesProps.color}">
-              {policiesProps.icon} {policiesProps.text}
-            </span>
-          </div>
-          <p class="text-sm text-gray-600">
-            Organization-wide policy enforcement
-          </p>
-          {#if securityStatus.components.policies.metrics?.policiesCount}
-            <div class="mt-2 text-xs text-gray-500">
-              {securityStatus.components.policies.metrics.policiesCount} active policies
-            </div>
-          {/if}
-        </button>
       </div>
     </div>
 

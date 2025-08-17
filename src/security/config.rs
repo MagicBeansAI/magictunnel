@@ -3,7 +3,7 @@
 //! Unified configuration structure for all security components
 
 use serde::{Deserialize, Serialize};
-use super::{AllowlistConfig, SanitizationConfig, RbacConfig, PolicyConfig, AuditConfig, EmergencyLockdownConfig};
+use super::{AllowlistConfig, SanitizationConfig, RbacConfig, AuditConfig, EmergencyLockdownConfig};
 
 /// Comprehensive security configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,8 +16,6 @@ pub struct SecurityConfig {
     pub sanitization: Option<SanitizationConfig>,
     /// Role-based access control configuration
     pub rbac: Option<RbacConfig>,
-    /// Organization-wide policy configuration
-    pub policies: Option<PolicyConfig>,
     /// Audit logging configuration
     pub audit: Option<AuditConfig>,
     /// Emergency lockdown configuration
@@ -31,7 +29,6 @@ impl Default for SecurityConfig {
             allowlist: None,                   // Enterprise allowlisting opt-in
             sanitization: None,                // Enterprise sanitization opt-in
             rbac: None,                        // Enterprise RBAC opt-in
-            policies: None,                    // Enterprise policies opt-in
             audit: None,                       // Enterprise audit logging opt-in
             emergency_lockdown: None,          // Enterprise emergency lockdown opt-in
         }
@@ -57,10 +54,6 @@ impl SecurityConfig {
                 enabled: true,
                 ..Default::default()
             }),
-            policies: Some(PolicyConfig {
-                enabled: true,
-                ..Default::default()
-            }),
             audit: Some(AuditConfig {
                 enabled: true,
                 ..Default::default()
@@ -81,7 +74,6 @@ impl SecurityConfig {
         self.allowlist.as_ref().map_or(false, |c| c.enabled) ||
         self.sanitization.as_ref().map_or(false, |c| c.enabled) ||
         self.rbac.as_ref().map_or(false, |c| c.enabled) ||
-        self.policies.as_ref().map_or(false, |c| c.enabled) ||
         self.audit.as_ref().map_or(false, |c| c.enabled) ||
         self.emergency_lockdown.as_ref().map_or(false, |c| c.enabled)
     }

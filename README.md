@@ -15,7 +15,7 @@ MagicTunnel provides **one smart tool** that:
 2. **🔍 Seamlessly** connects MCP clients to both external and internal tools, no limits on number of tools
 3. **🔍 Discovers** the right tool for any request, no limits on number of tools
 4. **⚡ Executes** the tool with proper parameters, supports elicitationa and sampling, over stdio | HTTP | WebSocket | Streamable HTTP | SSE
-5. **🛡️ Protects** execuion and data leaks with Role based access, Audits, Security Policies and Sanitization
+5. **🛡️ Protects** execuion and data leaks with Role based access, Audits, Tool Allowlisting and Sanitization
 
 ## Example Usage
 
@@ -167,7 +167,6 @@ magictunnel-cli openapi --spec https://api.example.com/openapi.json --output too
   - **RBAC**: Role-based access control with hierarchical permissions
   - **Audit Logging**: Complete audit trail for compliance and monitoring
   - **Request Sanitization**: Content filtering and secret detection
-  - **Security Policies**: Organization-wide policy engine with flexible conditions
 
 ## MCP 2025-06-18 Specification Compliance ✅
 

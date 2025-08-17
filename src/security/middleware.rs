@@ -12,11 +12,12 @@ use chrono::Utc;
 use crate::error::{Result, ProxyError};
 
 use super::{
-    SecurityConfig, AllowlistService, SanitizationService, RbacService, PolicyEngine, AuditService,
+    SecurityConfig, AllowlistService, SanitizationService, RbacService, AuditService,
     AllowlistContext, PermissionContext,
-    PolicyContext, AuditEntry, AuditEventType, AuditUser, AuditRequest,
+    AuditEntry, AuditEventType, AuditUser, AuditRequest,
     AuditTool, AuditResource, AuditSecurity, AuditOutcome, AuditError
 };
+use super::emergency::EmergencyLockdownManager;
 
 /// Security middleware for MCP requests
 pub struct SecurityMiddleware {
@@ -24,8 +25,8 @@ pub struct SecurityMiddleware {
     allowlist_service: Option<AllowlistService>,
     sanitization_service: Option<SanitizationService>,
     rbac_service: Option<Arc<RwLock<RbacService>>>,
-    policy_engine: Option<Arc<RwLock<PolicyEngine>>>,
     audit_service: Option<Arc<AuditService>>,
+    emergency_manager: Option<Arc<EmergencyLockdownManager>>,
 }
 
 /// Context for security evaluation
@@ -156,17 +157,18 @@ impl SecurityMiddleware {
             allowlist_service: None,
             sanitization_service: None,
             rbac_service: None,
-            policy_engine: None,
             audit_service: None,
+            emergency_manager: None,
         };
         
-        // Initialize allowlist service
+        // Initialize allowlist service (unified: regular or ultra-fast based on config)
         if let Some(allowlist_config) = &config.allowlist {
             if allowlist_config.enabled {
                 let service = AllowlistService::new(allowlist_config.clone())
                     .map_err(|e| ProxyError::config(format!("Failed to initialize allowlist service: {}", e)))?;
+                
                 middleware.allowlist_service = Some(service);
-                info!("Allowlist service initialized");
+                info!("Allowlist service initialized (high-performance)");
             }
         }
         
@@ -190,15 +192,6 @@ impl SecurityMiddleware {
             }
         }
         
-        // Initialize policy engine
-        if let Some(policy_config) = &config.policies {
-            if policy_config.enabled {
-                let engine = PolicyEngine::new(policy_config.clone())
-                    .map_err(|e| ProxyError::config(format!("Failed to initialize policy engine: {}", e)))?;
-                middleware.policy_engine = Some(Arc::new(RwLock::new(engine)));
-                info!("Policy engine initialized");
-            }
-        }
         
         // Initialize audit service
         if let Some(audit_config) = &config.audit {
@@ -207,6 +200,16 @@ impl SecurityMiddleware {
                     .map_err(|e| ProxyError::config(format!("Failed to initialize audit service: {}", e)))?;
                 middleware.audit_service = Some(Arc::new(service));
                 info!("Audit service initialized");
+            }
+        }
+        
+        // Initialize emergency lockdown manager
+        if let Some(emergency_config) = &config.emergency_lockdown {
+            if emergency_config.enabled {
+                let manager = EmergencyLockdownManager::new(emergency_config.clone()).await
+                    .map_err(|e| ProxyError::config(format!("Failed to initialize emergency lockdown manager: {}", e)))?;
+                middleware.emergency_manager = Some(Arc::new(manager));
+                info!("Emergency lockdown manager initialized");
             }
         }
         
@@ -233,6 +236,34 @@ impl SecurityMiddleware {
             };
         }
         
+        // 1. Emergency Lockdown Check (ABSOLUTE PRIORITY - checked before anything else)
+        if let Some(ref emergency_manager) = self.emergency_manager {
+            if emergency_manager.is_lockdown_active() {
+                // Increment blocked request counter
+                let blocked_count = emergency_manager.increment_blocked_requests();
+                
+                info!("Request blocked due to emergency lockdown (#{} blocked)", blocked_count);
+                
+                return SecurityResult {
+                    allowed: false,
+                    blocked: true,
+                    requires_approval: false,
+                    modified: false,
+                    modified_data: None,
+                    reason: "Emergency lockdown is active - all requests are blocked".to_string(),
+                    events: vec![SecurityEvent {
+                        event_type: "emergency_lockdown".to_string(),
+                        source: "emergency".to_string(),
+                        message: format!("Request blocked by emergency lockdown (#{} requests blocked in this session)", blocked_count),
+                        severity: SecuritySeverity::Critical,
+                        details: HashMap::new(),
+                    }],
+                    status_code: Some(503), // Service Unavailable
+                    error_message: Some("System is currently under emergency lockdown. All requests are temporarily blocked.".to_string()),
+                };
+            }
+        }
+        
         let mut result = SecurityResult {
             allowed: true,
             blocked: false,
@@ -247,34 +278,6 @@ impl SecurityMiddleware {
         
         debug!("Evaluating security for request: {}", context.request.id);
         
-        // 1. Policy Engine (highest priority)
-        if let Some(policy_engine) = &self.policy_engine {
-            let policy_context = self.build_policy_context(context);
-            let mut engine = policy_engine.write().await;
-            let policy_result = engine.evaluate(&policy_context);
-            
-            if policy_result.should_block {
-                result.blocked = true;
-                result.allowed = false;
-                result.reason = policy_result.reason;
-                result.status_code = Some(403);
-                result.error_message = Some("Request blocked by security policy".to_string());
-                self.add_security_event(&mut result, "policy", "Request blocked by policy", SecuritySeverity::Error);
-                return self.finalize_result(result, context).await;
-            }
-            
-            if policy_result.requires_approval {
-                result.requires_approval = true;
-                result.reason = policy_result.reason;
-                self.add_security_event(&mut result, "policy", "Request requires approval", SecuritySeverity::Warning);
-                return self.finalize_result(result, context).await;
-            }
-            
-            if !policy_result.modifications.is_empty() {
-                result.modified = true;
-                self.add_security_event(&mut result, "policy", "Request modified by policy", SecuritySeverity::Info);
-            }
-        }
         
         // 2. RBAC Permission Check
         if let Some(rbac_service) = &self.rbac_service {
@@ -303,7 +306,7 @@ impl SecurityMiddleware {
             }
         }
         
-        // 3. Tool Allowlisting
+        // 4. Tool Allowlisting
         if let Some(tool) = &context.tool {
             if let Some(allowlist_service) = &self.allowlist_service {
                 let allowlist_context = self.build_allowlist_context(context);
@@ -316,7 +319,7 @@ impl SecurityMiddleware {
                 if !allowlist_result.allowed {
                     result.blocked = true;
                     result.allowed = false;
-                    result.reason = allowlist_result.reason;
+                    result.reason = allowlist_result.reason.to_string();
                     result.status_code = Some(403);
                     result.error_message = Some("Tool access denied by allowlist".to_string());
                     self.add_security_event(&mut result, "allowlist", "Tool blocked by allowlist", SecuritySeverity::Error);
@@ -325,7 +328,7 @@ impl SecurityMiddleware {
                 
                 if allowlist_result.requires_approval {
                     result.requires_approval = true;
-                    result.reason = allowlist_result.reason;
+                    result.reason = allowlist_result.reason.to_string();
                     self.add_security_event(&mut result, "allowlist", "Tool requires approval", SecuritySeverity::Warning);
                     return self.finalize_result(result, context).await;
                 }
@@ -334,7 +337,7 @@ impl SecurityMiddleware {
             }
         }
         
-        // 4. Resource Allowlisting
+        // 5. Resource Allowlisting
         if let Some(resource) = &context.resource {
             if let Some(allowlist_service) = &self.allowlist_service {
                 let allowlist_context = self.build_allowlist_context(context);
@@ -346,7 +349,7 @@ impl SecurityMiddleware {
                 if !allowlist_result.allowed {
                     result.blocked = true;
                     result.allowed = false;
-                    result.reason = allowlist_result.reason;
+                    result.reason = allowlist_result.reason.to_string();
                     result.status_code = Some(403);
                     result.error_message = Some("Resource access denied by allowlist".to_string());
                     self.add_security_event(&mut result, "allowlist", "Resource blocked by allowlist", SecuritySeverity::Error);
@@ -357,7 +360,7 @@ impl SecurityMiddleware {
             }
         }
         
-        // 5. Request Sanitization
+        // 6. Request Sanitization
         if let Some(sanitization_service) = &self.sanitization_service {
             if let Some(body) = &context.request.body {
                 let mut request_data = serde_json::from_str(body).unwrap_or(serde_json::json!({}));
@@ -393,28 +396,6 @@ impl SecurityMiddleware {
         self.finalize_result(result, context).await
     }
     
-    /// Build policy context from security context
-    fn build_policy_context(&self, context: &SecurityContext) -> PolicyContext {
-        let user = context.user.as_ref().map(|u| super::PolicyUser {
-            id: u.id.clone(),
-            roles: u.roles.clone(),
-            api_key_name: u.api_key_name.clone(),
-        });
-        
-        PolicyContext {
-            server: context.tool.as_ref().and_then(|t| t.source.clone()),
-            host: None, // Would be extracted from request headers
-            capability: context.tool.as_ref().and_then(|t| t.source.clone()),
-            tool: context.tool.as_ref().map(|t| t.name.clone()),
-            user,
-            request_content: context.request.body.clone(),
-            response_content: None,
-            parameters: context.tool.as_ref().map(|t| t.parameters.clone()).unwrap_or_default(),
-            timestamp: context.request.timestamp,
-            client_ip: context.request.client_ip.clone(),
-            metadata: context.metadata.clone(),
-        }
-    }
     
     /// Build permission context from security context
     fn build_permission_context(&self, context: &SecurityContext) -> PermissionContext {
@@ -610,14 +591,26 @@ impl SecurityMiddleware {
         if self.allowlist_service.is_some() { count += 1; }
         if self.sanitization_service.is_some() { count += 1; }
         if self.rbac_service.is_some() { count += 1; }
-        if self.policy_engine.is_some() { count += 1; }
         if self.audit_service.is_some() { count += 1; }
+        if self.emergency_manager.is_some() { count += 1; }
         count
     }
     
     /// Check if security is enabled
     pub fn is_enabled(&self) -> bool {
         self.config.enabled && self.config.has_any_enabled()
+    }
+    
+    /// Check if emergency lockdown is currently active
+    pub fn is_emergency_lockdown_active(&self) -> bool {
+        self.emergency_manager
+            .as_ref()
+            .map_or(false, |manager| manager.is_lockdown_active())
+    }
+    
+    /// Get emergency lockdown manager reference (for external access)
+    pub fn get_emergency_manager(&self) -> Option<Arc<EmergencyLockdownManager>> {
+        self.emergency_manager.as_ref().map(Arc::clone)
     }
 }
 

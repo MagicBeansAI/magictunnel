@@ -1,6 +1,6 @@
 [package]
 name = "magictunnel"
-version = "0.3.14"
+version = "0.3.15"
 edition = "2021"
 authors = ["gouravd"]
 description = "MagicTunnel - Fastest way to make LLMs talk to your internal systems and external ones"
@@ -78,6 +78,10 @@ config = "0.14"
 dotenvy = "0.15"  # .env file support
 dirs = "5.0"  # For finding standard directories
 
+# Ultra-fast data structures for pattern matching optimization
+ahash = "0.8"  # 25-50% faster HashMap/HashSet than std
+once_cell = "1.19"  # Static initialization for performance
+
 # Command line parsing
 clap = { version = "4.0", features = ["derive"] }
 
@@ -142,9 +146,9 @@ bytes = "1.0"  # For testing byte streams
 tonic-build = "0.10"
 
 [profile.release]
-lto = true
-codegen-units = 1
-panic = "abort"
+lto = "thin"        # Use thin LTO instead of full LTO (faster linking, fewer issues)
+codegen-units = 16  # Allow more parallel compilation units (default: 16)
+panic = "unwind"    # Use unwind instead of abort for better compatibility
 
 [profile.dev]
 opt-level = 1               # Some optimization for faster builds
@@ -171,6 +175,13 @@ opt-level = 2
 
 [profile.dev.package.tonic]
 opt-level = 2
+
+# Alternative test profile with minimal optimizations for compatibility
+[profile.test]
+opt-level = 1
+lto = false
+debug = true
+panic = "unwind"
 
 [[bin]]
 name = "magictunnel"

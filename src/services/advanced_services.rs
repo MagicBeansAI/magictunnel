@@ -104,19 +104,6 @@ impl AdvancedServices {
             }),
         });
         
-        // Always show Security Policies service
-        let policies_configured = config.security.as_ref().and_then(|s| s.policies.as_ref()).is_some();
-        services.push(ServiceStatus {
-            name: "Security Policies".to_string(),
-            status: if security_enabled && policies_configured { ServiceState::Running } else { ServiceState::Warning },
-            message: Some(if security_enabled && policies_configured {
-                "Enterprise security policies active".to_string()
-            } else if security_enabled {
-                "Available but not configured".to_string()
-            } else {
-                "Requires security framework to be enabled".to_string()
-            }),
-        });
         
         // Always show Emergency Lockdown service
         let lockdown_enabled = config.security.as_ref()

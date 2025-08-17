@@ -213,28 +213,6 @@ impl Default for SanitizationStatistics {
     }
 }
 
-/// Statistics for the policy engine
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PolicyStatistics {
-    /// Service health information
-    pub health: ServiceHealth,
-    /// Total security policies
-    pub total_policies: u32,
-    /// Active policies
-    pub active_policies: u32,
-    /// Total policy rules
-    pub active_rules: u32,
-    /// Total policy evaluations
-    pub total_evaluations: u64,
-    /// Evaluations today
-    pub evaluations_today: u64,
-    /// Policy violations
-    pub violations: u64,
-    /// Average evaluation time in milliseconds
-    pub avg_evaluation_time_ms: f64,
-    /// Policy effectiveness metrics
-    pub effectiveness: PolicyEffectiveness,
-}
 
 // ============================================================================
 // Supporting Types
@@ -306,18 +284,6 @@ pub struct PolicyTrigger {
     pub effectiveness_rate: f64,
 }
 
-/// Policy effectiveness metrics
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PolicyEffectiveness {
-    /// Overall effectiveness score (0.0 - 1.0)
-    pub overall_score: f64,
-    /// Detection accuracy
-    pub detection_accuracy: f64,
-    /// False positive rate
-    pub false_positive_rate: f64,
-    /// Coverage percentage
-    pub coverage_percentage: f64,
-}
 
 // ============================================================================
 // Common Traits and Interfaces

@@ -1,16 +1,15 @@
 # MagicTunnel Enterprise Security
 
-MagicTunnel provides comprehensive enterprise-grade security features for controlling access to MCP tools, resources, and data. The security system includes allowlisting, role-based access control (RBAC), audit logging, request sanitization, and organization-wide policy management.
+MagicTunnel provides comprehensive enterprise-grade security features for controlling access to MCP tools, resources, and data. The security system includes allowlisting, role-based access control (RBAC), audit logging, and request sanitization.
 
 ## Overview
 
-The security system consists of five main components:
+The security system consists of four main components:
 
 1. **Tool Allowlisting** - Explicit control over which tools, resources, and prompts can be accessed
 2. **Role-Based Access Control (RBAC)** - Comprehensive permission management with role inheritance
 3. **Audit Logging** - Complete audit trail of all MCP communications for compliance
-4. **Request Sanitization** - Content filtering and secret detection with approval workflows  
-5. **Security Policies** - Organization-wide policy engine with flexible conditions
+4. **Request Sanitization** - Content filtering and secret detection with approval workflows
 
 ## Quick Start
 
@@ -33,8 +32,6 @@ security:
       type: file
       directory: "./audit-logs"
   sanitization:
-    enabled: true
-  policies:
     enabled: true
 ```
 
@@ -339,63 +336,6 @@ security:
   --parameters '{"command": "curl -H \"Authorization: Bearer secret-key-12345\" https://api.example.com"}'
 ```
 
-## Security Policies
-
-Organization-wide policy engine with flexible conditions and actions.
-
-### Configuration
-
-```yaml
-security:
-  policies:
-    enabled: true
-    default_action: allow
-    
-    policies:
-      business_hours_only:
-        name: "Business hours access only"
-        conditions:
-          - type: time_range
-            start_hour: 9
-            end_hour: 17
-            days_of_week: [1, 2, 3, 4, 5]
-        actions:
-          - type: allow
-        else_actions:
-          - type: require_approval
-            workflow: after_hours_approval
-            
-      sensitive_data_protection:
-        name: "Sensitive data access restrictions"
-        conditions:
-          - type: resource_pattern
-            pattern: ".*(financial|medical|personal).*"
-          - type: user_role
-            roles: ["data_analyst", "researcher"]
-        actions:
-          - type: audit
-            event_type: sensitive_access
-          - type: sanitize
-            method: redact_pii
-```
-
-### Policy Conditions
-
-- **Time-based**: Business hours, specific dates
-- **User-based**: Roles, permissions, user attributes  
-- **Resource-based**: File patterns, API endpoints
-- **Request-based**: Tool names, parameters, content
-- **Network-based**: IP addresses, geographic location
-- **Custom**: External service evaluation
-
-### Policy Actions
-
-- **Allow/Deny**: Grant or block access
-- **Audit**: Log events for monitoring
-- **Sanitize**: Apply content filtering
-- **Require Approval**: Human approval workflows
-- **Rate Limit**: Throttle requests
-- **Notify**: Send alerts to administrators
 
 ## Security CLI Tool
 

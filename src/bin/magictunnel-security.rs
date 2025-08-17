@@ -9,7 +9,7 @@ use anyhow::Result;
 use tracing::{info, error, warn};
 use magictunnel::config::Config;
 use magictunnel::security::{
-    SecurityConfig, AllowlistConfig, SanitizationConfig, RbacConfig, PolicyConfig, AuditConfig,
+    SecurityConfig, AllowlistConfig, SanitizationConfig, RbacConfig, AuditConfig,
     AllowlistService, RbacService, AuditService,
     AllowlistContext, PermissionContext, AuditEventType, AuditOutcome
 };
@@ -178,8 +178,9 @@ async fn show_status(config: &Config) -> Result<()> {
             if allowlist_config.enabled {
                 println!("  - Default Action: {:?}", allowlist_config.default_action);
                 println!("  - Tool Rules: {}", allowlist_config.tools.len());
-                println!("  - Resource Rules: {}", allowlist_config.resources.len());
-                println!("  - Global Rules: {}", allowlist_config.global_rules.len());
+                println!("  - Server Rules: {}", allowlist_config.servers.len());
+                println!("  - Capability Patterns: {}", allowlist_config.capability_patterns.len());
+                println!("  - Global Patterns: {}", allowlist_config.global_patterns.len());
             }
         } else {
             println!("Tool Allowlisting: ❌ NOT CONFIGURED");
@@ -207,15 +208,6 @@ async fn show_status(config: &Config) -> Result<()> {
             println!("RBAC: ❌ NOT CONFIGURED");
         }
         
-        if let Some(policy_config) = &security_config.policies {
-            println!("Organization Policies: {}", if policy_config.enabled { "✅ ENABLED" } else { "❌ DISABLED" });
-            if policy_config.enabled {
-                println!("  - Policies: {}", policy_config.policies.len());
-                println!("  - Default Action: {:?}", policy_config.default_action);
-            }
-        } else {
-            println!("Organization Policies: ❌ NOT CONFIGURED");
-        }
         
         if let Some(audit_config) = &security_config.audit {
             println!("Audit Logging: {}", if audit_config.enabled { "✅ ENABLED" } else { "❌ DISABLED" });
@@ -278,7 +270,7 @@ async fn test_security(
             println!("  - Allowed: {}", if result.allowed { "✅ YES" } else { "❌ NO" });
             println!("  - Action: {:?}", result.action);
             println!("  - Reason: {}", result.reason);
-            if let Some(rule) = result.matched_rule {
+            if let Some(rule) = &result.matched_rule {
                 println!("  - Matched Rule: {}", rule);
             }
             println!();
@@ -524,7 +516,6 @@ async fn init_security_config(output: &PathBuf, level: &str) -> Result<()> {
                 enabled: true,
                 ..Default::default()
             }),
-            policies: None,
             audit: Some(AuditConfig {
                 enabled: true,
                 ..Default::default()
@@ -544,7 +535,6 @@ async fn init_security_config(output: &PathBuf, level: &str) -> Result<()> {
                 enabled: true,
                 ..Default::default()
             }),
-            policies: None,
             audit: Some(AuditConfig {
                 enabled: true,
                 ..Default::default()

@@ -30,7 +30,7 @@ OPTIONS:
 ## Commands Overview
 
 - [`status`](#status) - Show security status and configuration
-- [`test`](#test) - Test security policies for specific scenarios
+- [`test`](#test) - Test security configuration for specific scenarios
 - [`rbac`](#rbac) - Manage roles and permissions
 - [`audit`](#audit) - View and search audit logs
 - [`init`](#init) - Initialize security configuration
@@ -82,7 +82,7 @@ Audit Logging: ✅ ENABLED
 
 ## `test`
 
-Test security policies against specific scenarios to verify configuration.
+Test security configuration against specific scenarios to verify allowlist and access control rules.
 
 ### Usage
 ```bash
@@ -414,14 +414,14 @@ OPTIONS:
 - Comprehensive RBAC with role inheritance
 - Full audit logging
 - Content sanitization enabled
-- Basic security policies
+- Tool allowlisting with pattern support
 
 #### Strict
 - Maximum security settings
 - Deny-by-default for all features
 - Comprehensive audit logging with body content
 - Aggressive sanitization and approval workflows
-- Strict security policies
+- Advanced allowlisting with strict pattern matching
 
 ### Examples
 

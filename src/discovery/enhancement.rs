@@ -404,16 +404,29 @@ impl ToolEnhancementPipeline {
         
         // Load enhanced tools from persistent storage if available
         if let Some(storage) = &self.storage_service {
+            info!("📂 Enhancement storage service is available, attempting to load...");
             match storage.load_all_enhanced_tools().await {
                 Ok(stored_tools) => {
                     let mut cache = self.enhanced_cache.write().await;
+                    info!("📋 Before loading: cache has {} items", cache.len());
+                    info!("📋 Storage returned {} tools", stored_tools.len());
+                    
+                    // Debug: log first few tool names and their enhancement status
+                    for (i, (name, tool)) in stored_tools.iter().enumerate() {
+                        if i < 5 {
+                            info!("  📝 Tool '{}': is_enhanced={}, source={:?}", name, tool.is_enhanced(), tool.enhancement_source);
+                        }
+                    }
+                    
                     cache.extend(stored_tools);
-                    info!("📦 Loaded {} enhanced tools from persistent storage", cache.len());
+                    info!("📦 Loaded {} enhanced tools from persistent storage, cache now has {} items", cache.len(), cache.len());
                 }
                 Err(e) => {
                     warn!("Failed to load enhanced tools from storage: {}", e);
                 }
             }
+        } else {
+            warn!("📂 No enhancement storage service available - cannot load stored tools");
         }
         
         // Get all enabled tools from registry

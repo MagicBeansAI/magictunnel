@@ -6844,14 +6844,6 @@ tools:
                             "requires_advanced": true
                         },
                         {
-                            "id": "security-policies",
-                            "name": "Security Policies",
-                            "path": "/security/policies",
-                            "icon": "policy",
-                            "visible": true,
-                            "requires_advanced": true
-                        },
-                        {
                             "id": "rbac",
                             "name": "RBAC",
                             "path": "/security/rbac",

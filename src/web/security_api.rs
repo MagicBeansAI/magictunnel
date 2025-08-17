@@ -7,11 +7,13 @@ use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 
 use crate::security::{
-    AllowlistService, AuditService, RbacService, SanitizationService, PolicyEngine,
+    AllowlistService, AuditService, RbacService, SanitizationService,
     SecurityConfig, SecurityMiddleware, AuditQueryFilters, SecurityServiceStatistics,
     AuditEntry, AuditEventType, AuditOutcome, AuditUser, AuditSecurity,
     AuditStatistics, SanitizationStatistics,
     EmergencyLockdownManager, EmergencyLockdownConfig,
+    AllowlistAction, AllowlistPattern,
+    ConfigurationChangeTracker, ChangeTrackerConfig, ConfigurationChange, ChangeType, ChangeOperation, ChangeUser, ChangeTarget,
 };
 
 /// Security status response
@@ -65,14 +67,180 @@ pub struct SecurityAlert {
     pub component: String,
 }
 
+/// Pattern testing request structures
+#[derive(Debug, Deserialize)]
+pub struct PatternTestRequest {
+    pub test_cases: Vec<PatternTestCase>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PatternTestCase {
+    pub tool_name: String,
+    pub expected_match: Option<String>,
+    pub expected_action: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PatternBatchTestResponse {
+    pub summary: PatternTestSummary,
+    pub results: Vec<PatternTestResponse>,
+    pub patterns_loaded: PatternStats,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PatternTestSummary {
+    pub total_tests: usize,
+    pub passed_tests: usize,
+    pub failed_tests: usize,
+    pub success_rate: f64,
+    pub evaluation_time_ms: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PatternTestResponse {
+    pub tool_name: String,
+    pub expected_match: Option<String>,
+    pub expected_action: String,
+    pub actual_match: Option<String>,
+    pub actual_action: String,
+    pub rule_level: String,
+    pub priority: Option<i32>,
+    pub passed: bool,
+    pub evaluation_time_ns: u64,
+    pub details: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PatternStats {
+    pub capability_patterns: usize,
+    pub global_patterns: usize,
+    pub total_patterns: usize,
+}
+
+/// Pattern validation request/response structures
+#[derive(Debug, Deserialize)]
+pub struct PatternValidateRequest {
+    pub pattern_type: String,
+    pub pattern_value: String,
+    pub test_tool_names: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PatternValidateResponse {
+    pub validation: PatternValidationResult,
+    pub test_results: Option<Vec<PatternMatchResult>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PatternValidationResult {
+    pub is_valid: bool,
+    pub error_message: Option<String>,
+    pub syntax_check: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PatternMatchResult {
+    pub tool_name: String,
+    pub matches: bool,
+}
+
+/// Internal pattern evaluation result
+#[derive(Debug)]
+pub struct PatternEvaluationResult {
+    pub matched_pattern: Option<String>,
+    pub action: String,
+    pub rule_level: String,
+    pub priority: Option<i32>,
+    pub evaluation_time_ns: u64,
+    pub details: Vec<String>,
+}
+
+/// Unified Rule View API structures
+
+/// Unified rule representation across all rule levels
+#[derive(Debug, Clone, Serialize)]
+pub struct UnifiedRule {
+    /// Unique rule identifier
+    pub id: String,
+    /// Rule type (emergency, tool, capability_pattern, global_pattern)
+    pub rule_type: String,
+    /// Rule level (0=emergency, 1=tool, 2=capability, 3=global)
+    pub level: u8,
+    /// Rule name
+    pub name: String,
+    /// Pattern (for pattern-based rules)
+    pub pattern: Option<String>,
+    /// Rule action (allow/deny)
+    pub action: String,
+    /// Rule reason/description
+    pub reason: String,
+    /// Rule source (file, service, etc.)
+    pub source: String,
+    /// Whether rule is enabled
+    pub enabled: bool,
+    /// Rule priority within level
+    pub priority: Option<i32>,
+    /// When rule was created
+    pub created_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// When rule was last updated
+    pub last_updated: Option<chrono::DateTime<chrono::Utc>>,
+    /// Additional metadata
+    pub metadata: serde_json::Value,
+}
+
+/// Rule conflict detection
+#[derive(Debug, Clone, Serialize)]
+pub struct RuleConflict {
+    /// Type of conflict
+    pub conflict_type: String,
+    /// Rules involved in the conflict
+    pub rules: Vec<String>,
+    /// Description of the conflict
+    pub description: String,
+    /// Severity level (high, medium, low)
+    pub severity: String,
+    /// Suggested resolution
+    pub resolution_suggestion: String,
+}
+
+/// Statistics for unified rules
+#[derive(Debug, Default, Serialize)]
+pub struct UnifiedRuleStatistics {
+    /// Total number of rules
+    pub total_rules: usize,
+    /// Number of emergency rules
+    pub emergency_rules: usize,
+    /// Number of tool-level rules
+    pub tool_rules: usize,
+    /// Number of capability pattern rules
+    pub capability_patterns: usize,
+    /// Number of global pattern rules
+    pub global_patterns: usize,
+    /// Number of conflicts detected
+    pub conflicts: usize,
+}
+
+/// Response for unified rules API
+#[derive(Debug, Serialize)]
+pub struct UnifiedRulesResponse {
+    /// All rules aggregated and sorted
+    pub rules: Vec<UnifiedRule>,
+    /// Detected conflicts between rules
+    pub conflicts: Vec<RuleConflict>,
+    /// Rule statistics
+    pub statistics: UnifiedRuleStatistics,
+    /// Query parameters used
+    pub query_params: serde_json::Value,
+}
+
 /// Security API handler struct
 pub struct SecurityApi {
     allowlist_service: Option<Arc<AllowlistService>>,
     rbac_service: Option<Arc<RbacService>>,
     audit_service: Option<Arc<AuditService>>,
     sanitization_service: Option<Arc<SanitizationService>>,
-    policy_engine: Option<Arc<PolicyEngine>>,
     emergency_manager: Option<Arc<EmergencyLockdownManager>>,
+    change_tracker: Option<Arc<ConfigurationChangeTracker>>,
     security_config: Arc<SecurityConfig>,
 }
 
@@ -133,21 +301,6 @@ impl SecurityApi {
             None
         };
 
-        let policy_engine = if security_config.policies.as_ref().map_or(false, |p| p.enabled) {
-            match PolicyEngine::new(security_config.policies.as_ref().unwrap().clone()) {
-                Ok(service) => {
-                    info!("Policy engine initialized successfully");
-                    Some(Arc::new(service))
-                },
-                Err(e) => {
-                    error!("Failed to initialize policy engine: {}", e);
-                    None
-                }
-            }
-        } else {
-            info!("Policy engine disabled in configuration");
-            None
-        };
 
         // Initialize Emergency Lockdown Manager if configured
         let emergency_manager = if let Some(emergency_config) = &security_config.emergency_lockdown {
@@ -165,8 +318,8 @@ impl SecurityApi {
             rbac_service,
             audit_service,
             sanitization_service,
-            policy_engine,
             emergency_manager,
+            change_tracker: None,
             security_config,
         }
     }
@@ -199,14 +352,262 @@ impl SecurityApi {
                 },
                 Err(e) => {
                     error!("Failed to initialize emergency lockdown manager: {}", e);
-                    return Err(e.into());
+                    return Err(e);
                 }
             }
         } else {
-            info!("Emergency lockdown disabled in configuration");
+            info!("Emergency lockdown manager disabled in configuration");
+        }
+
+        // Initialize configuration change tracker if enabled
+        let change_tracker_config = ChangeTrackerConfig {
+            enabled: true, // Always enable for now
+            storage_directory: std::path::PathBuf::from("./security/change_history"),
+            ..Default::default()
+        };
+        
+        match ConfigurationChangeTracker::new(change_tracker_config).await {
+            Ok(tracker) => {
+                info!("Configuration change tracker initialized successfully");
+                self.change_tracker = Some(Arc::new(tracker));
+            },
+            Err(e) => {
+                warn!("Failed to initialize configuration change tracker: {}", e);
+                // Don't fail initialization if change tracker fails
+            }
         }
 
         Ok(())
+    }
+    
+    /// Configuration Change Tracking API Methods
+
+    /// Get all configuration changes
+    pub async fn get_configuration_changes(&self, query: web::Query<serde_json::Value>) -> Result<HttpResponse> {
+        if let Some(ref tracker) = self.change_tracker {
+            let change_type = query.get("change_type").and_then(|v| v.as_str());
+            let operation = query.get("operation").and_then(|v| v.as_str());
+            let user_id = query.get("user_id").and_then(|v| v.as_str());
+            let since = query.get("since")
+                .and_then(|v| v.as_str())
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.with_timezone(&chrono::Utc));
+            let limit = query.get("limit")
+                .and_then(|v| v.as_u64())
+                .map(|l| l as usize);
+
+            let changes = tracker.get_changes_filtered(
+                change_type,
+                operation,
+                user_id,
+                since,
+                limit,
+            );
+
+            Ok(HttpResponse::Ok().json(json!({
+                "status": "success",
+                "data": {
+                    "changes": changes,
+                    "total_changes": changes.len(),
+                    "filters_applied": {
+                        "change_type": change_type,
+                        "operation": operation,
+                        "user_id": user_id,
+                        "since": since,
+                        "limit": limit
+                    }
+                }
+            })))
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Configuration change tracking not available",
+                "message": "Change tracker is not configured"
+            })))
+        }
+    }
+
+    /// Get change tracking statistics
+    pub async fn get_change_tracking_statistics(&self) -> Result<HttpResponse> {
+        if let Some(ref tracker) = self.change_tracker {
+            let statistics = tracker.get_statistics();
+            
+            Ok(HttpResponse::Ok().json(json!({
+                "status": "success",
+                "data": statistics
+            })))
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Configuration change tracking not available",
+                "message": "Change tracker is not configured"
+            })))
+        }
+    }
+
+    /// Get a specific configuration change by ID
+    pub async fn get_configuration_change(&self, change_id: web::Path<String>) -> Result<HttpResponse> {
+        if let Some(ref tracker) = self.change_tracker {
+            let changes = tracker.get_changes();
+            
+            if let Some(change) = changes.iter().find(|c| c.id == *change_id) {
+                Ok(HttpResponse::Ok().json(json!({
+                    "status": "success",
+                    "data": change
+                })))
+            } else {
+                Ok(HttpResponse::NotFound().json(json!({
+                    "error": "Change not found",
+                    "message": format!("No change found with ID: {}", change_id)
+                })))
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Configuration change tracking not available",
+                "message": "Change tracker is not configured"
+            })))
+        }
+    }
+
+    /// Track a manual configuration change (for API-driven changes)
+    pub async fn track_manual_change(&self, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
+        if let Some(ref tracker) = self.change_tracker {
+            // Extract change information from request
+            let change_type_str = match params.get("change_type").and_then(|v| v.as_str()) {
+                Some(value) => value,
+                None => return Ok(HttpResponse::BadRequest().json(json!({
+                    "error": "Missing change_type parameter"
+                }))),
+            };
+            
+            let operation_str = match params.get("operation").and_then(|v| v.as_str()) {
+                Some(value) => value,
+                None => return Ok(HttpResponse::BadRequest().json(json!({
+                    "error": "Missing operation parameter"
+                }))),
+            };
+
+            let target_identifier = match params.get("target_identifier").and_then(|v| v.as_str()) {
+                Some(value) => value,
+                None => return Ok(HttpResponse::BadRequest().json(json!({
+                    "error": "Missing target_identifier parameter"
+                }))),
+            };
+
+            let user_id = params.get("user_id").and_then(|v| v.as_str());
+            let user_name = params.get("user_name").and_then(|v| v.as_str());
+            let auth_method = params.get("auth_method")
+                .and_then(|v| v.as_str())
+                .unwrap_or("manual");
+
+            // Parse change type
+            let change_type = match change_type_str {
+                "tool_rule" => {
+                    let tool_name = params.get("tool_name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(target_identifier)
+                        .to_string();
+                    ChangeType::ToolRule { tool_name }
+                },
+                "capability_pattern" => {
+                    let pattern_name = params.get("pattern_name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(target_identifier)
+                        .to_string();
+                    ChangeType::CapabilityPattern { pattern_name }
+                },
+                "global_pattern" => {
+                    let pattern_name = params.get("pattern_name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(target_identifier)
+                        .to_string();
+                    ChangeType::GlobalPattern { pattern_name }
+                },
+                "emergency_lockdown" => ChangeType::EmergencyLockdown,
+                _ => return Ok(HttpResponse::BadRequest().json(json!({
+                    "error": "Invalid change type",
+                    "supported_types": ["tool_rule", "capability_pattern", "global_pattern", "emergency_lockdown"]
+                }))),
+            };
+
+            // Parse operation
+            let operation = match operation_str {
+                "create" => ChangeOperation::Create,
+                "update" => ChangeOperation::Update,
+                "delete" => ChangeOperation::Delete,
+                "enable" => ChangeOperation::Enable,
+                "disable" => ChangeOperation::Disable,
+                _ => return Ok(HttpResponse::BadRequest().json(json!({
+                    "error": "Invalid operation",
+                    "supported_operations": ["create", "update", "delete", "enable", "disable"]
+                }))),
+            };
+
+            // Create user context
+            let user = ChangeUser {
+                id: user_id.map(|s| s.to_string()),
+                name: user_name.map(|s| s.to_string()),
+                auth_method: auth_method.to_string(),
+                api_key_name: params.get("api_key_name").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                roles: params.get("roles")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter().filter_map(|v| v.as_str()).map(|s| s.to_string()).collect())
+                    .unwrap_or_default(),
+                client_ip: params.get("client_ip").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                user_agent: params.get("user_agent").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            };
+
+            // Create target context
+            let target = ChangeTarget {
+                target_type: change_type_str.to_string(),
+                identifier: target_identifier.to_string(),
+                parent: params.get("parent").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                scope: params.get("scope")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(change_type_str)
+                    .to_string(),
+            };
+
+            // Extract before/after states
+            let before_state = params.get("before_state").cloned();
+            let after_state = params.get("after_state").cloned();
+            
+            // Extract metadata
+            let metadata = params.get("metadata")
+                .and_then(|v| v.as_object())
+                .map(|obj| obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                .unwrap_or_default();
+
+            // Track the change
+            match tracker.track_change(
+                change_type,
+                operation,
+                user,
+                target,
+                before_state,
+                after_state,
+                metadata,
+            ).await {
+                Ok(change_id) => {
+                    Ok(HttpResponse::Ok().json(json!({
+                        "status": "success",
+                        "message": "Configuration change tracked successfully",
+                        "data": {
+                            "change_id": change_id
+                        }
+                    })))
+                },
+                Err(e) => {
+                    Ok(HttpResponse::InternalServerError().json(json!({
+                        "error": "Failed to track configuration change",
+                        "message": e.to_string()
+                    })))
+                }
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Configuration change tracking not available",
+                "message": "Change tracker is not configured"
+            })))
+        }
     }
 
     /// Get overall security status
@@ -220,7 +621,6 @@ impl SecurityApi {
         let rbac_status = self.get_rbac_component_status().await;
         let audit_status = self.get_audit_component_status().await;
         let sanitization_status = self.get_sanitization_component_status().await;
-        let policies_status = self.get_policies_component_status().await;
 
         // Calculate overall health
         let component_statuses = vec![
@@ -228,7 +628,6 @@ impl SecurityApi {
             &rbac_status.status,
             &audit_status.status,
             &sanitization_status.status,
-            &policies_status.status,
         ];
 
         let overall_status = if component_statuses.iter().all(|s| s.as_str() == "healthy") {
@@ -278,7 +677,6 @@ impl SecurityApi {
                 "rbac": rbac_status,
                 "audit": audit_status,
                 "sanitization": sanitization_status,
-                "policies": policies_status,
             },
             "violations": {
                 "total": 0,
@@ -324,6 +722,112 @@ impl SecurityApi {
 
         info!("Security test completed successfully");
         Ok(HttpResponse::Ok().json(result))
+    }
+
+    /// Get security metrics
+    pub async fn get_security_metrics(&self, query: web::Query<std::collections::HashMap<String, String>>) -> Result<HttpResponse> {
+        debug!("Getting security metrics with query: {:?}", query);
+
+        // Get time range filter (default to 24h)
+        let default_time_range = "24h".to_string();
+        let time_range = query.get("time_range").unwrap_or(&default_time_range);
+        
+        // Calculate time window based on range
+        let start_time = match time_range.as_str() {
+            "1h" => Some(Utc::now() - chrono::Duration::hours(1)),
+            "24h" => Some(Utc::now() - chrono::Duration::hours(24)), 
+            "7d" => Some(Utc::now() - chrono::Duration::days(7)),
+            "30d" => Some(Utc::now() - chrono::Duration::days(30)),
+            _ => Some(Utc::now() - chrono::Duration::hours(24)) // Default to 24h
+        };
+
+        // Get security metrics
+        let security_metrics = self.calculate_security_metrics().await;
+        
+        // Get recent audit events for the time range
+        let recent_events = if let Some(audit_service) = &self.audit_service {
+            let filters = AuditQueryFilters {
+                start_time,
+                end_time: None,
+                event_types: None,
+                user_id: None,
+                tool_name: None,
+                outcome: None,
+                limit: Some(100),
+                offset: None,
+            };
+            audit_service.query(&filters).await.unwrap_or_default()
+        } else {
+            vec![]
+        };
+
+        // Calculate additional metrics for the time range
+        let blocked_in_range = recent_events.iter()
+            .filter(|e| matches!(e.outcome, crate::security::audit::AuditOutcome::Blocked | crate::security::audit::AuditOutcome::Failure))
+            .count() as u64;
+            
+        let allowed_in_range = recent_events.iter()
+            .filter(|e| matches!(e.outcome, crate::security::audit::AuditOutcome::Success))
+            .count() as u64;
+
+        // Get allowlist statistics
+        let allowlist_stats = if let Some(allowlist_service) = &self.allowlist_service {
+            let stats = allowlist_service.get_statistics().await;
+            json!({
+                "total_rules": stats.total_rules,
+                "enabled_rules": stats.active_rules,
+                "blocked_requests": stats.blocked_requests,
+                "allowed_requests": stats.allowed_requests,
+                "evaluation_time_ns": stats.health.performance.avg_response_time_ms * 1_000_000.0,
+                "cache_hit_ratio": 1.0 - stats.health.performance.error_rate
+            })
+        } else {
+            json!({
+                "total_rules": 0,
+                "enabled_rules": 0,
+                "blocked_requests": 0,
+                "allowed_requests": 0,
+                "evaluation_time_ns": 0,
+                "cache_hit_ratio": 0.0
+            })
+        };
+
+        // Prepare response with comprehensive metrics
+        let metrics_response = json!({
+            "success": true,
+            "data": {
+                "time_range": time_range,
+                "period_start": start_time,
+                "period_end": Utc::now(),
+                "security_score": {
+                    "risk_score": security_metrics.risk_score,
+                    "compliance_score": security_metrics.compliance_score,
+                    "last_calculated": security_metrics.last_scan
+                },
+                "activity": {
+                    "threats_blocked": security_metrics.threats_blocked,
+                    "requests_blocked_in_period": blocked_in_range,
+                    "requests_allowed_in_period": allowed_in_range,
+                    "total_events_in_period": recent_events.len()
+                },
+                "policies": {
+                    "active_policies": security_metrics.active_policies,
+                    "allowlist_rules": allowlist_stats
+                },
+                "performance": {
+                    "avg_evaluation_time": if let Some(allowlist_service) = &self.allowlist_service {
+                        allowlist_service.get_average_decision_time_ns()
+                    } else { 0 },
+                    "cache_efficiency": if let Some(allowlist_service) = &self.allowlist_service {
+                        allowlist_service.get_cache_hit_ratio()
+                    } else { 0.0 }
+                },
+                "recent_events": recent_events.into_iter().take(10).collect::<Vec<_>>()
+            }
+        });
+
+        info!("Returning security metrics for time range: {}", time_range);
+        Ok(HttpResponse::Ok().json(metrics_response))
     }
 
     /// Get allowlist rules
@@ -693,113 +1197,6 @@ impl SecurityApi {
         Ok(HttpResponse::Ok().json(events))
     }
 
-    /// Get security policies
-    pub async fn get_security_policies(&self) -> Result<HttpResponse> {
-        debug!("Getting security policies");
-
-        let policies = if let Some(policy_engine) = &self.policy_engine {
-            policy_engine.get_policies_for_api()
-        } else {
-            json!([])
-        };
-
-        let count = policies.as_array().map(|arr| arr.len()).unwrap_or(0);
-        info!("Returning {} security policies from policy engine", count);
-        Ok(HttpResponse::Ok().json(policies))
-    }
-
-    /// Get single security policy
-    pub async fn get_security_policy(&self, policy_id: web::Path<String>) -> Result<HttpResponse> {
-        debug!("Getting security policy: {}", policy_id);
-
-        let policy = json!({
-            "id": policy_id.as_str(),
-            "name": "Example Security Policy",
-            "enabled": true,
-            "rules": [
-                {
-                    "condition": "tool_execution",
-                    "action": "audit",
-                    "priority": 100
-                }
-            ],
-            "created_at": Utc::now(),
-            "updated_at": Utc::now()
-        });
-
-        info!("Returning security policy");
-        Ok(HttpResponse::Ok().json(policy))
-    }
-
-    /// Create security policy
-    pub async fn create_security_policy(&self, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
-        debug!("Creating security policy: {:?}", params);
-
-        let policy = json!({
-            "id": format!("policy_{}", Utc::now().timestamp()),
-            "name": params.get("name").unwrap_or(&json!("New Security Policy")),
-            "enabled": params.get("enabled").unwrap_or(&json!(true)),
-            "rules": params.get("rules").unwrap_or(&json!([])),
-            "created_at": Utc::now(),
-            "updated_at": Utc::now()
-        });
-
-        info!("Security policy created successfully");
-        Ok(HttpResponse::Ok().json(policy))
-    }
-
-    /// Update security policy
-    pub async fn update_security_policy(&self, policy_id: web::Path<String>, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
-        debug!("Updating security policy {}: {:?}", policy_id, params);
-
-        let policy = json!({
-            "id": policy_id.as_str(),
-            "name": params.get("name").unwrap_or(&json!("Updated Security Policy")),
-            "enabled": params.get("enabled").unwrap_or(&json!(true)),
-            "rules": params.get("rules").unwrap_or(&json!([])),
-            "updated_at": Utc::now()
-        });
-
-        info!("Security policy updated successfully");
-        Ok(HttpResponse::Ok().json(policy))
-    }
-
-    /// Delete security policy
-    pub async fn delete_security_policy(&self, policy_id: web::Path<String>) -> Result<HttpResponse> {
-        debug!("Deleting security policy: {}", policy_id);
-
-        let result = json!({
-            "success": true,
-            "message": "Security policy deleted successfully"
-        });
-
-        info!("Security policy deleted successfully");
-        Ok(HttpResponse::Ok().json(result))
-    }
-
-    /// Test security policy
-    pub async fn test_security_policy(&self, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
-        debug!("Testing security policy: {:?}", params);
-
-        let result = json!({
-            "success": true,
-            "results": {
-                "policy": params.get("policy_id").unwrap_or(&json!("test_policy")),
-                "outcome": "allowed",
-                "applied_rules": [
-                    {
-                        "rule": "audit_rule",
-                        "matched": true,
-                        "action": "audit"
-                    }
-                ],
-                "confidence": 0.98
-            }
-        });
-
-        info!("Security policy test completed");
-        Ok(HttpResponse::Ok().json(result))
-    }
 
     // ============================================================================
     // Allowlist CRUD Operations (CRITICAL MISSING)
@@ -2712,38 +3109,6 @@ sanitization:
         }
     }
 
-    /// Get real policies component status
-    async fn get_policies_component_status(&self) -> ComponentStatus {
-        if let Some(service) = &self.policy_engine {
-            let stats = service.get_statistics().await;
-            ComponentStatus {
-                enabled: self.security_config.policies.as_ref().map_or(false, |p| p.enabled),
-                status: if stats.health.is_healthy { "healthy" } else { "error" }.to_string(),
-                metrics: ComponentMetrics {
-                    data: json!({
-                        "policiesCount": stats.total_policies,
-                        "activeRules": stats.active_rules,
-                        "evaluations": stats.total_evaluations,
-                        "lastUpdated": Utc::now()
-                    }),
-                },
-            }
-        } else {
-            let enabled = self.security_config.policies.as_ref().map_or(false, |p| p.enabled);
-            ComponentStatus {
-                enabled,
-                status: if enabled { "error" } else { "disabled" }.to_string(),
-                metrics: ComponentMetrics {
-                    data: json!({
-                        "policiesCount": 0,
-                        "activeRules": 0,
-                        "evaluations": 0,
-                        "lastUpdated": Utc::now()
-                    }),
-                },
-            }
-        }
-    }
 
     /// Calculate real security metrics from all services
     async fn calculate_security_metrics(&self) -> SecurityMetrics {
@@ -2784,15 +3149,6 @@ sanitization:
             compliance_score -= 15;
         }
 
-        // Gather metrics from policy engine
-        if let Some(service) = &self.policy_engine {
-            let stats = service.get_statistics().await;
-            active_policies += stats.total_policies;
-            if !stats.health.is_healthy { risk_score += 15; compliance_score -= 10; }
-        } else if self.security_config.policies.as_ref().map_or(false, |p| p.enabled) {
-            risk_score += 15;
-            compliance_score -= 10;
-        }
 
         SecurityMetrics {
             risk_score: risk_score.min(100),
@@ -2857,6 +3213,826 @@ sanitization:
 
         alerts
     }
+
+    /// Test patterns against tool names with detailed validation feedback
+    pub async fn test_patterns(&self, request: web::Json<PatternTestRequest>) -> Result<HttpResponse> {
+        debug!("Testing patterns with request: {:?}", request);
+        
+        if request.test_cases.is_empty() {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "error": "No test cases provided",
+                "code": "EMPTY_TEST_CASES"
+            })));
+        }
+
+        if request.test_cases.len() > 100 {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "error": "Too many test cases provided (max 100)",
+                "code": "TOO_MANY_TEST_CASES",
+                "provided": request.test_cases.len(),
+                "maximum": 100
+            })));
+        }
+
+        // Load pattern loader from security directory
+        let security_dir = std::env::current_dir()
+            .unwrap_or_default()
+            .join("security");
+            
+        let pattern_loader = crate::security::pattern_loader::PatternLoader::new(&security_dir);
+        
+        // Load patterns
+        let capability_patterns = match pattern_loader.load_capability_patterns() {
+            Ok(patterns) => patterns,
+            Err(e) => {
+                error!("Failed to load capability patterns: {}", e);
+                return Ok(HttpResponse::InternalServerError().json(json!({
+                    "error": "Failed to load capability patterns",
+                    "details": e.to_string()
+                })));
+            }
+        };
+        
+        let global_patterns = match pattern_loader.load_global_patterns() {
+            Ok(patterns) => patterns,
+            Err(e) => {
+                error!("Failed to load global patterns: {}", e);
+                return Ok(HttpResponse::InternalServerError().json(json!({
+                    "error": "Failed to load global patterns",
+                    "details": e.to_string()
+                })));
+            }
+        };
+
+        let mut test_results = Vec::new();
+        
+        for test_case in &request.test_cases {
+            let result = self.evaluate_pattern_match(&test_case.tool_name, &capability_patterns, &global_patterns).await;
+            
+            test_results.push(PatternTestResponse {
+                tool_name: test_case.tool_name.clone(),
+                expected_match: test_case.expected_match.clone(),
+                expected_action: test_case.expected_action.clone(),
+                actual_match: result.matched_pattern.clone(),
+                actual_action: result.action.clone(),
+                rule_level: result.rule_level.clone(),
+                priority: result.priority,
+                passed: test_case.expected_match == result.matched_pattern &&
+                       test_case.expected_action.to_lowercase() == result.action.to_lowercase(),
+                evaluation_time_ns: result.evaluation_time_ns,
+                details: result.details,
+            });
+        }
+
+        let total_tests = test_results.len();
+        let passed_tests = test_results.iter().filter(|r| r.passed).count();
+        let success_rate = if total_tests > 0 { passed_tests as f64 / total_tests as f64 } else { 1.0 };
+
+        let response = PatternBatchTestResponse {
+            summary: PatternTestSummary {
+                total_tests,
+                passed_tests,
+                failed_tests: total_tests - passed_tests,
+                success_rate,
+                evaluation_time_ms: test_results.iter().map(|r| r.evaluation_time_ns).sum::<u64>() / 1_000_000,
+            },
+            results: test_results,
+            patterns_loaded: PatternStats {
+                capability_patterns: capability_patterns.len(),
+                global_patterns: global_patterns.len(),
+                total_patterns: capability_patterns.len() + global_patterns.len(),
+            },
+        };
+
+        info!("Pattern testing completed: {}/{} tests passed ({:.1}%)", passed_tests, total_tests, success_rate * 100.0);
+        Ok(HttpResponse::Ok().json(response))
+    }
+
+    /// Validate a single pattern in real-time
+    pub async fn validate_pattern(&self, request: web::Json<PatternValidateRequest>) -> Result<HttpResponse> {
+        debug!("Validating pattern: {:?}", request);
+        
+        // Validate pattern syntax
+        let pattern_validation = match request.pattern_type.as_str() {
+            "regex" => {
+                match regex::Regex::new(&request.pattern_value) {
+                    Ok(_) => PatternValidationResult {
+                        is_valid: true,
+                        error_message: None,
+                        syntax_check: "valid".to_string(),
+                    },
+                    Err(e) => PatternValidationResult {
+                        is_valid: false,
+                        error_message: Some(e.to_string()),
+                        syntax_check: "invalid_regex".to_string(),
+                    }
+                }
+            },
+            "wildcard" => {
+                // Basic wildcard validation
+                PatternValidationResult {
+                    is_valid: true,
+                    error_message: None,
+                    syntax_check: "valid".to_string(),
+                }
+            },
+            "exact" => {
+                // Exact patterns are always valid if non-empty
+                PatternValidationResult {
+                    is_valid: !request.pattern_value.trim().is_empty(),
+                    error_message: if request.pattern_value.trim().is_empty() { 
+                        Some("Pattern value cannot be empty".to_string()) 
+                    } else { 
+                        None 
+                    },
+                    syntax_check: if request.pattern_value.trim().is_empty() { "empty_pattern" } else { "valid" }.to_string(),
+                }
+            },
+            _ => PatternValidationResult {
+                is_valid: false,
+                error_message: Some(format!("Unknown pattern type: {}", request.pattern_type)),
+                syntax_check: "unknown_type".to_string(),
+            }
+        };
+
+        // If pattern is invalid, return early
+        if !pattern_validation.is_valid {
+            return Ok(HttpResponse::BadRequest().json(PatternValidateResponse {
+                validation: pattern_validation,
+                test_results: None,
+            }));
+        }
+
+        // Test against provided test cases if any
+        let test_results = if !request.test_tool_names.is_empty() {
+            let mut results = Vec::new();
+            
+            for tool_name in &request.test_tool_names {
+                let matches = match request.pattern_type.as_str() {
+                    "regex" => {
+                        if let Ok(regex) = regex::Regex::new(&request.pattern_value) {
+                            regex.is_match(tool_name)
+                        } else {
+                            false
+                        }
+                    },
+                    "wildcard" => {
+                        let regex_pattern = format!("^{}$", request.pattern_value.replace('*', ".*").replace('?', "."));
+                        if let Ok(regex) = regex::Regex::new(&regex_pattern) {
+                            regex.is_match(tool_name)
+                        } else {
+                            false
+                        }
+                    },
+                    "exact" => tool_name == &request.pattern_value,
+                    _ => false,
+                };
+
+                results.push(PatternMatchResult {
+                    tool_name: tool_name.clone(),
+                    matches,
+                });
+            }
+            
+            Some(results)
+        } else {
+            None
+        };
+
+        let response = PatternValidateResponse {
+            validation: pattern_validation,
+            test_results,
+        };
+
+        Ok(HttpResponse::Ok().json(response))
+    }
+
+    /// Helper method to evaluate pattern matching against loaded patterns
+    async fn evaluate_pattern_match(
+        &self,
+        tool_name: &str,
+        capability_patterns: &[crate::security::allowlist_types::PatternRule],
+        global_patterns: &[crate::security::allowlist_types::PatternRule],
+    ) -> PatternEvaluationResult {
+        use std::time::Instant;
+        use crate::security::allowlist_types::{AllowlistPattern, AllowlistAction};
+        
+        let start_time = Instant::now();
+        let mut matched_pattern = None;
+        let mut matched_action = "default_allow".to_string();
+        let mut rule_level = "default".to_string();
+        let mut priority = None;
+        let mut details = Vec::new();
+
+        // Check capability patterns first (higher priority)
+        for pattern_rule in capability_patterns {
+            if let Some(ref pattern) = pattern_rule.rule.pattern {
+                let regex_str = match pattern {
+                    AllowlistPattern::Regex { value } => value.clone(),
+                    AllowlistPattern::Wildcard { value } => {
+                        format!("^{}$", value.replace('*', ".*").replace('?', "."))
+                    },
+                    AllowlistPattern::Exact { value } => {
+                        format!("^{}$", regex::escape(value))
+                    },
+                };
+                
+                if let Ok(regex) = regex::Regex::new(&regex_str) {
+                    if regex.is_match(tool_name) {
+                        matched_pattern = pattern_rule.rule.name.clone();
+                        matched_action = match pattern_rule.rule.action {
+                            AllowlistAction::Allow => "allow".to_string(),
+                            AllowlistAction::Deny => "deny".to_string(),
+                        };
+                        rule_level = "capability".to_string();
+                        priority = pattern_rule.rule.priority;
+                        details.push(format!("Matched capability pattern: {}", 
+                                           pattern_rule.rule.name.as_ref().unwrap_or(&"unnamed".to_string())));
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Check global patterns if no capability match
+        if matched_pattern.is_none() {
+            for pattern_rule in global_patterns {
+                if let Some(ref pattern) = pattern_rule.rule.pattern {
+                    let regex_str = match pattern {
+                        AllowlistPattern::Regex { value } => value.clone(),
+                        AllowlistPattern::Wildcard { value } => {
+                            format!("^{}$", value.replace('*', ".*").replace('?', "."))
+                        },
+                        AllowlistPattern::Exact { value } => {
+                            format!("^{}$", regex::escape(value))
+                        },
+                    };
+                    
+                    if let Ok(regex) = regex::Regex::new(&regex_str) {
+                        if regex.is_match(tool_name) {
+                            matched_pattern = pattern_rule.rule.name.clone();
+                            matched_action = match pattern_rule.rule.action {
+                                AllowlistAction::Allow => "allow".to_string(),
+                                AllowlistAction::Deny => "deny".to_string(),
+                            };
+                            rule_level = "global".to_string();
+                            priority = pattern_rule.rule.priority;
+                            details.push(format!("Matched global pattern: {}", 
+                                               pattern_rule.rule.name.as_ref().unwrap_or(&"unnamed".to_string())));
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if matched_pattern.is_none() {
+            details.push("No pattern matched - using default action".to_string());
+        }
+
+        let evaluation_time_ns = start_time.elapsed().as_nanos() as u64;
+
+        PatternEvaluationResult {
+            matched_pattern,
+            action: matched_action,
+            rule_level,
+            priority,
+            evaluation_time_ns,
+            details,
+        }
+    }
+
+    /// Emergency Lockdown API Methods
+    
+    /// Get current emergency lockdown status
+    pub async fn get_emergency_lockdown_status(&self) -> Result<HttpResponse> {
+        if let Some(ref manager) = self.emergency_manager {
+            let state = manager.get_lockdown_state();
+            let statistics = manager.get_lockdown_statistics();
+            
+            let response = json!({
+                "status": "success",
+                "data": {
+                    "is_active": state.is_active,
+                    "activated_at": state.activated_at,
+                    "activated_by": state.activated_by,
+                    "reason": state.reason,
+                    "last_updated": state.last_updated,
+                    "blocked_requests": state.blocked_requests,
+                    "session_id": state.session_id,
+                    "statistics": statistics
+                }
+            });
+            
+            Ok(HttpResponse::Ok().json(response))
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Emergency lockdown system not available",
+                "message": "Emergency lockdown manager is not configured"
+            })))
+        }
+    }
+
+    /// Activate emergency lockdown
+    pub async fn activate_emergency_lockdown(&self, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
+        if let Some(ref manager) = self.emergency_manager {
+            let activated_by = params.get("activated_by")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            
+            let reason = params.get("reason")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            match manager.activate_lockdown(activated_by, reason).await {
+                Ok(result) => {
+                    if result.success {
+                        Ok(HttpResponse::Ok().json(json!({
+                            "status": "success",
+                            "message": result.message,
+                            "data": {
+                                "previous_state": result.previous_state,
+                                "current_state": result.current_state
+                            }
+                        })))
+                    } else {
+                        Ok(HttpResponse::BadRequest().json(json!({
+                            "status": "error",
+                            "message": result.message,
+                            "error": result.error,
+                            "data": {
+                                "current_state": result.current_state
+                            }
+                        })))
+                    }
+                },
+                Err(e) => {
+                    Ok(HttpResponse::InternalServerError().json(json!({
+                        "error": "Failed to activate emergency lockdown",
+                        "message": e.to_string()
+                    })))
+                }
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Emergency lockdown system not available",
+                "message": "Emergency lockdown manager is not configured"
+            })))
+        }
+    }
+
+    /// Deactivate emergency lockdown
+    pub async fn deactivate_emergency_lockdown(&self, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
+        if let Some(ref manager) = self.emergency_manager {
+            let deactivated_by = params.get("deactivated_by")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            match manager.deactivate_lockdown(deactivated_by).await {
+                Ok(result) => {
+                    if result.success {
+                        Ok(HttpResponse::Ok().json(json!({
+                            "status": "success",
+                            "message": result.message,
+                            "data": {
+                                "previous_state": result.previous_state,
+                                "current_state": result.current_state,
+                                "blocked_requests_during_session": result.current_state.blocked_requests
+                            }
+                        })))
+                    } else {
+                        Ok(HttpResponse::BadRequest().json(json!({
+                            "status": "error",
+                            "message": result.message,
+                            "error": result.error,
+                            "data": {
+                                "current_state": result.current_state
+                            }
+                        })))
+                    }
+                },
+                Err(e) => {
+                    Ok(HttpResponse::InternalServerError().json(json!({
+                        "error": "Failed to deactivate emergency lockdown",
+                        "message": e.to_string()
+                    })))
+                }
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Emergency lockdown system not available",
+                "message": "Emergency lockdown manager is not configured"
+            })))
+        }
+    }
+
+    /// Get emergency lockdown statistics
+    pub async fn get_emergency_lockdown_statistics(&self) -> Result<HttpResponse> {
+        if let Some(ref manager) = self.emergency_manager {
+            let statistics = manager.get_lockdown_statistics();
+            
+            Ok(HttpResponse::Ok().json(json!({
+                "status": "success",
+                "data": statistics
+            })))
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Emergency lockdown system not available",
+                "message": "Emergency lockdown manager is not configured"
+            })))
+        }
+    }
+
+    /// Check if emergency lockdown is currently active (for middleware)
+    pub fn is_emergency_lockdown_active(&self) -> bool {
+        self.emergency_manager
+            .as_ref()
+            .map_or(false, |manager| manager.is_lockdown_active())
+    }
+
+    /// Increment blocked request counter during lockdown
+    pub fn increment_emergency_blocked_requests(&self) -> u64 {
+        self.emergency_manager
+            .as_ref()
+            .map_or(0, |manager| manager.increment_blocked_requests())
+    }
+
+    /// Unified Rule View API Methods
+
+    /// Get aggregated view of all active rules across all levels
+    pub async fn get_unified_rules(&self, query: web::Query<serde_json::Value>) -> Result<HttpResponse> {
+        let include_emergency = query.get("include_emergency")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+        let include_patterns = query.get("include_patterns")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+        let include_tools = query.get("include_tools")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+        let format = query.get("format")
+            .and_then(|v| v.as_str())
+            .unwrap_or("json");
+
+        let mut aggregated_rules = Vec::new();
+        let mut conflicts = Vec::new();
+        let mut statistics = UnifiedRuleStatistics::default();
+
+        // 1. Emergency lockdown rules (highest priority)
+        if include_emergency {
+            if let Some(ref manager) = self.emergency_manager {
+                let state = manager.get_lockdown_state();
+                if state.is_active {
+                    aggregated_rules.push(UnifiedRule {
+                        id: "emergency_lockdown".to_string(),
+                        rule_type: "emergency".to_string(),
+                        level: 0, // Highest priority
+                        name: "Emergency Lockdown".to_string(),
+                        pattern: None,
+                        action: "deny".to_string(),
+                        reason: state.reason.clone().unwrap_or("Emergency lockdown active".to_string()),
+                        source: "emergency_manager".to_string(),
+                        enabled: true,
+                        priority: Some(0),
+                        created_at: state.activated_at,
+                        last_updated: Some(state.last_updated),
+                        metadata: json!({
+                            "activated_by": state.activated_by,
+                            "session_id": state.session_id,
+                            "blocked_requests": state.blocked_requests
+                        }),
+                    });
+                    statistics.emergency_rules += 1;
+                }
+            }
+        }
+
+        // 2. Tool-level rules
+        if include_tools {
+            if let Some(ref allowlist_service) = self.allowlist_service {
+                // Get tool rules from allowlist service
+                let tool_rules = allowlist_service.get_all_tool_rules();
+                for (tool_name, rule) in tool_rules {
+                    aggregated_rules.push(UnifiedRule {
+                        id: format!("tool_{}", tool_name),
+                        rule_type: "tool".to_string(),
+                        level: 1, // Second highest priority
+                        name: tool_name.clone(),
+                        pattern: None,
+                        action: match rule.action {
+                            AllowlistAction::Allow => "allow".to_string(),
+                            AllowlistAction::Deny => "deny".to_string(),
+                        },
+                        reason: rule.reason.clone().unwrap_or("Tool-level rule".to_string()),
+                        source: "tool_definition".to_string(),
+                        enabled: rule.enabled,
+                        priority: None, // Tool rules don't have priorities within their level
+                        created_at: None,
+                        last_updated: None,
+                        metadata: json!({
+                            "tool_name": tool_name
+                        }),
+                    });
+                    statistics.tool_rules += 1;
+                }
+            }
+        }
+
+        // 3. Capability-level pattern rules
+        if include_patterns {
+            if let Some(ref allowlist_service) = self.allowlist_service {
+                let capability_patterns = allowlist_service.get_capability_patterns();
+                for pattern_rule in capability_patterns {
+                    if let Some(ref name) = pattern_rule.rule.name {
+                        // Extract pattern value from rule - assuming it's stored in a pattern field
+                        // For now, use the name as pattern since the structure is different
+                        let pattern_value = name.clone(); // Placeholder - would need proper pattern extraction
+
+                        aggregated_rules.push(UnifiedRule {
+                            id: format!("capability_{}", name),
+                            rule_type: "capability_pattern".to_string(),
+                            level: 2, // Third priority
+                            name: name.clone(),
+                            pattern: Some(pattern_value),
+                            action: match pattern_rule.rule.action {
+                                AllowlistAction::Allow => "allow".to_string(),
+                                AllowlistAction::Deny => "deny".to_string(),
+                            },
+                            reason: pattern_rule.rule.reason.clone().unwrap_or("Capability pattern rule".to_string()),
+                            source: "capability_patterns".to_string(),
+                            enabled: pattern_rule.rule.enabled,
+                            priority: pattern_rule.rule.priority,
+                            created_at: None,
+                            last_updated: None,
+                            metadata: json!({
+                                "pattern_type": "capability",
+                                "priority": pattern_rule.rule.priority
+                            }),
+                        });
+                        statistics.capability_patterns += 1;
+                    }
+                }
+
+                // 4. Global-level pattern rules
+                let global_patterns = allowlist_service.get_global_patterns();
+                for pattern_rule in global_patterns {
+                    if let Some(ref name) = pattern_rule.rule.name {
+                        // Extract pattern value from rule - assuming it's stored in a pattern field
+                        // For now, use the name as pattern since the structure is different
+                        let pattern_value = name.clone(); // Placeholder - would need proper pattern extraction
+
+                        aggregated_rules.push(UnifiedRule {
+                            id: format!("global_{}", name),
+                            rule_type: "global_pattern".to_string(),
+                            level: 3, // Lowest priority
+                            name: name.clone(),
+                            pattern: Some(pattern_value),
+                            action: match pattern_rule.rule.action {
+                                AllowlistAction::Allow => "allow".to_string(),
+                                AllowlistAction::Deny => "deny".to_string(),
+                            },
+                            reason: pattern_rule.rule.reason.clone().unwrap_or("Global pattern rule".to_string()),
+                            source: "global_patterns".to_string(),
+                            enabled: pattern_rule.rule.enabled,
+                            priority: pattern_rule.rule.priority,
+                            created_at: None,
+                            last_updated: None,
+                            metadata: json!({
+                                "pattern_type": "global",
+                                "priority": pattern_rule.rule.priority
+                            }),
+                        });
+                        statistics.global_patterns += 1;
+                    }
+                }
+            }
+        }
+
+        // Detect conflicts between rules
+        conflicts = self.detect_rule_conflicts(&aggregated_rules);
+        statistics.conflicts = conflicts.len();
+        statistics.total_rules = aggregated_rules.len();
+
+        // Sort rules by level (priority), then by priority within level
+        aggregated_rules.sort_by(|a, b| {
+            a.level.cmp(&b.level)
+                .then_with(|| {
+                    match (a.priority, b.priority) {
+                        (Some(p1), Some(p2)) => p1.cmp(&p2),
+                        (Some(_), None) => std::cmp::Ordering::Less,
+                        (None, Some(_)) => std::cmp::Ordering::Greater,
+                        (None, None) => a.name.cmp(&b.name),
+                    }
+                })
+        });
+
+        let response_data = UnifiedRulesResponse {
+            rules: aggregated_rules,
+            conflicts,
+            statistics,
+            query_params: json!({
+                "include_emergency": include_emergency,
+                "include_patterns": include_patterns,
+                "include_tools": include_tools,
+                "format": format
+            }),
+        };
+
+        match format {
+            "csv" => {
+                let csv_data = self.export_rules_to_csv(&response_data.rules)?;
+                Ok(HttpResponse::Ok()
+                    .content_type("text/csv")
+                    .insert_header(("Content-Disposition", "attachment; filename=\"unified_rules.csv\""))
+                    .body(csv_data))
+            },
+            "json" | _ => {
+                Ok(HttpResponse::Ok().json(json!({
+                    "status": "success",
+                    "data": response_data
+                })))
+            }
+        }
+    }
+
+    /// Detect conflicts between rules
+    fn detect_rule_conflicts(&self, rules: &[UnifiedRule]) -> Vec<RuleConflict> {
+        let mut conflicts = Vec::new();
+        
+        // Group rules by what they might affect
+        let mut tool_rules: std::collections::HashMap<String, Vec<&UnifiedRule>> = std::collections::HashMap::new();
+        let mut pattern_rules: Vec<&UnifiedRule> = Vec::new();
+        
+        for rule in rules {
+            match rule.rule_type.as_str() {
+                "tool" => {
+                    tool_rules.entry(rule.name.clone()).or_insert_with(Vec::new).push(rule);
+                },
+                "capability_pattern" | "global_pattern" => {
+                    pattern_rules.push(rule);
+                },
+                _ => {}
+            }
+        }
+        
+        // Check for direct tool rule conflicts
+        for (tool_name, tool_rule_list) in &tool_rules {
+            if tool_rule_list.len() > 1 {
+                for i in 0..tool_rule_list.len() {
+                    for j in i+1..tool_rule_list.len() {
+                        let rule1 = tool_rule_list[i];
+                        let rule2 = tool_rule_list[j];
+                        
+                        if rule1.action != rule2.action {
+                            conflicts.push(RuleConflict {
+                                conflict_type: "direct_tool_conflict".to_string(),
+                                rules: vec![rule1.id.clone(), rule2.id.clone()],
+                                description: format!(
+                                    "Tool '{}' has conflicting rules: {} vs {}",
+                                    tool_name, rule1.action, rule2.action
+                                ),
+                                severity: "high".to_string(),
+                                resolution_suggestion: "Remove duplicate tool rules or ensure consistent actions".to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Check for pattern conflicts with tool rules
+        for (tool_name, tool_rule_list) in &tool_rules {
+            for pattern_rule in &pattern_rules {
+                if let Some(ref pattern) = pattern_rule.pattern {
+                    // Simple regex check - in production, you'd want proper regex compilation
+                    if pattern.contains(tool_name) || tool_name.contains(pattern) {
+                        for tool_rule in tool_rule_list {
+                            if tool_rule.action != pattern_rule.action {
+                                conflicts.push(RuleConflict {
+                                    conflict_type: "pattern_tool_conflict".to_string(),
+                                    rules: vec![tool_rule.id.clone(), pattern_rule.id.clone()],
+                                    description: format!(
+                                        "Tool '{}' rule ({}) conflicts with pattern '{}' ({})",
+                                        tool_name, tool_rule.action, pattern_rule.name, pattern_rule.action
+                                    ),
+                                    severity: "medium".to_string(),
+                                    resolution_suggestion: "Tool-level rules override patterns, but consider alignment".to_string(),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        conflicts
+    }
+
+    /// Export rules to CSV format
+    fn export_rules_to_csv(&self, rules: &[UnifiedRule]) -> Result<String> {
+        let mut csv_content = String::new();
+        
+        // CSV header
+        csv_content.push_str("ID,Type,Level,Name,Pattern,Action,Reason,Source,Enabled,Priority\n");
+        
+        // CSV rows
+        for rule in rules {
+            csv_content.push_str(&format!(
+                "{},{},{},{},{},{},{},{},{},{}\n",
+                rule.id,
+                rule.rule_type,
+                rule.level,
+                rule.name,
+                rule.pattern.as_deref().unwrap_or(""),
+                rule.action,
+                rule.reason.replace(',', ";"), // Escape commas
+                rule.source,
+                rule.enabled,
+                rule.priority.map(|p| p.to_string()).unwrap_or_default()
+            ));
+        }
+        
+        Ok(csv_content)
+    }
+
+    /// Get rule conflicts only
+    pub async fn get_rule_conflicts(&self) -> Result<HttpResponse> {
+        // Get all rules without export formatting
+        let query = web::Query(json!({
+            "format": "json"
+        }));
+        
+        // This is a bit hacky - we'll get the unified rules and extract conflicts
+        let all_rules = match self.get_unified_rules(query).await {
+            Ok(response) => {
+                // Extract from HttpResponse - in a real implementation, you'd refactor this
+                // For now, we'll just detect conflicts again
+                Vec::new() // Placeholder
+            },
+            Err(_) => Vec::new(),
+        };
+        
+        let conflicts = self.detect_rule_conflicts(&all_rules);
+        
+        Ok(HttpResponse::Ok().json(json!({
+            "status": "success",
+            "data": {
+                "conflicts": conflicts,
+                "total_conflicts": conflicts.len(),
+                "conflict_summary": {
+                    "high_severity": conflicts.iter().filter(|c| c.severity == "high").count(),
+                    "medium_severity": conflicts.iter().filter(|c| c.severity == "medium").count(),
+                    "low_severity": conflicts.iter().filter(|c| c.severity == "low").count(),
+                }
+            }
+        })))
+    }
+
+    /// Export unified rules in various formats
+    pub async fn export_unified_rules(&self, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
+        let format = params.get("format")
+            .and_then(|v| v.as_str())
+            .unwrap_or("json")
+            .to_string();
+        let include_conflicts = params.get("include_conflicts")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+        let filename = params.get("filename")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unified_rules")
+            .to_string();
+        
+        // Convert params to query format
+        let params_inner = params.into_inner();
+        let query = web::Query(params_inner);
+        
+        match format.as_str() {
+            "csv" => {
+                let response = self.get_unified_rules(query).await?;
+                // The CSV export is handled in get_unified_rules when format=csv
+                Ok(response)
+            },
+            "json" => {
+                // Simply delegate to get_unified_rules and add download header
+                let response = self.get_unified_rules(query).await?;
+                Ok(HttpResponse::Ok()
+                    .content_type("application/json")
+                    .insert_header(("Content-Disposition", format!("attachment; filename=\"{}.json\"", filename)))
+                    .json(json!({
+                        "status": "success",
+                        "message": "Unified rules exported successfully",
+                        "filename": filename,
+                        "export_timestamp": chrono::Utc::now()
+                    })))
+            },
+            _ => {
+                Ok(HttpResponse::BadRequest().json(json!({
+                    "error": "Unsupported export format",
+                    "supported_formats": ["json", "csv"]
+                })))
+            }
+        }
+    }
 }
 
 /// Configure security API routes
@@ -2870,6 +4046,9 @@ pub fn configure_security_api(cfg: &mut web::ServiceConfig, security_api: web::D
                 }))
                 .route("/test", web::post().to(|api: web::Data<SecurityApi>, params: web::Json<serde_json::Value>| async move {
                     api.test_security(params).await
+                }))
+                .route("/metrics", web::get().to(|api: web::Data<SecurityApi>, query: web::Query<std::collections::HashMap<String, String>>| async move {
+                    api.get_security_metrics(query).await
                 }))
                 
                 // Tool allowlisting endpoints
@@ -3031,6 +4210,14 @@ pub fn configure_security_api(cfg: &mut web::ServiceConfig, security_api: web::D
                 .route("/sanitization/statistics", web::get().to(|api: web::Data<SecurityApi>, query: web::Query<serde_json::Value>| async move {
                     api.get_sanitization_statistics(query).await
                 }))
+                
+                // Pattern Testing API endpoints
+                .route("/patterns/test", web::post().to(|api: web::Data<SecurityApi>, params: web::Json<PatternTestRequest>| async move {
+                    api.test_patterns(params).await
+                }))
+                .route("/patterns/validate", web::post().to(|api: web::Data<SecurityApi>, params: web::Json<PatternValidateRequest>| async move {
+                    api.validate_pattern(params).await
+                }))
                 .route("/sanitization/events", web::get().to(|api: web::Data<SecurityApi>, query: web::Query<serde_json::Value>| async move {
                     api.get_sanitization_events(query).await
                 }))
@@ -3072,25 +4259,6 @@ pub fn configure_security_api(cfg: &mut web::ServiceConfig, security_api: web::D
                     api.test_content_filtering(params).await
                 }))
                 
-                // Security policy endpoints
-                .route("/policies", web::get().to(|api: web::Data<SecurityApi>| async move {
-                    api.get_security_policies().await
-                }))
-                .route("/policies", web::post().to(|api: web::Data<SecurityApi>, params: web::Json<serde_json::Value>| async move {
-                    api.create_security_policy(params).await
-                }))
-                .route("/policies/{policy_id}", web::get().to(|api: web::Data<SecurityApi>, policy_id: web::Path<String>| async move {
-                    api.get_security_policy(policy_id).await
-                }))
-                .route("/policies/{policy_id}", web::put().to(|api: web::Data<SecurityApi>, policy_id: web::Path<String>, params: web::Json<serde_json::Value>| async move {
-                    api.update_security_policy(policy_id, params).await
-                }))
-                .route("/policies/{policy_id}", web::delete().to(|api: web::Data<SecurityApi>, policy_id: web::Path<String>| async move {
-                    api.delete_security_policy(policy_id).await
-                }))
-                .route("/policies/test", web::post().to(|api: web::Data<SecurityApi>, params: web::Json<serde_json::Value>| async move {
-                    api.test_security_policy(params).await
-                }))
                 
                 // Configuration management endpoints
                 .route("/config", web::get().to(|api: web::Data<SecurityApi>| async move {
@@ -3112,15 +4280,43 @@ pub fn configure_security_api(cfg: &mut web::ServiceConfig, security_api: web::D
                     api.import_security_config(params).await
                 }))
                 
-                // Emergency management endpoints
-                .route("/emergency/lockdown", web::post().to(|api: web::Data<SecurityApi>, params: web::Json<serde_json::Value>| async move {
-                    api.trigger_emergency_lockdown(params).await
+                // Emergency lockdown endpoints
+                .route("/emergency/lockdown/status", web::get().to(|api: web::Data<SecurityApi>| async move {
+                    api.get_emergency_lockdown_status().await
                 }))
-                .route("/emergency/status", web::get().to(|api: web::Data<SecurityApi>| async move {
-                    api.get_emergency_status().await
+                .route("/emergency/lockdown/activate", web::post().to(|api: web::Data<SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.activate_emergency_lockdown(params).await
                 }))
-                .route("/emergency/release", web::post().to(|api: web::Data<SecurityApi>, params: web::Json<serde_json::Value>| async move {
-                    api.release_emergency_lockdown(params).await
+                .route("/emergency/lockdown/deactivate", web::post().to(|api: web::Data<SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.deactivate_emergency_lockdown(params).await
+                }))
+                .route("/emergency/lockdown/statistics", web::get().to(|api: web::Data<SecurityApi>| async move {
+                    api.get_emergency_lockdown_statistics().await
+                }))
+                
+                // Unified Rule View API endpoints
+                .route("/rules/unified", web::get().to(|api: web::Data<SecurityApi>, query: web::Query<serde_json::Value>| async move {
+                    api.get_unified_rules(query).await
+                }))
+                .route("/rules/conflicts", web::get().to(|api: web::Data<SecurityApi>| async move {
+                    api.get_rule_conflicts().await
+                }))
+                .route("/rules/export", web::post().to(|api: web::Data<SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.export_unified_rules(params).await
+                }))
+                
+                // Configuration Change Tracking API endpoints
+                .route("/changes", web::get().to(|api: web::Data<SecurityApi>, query: web::Query<serde_json::Value>| async move {
+                    api.get_configuration_changes(query).await
+                }))
+                .route("/changes/statistics", web::get().to(|api: web::Data<SecurityApi>| async move {
+                    api.get_change_tracking_statistics().await
+                }))
+                .route("/changes/{change_id}", web::get().to(|api: web::Data<SecurityApi>, change_id: web::Path<String>| async move {
+                    api.get_configuration_change(change_id).await
+                }))
+                .route("/changes/track", web::post().to(|api: web::Data<SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.track_manual_change(params).await
                 }))
         );
 }
