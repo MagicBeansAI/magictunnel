@@ -10,15 +10,37 @@
   let loading = true;
   let error = '';
   let lastUpdated: Date | null = null;
+  let rbacEnabled = false;
+  let configLoading = true;
   
   // UI state
   let viewMode: 'overview' | 'roles' | 'users' = 'overview';
+  
+  // Check if RBAC is enabled
+  async function checkRBACConfig() {
+    try {
+      configLoading = true;
+      const config = await securityApi.getSecurityConfig();
+      rbacEnabled = config.rbac?.enabled || false;
+    } catch (err) {
+      console.error('Failed to load security config:', err);
+      rbacEnabled = false;
+    } finally {
+      configLoading = false;
+    }
+  }
   
   // Load RBAC data
   async function loadRBACData() {
     try {
       loading = true;
       error = '';
+      
+      // Check if RBAC is enabled first
+      if (!rbacEnabled) {
+        loading = false;
+        return;
+      }
       
       // Only load roles for now (the only implemented endpoint)
       const rolesData = await securityApi.getRoles();
@@ -177,19 +199,61 @@
     }
   }
   
-  onMount(() => {
-    loadRBACData();
-    
-    // Auto-refresh every 60 seconds
-    const interval = setInterval(loadRBACData, 60000);
-    
-    return () => clearInterval(interval);
+  onMount(async () => {
+    await checkRBACConfig();
+    if (rbacEnabled) {
+      loadRBACData();
+      
+      // Auto-refresh every 60 seconds
+      const interval = setInterval(loadRBACData, 60000);
+      
+      return () => clearInterval(interval);
+    }
   });
 </script>
 
 <div class="space-y-6">
-  <!-- Loading State -->
-  {#if loading}
+  <!-- Config Loading State -->
+  {#if configLoading}
+    <div class="security-card">
+      <div class="flex items-center justify-center py-12">
+        <div class="flex items-center gap-3 text-gray-600">
+          <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+          <span>Loading configuration...</span>
+        </div>
+      </div>
+    </div>
+  {:else if !rbacEnabled}
+    <!-- Disabled State -->
+    <div class="security-card">
+      <div class="text-center py-12">
+        <div class="text-gray-400 mb-4">
+          <svg class="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L5.636 5.636" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">RBAC Service Disabled</h3>
+        <p class="text-gray-600 mb-4">
+          Role-Based Access Control (RBAC) is currently disabled in the security configuration.
+        </p>
+        <div class="text-sm text-gray-500 mb-4">
+          To enable RBAC, update the security configuration:
+        </div>
+        <div class="bg-gray-50 rounded-lg p-4 text-left max-w-md mx-auto">
+          <code class="text-sm text-gray-800">
+            security:<br/>
+            &nbsp;&nbsp;rbac:<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;enabled: true
+          </code>
+        </div>
+        <div class="mt-4">
+          <button class="btn-secondary" on:click={() => window.location.href = '/security/config'}>
+            📝 Security Configuration
+          </button>
+        </div>
+      </div>
+    </div>
+  {:else if loading}
     <div class="security-card">
       <div class="flex items-center justify-center py-12">
         <div class="flex items-center gap-3 text-gray-600">

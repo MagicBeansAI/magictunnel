@@ -1057,13 +1057,8 @@ impl McpServer {
             None
         };
 
-        // Initialize security API with proper async initialization
-        let security_config = Arc::new(crate::security::SecurityConfig::secure_defaults());
-        let mut security_api_instance = crate::web::SecurityApi::new(security_config);
-        if let Err(e) = security_api_instance.initialize_async_services().await {
-            warn!("Failed to initialize security API async services: {}", e);
-        }
-        let security_api_data = web::Data::new(security_api_instance);
+        // Note: Security API is now initialized within dashboard configuration
+        // to avoid conflicts with service container security services
 
         let server_data = web::Data::new(Arc::clone(&self.registry));
         let mcp_server_data = web::Data::new(Arc::new(self));
@@ -1140,11 +1135,8 @@ impl McpServer {
                     }
                 })
 
-                // Security API routes
-                .configure({
-                    let security_api = security_api_data.clone();
-                    move |cfg| crate::web::configure_security_api(cfg, security_api)
-                })
+                // Note: Security API routes are now configured within dashboard API scope
+                // See configure_dashboard_api function for security route mounting
 
 
                 // TODO: Add gRPC endpoints (will need separate gRPC server)

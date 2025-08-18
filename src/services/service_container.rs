@@ -17,6 +17,8 @@ pub struct ServiceContainer {
     pub runtime_mode: RuntimeMode,
     /// Total number of loaded services
     pub service_count: usize,
+    /// Configuration file path for persistence
+    pub config_file_path: Option<std::path::PathBuf>,
 }
 
 impl ServiceContainer {
@@ -71,8 +73,8 @@ impl ServiceContainer {
     }
     
     /// Get security services (only available in advanced mode)
-    pub fn get_security_services(&self) -> Option<&crate::security::SecurityConfig> {
-        self.advanced_services.as_ref()?.get_security_config()
+    pub fn get_security_services(&self) -> Option<&crate::services::advanced_services::SecurityServices> {
+        self.advanced_services.as_ref()?.get_security_services()
     }
     
     /// Graceful shutdown of all services

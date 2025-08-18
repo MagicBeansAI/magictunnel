@@ -34,3 +34,6 @@ pub use resolver::{ConfigResolver, ConfigResolution, ConfigSource, ConfigStartup
 
 // Re-export validator types
 pub use validator::{ConfigValidator, ValidationResult, ConfigUpdateSummary, ConfigFixSuggestions, QuickFix};
+
+// Re-export secret_string module
+pub use config::secret_string;

@@ -2308,3 +2308,323 @@ pub struct TransportAuthConfig {
 6. **Transport-Specific Considerations** ✅ **ALREADY COMPLETE** - Proper OAuth for HTTP, alternatives for non-HTTP
 
 The foundation is production-ready with excellent error handling infrastructure and **complete transport-specific OAuth compliance**, and the remaining enhancements will provide complete MCP OAuth compliance with comprehensive security and detailed error responses that guide clients through proper authentication flows across all transport types.
+
+---
+
+# OAuth Dynamic Client Registration (RFC 7591) - MagicTunnel as OAuth Client
+
+## Overview
+
+**OAuth Dynamic Client Registration** allows OAuth clients to register themselves programmatically at runtime, rather than requiring manual pre-registration. This is particularly useful for:
+
+- **Remote MCP Servers** that want to control client access dynamically
+- **Multi-tenant environments** where client credentials need isolation
+- **Automated deployments** where manual OAuth setup isn't feasible
+
+## Current Status
+
+❌ **Not Currently Implemented** - MagicTunnel requires pre-configured OAuth client credentials  
+✅ **Foundation Exists** - MagicTunnel has excellent OAuth client capabilities and secure token storage  
+🔮 **Future Enhancement** - Listed in TODO as "*Implement dynamic add_server() method for runtime server registration*"
+
+## The Complete Dynamic Registration Flow
+
+### Step 1: **Discovery** 🔍
+
+**Remote MCP Server** exposes OAuth metadata via RFC 8414 (OAuth Authorization Server Metadata):
+
+```bash
+# MagicTunnel discovers the remote server's OAuth capabilities
+GET https://remote-mcp-server.com/.well-known/oauth-authorization-server
+
+Response:
+{
+  "issuer": "https://remote-mcp-server.com",
+  "authorization_endpoint": "https://remote-mcp-server.com/oauth/authorize",
+  "token_endpoint": "https://remote-mcp-server.com/oauth/token",
+  "registration_endpoint": "https://remote-mcp-server.com/oauth/register",  // 🔑 Key for dynamic registration!
+  "scopes_supported": ["mcp:read", "mcp:write", "mcp:admin"],
+  "response_types_supported": ["code"],
+  "grant_types_supported": ["authorization_code", "refresh_token"],
+  "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post"]
+}
+```
+
+### Step 2: **Dynamic Registration** 📋
+
+**MagicTunnel** registers itself as an OAuth client using RFC 7591:
+
+```bash
+# MagicTunnel POSTs to registration endpoint
+POST https://remote-mcp-server.com/oauth/register
+Content-Type: application/json
+
+{
+  "client_name": "MagicTunnel-Instance-12345",
+  "redirect_uris": ["http://localhost:3001/auth/callback/remote-mcp-server"],
+  "scope": "mcp:read mcp:write",
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "client_secret_basic",
+  "application_type": "web",
+  "client_uri": "https://github.com/magictunnel/magictunnel",
+  "logo_uri": "https://magictunnel.io/logo.png",
+  "tos_uri": "https://magictunnel.io/terms",
+  "policy_uri": "https://magictunnel.io/privacy"
+}
+```
+
+**Remote Server** responds with client credentials:
+```json
+{
+  "client_id": "mt_dynamic_abc123",
+  "client_secret": "secret_xyz789",
+  "client_id_issued_at": 1640995200,
+  "client_secret_expires_at": 0,
+  "registration_access_token": "reg_token_456",
+  "registration_client_uri": "https://remote-mcp-server.com/oauth/clients/mt_dynamic_abc123",
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "scope": "mcp:read mcp:write"
+}
+```
+
+### Step 3: **Store Credentials** 💾
+
+**MagicTunnel** securely stores the dynamic credentials using existing token storage infrastructure:
+
+```rust
+// In MagicTunnel's OAuth manager
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DynamicOAuthCredentials {
+    /// Dynamically issued client ID
+    pub client_id: String,
+    /// Dynamically issued client secret (protected by secrecy)
+    #[serde(with = "secret_string")]
+    pub client_secret: Secret<String>,
+    /// Registration access token for client management
+    pub registration_token: Option<String>,
+    /// Client registration URI for updates/deletion
+    pub registration_client_uri: Option<String>,
+    /// When client credentials expire (if applicable)
+    pub expires_at: Option<DateTime<Utc>>,
+    /// Server endpoint this registration is for
+    pub server_endpoint: String,
+    /// Granted scopes
+    pub granted_scopes: Vec<String>,
+    /// Metadata from registration response
+    pub metadata: HashMap<String, Value>,
+}
+
+// Store in secure token storage (leveraging existing infrastructure)
+oauth_manager.store_dynamic_credentials("remote-mcp-server", credentials).await?;
+```
+
+### Step 4: **OAuth Authorization Flow** 🔄
+
+Now **MagicTunnel** can use these dynamic credentials for standard OAuth 2.1 flow:
+
+```bash
+# 1. Authorization Request (with PKCE for security)
+GET https://remote-mcp-server.com/oauth/authorize?
+    client_id=mt_dynamic_abc123&
+    redirect_uri=http://localhost:3001/auth/callback/remote-mcp-server&
+    scope=mcp:read%20mcp:write&
+    response_type=code&
+    state=random_state_123&
+    code_challenge=SHA256_hash_of_verifier&
+    code_challenge_method=S256
+
+# 2. User authorizes (browser/device flow)
+# Browser redirects to authorization server
+# User logs in and approves MagicTunnel access
+
+# 3. Authorization Code received at callback
+GET http://localhost:3001/auth/callback/remote-mcp-server?
+    code=auth_code_xyz&
+    state=random_state_123
+
+# 4. Token Exchange (with PKCE verification)
+POST https://remote-mcp-server.com/oauth/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&
+code=auth_code_xyz&
+redirect_uri=http://localhost:3001/auth/callback/remote-mcp-server&
+client_id=mt_dynamic_abc123&
+client_secret=secret_xyz789&
+code_verifier=original_random_verifier
+
+# 5. Access Token received
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "refresh_abc123",
+  "scope": "mcp:read mcp:write"
+}
+```
+
+### Step 5: **Use Token for MCP Calls** 🚀
+
+**MagicTunnel** includes the OAuth token in all MCP requests to the remote server:
+
+```bash
+# MagicTunnel makes authenticated MCP calls
+POST https://remote-mcp-server.com/mcp/tools/call
+Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "database_query",
+    "arguments": {"query": "SELECT * FROM users LIMIT 10"}
+  }
+}
+
+# Remote server validates token and executes tool
+Response:
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "content": [
+      {"type": "text", "text": "Query executed successfully"},
+      {"type": "resource", "resource": {"uri": "data://results.json", "mimeType": "application/json"}}
+    ],
+    "isError": false
+  }
+}
+```
+
+## Implementation Architecture for Dynamic Registration
+
+### Configuration Schema
+
+```yaml
+# external-mcp-servers.yaml
+httpServices:
+  remote_mcp_server:
+    enabled: true
+    base_url: "https://remote-mcp-server.com"
+    auth:
+      type: "oauth_dynamic"              # 🆕 New auth type
+      auto_register: true                # Enable dynamic registration
+      discovery_endpoint: "https://remote-mcp-server.com/.well-known/oauth-authorization-server"
+      registration_metadata:
+        client_name: "MagicTunnel-{{hostname}}"
+        redirect_uri_template: "http://localhost:{{port}}/auth/callback/{{server_name}}"
+        requested_scopes: ["mcp:read", "mcp:write", "mcp:admin"]
+        grant_types: ["authorization_code", "refresh_token"]
+        response_types: ["code"]
+        application_type: "web"
+      registration_options:
+        auto_approve: false              # Require manual approval
+        store_registration_token: true   # Store for client management
+        client_secret_expires: false     # Request non-expiring secret
+        preferred_auth_method: "client_secret_basic"
+
+  enterprise_mcp:
+    enabled: true
+    base_url: "https://enterprise.example.com/mcp"
+    auth:
+      type: "oauth_dynamic"
+      auto_register: true
+      discovery_endpoint: "https://enterprise.example.com/.well-known/oauth-authorization-server"
+      registration_metadata:
+        client_name: "MagicTunnel-Production-{{deployment_id}}"
+        redirect_uri_template: "https://magictunnel.mycompany.com/auth/callback/{{server_name}}"
+        requested_scopes: ["mcp:enterprise", "mcp:audit"]
+        client_uri: "https://magictunnel.mycompany.com"
+        tos_uri: "https://mycompany.com/terms"
+        policy_uri: "https://mycompany.com/privacy"
+      registration_options:
+        require_client_approval: true    # Wait for admin approval
+        registration_retry_attempts: 3
+        registration_retry_delay: 300    # 5 minutes
+```
+
+## Implementation Roadmap for Dynamic Registration
+
+### **Phase 1: Core Infrastructure** (Foundation)
+- [ ] **OAuth Metadata Discovery** - RFC 8414 implementation
+- [ ] **Dynamic Registration Client** - RFC 7591 implementation  
+- [ ] **Registration Credential Storage** - Extend existing token storage
+- [ ] **Configuration Schema** - New `oauth_dynamic` auth type
+
+### **Phase 2: Integration** (Flow Management)
+- [ ] **External MCP Integration** - Connect dynamic OAuth to existing external MCP system
+- [ ] **Callback Handler** - Dynamic redirect URI handling per server
+- [ ] **Token Management** - Integrate with existing OAuth token lifecycle
+- [ ] **Error Handling** - Robust error handling and retry logic
+
+### **Phase 3: Management** (User Experience)
+- [ ] **CLI Commands** - Registration management commands
+- [ ] **Web UI** - Dynamic OAuth registration in dashboard
+- [ ] **Monitoring** - Registration status and health checking
+- [ ] **Documentation** - User guides and deployment examples
+
+### **Phase 4: Advanced Features** (Enterprise)
+- [ ] **Client Management** - Update/delete registrations via RFC 7592
+- [ ] **Multi-Instance Support** - Coordinate registrations across deployments
+- [ ] **Approval Workflows** - Integration with approval systems
+- [ ] **Audit Logging** - Comprehensive audit trail for registrations
+
+## Security Considerations for Dynamic Registration
+
+### **Registration Security**
+- **Validate Metadata**: Ensure OAuth server metadata is authentic (HTTPS, certificate validation)
+- **Secure Storage**: Store client secrets using existing secure token storage infrastructure
+- **Registration Tokens**: Securely handle registration access tokens for client management
+- **Scope Validation**: Verify granted scopes match requested scopes
+
+### **Runtime Security**
+- **Token Lifecycle**: Leverage existing token refresh and rotation mechanisms
+- **PKCE**: Always use PKCE (RFC 7636) for authorization code flows
+- **State Validation**: Proper state parameter validation to prevent CSRF
+- **TLS Enforcement**: Require HTTPS for all OAuth endpoints
+
+### **Operational Security**
+- **Credential Rotation**: Support client secret rotation when available
+- **Revocation**: Implement proper credential revocation on disconnect
+- **Audit Trail**: Log all registration and authorization events
+- **Rate Limiting**: Respect OAuth server rate limits for registration attempts
+
+## Benefits of Dynamic Registration
+
+### **For Developers**
+- **Zero Manual Setup**: No need to pre-register OAuth clients
+- **Automated Deployment**: Include MCP server connection in deployment scripts
+- **Multi-Environment**: Automatic registration across dev/staging/prod environments
+- **Self-Service**: Connect to new MCP servers without admin intervention
+
+### **For MCP Server Operators**
+- **Access Control**: Dynamic approval/rejection of client registrations
+- **Audit Trail**: Complete visibility into which clients are connecting
+- **Credential Management**: Automatic rotation and revocation capabilities
+- **Scalability**: Support many MagicTunnel instances without manual setup
+
+### **For Enterprises**
+- **Security**: Proper OAuth 2.1 security with PKCE and secure credential storage
+- **Compliance**: Audit trail for all OAuth registrations and access
+- **Integration**: Works with existing OAuth infrastructure and policies
+- **Automation**: Fits into GitOps and infrastructure-as-code workflows
+
+## Current Implementation Status for Dynamic Registration
+
+| Component | Status | Notes |
+|-----------|---------|-------|
+| **OAuth Client Foundation** | ✅ Complete | Excellent OAuth 2.1 implementation with PKCE |
+| **Secure Token Storage** | ✅ Complete | Multi-platform secure credential storage |
+| **External MCP Integration** | ✅ Complete | Robust external MCP server management |
+| **Discovery (RFC 8414)** | ❌ Not Implemented | OAuth server metadata discovery |
+| **Dynamic Registration (RFC 7591)** | ❌ Not Implemented | Core dynamic registration flow |
+| **Client Management (RFC 7592)** | ❌ Not Implemented | Update/delete dynamic registrations |
+| **Configuration Schema** | ❌ Not Implemented | New `oauth_dynamic` auth type |
+| **CLI Management** | ❌ Not Implemented | Dynamic OAuth management commands |
+| **Web UI Integration** | ❌ Not Implemented | Dashboard integration |
+
+**Conclusion**: Dynamic client registration represents a significant enhancement to MagicTunnel's OAuth capabilities, enabling seamless integration with OAuth-enabled MCP servers while maintaining security and usability. The excellent foundation of OAuth 2.1 implementation makes this a natural evolution for enterprise MCP deployments.

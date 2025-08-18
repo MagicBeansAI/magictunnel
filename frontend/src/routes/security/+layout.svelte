@@ -7,8 +7,7 @@
   function getPageTitle(routeId: string): string {
     const titles: Record<string, string> = {
       '/security': 'Security Overview',
-      '/security/management': 'Enterprise Security Management',
-      '/security/allowlist': 'Tool Allowlisting',
+      '/security/allowlist': 'Tool Allowlisting & Pattern Testing',
       '/security/rbac': 'Access Control',
       '/security/rbac/roles': 'Roles Management',
       '/security/rbac/users': 'Users Management',

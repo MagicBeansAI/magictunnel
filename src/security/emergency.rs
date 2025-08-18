@@ -40,26 +40,8 @@ pub struct EmergencyLockdownConfig {
     pub log_blocked_requests: bool,
     /// Authorized users who can activate/deactivate lockdown
     pub authorized_users: Vec<String>,
-    /// Whether to automatically notify administrators
-    pub auto_notify_admins: bool,
-    /// Notification methods configuration
-    pub notification_config: NotificationConfig,
 }
 
-/// Configuration for lockdown notifications
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NotificationConfig {
-    /// Whether to send email notifications
-    pub email_enabled: bool,
-    /// Email addresses to notify
-    pub email_addresses: Vec<String>,
-    /// Whether to send webhook notifications
-    pub webhook_enabled: bool,
-    /// Webhook URLs to notify
-    pub webhook_urls: Vec<String>,
-    /// Whether to log notifications to audit service
-    pub audit_notifications: bool,
-}
 
 /// Result of emergency lockdown operations
 #[derive(Debug, Clone)]
@@ -89,14 +71,6 @@ impl Default for EmergencyLockdownConfig {
             state_file_path: PathBuf::from("./emergency_lockdown_state.json"),
             log_blocked_requests: true,
             authorized_users: vec!["admin".to_string()],
-            auto_notify_admins: true,
-            notification_config: NotificationConfig {
-                email_enabled: false,
-                email_addresses: Vec::new(),
-                webhook_enabled: false,
-                webhook_urls: Vec::new(),
-                audit_notifications: true,
-            },
         }
     }
 }
@@ -233,13 +207,6 @@ impl EmergencyLockdownManager {
             activated_by, reason, new_state.session_id
         );
 
-        // Send notifications if configured
-        if self.config.auto_notify_admins {
-            if let Err(e) = self.send_lockdown_notifications(&new_state, true).await {
-                warn!("Failed to send lockdown activation notifications: {}", e);
-            }
-        }
-
         Ok(EmergencyLockdownResult {
             success: true,
             previous_state: Some(previous_state),
@@ -316,13 +283,6 @@ impl EmergencyLockdownManager {
             deactivated_by, new_state.session_id, new_state.blocked_requests
         );
 
-        // Send notifications if configured
-        if self.config.auto_notify_admins {
-            if let Err(e) = self.send_lockdown_notifications(&new_state, false).await {
-                warn!("Failed to send lockdown deactivation notifications: {}", e);
-            }
-        }
-
         let blocked_count = new_state.blocked_requests;
         Ok(EmergencyLockdownResult {
             success: true,
@@ -396,42 +356,6 @@ impl EmergencyLockdownManager {
         Ok(())
     }
 
-    /// Send notifications about lockdown state change
-    async fn send_lockdown_notifications(
-        &self,
-        state: &EmergencyLockdownState,
-        is_activation: bool,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let action = if is_activation { "activated" } else { "deactivated" };
-        let message = format!(
-            "Emergency lockdown {} by {:?} at {}. Reason: {:?}",
-            action,
-            state.activated_by,
-            state.last_updated,
-            state.reason
-        );
-
-        // Log notification (always enabled for audit trail)
-        info!("Emergency lockdown notification: {}", message);
-
-        // Email notifications
-        if self.config.notification_config.email_enabled {
-            for email in &self.config.notification_config.email_addresses {
-                // TODO: Implement actual email sending
-                info!("Would send email notification to {}: {}", email, message);
-            }
-        }
-
-        // Webhook notifications  
-        if self.config.notification_config.webhook_enabled {
-            for webhook_url in &self.config.notification_config.webhook_urls {
-                // TODO: Implement actual webhook sending
-                info!("Would send webhook notification to {}: {}", webhook_url, message);
-            }
-        }
-
-        Ok(())
-    }
 }
 
 /// Statistics for emergency lockdown system

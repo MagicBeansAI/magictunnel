@@ -60,7 +60,7 @@ mod secret_string {
 }
 
 /// Custom serde module for Option<Secret<String>>
-mod option_secret_string {
+pub mod option_secret_string {
     use serde::{Deserialize, Deserializer, Serializer};
     use secrecy::{Secret, ExposeSecret};
     

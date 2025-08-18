@@ -16,14 +16,19 @@ pub struct AllowlistConfig {
     /// Default action when no rule matches: allow or deny
     pub default_action: AllowlistAction,
     /// Emergency lockdown state (highest priority)
+    #[serde(default)]
     pub emergency_lockdown: bool,
-    /// Tool-specific allowlist rules (embedded in tool files)
+    /// Tool-specific allowlist rules (managed via API, not config)
+    #[serde(default)]
     pub tools: HashMap<String, AllowlistRule>,
-    /// Server/File-level rules
+    /// Server/File-level rules (managed via API, not config)
+    #[serde(default)]
     pub servers: HashMap<String, AllowlistRule>,
-    /// Capability-level pattern rules (auto-apply to new tools)
+    /// Capability-level pattern rules (loaded from /security/capability-patterns.yaml)
+    #[serde(default)]
     pub capability_patterns: Vec<PatternRule>,
-    /// Global-level pattern rules (ultimate fallback)
+    /// Global-level pattern rules (loaded from /security/global-patterns.yaml)
+    #[serde(default)]
     pub global_patterns: Vec<PatternRule>,
 }
 

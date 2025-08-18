@@ -933,6 +933,50 @@ environment_monitoring:
       default_value: "true"
       expected_values: ["true", "false"]
       
+    # Enterprise Security Configuration
+    - name: "Security Services Enabled"
+      env_var: "MAGICTUNNEL_SECURITY_ENABLED"
+      description: "Enable enterprise security features (required for advanced mode)"
+      category: "security"
+      default_value: "true"
+      expected_values: ["true", "false"]
+    - name: "Tool Allowlist Enabled"
+      env_var: "MAGICTUNNEL_ALLOWLIST_ENABLED"
+      description: "Enable tool allowlisting and access control"
+      category: "security"
+      default_value: "true"
+      expected_values: ["true", "false"]
+    - name: "Allowlist Default Action"
+      env_var: "MAGICTUNNEL_ALLOWLIST_DEFAULT_ACTION"
+      description: "Default action for unlisted tools"
+      category: "security"
+      default_value: "deny"
+      expected_values: ["allow", "deny"]
+    - name: "Request Sanitization Enabled"
+      env_var: "MAGICTUNNEL_SANITIZATION_ENABLED"
+      description: "Enable request/response sanitization"
+      category: "security"
+      default_value: "true"
+      expected_values: ["true", "false"]
+    - name: "RBAC Enabled"
+      env_var: "MAGICTUNNEL_RBAC_ENABLED"
+      description: "Enable role-based access control"
+      category: "security"
+      default_value: "true"
+      expected_values: ["true", "false"]
+    - name: "Audit Logging Enabled"
+      env_var: "MAGICTUNNEL_AUDIT_ENABLED"
+      description: "Enable security audit logging"
+      category: "security"
+      default_value: "true"
+      expected_values: ["true", "false"]
+    - name: "Emergency Lockdown Enabled"
+      env_var: "MAGICTUNNEL_EMERGENCY_LOCKDOWN_ENABLED"
+      description: "Enable emergency lockdown capability"
+      category: "security"
+      default_value: "true"
+      expected_values: ["true", "false"]
+      
     # External Services Configuration
     - name: "Ollama Base URL"
       env_var: "OLLAMA_BASE_URL"
@@ -964,16 +1008,85 @@ environment_monitoring:
 # ENTERPRISE SECURITY CONFIGURATION (Optional)
 # =============================================================================
 # Enterprise MagicTunnel security features (separate from MCP 2025-06-18 protocol security)
-# security:
-#   enabled: true              # Enable enterprise security features
-#   policies:
-#     enabled: true            # Enable organization-wide policy enforcement
-#   allowlist:
-#     enabled: false           # Enable tool allowlisting and access control
-#   rbac:
-#     enabled: false           # Enable role-based access control
-#   sanitization:
-#     enabled: true            # Enable request/response sanitization
+# IMPORTANT: This configuration is REQUIRED for advanced mode security services
+security:
+  enabled: true                        # Enable enterprise security features (required for advanced mode)
+  
+  # Tool Allowlisting Configuration
+  allowlist:
+    enabled: true                      # Enable tool allowlisting and access control
+    default_action: deny               # Default action for unlisted tools (allow|deny)
+    # Note: Individual tool and server rules are managed through the web UI
+    # Patterns are managed in /security/ directory files:
+    # - global-patterns.yaml: Global fallback patterns for ultimate rule matching
+    # - capability-patterns.yaml: Auto-applied patterns for new tools by regex
+    # This approach reduces config duplication and centralizes pattern management
+    
+  # Request/Response Sanitization Configuration
+  sanitization:
+    enabled: true                      # Enable request/response sanitization
+    default_action:                    # Default sanitization action
+      type: LogAndAllow                # Action type: Allow|Block|LogAndAllow|LogAndBlock
+      level: info                      # Log level for sanitization events
+    policies: []                       # Custom sanitization policies (configured via API/UI)
+    log_actions: true                  # Log all sanitization actions
+    
+  # Role-Based Access Control (RBAC) Configuration
+  rbac:
+    enabled: true                      # Enable role-based access control
+    roles: {}                          # Role definitions (configured via API/UI)
+    user_roles: {}                     # User-to-role mappings
+    api_key_roles: {}                  # API key-to-role mappings
+    default_roles: []                  # Default roles for new users
+    inherit_permissions: true          # Allow role inheritance
+    
+  # Audit Logging Configuration
+  audit:
+    enabled: true                      # Enable audit logging
+    events:                            # Events to audit
+      - "authentication"
+      - "authorization"
+      - "tool_execution"
+      - "security_violation"
+    storage:
+      type: File                       # Storage type: File|Database|Syslog
+      directory: "./logs"              # Directory for audit log files
+      rotation:
+        max_file_size: 104857600       # Maximum file size (100MB in bytes)
+        max_files: 10                  # Maximum number of rotated files
+        compress: true                 # Compress rotated files
+    retention_days: 90                 # How long to retain audit logs
+    include_bodies: false              # Include request/response bodies in logs
+    max_body_size: 1024               # Maximum body size to log (bytes)
+    mask_sensitive_data: true         # Mask sensitive data in logs
+    
+  # Emergency Lockdown Configuration
+  emergency_lockdown:
+    enabled: true                      # Enable emergency lockdown capability
+    state_file_path: "./data/emergency_lockdown.json"  # State persistence file (optional)
+    log_blocked_requests: true         # Log requests blocked during lockdown
+    authorized_users: []               # Users who can disable lockdown (empty = any admin)
+      
+  # Security Validation Configuration
+  enable_url_validation: true         # Enable URL validation for external requests
+  trusted_domains:                    # List of trusted domains for external requests
+    - "github.com"
+    - "api.github.com"
+    - "accounts.google.com"
+    - "oauth2.googleapis.com"
+    - "login.microsoftonline.com"
+    - "graph.microsoft.com"
+  blocked_domains:                    # List of blocked domains
+    - "malicious-site.com"
+    
+  # Rate Limiting Configuration
+  rate_limiting:
+    enabled: true                      # Enable rate limiting
+    max_auth_attempts_per_minute: 10   # Maximum authentication attempts per minute
+    max_token_requests_per_minute: 60  # Maximum token requests per minute
+    max_device_code_requests_per_minute: 5  # Maximum device code requests per minute
+    lockout_duration_minutes: 15       # Lockout duration after rate limit exceeded
+    enable_progressive_delay: true     # Enable progressive delay for repeated failures
 
 # =============================================================================
 # STREAMABLE HTTP TRANSPORT CONFIGURATION (MCP 2025-06-18)
@@ -1209,6 +1322,17 @@ logging:
 # export MAGICTUNNEL_AUTH_LOG_SESSION_EVENTS="true"
 # export MAGICTUNNEL_AUTH_LOG_RBAC_DECISIONS="true"
 #
+# # Enterprise Security Configuration
+# export MAGICTUNNEL_SECURITY_ENABLED="true"
+# export MAGICTUNNEL_ALLOWLIST_ENABLED="true"
+# export MAGICTUNNEL_ALLOWLIST_DEFAULT_ACTION="deny"
+# export MAGICTUNNEL_SANITIZATION_ENABLED="true"
+# export MAGICTUNNEL_RBAC_ENABLED="true"
+# export MAGICTUNNEL_AUDIT_ENABLED="true"
+# export MAGICTUNNEL_EMERGENCY_LOCKDOWN_ENABLED="true"
+# export MAGICTUNNEL_SECURITY_URL_VALIDATION="true"
+# export MAGICTUNNEL_SECURITY_RATE_LIMITING="true"
+#
 # # Thread-Safe Caching
 # export MAGICTUNNEL_AUTH_CACHING_ENABLED="true"
 # export MAGICTUNNEL_AUTH_RESOLUTION_CACHE_SIZE="1000"
@@ -1282,9 +1406,15 @@ logging:
 #    - Configure your MCP servers and set environment variables
 #    - Restart the proxy to enable automatic capability discovery
 #
-
+# 4. With enterprise security features (Advanced Mode):
+#    - Set deployment.runtime_mode: "advanced"
+#    - Enable security configuration by uncommenting the security section
+#    - Configure allowlisting, RBAC, audit logging, and sanitization as needed
+#    - Access security management at http://localhost:3001/security
+#    - Use the tree view allowlist at http://localhost:3001/security/allowlist
+#    - Monitor security events in the audit logs
 #
-# 4. Production deployment with OAuth 2.1:
+# 5. Production deployment with OAuth 2.1:
 #    - Enable TLS with proper certificates
 #    - Configure OAuth 2.1 multi-level authentication
 #    - Set up monitoring and logging with audit trails
@@ -1581,5 +1711,18 @@ logging:
 #    - Ensure proper encryption key generation for filesystem backend
 #    - Review background refresh service configuration and queue limits
 #    - Check token validation timeout and graceful degradation settings
+#
+# 9. Enterprise Security issues:
+#    - Verify deployment.runtime_mode is set to "advanced" for security features
+#    - Check that security configuration is at root level, not under registry
+#    - Ensure security.enabled is set to true
+#    - Verify allowlist, RBAC, audit, and sanitization services are properly configured
+#    - Check that audit log directory exists and has write permissions
+#    - Verify security API routes are accessible at /dashboard/api/security/*
+#    - Check browser console for any JavaScript errors on security pages
+#    - Ensure backend security services are initialized in advanced mode
+#    - Verify security status indicators show green/healthy status
+#    - Check that tree view allowlist page loads without "capabilities is not iterable" errors
+#    - Review audit logs for security policy violations or configuration errors
 #
 # For more help, see: https://github.com/MagicBeansAI/magictunnel/docs

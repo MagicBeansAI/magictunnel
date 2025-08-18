@@ -29,7 +29,7 @@ pub use middleware::{SecurityMiddleware, SecurityContext, SecurityRequest, Secur
 pub use rbac::{RbacConfig, RbacService, PermissionContext};
 pub use sanitization::{SanitizationConfig, SanitizationService};
 pub use statistics::{SecurityServiceStatistics, HealthMonitor, ServiceHealth, HealthStatus, AllowlistStatistics, RbacStatistics, AuditStatistics, SanitizationStatistics};
-pub use emergency::{EmergencyLockdownManager, EmergencyLockdownConfig, EmergencyLockdownState, EmergencyLockdownResult, EmergencyLockdownStatistics, NotificationConfig};
+pub use emergency::{EmergencyLockdownManager, EmergencyLockdownConfig, EmergencyLockdownState, EmergencyLockdownResult, EmergencyLockdownStatistics};
 pub use pattern_loader::{PatternLoader, PatternTestResults, PatternTestResult};
 pub use change_tracker::{ConfigurationChangeTracker, ChangeTrackerConfig, ConfigurationChange, ChangeType, ChangeOperation, ChangeUser, ChangeTarget, ChangeDiff, ChangeImpact, ChangeValidation, ChangeListener, ChangeTrackingStatistics};
 pub use change_integration::{ChangeTrackingIntegration, AllowlistChangeListener, ConfigFileWatcher};

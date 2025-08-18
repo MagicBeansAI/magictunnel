@@ -6756,6 +6756,14 @@ tools:
                         "requires_advanced": false
                     },
                     {
+                        "id": "mcp-servers",
+                        "name": "MCP Servers",
+                        "path": "/mcp-servers",
+                        "icon": "settings",
+                        "visible": true,
+                        "requires_advanced": false
+                    },
+                    {
                         "id": "tools",
                         "name": "Tools",
                         "path": "/tools",
@@ -6793,14 +6801,6 @@ tools:
                         "id": "mcp-commands",
                         "name": "MCP Commands",
                         "path": "/mcp-commands",
-                        "icon": "settings",
-                        "visible": true,
-                        "requires_advanced": false
-                    },
-                    {
-                        "id": "services",
-                        "name": "Services",
-                        "path": "/services",
                         "icon": "settings",
                         "visible": true,
                         "requires_advanced": false
@@ -7606,6 +7606,203 @@ pub fn configure_dashboard_api(
                 .route("/enhancements/pipeline/statistics", web::get().to(|api: web::Data<DashboardApi>| async move {
                     api.get_enhancement_statistics().await
                 }))
+                
+                // Security API routes (only available if security services are configured)
+                .route("/security/status", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_security_status().await
+                }))
+                .route("/security/test", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.test_security(params).await
+                }))
+                .route("/security/allowlist/rules", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_allowlist_rules().await
+                }))
+                .route("/security/allowlist/tools/{tool_name}", web::get().to(|api: web::Data<crate::web::SecurityApi>, path: web::Path<String>| async move {
+                    api.get_tool_allowlist_rule(path).await
+                }))
+                .route("/security/allowlist/tools/{tool_name}", web::post().to(|api: web::Data<crate::web::SecurityApi>, path: web::Path<String>, params: web::Json<serde_json::Value>| async move {
+                    api.set_tool_allowlist_rule(path, params).await
+                }))
+                .route("/security/allowlist/tools/{tool_name}", web::delete().to(|api: web::Data<crate::web::SecurityApi>, path: web::Path<String>| async move {
+                    api.remove_tool_allowlist_rule(path).await
+                }))
+                .route("/security/allowlist/servers/{server_name}", web::get().to(|api: web::Data<crate::web::SecurityApi>, path: web::Path<String>| async move {
+                    api.get_server_allowlist_rule(path).await
+                }))
+                .route("/security/allowlist/servers/{server_name}", web::post().to(|api: web::Data<crate::web::SecurityApi>, path: web::Path<String>, params: web::Json<serde_json::Value>| async move {
+                    api.set_server_allowlist_rule(path, params).await
+                }))
+                .route("/security/allowlist/servers/{server_name}", web::delete().to(|api: web::Data<crate::web::SecurityApi>, path: web::Path<String>| async move {
+                    api.remove_server_allowlist_rule(path).await
+                }))
+                
+                // Audit logging endpoints
+                .route("/security/audit/entries", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<serde_json::Value>| async move {
+                    api.get_audit_entries(query).await
+                }))
+                .route("/security/audit/statistics", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<serde_json::Value>| async move {
+                    api.get_audit_statistics(query).await
+                }))
+                .route("/security/audit/alerts", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<serde_json::Value>| async move {
+                    api.get_security_alerts(query).await
+                }))
+                .route("/security/audit/search", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.search_audit_entries(params).await
+                }))
+                .route("/security/audit/violations", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<serde_json::Value>| async move {
+                    api.get_security_violations(query).await
+                }))
+                .route("/security/audit/event-types", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_audit_event_types().await
+                }))
+                .route("/security/audit/users", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_audit_users().await
+                }))
+                
+                // RBAC management endpoints
+                .route("/security/rbac/roles", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_rbac_roles().await
+                }))
+                .route("/security/rbac/roles", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.create_role(params).await
+                }))
+                .route("/security/rbac/roles/{role_name}", web::get().to(|api: web::Data<crate::web::SecurityApi>, role_name: web::Path<String>| async move {
+                    api.get_role(role_name).await
+                }))
+                .route("/security/rbac/roles/{role_name}", web::put().to(|api: web::Data<crate::web::SecurityApi>, role_name: web::Path<String>, params: web::Json<serde_json::Value>| async move {
+                    api.update_role(role_name, params).await
+                }))
+                .route("/security/rbac/roles/{role_name}", web::delete().to(|api: web::Data<crate::web::SecurityApi>, role_name: web::Path<String>| async move {
+                    api.delete_role(role_name).await
+                }))
+                .route("/security/rbac/permissions", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_permissions().await
+                }))
+                .route("/security/rbac/users", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_users().await
+                }))
+                .route("/security/rbac/users", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.create_user(params).await
+                }))
+                .route("/security/rbac/users/{user_id}", web::get().to(|api: web::Data<crate::web::SecurityApi>, user_id: web::Path<String>| async move {
+                    // Note: get_user method doesn't exist, using get_users for now
+                    api.get_users().await
+                }))
+                .route("/security/rbac/users/{user_id}", web::put().to(|api: web::Data<crate::web::SecurityApi>, user_id: web::Path<String>, params: web::Json<serde_json::Value>| async move {
+                    api.update_user(user_id, params).await
+                }))
+                .route("/security/rbac/users/{user_id}", web::delete().to(|api: web::Data<crate::web::SecurityApi>, user_id: web::Path<String>| async move {
+                    api.delete_user(user_id).await
+                }))
+                .route("/security/rbac/permissions/categories", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_permission_categories().await
+                }))
+                .route("/security/rbac/statistics", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_role_statistics().await
+                }))
+                
+                // Sanitization endpoints - complete set of 15 endpoints
+                .route("/security/sanitization/policies", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<serde_json::Value>| async move {
+                    api.get_sanitization_policies(query).await
+                }))
+                .route("/security/sanitization/policies", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.create_sanitization_policy(params).await
+                }))
+                .route("/security/sanitization/policies/{policy_id}", web::get().to(|api: web::Data<crate::web::SecurityApi>, policy_id: web::Path<String>| async move {
+                    api.get_sanitization_policy(policy_id).await
+                }))
+                .route("/security/sanitization/policies/{policy_id}", web::put().to(|api: web::Data<crate::web::SecurityApi>, policy_id: web::Path<String>, params: web::Json<serde_json::Value>| async move {
+                    api.update_sanitization_policy(policy_id, params).await
+                }))
+                .route("/security/sanitization/policies/{policy_id}", web::delete().to(|api: web::Data<crate::web::SecurityApi>, policy_id: web::Path<String>| async move {
+                    api.delete_sanitization_policy(policy_id).await
+                }))
+                .route("/security/sanitization/policies/{policy_id}/test", web::post().to(|api: web::Data<crate::web::SecurityApi>, policy_id: web::Path<String>, params: web::Json<serde_json::Value>| async move {
+                    api.test_sanitization_policy(policy_id, params).await
+                }))
+                .route("/security/sanitization/policies/bulk", web::put().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.bulk_update_sanitization_policies(params).await
+                }))
+                .route("/security/sanitization/policies/test-multiple", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.test_multiple_sanitization_policies(params).await
+                }))
+                .route("/security/sanitization/policies/test-all", web::post().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.test_all_sanitization_policies().await
+                }))
+                .route("/security/sanitization/statistics", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<serde_json::Value>| async move {
+                    api.get_sanitization_statistics(query).await
+                }))
+                .route("/security/sanitization/events", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<serde_json::Value>| async move {
+                    api.get_sanitization_events(query).await
+                }))
+                .route("/security/sanitization/scan", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.run_sanitization_scan(params).await
+                }))
+                .route("/security/sanitization/test", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.test_sanitization(params).await
+                }))
+                .route("/security/sanitization/test/history", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<serde_json::Value>| async move {
+                    api.get_sanitization_test_history(query).await
+                }))
+                .route("/security/sanitization/test/results", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.save_sanitization_test_result(params).await
+                }))
+                
+                // Additional allowlist endpoints
+                .route("/security/allowlist/rules", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.create_allowlist_rule(params).await
+                }))
+                .route("/security/allowlist/rules/{rule_id}", web::get().to(|api: web::Data<crate::web::SecurityApi>, rule_id: web::Path<String>| async move {
+                    api.get_allowlist_rule(rule_id).await
+                }))
+                .route("/security/allowlist/rules/{rule_id}", web::put().to(|api: web::Data<crate::web::SecurityApi>, rule_id: web::Path<String>, params: web::Json<serde_json::Value>| async move {
+                    api.update_allowlist_rule(rule_id, params).await
+                }))
+                .route("/security/allowlist/rules/{rule_id}", web::delete().to(|api: web::Data<crate::web::SecurityApi>, rule_id: web::Path<String>| async move {
+                    api.delete_allowlist_rule(rule_id).await
+                }))
+                
+                // Security configuration endpoints
+                .route("/security/config", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_security_config().await
+                }))
+                .route("/security/config", web::put().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.update_security_config(params).await
+                }))
+                .route("/security/config/validate", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.validate_security_config(params).await
+                }))
+                .route("/security/config/generate", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.generate_security_config(params).await
+                }))
+                
+                // Emergency lockdown endpoints
+                .route("/security/emergency/status", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_emergency_status().await
+                }))
+                .route("/security/emergency/lockdown", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_emergency_lockdown_status().await
+                }))
+                .route("/security/emergency/statistics", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_emergency_lockdown_statistics().await
+                }))
+                
+                // Secret detection endpoints  
+                .route("/security/secrets/rules", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_secret_detection_rules().await
+                }))
+                .route("/security/secrets/rules", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.create_secret_detection_rule(params).await
+                }))
+                .route("/security/secrets/rules/{rule_id}", web::put().to(|api: web::Data<crate::web::SecurityApi>, rule_id: web::Path<String>, params: web::Json<serde_json::Value>| async move {
+                    api.update_secret_detection_rule(rule_id, params).await
+                }))
+                .route("/security/secrets/rules/{rule_id}", web::delete().to(|api: web::Data<crate::web::SecurityApi>, rule_id: web::Path<String>| async move {
+                    api.delete_secret_detection_rule(rule_id).await
+                }))
+                .route("/security/secrets/results", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<serde_json::Value>| async move {
+                    api.get_secret_detection_results(query).await
+                }))
         );
 
     // Add tool management app data and create separate service
@@ -7630,6 +7827,36 @@ pub fn configure_dashboard_api(
             debug!("✅ Tool management routes configured at /dashboard/api/tools/management");
         } else {
             warn!("⚠️ Tool management service not available from service container - routes not configured");
+        }
+
+        // Add security API if available (only in advanced mode)
+        debug!("🔍 Checking for security services availability...");
+        debug!("🔍 Service container advanced_services present: {}", service_container.advanced_services.is_some());
+        if let Some(security_services) = service_container.get_security_services() {
+            info!("🔧 Security services found, configuring security API routes");
+            // Use secure defaults if no config is found
+            let security_config = service_container.get_config()
+                .and_then(|config| config.security.clone())
+                .unwrap_or_else(|| crate::security::SecurityConfig::secure_defaults());
+            
+            // Create SecurityApi using the pre-initialized services from AdvancedServices
+            let security_api = crate::web::SecurityApi::new_with_services(
+                Arc::new(security_config.clone()),
+                security_services.allowlist_service.clone(),
+                security_services.audit_service.clone(),
+                security_services.rbac_service.clone(),
+                security_services.sanitization_service.clone(),
+                security_services.lockdown_manager.clone(),
+                service_container.config_file_path.clone(),
+            );
+            
+            // Add security API data for use in dashboard routes
+            let security_api_data = web::Data::new(security_api);
+            cfg.app_data(security_api_data.clone());
+            
+            debug!("✅ Security API data configured - routes will be added to dashboard scope");
+        } else {
+            debug!("🔧 Security services not available - security API routes not configured (requires advanced mode)");
         }
     } else {
         warn!("⚠️ Service container not available - tool management routes not configured");

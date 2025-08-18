@@ -89,6 +89,11 @@ impl ConfigResolver {
                 .map_err(|e| ProxyError::config(format!("Failed to parse config file {:?}: {}", config_path, e)))?;
             
             debug!("🔧 Config loaded - enhancement_storage present: {}", config.enhancement_storage.is_some());
+            debug!("🔧 Security config present: {}", config.security.is_some());
+            if let Some(ref security) = config.security {
+                debug!("🔧 Security config enabled: {}", security.enabled);
+                debug!("🔧 Security allowlist present: {}", security.allowlist.is_some());
+            }
             Ok(config)
         } else {
             info!("Config file not found, using built-in proxy mode defaults");

@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { api, type Tool, type ToolsResponse, type ToolManagementResult, type UpdateToolStateRequest } from '$lib/api';
   import ToolExecutionModal from '$lib/components/ToolExecutionModal.svelte';
+  import AllowlistControlPanel from '$lib/components/security/AllowlistControlPanel.svelte';
+  import type { AllowlistRule } from '$lib/types/security';
 
   let toolsData: ToolsResponse | null = null;
   let selectedTool: Tool | null = null;
@@ -31,6 +33,10 @@
   let lastManagementResult: ToolManagementResult | null = null;
   let lastManagementError: string | null = null;
   
+  // Allowlist state
+  let toolAllowlistRules: Map<string, AllowlistRule | null> = new Map();
+  let allowlistLoading = false;
+  
   // Helper function to safely parse JSON output
   function parseOutputSafely(output: string) {
     try {
@@ -58,11 +64,42 @@
     
     try {
       toolsData = await api.getTools();
+      // Load allowlist rules for visible tools
+      if (toolsData?.tools) {
+        await loadAllowlistRules(toolsData.tools);
+      }
     } catch (err) {
       error = `Failed to load tools: ${err}`;
       console.error('Tools loading error:', err);
     } finally {
       loading = false;
+    }
+  }
+
+  async function loadAllowlistRules(tools: Tool[]) {
+    allowlistLoading = true;
+    try {
+      // Load allowlist rules for all tools
+      const rulePromises = tools.map(async (tool) => {
+        try {
+          const rule = await api.getToolAllowlistRule(tool.name);
+          return { toolName: tool.name, rule };
+        } catch (err) {
+          console.warn(`Failed to load allowlist rule for ${tool.name}:`, err);
+          return { toolName: tool.name, rule: null };
+        }
+      });
+      
+      const results = await Promise.all(rulePromises);
+      const newRulesMap = new Map();
+      results.forEach(({ toolName, rule }) => {
+        newRulesMap.set(toolName, rule);
+      });
+      toolAllowlistRules = newRulesMap;
+    } catch (err) {
+      console.error('Failed to load allowlist rules:', err);
+    } finally {
+      allowlistLoading = false;
     }
   }
 
@@ -217,6 +254,74 @@
     } finally {
       bulkActionLoading = false;
     }
+  }
+
+  // Allowlist event handlers
+  async function handleAllowlistChange(event: CustomEvent) {
+    const { itemType, itemName, action, currentRule } = event.detail;
+    
+    try {
+      if (action === 'remove') {
+        // Remove the specific rule to use default policy
+        if (currentRule) {
+          await api.removeToolAllowlistRule(itemName);
+          toolAllowlistRules.set(itemName, null);
+        }
+      } else {
+        // Create or update the rule
+        const ruleData = {
+          type: itemType as 'tool' | 'server' | 'global',
+          name: itemName,
+          action: action as 'allow' | 'deny',
+          enabled: true,
+          reason: `${action === 'allow' ? 'Allow' : 'Deny'} access to ${itemName}`
+        };
+        
+        const updatedRule = await api.setToolAllowlistRule(itemName, ruleData);
+        toolAllowlistRules.set(itemName, updatedRule);
+      }
+      
+      // Trigger reactivity
+      toolAllowlistRules = toolAllowlistRules;
+    } catch (err) {
+      console.error('Failed to update allowlist rule:', err);
+      lastManagementError = `Failed to update allowlist: ${err}`;
+    }
+  }
+
+  async function handleAllowlistToggle(event: CustomEvent) {
+    const { itemType, itemName, enabled, currentRule } = event.detail;
+    
+    if (!currentRule) return;
+    
+    try {
+      const ruleData = {
+        type: currentRule.type,
+        name: currentRule.name,
+        action: currentRule.action,
+        enabled: enabled,
+        reason: currentRule.reason
+      };
+      
+      const updatedRule = await api.setToolAllowlistRule(itemName, ruleData);
+      toolAllowlistRules.set(itemName, updatedRule);
+      
+      // Trigger reactivity
+      toolAllowlistRules = toolAllowlistRules;
+    } catch (err) {
+      console.error('Failed to toggle allowlist rule:', err);
+      lastManagementError = `Failed to toggle allowlist: ${err}`;
+    }
+  }
+
+  async function handleAllowlistEdit(event: CustomEvent) {
+    const { itemType, itemName, currentRule } = event.detail;
+    
+    // For now, we'll just log this - in the future we could open a detailed editor
+    console.log('Edit allowlist rule for:', itemName, currentRule);
+    
+    // TODO: Open AllowlistRuleEditor modal
+    lastManagementError = 'Rule editing UI will be implemented in a future update';
   }
 
   // Filter tools based on search, category, and status
@@ -778,6 +883,28 @@
                       <span>📊 Success Rate: {tool.success_rate || 'N/A'}</span>
                       <span>🕒 Last Used: {tool.last_used || 'Never'}</span>
                     </div>
+                    
+                    <!-- Allowlist Control (Compact View) -->
+                    {#if !managementMode}
+                      <div class="mt-3 pt-3 border-t border-gray-200">
+                        {#if allowlistLoading}
+                          <div class="flex items-center gap-2 text-xs text-gray-500">
+                            <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+                            Loading allowlist rules...
+                          </div>
+                        {:else}
+                          <AllowlistControlPanel
+                            itemType="tool"
+                            itemName={tool.name}
+                            currentRule={toolAllowlistRules.get(tool.name) || null}
+                            compact={true}
+                            on:allowlist-change={handleAllowlistChange}
+                            on:allowlist-toggle={handleAllowlistToggle}
+                            on:allowlist-edit={handleAllowlistEdit}
+                          />
+                        {/if}
+                      </div>
+                    {/if}
                   </div>
                   
                   {#if managementMode}
@@ -897,6 +1024,30 @@
                   <pre class="text-xs bg-gray-50 p-3 rounded overflow-auto max-h-64 text-gray-700">
 {JSON.stringify(selectedTool.input_schema, null, 2)}</pre>
                 </div>
+                
+                {#if !managementMode}
+                  <!-- Allowlist Control (Full View) -->
+                  <div>
+                    {#if allowlistLoading}
+                      <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                        <div class="flex items-center gap-3">
+                          <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+                          <span class="text-sm text-gray-600">Loading allowlist rules...</span>
+                        </div>
+                      </div>
+                    {:else}
+                      <AllowlistControlPanel
+                        itemType="tool"
+                        itemName={selectedTool.name}
+                        currentRule={toolAllowlistRules.get(selectedTool.name) || null}
+                        compact={false}
+                        on:allowlist-change={handleAllowlistChange}
+                        on:allowlist-toggle={handleAllowlistToggle}
+                        on:allowlist-edit={handleAllowlistEdit}
+                      />
+                    {/if}
+                  </div>
+                {/if}
               </div>
               
               <!-- Action buttons - always visible at bottom -->

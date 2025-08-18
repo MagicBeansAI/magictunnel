@@ -5,6 +5,19 @@ All notable changes to the MagicTunnel project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.16]
+
+### Added - OAuth Modular Provider System ✅
+- **9+ Provider Support**: Auth0, Clerk, SuperTokens, Keycloak, Google, Microsoft, Apple, GitHub, Generic OIDC
+- **Unified Integration**: Automatic migration from legacy OAuth configurations
+- **Provider-Specific Features**: Enterprise domains, Graph API, JWT assertions, role management
+
+### Fixed - Security Configuration Management ✅
+- **Type-Safe YAML Persistence**: Security config updates now use proper Rust structs instead of hardcoded property names
+- **Config File Integration**: Security API now supports actual YAML file persistence with config path resolution
+- **Restart Notification System**: Added reusable RestartDialog component with consistent UI/UX across security pages
+- **Navigation Restructuring**: Flattened security navigation hierarchy - moved Allowlisting, RBAC, Audit, Sanitization to main Security Overview level
+
 ## [0.3.15]
 
 ### Added - Tool Allowlisting

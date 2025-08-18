@@ -19,11 +19,11 @@ impl ServiceLoader {
         let service_container = match runtime_mode {
             RuntimeMode::Proxy => {
                 debug!("Loading proxy mode services (core functionality only)");
-                Self::load_proxy_services(config).await?
+                Self::load_proxy_services(config, resolution).await?
             }
             RuntimeMode::Advanced => {
                 debug!("Loading advanced mode services (full enterprise features)");
-                Self::load_advanced_services(config).await?
+                Self::load_advanced_services(config, resolution).await?
             }
         };
         
@@ -75,7 +75,7 @@ impl ServiceLoader {
     }
     
     /// Load core proxy services only
-    async fn load_proxy_services(config: &Config) -> Result<ServiceContainer> {
+    async fn load_proxy_services(config: &Config, resolution: &ConfigResolution) -> Result<ServiceContainer> {
         debug!("Initializing proxy services with minimal footprint");
         
         let proxy_services = ProxyServices::new(config.clone()).await
@@ -90,11 +90,12 @@ impl ServiceLoader {
             advanced_services: None,
             runtime_mode: RuntimeMode::Proxy,
             service_count,
+            config_file_path: resolution.config_path.clone(),
         })
     }
     
     /// Load all services including advanced enterprise features
-    async fn load_advanced_services(config: &Config) -> Result<ServiceContainer> {
+    async fn load_advanced_services(config: &Config, resolution: &ConfigResolution) -> Result<ServiceContainer> {
         debug!("Initializing advanced services with enterprise features");
         
         // First load proxy services (always required)
@@ -120,6 +121,7 @@ impl ServiceLoader {
             advanced_services: Some(advanced_services),
             runtime_mode: RuntimeMode::Advanced,
             service_count: total_services,
+            config_file_path: resolution.config_path.clone(),
         })
     }
     

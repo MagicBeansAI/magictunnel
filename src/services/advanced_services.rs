@@ -24,6 +24,29 @@ pub struct AdvancedServices {
     services: Vec<ServiceStatus>,
     /// Configuration snapshot
     config: Config,
+    /// Security services instances
+    pub security_services: Option<SecurityServices>,
+}
+
+/// Container for actual security service instances
+pub struct SecurityServices {
+    pub allowlist_service: Option<Arc<crate::security::AllowlistService>>,
+    pub audit_service: Option<Arc<crate::security::AuditService>>,
+    pub rbac_service: Option<Arc<crate::security::RbacService>>,
+    pub sanitization_service: Option<Arc<crate::security::SanitizationService>>,
+    pub lockdown_manager: Option<Arc<crate::security::EmergencyLockdownManager>>,
+}
+
+impl std::fmt::Debug for SecurityServices {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SecurityServices")
+            .field("allowlist_service", &self.allowlist_service.is_some())
+            .field("audit_service", &self.audit_service.is_some())
+            .field("rbac_service", &self.rbac_service.is_some())
+            .field("sanitization_service", &self.sanitization_service.is_some())
+            .field("lockdown_manager", &self.lockdown_manager.is_some())
+            .finish()
+    }
 }
 
 impl AdvancedServices {
@@ -132,6 +155,126 @@ impl AdvancedServices {
         
         info!("📝 Note: Core LLM services (sampling, elicitation) are available in both proxy and advanced modes");
         
+        // Initialize actual security services if security is enabled
+        let security_services = if security_enabled {
+            info!("🔒 Initializing security service instances");
+            
+            // Initialize allowlist service if configured
+            let allowlist_service = if config.security.as_ref()
+                .and_then(|s| s.allowlist.as_ref())
+                .map(|c| c.enabled)
+                .unwrap_or(false) {
+                match crate::security::AllowlistService::new(
+                    config.security.as_ref().unwrap().allowlist.as_ref().unwrap().clone()
+                ) {
+                    Ok(service) => {
+                        info!("✅ Allowlist service initialized successfully");
+                        Some(Arc::new(service))
+                    },
+                    Err(e) => {
+                        error!("❌ Failed to initialize allowlist service: {}", e);
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+            
+            // Initialize audit service if configured (async)
+            let audit_service = if config.security.as_ref()
+                .and_then(|s| s.audit.as_ref())
+                .map(|c| c.enabled)
+                .unwrap_or(false) {
+                match crate::security::AuditService::new(
+                    config.security.as_ref().unwrap().audit.as_ref().unwrap().clone()
+                ).await {
+                    Ok(service) => {
+                        info!("✅ Audit service initialized successfully");
+                        Some(Arc::new(service))
+                    },
+                    Err(e) => {
+                        error!("❌ Failed to initialize audit service: {}", e);
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+            
+            // Initialize RBAC service if configured
+            let rbac_service = if config.security.as_ref()
+                .and_then(|s| s.rbac.as_ref())
+                .map(|c| c.enabled)
+                .unwrap_or(false) {
+                match crate::security::RbacService::new(
+                    config.security.as_ref().unwrap().rbac.as_ref().unwrap().clone()
+                ) {
+                    Ok(service) => {
+                        info!("✅ RBAC service initialized successfully");
+                        Some(Arc::new(service))
+                    },
+                    Err(e) => {
+                        error!("❌ Failed to initialize RBAC service: {}", e);
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+            
+            // Initialize sanitization service if configured
+            let sanitization_service = if config.security.as_ref()
+                .and_then(|s| s.sanitization.as_ref())
+                .map(|c| c.enabled)
+                .unwrap_or(false) {
+                match crate::security::SanitizationService::new(
+                    config.security.as_ref().unwrap().sanitization.as_ref().unwrap().clone()
+                ) {
+                    Ok(service) => {
+                        info!("✅ Sanitization service initialized successfully");
+                        Some(Arc::new(service))
+                    },
+                    Err(e) => {
+                        error!("❌ Failed to initialize sanitization service: {}", e);
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+            
+            // Initialize emergency lockdown manager if configured (async)
+            let lockdown_manager = if config.security.as_ref()
+                .and_then(|s| s.emergency_lockdown.as_ref())
+                .map(|c| c.enabled)
+                .unwrap_or(false) {
+                match crate::security::EmergencyLockdownManager::new(
+                    config.security.as_ref().unwrap().emergency_lockdown.as_ref().unwrap().clone()
+                ).await {
+                    Ok(service) => {
+                        info!("✅ Emergency lockdown manager initialized successfully");
+                        Some(Arc::new(service))
+                    },
+                    Err(e) => {
+                        error!("❌ Failed to initialize emergency lockdown manager: {}", e);
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+            
+            Some(SecurityServices {
+                allowlist_service,
+                audit_service,
+                rbac_service,
+                sanitization_service,
+                lockdown_manager,
+            })
+        } else {
+            None
+        };
+        
         // Note: External MCP Integration is provided by the main MCP server in both modes
         // Note: Enhanced web UI features are provided by the MCP server's dashboard API
         // with mode-aware functionality (security APIs, analytics, etc.)
@@ -139,6 +282,7 @@ impl AdvancedServices {
         let advanced_services = Self {
             services,
             config,
+            security_services,
         };
         
         info!("🎉 Advanced services initialization completed ({} services)", advanced_services.service_count());
@@ -171,6 +315,11 @@ impl AdvancedServices {
                 None => format!("{} ({})", s.name, s.status),
             }
         }).collect()
+    }
+    
+    /// Get security services instances
+    pub fn get_security_services(&self) -> Option<&SecurityServices> {
+        self.security_services.as_ref()
     }
     
     /// Validate dependencies on proxy services

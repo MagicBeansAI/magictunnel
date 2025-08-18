@@ -96,8 +96,7 @@
   // Quick actions
   function navigateToComponent(component: string) {
     const routes: Record<string, string> = {
-      management: '/security/management',
-      allowlist: '/security/management?tab=rules', // Redirect to security management with rules tab
+      allowlist: '/security/allowlist', // Tree view allowlist management with pattern testing
       rbac: '/security/rbac', 
       audit: '/security/audit',
       sanitization: '/security/sanitization',
@@ -216,23 +215,13 @@
     <!-- Enterprise Management Dashboard -->
     <div class="security-card bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
       <div class="security-card-header">
-        <h3 class="security-card-title text-blue-800">🎛️ Enterprise Management</h3>
+        <h3 class="security-card-title text-blue-800">🛡️ Security Controls</h3>
         <div class="text-sm text-blue-600">
-          Advanced security management dashboard
+          Core security controls and emergency actions
         </div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <!-- Management Dashboard -->
-        <a
-          href="/security/management"
-          class="flex items-center justify-center px-4 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
-          title="Enterprise Security Management Dashboard"
-        >
-          <span class="mr-3 text-lg">🎛️</span>
-          <span>Management Dashboard</span>
-        </a>
-        
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <!-- Emergency Lockdown -->
         <button
           class="flex items-center justify-center px-4 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
@@ -327,7 +316,7 @@
             </span>
           </div>
           <p class="text-sm text-gray-600">
-            Control which tools and resources can be accessed
+            Tree view management of server and tool access with pattern testing
           </p>
           {#if securityStatus.components.allowlist.metrics?.rulesCount}
             <div class="mt-2 text-xs text-gray-500">

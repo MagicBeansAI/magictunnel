@@ -341,6 +341,15 @@ impl ModeApiHandler {
                         children: None,
                     },
                     NavigationItem {
+                        id: "mcp-servers".to_string(),
+                        name: "MCP Servers".to_string(),
+                        path: "/mcp-servers".to_string(),
+                        icon: "settings".to_string(),
+                        visible: true,
+                        requires_advanced: false,
+                        children: None,
+                    },
+                    NavigationItem {
                         id: "tools".to_string(),
                         name: "Tools".to_string(),
                         path: "/tools".to_string(),
@@ -396,28 +405,10 @@ impl ModeApiHandler {
                         children: None,
                     },
                     NavigationItem {
-                        id: "services".to_string(),
-                        name: "Services".to_string(),
-                        path: "/services".to_string(),
-                        icon: "settings".to_string(),
-                        visible: true,
-                        requires_advanced: false,
-                        children: None,
-                    },
-                    NavigationItem {
                         id: "llm-services".to_string(),
                         name: "LLM Services".to_string(),
                         path: "/llm-services".to_string(),
                         icon: "chat".to_string(),
-                        visible: true,
-                        requires_advanced: false,
-                        children: None,
-                    },
-                    NavigationItem {
-                        id: "mcp-servers".to_string(),
-                        name: "MCP Servers".to_string(),
-                        path: "/mcp-servers".to_string(),
-                        icon: "settings".to_string(),
                         visible: true,
                         requires_advanced: false,
                         children: None,
@@ -428,32 +419,32 @@ impl ModeApiHandler {
 
         // Add advanced sections in advanced mode
         if matches!(mode, RuntimeMode::Advanced) {
+            // Flatten security structure - all security features under Security Overview
             sections.extend([
-                // Security Section with hierarchical structure (only in advanced mode)
+                // Security Overview section with all security features at same level
                 NavigationSection {
-                    id: "security".to_string(),
-                    name: "Security".to_string(),
+                    id: "security-overview".to_string(),
+                    name: "Security Overview".to_string(),
                     icon: "security".to_string(),
                     visible: true,
                     items: vec![
                         NavigationItem {
-                            id: "security-overview".to_string(),
-                            name: "Security Overview".to_string(),
+                            id: "security-dashboard".to_string(),
+                            name: "Security Dashboard".to_string(),
                             path: "/security".to_string(),
+                            icon: "dashboard".to_string(),
+                            visible: true,
+                            requires_advanced: true,
+                            children: None,
+                        },
+                        NavigationItem {
+                            id: "tool-allowlisting".to_string(),
+                            name: "Tool Allowlisting".to_string(),
+                            path: "/security/allowlist".to_string(),
                             icon: "shield".to_string(),
                             visible: true,
                             requires_advanced: true,
-                            children: Some(vec![
-                                NavigationItem {
-                                    id: "security-management".to_string(),
-                                    name: "Management".to_string(),
-                                    path: "/security/management".to_string(),
-                                    icon: "settings".to_string(),
-                                    visible: true,
-                                    requires_advanced: true,
-                                    children: None,
-                                },
-                            ]),
+                            children: None,
                         },
                         NavigationItem {
                             id: "rbac".to_string(),

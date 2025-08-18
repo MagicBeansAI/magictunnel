@@ -21,7 +21,7 @@ use std::str::FromStr;
 use secrecy::{Secret, ExposeSecret};
 
 /// Custom serde module for Secret<String> in config
-mod secret_string {
+pub mod secret_string {
     use serde::{Deserialize, Deserializer, Serializer};
     use secrecy::{Secret, ExposeSecret};
     

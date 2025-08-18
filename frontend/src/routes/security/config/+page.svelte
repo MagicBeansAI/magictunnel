@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { securityApi } from '$lib/api/security';
+  import RestartDialog from '$lib/components/RestartDialog.svelte';
   
   // State management
   let config: any = null;
@@ -8,6 +9,10 @@
   let error = '';
   let saving = false;
   let validationResult: any = null;
+  
+  // Restart notification state
+  let showRestartDialog = false;
+  let restartRequired = false;
   
   // Configuration sections
   let activeSection = 'global';
@@ -43,13 +48,30 @@
       const updatedConfig = await securityApi.updateSecurityConfig(config);
       config = updatedConfig;
       
-      alert('Security configuration saved successfully!');
+      // Check if restart is required
+      if (updatedConfig.requires_restart && updatedConfig.config_file_updated) {
+        restartRequired = true;
+        showRestartDialog = true;
+      } else {
+        alert('Security configuration saved successfully!');
+      }
     } catch (err) {
       console.error('Failed to save configuration:', err);
       error = `Failed to save configuration: ${err}`;
     } finally {
       saving = false;
     }
+  }
+  
+  // Restart dialog functions
+  function handleRestartCancel() {
+    showRestartDialog = false;
+  }
+  
+  function handleRestartConfirm() {
+    showRestartDialog = false;
+    // Redirect to main dashboard where restart can be performed
+    window.location.href = '/';
   }
   
   // Validate configuration
@@ -390,3 +412,27 @@
     {/if}
   {/if}
 </div>
+
+<!-- Restart Required Dialog -->
+<RestartDialog 
+  bind:show={showRestartDialog}
+  title="🔄 Restart Required"
+  type="success"
+  confirmText="Go to Dashboard"
+  cancelText="Stay Here"
+  onConfirm={handleRestartConfirm}
+  onCancel={handleRestartCancel}
+>
+  <svelte:fragment slot="message">
+    Your security configuration has been saved to the config file. A system restart is required to apply these changes.
+  </svelte:fragment>
+  
+  <svelte:fragment slot="content">
+    <p class="font-medium">What happens next:</p>
+    <ul class="text-sm mt-2 text-gray-600 list-disc list-inside">
+      <li>You'll be redirected to the main dashboard</li>
+      <li>Use the "Restart System" button to apply changes</li>
+      <li>The system will restart with your new security settings</li>
+    </ul>
+  </svelte:fragment>
+</RestartDialog>
