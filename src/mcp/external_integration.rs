@@ -5,7 +5,7 @@
 
 use crate::config::Config;
 use crate::error::{ProxyError, Result};
-use crate::mcp::external_manager::ExternalMcpManager;
+use crate::mcp::oauth_external_manager::OAuthExternalMcpManager;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -15,7 +15,7 @@ use tracing::{debug, error, info, warn};
 /// External MCP Integration Manager
 pub struct ExternalMcpIntegration {
     config: Arc<Config>,
-    manager: Option<Arc<ExternalMcpManager>>,
+    manager: Option<Arc<OAuthExternalMcpManager>>,
     manager_handle: Option<JoinHandle<()>>,
 }
 
@@ -70,8 +70,38 @@ impl ExternalMcpIntegration {
             config
         });
 
-        // Create manager
-        let manager = Arc::new(ExternalMcpManager::new(external_mcp_config, client_config));
+        // Create OAuth-enhanced manager
+        // Get OAuth config from the auth config
+        let oauth_config = self.config.auth.as_ref()
+            .and_then(|auth| auth.oauth.clone())
+            .unwrap_or_else(|| {
+                // Create a default OAuth config
+                use secrecy::Secret;
+                crate::config::OAuthConfig {
+                    provider: "default".to_string(),
+                    client_id: "default".to_string(),
+                    client_secret: Secret::new("default".to_string()),
+                    auth_url: "https://example.com/auth".to_string(),
+                    token_url: "https://example.com/token".to_string(),
+                    oauth_2_1_enabled: true,
+                    resource_indicators_enabled: false,
+                    default_resources: vec![],
+                    default_audience: vec![],
+                    require_explicit_resources: false,
+                }
+            });
+        
+        // Get multi-level auth config from the main config
+        let multi_level_auth_config = self.config.multi_level_auth.clone().unwrap_or_default();
+        
+        let manager = Arc::new(
+            OAuthExternalMcpManager::new(
+                external_mcp_config, 
+                oauth_config, 
+                client_config, 
+                multi_level_auth_config
+            ).await?
+        );
         
         // Store manager reference
         self.manager = Some(manager.clone());
@@ -116,7 +146,7 @@ impl ExternalMcpIntegration {
 
 
     /// Start background monitoring task
-    async fn start_monitoring_task(&mut self, manager: Arc<ExternalMcpManager>) {
+    async fn start_monitoring_task(&mut self, manager: Arc<OAuthExternalMcpManager>) {
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
             
@@ -283,7 +313,7 @@ impl ExternalMcpIntegration {
     }
 
     /// Get the external manager reference for monitoring purposes
-    pub fn get_manager(&self) -> Option<&Arc<ExternalMcpManager>> {
+    pub fn get_manager(&self) -> Option<&Arc<OAuthExternalMcpManager>> {
         self.manager.as_ref()
     }
 
@@ -449,6 +479,63 @@ impl ExternalMcpIntegration {
             manager.get_elicitation_capable_servers().await
         } else {
             vec![]
+        }
+    }
+
+    /// Get OAuth discovery manager for callback handling
+    pub fn get_oauth_discovery_manager(&self) -> Option<Arc<crate::mcp::oauth_discovery::OAuthMcpDiscoveryManager>> {
+        if let Some(manager) = &self.manager {
+            manager.get_oauth_discovery_manager()
+        } else {
+            None
+        }
+    }
+
+    /// Get all configured servers with their current status
+    pub async fn get_all_configured_servers(&self) -> Result<Vec<crate::mcp::oauth_external_manager::ServerInfo>> {
+        match &self.manager {
+            Some(manager) => {
+                Ok(manager.get_all_configured_servers().await)
+            }
+            None => {
+                Ok(Vec::new())
+            }
+        }
+    }
+
+    /// Get a specific server's information by name
+    pub async fn get_server_info(&self, server_name: &str) -> Result<Option<crate::mcp::oauth_external_manager::ServerInfo>> {
+        match &self.manager {
+            Some(manager) => {
+                Ok(manager.get_server_info(server_name).await)
+            }
+            None => {
+                Ok(None)
+            }
+        }
+    }
+
+    /// Get OAuth initiation URL for a server
+    pub async fn get_oauth_initiation_url(&self, server_name: &str) -> Result<Option<String>> {
+        match &self.manager {
+            Some(manager) => {
+                Ok(manager.get_oauth_initiation_url(server_name).await)
+            }
+            None => {
+                Ok(None)
+            }
+        }
+    }
+
+    /// Initiate OAuth flow for a server
+    pub async fn initiate_oauth_flow(&self, server_name: &str) -> Result<String> {
+        match &self.manager {
+            Some(manager) => {
+                manager.initiate_oauth_flow(server_name).await
+            }
+            None => {
+                Err(ProxyError::connection("External MCP Manager is not running".to_string()))
+            }
         }
     }
 }

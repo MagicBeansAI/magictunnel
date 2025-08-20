@@ -116,13 +116,21 @@ impl ServiceLoader {
                advanced_services.service_count(), 
                total_services);
         
-        Ok(ServiceContainer {
+        let container = ServiceContainer {
             proxy_services: Some(proxy_services),
             advanced_services: Some(advanced_services),
             runtime_mode: RuntimeMode::Advanced,
             service_count: total_services,
             config_file_path: resolution.config_path.clone(),
-        })
+        };
+        
+        // Integrate security services with smart discovery for nested tool call validation
+        if let Err(e) = container.integrate_security_with_discovery().await {
+            warn!("⚠️ Failed to integrate security with smart discovery: {}", e);
+            // Don't fail the entire startup for this - continue with reduced security
+        }
+        
+        Ok(container)
     }
     
     /// Validate service dependencies and loading order

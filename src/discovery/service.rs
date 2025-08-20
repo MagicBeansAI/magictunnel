@@ -178,6 +178,9 @@ pub struct SmartDiscoveryService {
     
     /// Tool enhancement service for sampling/elicitation pipeline
     enhancement_service: Option<Arc<ToolEnhancementPipeline>>,
+    
+    /// Allowlist service for security validation of nested tool calls
+    allowlist_service: Arc<tokio::sync::RwLock<Option<Arc<crate::security::allowlist::AllowlistService>>>>,
 }
 
 impl SmartDiscoveryService {
@@ -188,7 +191,7 @@ impl SmartDiscoveryService {
     
     /// Create a new Smart Discovery Service with an optional router for tool execution
     pub async fn new_with_router(registry: Arc<RegistryService>, config: SmartDiscoveryConfig, router: Option<Arc<Router>>) -> Result<Self> {
-        Self::new_with_all_services(registry, config, router, None, None).await
+        Self::new_with_all_services(registry, config, router, None, None, None).await
     }
     
     /// Create a new Smart Discovery Service with all optional services
@@ -198,6 +201,7 @@ impl SmartDiscoveryService {
         router: Option<Arc<Router>>,
         tool_enhancement_service: Option<Arc<crate::mcp::tool_enhancement::ToolEnhancementService>>,
         elicitation_service: Option<Arc<crate::mcp::elicitation::ElicitationService>>,
+        allowlist_service: Option<Arc<crate::security::allowlist::AllowlistService>>,
     ) -> Result<Self> {
         let llm_mapper = LlmParameterMapper::new(config.llm_mapper.clone())?;
         let cache = DiscoveryCache::new(config.cache.clone());
@@ -273,6 +277,7 @@ impl SmartDiscoveryService {
             router: Arc::new(tokio::sync::RwLock::new(router)),
             tool_metrics,
             enhancement_service,
+            allowlist_service: Arc::new(tokio::sync::RwLock::new(allowlist_service)),
         })
     }
 
@@ -280,6 +285,14 @@ impl SmartDiscoveryService {
     pub async fn set_router(&self, router: Arc<Router>) {
         info!("Setting agent router for smart discovery service tool execution");
         *self.router.write().await = Some(router);
+    }
+    
+    /// Set the allowlist service for nested tool call security validation (advanced mode only)
+    pub async fn set_allowlist_service(&self, allowlist_service: Arc<crate::security::allowlist::AllowlistService>) {
+        let instance_id = format!("{:p}", allowlist_service.as_ref());
+        info!("🔒 Setting allowlist service for smart discovery nested tool call security - Instance ID: {}", instance_id);
+        *self.allowlist_service.write().await = Some(allowlist_service);
+        info!("🔒 Allowlist service set successfully - smart discovery now has security validation");
     }
     
     /// Create a new Smart Discovery Service with default configuration
@@ -539,6 +552,10 @@ impl SmartDiscoveryService {
         
         // Execute the discovered tool if we have a router and extraction was successful
         let router_opt = self.router.read().await.clone();
+        
+        debug!("🔍 EXECUTION CONDITIONS: extraction_success={}, router_available={}", 
+               extraction_success, router_opt.is_some());
+        
         let (data, execution_error, final_success) = if extraction_success && router_opt.is_some() {
             info!("🚀 EXECUTING DISCOVERED TOOL: '{}' with agent router", best_match.tool_name);
             
@@ -547,6 +564,45 @@ impl SmartDiscoveryService {
                 name: best_match.tool_name.clone(),
                 arguments: serde_json::Value::Object(parameter_extraction.parameters.clone().into_iter().collect()),
             };
+            
+            // Check allowlist before executing nested tool call
+            debug!("🔍 NESTED TOOL CHECK: About to check allowlist for tool '{}'", best_match.tool_name);
+            let allowlist_guard = self.allowlist_service.read().await;
+            debug!("🔍 NESTED TOOL CHECK: Read allowlist service - is_some: {}", allowlist_guard.is_some());
+            if let Some(ref allowlist_service) = *allowlist_guard {
+                let instance_id = format!("{:p}", allowlist_service.as_ref());
+                debug!("🔍 NESTED TOOL CHECK: Allowlist service available, checking access - Instance ID: {}", instance_id);
+                use std::collections::HashMap;
+                use crate::security::allowlist_types::AllowlistContext;
+                
+                // Create basic context for the allowlist check
+                let empty_params = HashMap::new();
+                let context = AllowlistContext {
+                    user_id: Some("smart_discovery_system".to_string()),
+                    user_roles: vec!["system".to_string()],
+                    api_key_name: None,
+                    permissions: vec!["smart_discovery".to_string()],
+                    source: Some("smart_discovery".to_string()),
+                    client_ip: None,
+                };
+                
+                let result = allowlist_service.check_tool_access(&best_match.tool_name, &empty_params, &context);
+                
+                if !result.allowed {
+                    warn!("🚫 NESTED TOOL BLOCKED BY ALLOWLIST: Tool '{}' is not allowed - {}", 
+                          best_match.tool_name, result.reason);
+                    return self.create_error_response_with_fallback(
+                        format!("Tool '{}' is not allowed by security policy", best_match.tool_name),
+                        &ErrorCategory::SecurityError,
+                        &effective_request,
+                    ).await;
+                } else {
+                    info!("✅ NESTED TOOL ALLOWED: Tool '{}' passed allowlist check - {}", 
+                          best_match.tool_name, result.reason);
+                }
+            } else {
+                debug!("🔍 NESTED TOOL CHECK: No allowlist service available - proceeding without security check");
+            }
             
             // Record execution start time for metrics
             let execution_start = Utc::now();

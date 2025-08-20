@@ -82,7 +82,6 @@ impl ChangeTrackingIntegration {
             },
             "reason": rule.reason,
             "enabled": rule.enabled,
-            "priority": rule.priority,
             "name": rule.name,
         }));
 
@@ -93,7 +92,6 @@ impl ChangeTrackingIntegration {
             },
             "reason": rule.reason,
             "enabled": rule.enabled,
-            "priority": rule.priority,
             "name": rule.name,
         }));
 
@@ -152,7 +150,7 @@ impl ChangeTrackingIntegration {
             map.insert("pattern_name".to_string(), json!(pattern_name));
             map.insert("pattern_type".to_string(), json!(pattern_type));
             map.insert("timestamp".to_string(), json!(Utc::now()));
-            map.insert("source".to_string(), json!("pattern_loader"));
+            map.insert("source".to_string(), json!("allowlist_service"));
             map
         };
 
@@ -540,7 +538,6 @@ mod tests {
             reason: Some("Original rule".to_string()),
             pattern: None, // Tool-level rules don't use patterns
             enabled: true,
-            priority: Some(10),
             name: Some("test_rule".to_string()),
         };
 
@@ -549,7 +546,6 @@ mod tests {
             reason: Some("Updated rule".to_string()),
             pattern: None, // Tool-level rules don't use patterns
             enabled: true,
-            priority: Some(5),
             name: Some("test_rule".to_string()),
         };
 

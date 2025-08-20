@@ -18,18 +18,26 @@ pub struct AllowlistConfig {
     /// Emergency lockdown state (highest priority)
     #[serde(default)]
     pub emergency_lockdown: bool,
-    /// Tool-specific allowlist rules (managed via API, not config)
+    /// Tool-specific allowlist rules (highest priority - managed via API, not config)
     #[serde(default)]
     pub tools: HashMap<String, AllowlistRule>,
-    /// Server/File-level rules (managed via API, not config)
+    /// Tool pattern rules (e.g., "file_*" for all file operations)
     #[serde(default)]
-    pub servers: HashMap<String, AllowlistRule>,
+    pub tool_patterns: Vec<PatternRule>,
+    /// Individual capability rules (e.g., allow/deny entire "filesystem" capability)
+    #[serde(default)]
+    pub capabilities: HashMap<String, AllowlistRule>,
     /// Capability-level pattern rules (loaded from /security/capability-patterns.yaml)
     #[serde(default)]
     pub capability_patterns: Vec<PatternRule>,
     /// Global-level pattern rules (loaded from /security/global-patterns.yaml)
     #[serde(default)]
     pub global_patterns: Vec<PatternRule>,
+    /// MagicTunnel-level overrides (system-wide rules, highest priority after emergency)
+    #[serde(default)]
+    pub mt_level_rules: HashMap<String, AllowlistRule>,
+    /// Path to allowlist data file (allowlist-data.yaml) - REQUIRED
+    pub data_file: String,
 }
 
 impl Default for AllowlistConfig {
@@ -39,9 +47,12 @@ impl Default for AllowlistConfig {
             default_action: AllowlistAction::Allow,
             emergency_lockdown: false,
             tools: HashMap::new(),
-            servers: HashMap::new(),
+            tool_patterns: Vec::new(),
+            capabilities: HashMap::new(),
             capability_patterns: Vec::new(),
             global_patterns: Vec::new(),
+            mt_level_rules: HashMap::new(),
+            data_file: "./security/allowlist-data.yaml".to_string(),
         }
     }
 }
@@ -63,8 +74,6 @@ pub struct AllowlistRule {
     pub reason: Option<String>,
     /// Pattern matching (only used at capability/global levels)
     pub pattern: Option<AllowlistPattern>,
-    /// Rule priority (only used at capability/global levels)
-    pub priority: Option<i32>,
     /// Rule identifier
     pub name: Option<String>,
     /// Whether rule is enabled
@@ -102,10 +111,9 @@ pub enum AllowlistPattern {
 pub enum RuleLevel {
     Emergency = 0,
     Tool = 1,
-    Server = 2,
-    Capability = 3,
-    Global = 4,
-    Default = 5,
+    Capability = 2,
+    Global = 3,
+    Default = 4,
 }
 
 /// High-performance result of allowlist evaluation

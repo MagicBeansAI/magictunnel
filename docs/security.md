@@ -1,15 +1,61 @@
 # MagicTunnel Enterprise Security
 
-MagicTunnel provides comprehensive enterprise-grade security features for controlling access to MCP tools, resources, and data. The security system includes allowlisting, role-based access control (RBAC), audit logging, and request sanitization.
+MagicTunnel provides comprehensive enterprise-grade security features for controlling access to MCP tools, resources, and data. The security system includes allowlisting with nested tool call security, role-based access control (RBAC), audit logging, and request sanitization.
 
 ## Overview
 
-The security system consists of four main components:
+The security system consists of five main components:
 
-1. **Tool Allowlisting** - Explicit control over which tools, resources, and prompts can be accessed
+1. **Tool Allowlisting with Nested Security** - Explicit control over which tools, resources, and prompts can be accessed, including comprehensive security validation for nested/internal tool calls through smart discovery
 2. **Role-Based Access Control (RBAC)** - Comprehensive permission management with role inheritance
 3. **Audit Logging** - Complete audit trail of all MCP communications for compliance
 4. **Request Sanitization** - Content filtering and secret detection with approval workflows
+5. **Service Instance Sharing** - Single shared allowlist service architecture ensuring consistent security across all components
+
+## Nested Tool Call Security
+
+### Overview
+
+MagicTunnel's advanced security architecture provides comprehensive protection against security bypasses by validating **all** tool calls, including nested/internal calls made through smart discovery.
+
+### Key Features
+
+- **Comprehensive Coverage**: Security validation applies to both direct tool calls and internal calls made by smart discovery
+- **Service Instance Sharing**: Single shared allowlist service across Advanced Services → Service Container → Smart Discovery
+- **Zero Bypass Architecture**: Eliminated all known security bypass vulnerabilities
+- **Instance ID Logging**: Complete audit trail with instance ID verification for debugging
+
+### How It Works
+
+1. **Direct Tool Calls**: Traditional security middleware validates direct tool calls
+2. **Smart Discovery Calls**: When smart discovery routes to internal tools, security validation occurs before execution
+3. **Shared Service**: All components use the same allowlist service instance ensuring consistent policy enforcement
+4. **Audit Trail**: Complete logging with instance IDs for verification and debugging
+
+### Implementation
+
+```rust
+// Smart discovery performs security check before internal tool execution
+if let Some(ref allowlist_service) = *allowlist_guard {
+    match allowlist_service.check_access(&best_match.tool_name).await {
+        Ok(allowed) => {
+            if !allowed {
+                return Ok(create_security_denied_response(&best_match.tool_name));
+            }
+        }
+        Err(e) => {
+            return Ok(create_security_error_response(e));
+        }
+    }
+}
+```
+
+### Verification
+
+The system provides comprehensive verification through:
+- **Instance ID Logging**: Confirms single shared service across all components
+- **Security Testing**: Both direct and nested tool call scenarios verified
+- **Configuration Validation**: Proper allowlist configuration with actual tool names
 
 ## Quick Start
 

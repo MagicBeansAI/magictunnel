@@ -16,7 +16,6 @@ fn test_allowlist_performance_benchmark() {
         action: AllowlistAction::Allow,
         reason: Some("Test tool".to_string()),
         pattern: None,
-        priority: None,
         name: Some("allowed_tool".to_string()),
         enabled: true,
     });
@@ -25,7 +24,6 @@ fn test_allowlist_performance_benchmark() {
         action: AllowlistAction::Deny,
         reason: Some("Blocked for security".to_string()),
         pattern: None,
-        priority: None,
         name: Some("blocked_tool".to_string()),
         enabled: true,
     });
@@ -35,9 +33,12 @@ fn test_allowlist_performance_benchmark() {
         default_action: AllowlistAction::Deny,
         emergency_lockdown: false,
         tools,
-        servers: HashMap::new(),
+        tool_patterns: vec![],
+        capabilities: HashMap::new(),
         capability_patterns: vec![],
         global_patterns: vec![],
+        mt_level_rules: HashMap::new(),
+        data_file: "./security/allowlist-data.yaml".to_string(),
     };
     
     let service = AllowlistService::new(config).unwrap();
@@ -131,7 +132,6 @@ fn test_allowlist_cache_performance() {
         action: AllowlistAction::Allow,
         reason: Some("Cached tool".to_string()),
         pattern: None,
-        priority: None,
         name: Some("cached_tool".to_string()),
         enabled: true,
     });
@@ -141,9 +141,12 @@ fn test_allowlist_cache_performance() {
         default_action: AllowlistAction::Deny,
         emergency_lockdown: false,
         tools,
-        servers: HashMap::new(),
+        tool_patterns: vec![],
+        capabilities: HashMap::new(),
         capability_patterns: vec![],
         global_patterns: vec![],
+        mt_level_rules: HashMap::new(),
+        data_file: "./security/allowlist-data.yaml".to_string(),
     };
     
     let service = AllowlistService::new(config).unwrap();

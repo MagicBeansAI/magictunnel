@@ -1,183 +1,41 @@
 # External MCP Servers Configuration
-# This file uses Claude Desktop's exact configuration format for maximum compatibility.
-# Magic Tunnel will spawn these MCP server processes and discover their capabilities.
 
-# MCP Servers (Claude Desktop format)
+# Process-based MCP Servers
 mcpServers:
-  # Filesystem server - File operations
-  globalping:
-    command: "npx"
-    args: ["mcp-remote", "https://mcp.globalping.dev/sse"]
-    env:
-      PATH: "${PATH}"  # Inherit system PATH.
-      # ... other env vars
   filesystem:
+    enabled: false
     command: "npx"
     args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp", "/Users"]
     env:
       PATH: "${PATH}"
-  
-  # Metabase server - Database analytics and visualization
-  #metabase:
-  #  command: "/bin/bash"
-  #  args: ["-c", "cd /tmp && /bin/rm -rf metabase-server && /usr/bin/git clone https://github.com/imlewc/metabase-server.git && cd /tmp/metabase-server && $(which npm) install && $(which npm) run build && $(which node) /tmp/metabase-server/build/index.js"]
-  #  env:
-  #    PATH: "${PATH}"
-  #    METABASE_URL: "https://xxx.metabaseapp.com" 
-  #    METABASE_API_KEY: "xxxx"
-  #    # Alternative auth (if API key doesn't work):
-  #    # METABASE_USERNAME: "your-username"
-  #    # METABASE_PASSWORD: "your-password"
 
-  # # Git server - Git operations  
-  # git:
-  #   command: "uv"
-  #   args: ["run", "mcp-server-git", "--repository", "."]
-  #   env:
-  #     PATH: "${PATH}"
-  
-  # # SQLite server - Database operations
-  # sqlite:
-  #   command: "npx"
-  #   args: ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "./data.db"]
-  #   env:
-  #     PATH: "${PATH}"
-  
-  # # Brave Search server - Web search
-  # brave-search:
-  #   command: "npx"
-  #   args: ["-y", "@modelcontextprotocol/server-brave-search"]
-  #   env:
-  #     PATH: "${PATH}"
-  #     BRAVE_API_KEY: "your-brave-api-key-here"
-  
-  # # GitHub server - GitHub operations
-  # github:
-  #   command: "npx"
-  #   args: ["-y", "@modelcontextprotocol/server-github"]
-  #   env:
-  #     PATH: "${PATH}"
-  #     GITHUB_PERSONAL_ACCESS_TOKEN: "your-github-token-here"
-  
-  # # Slack server - Slack operations
-  # slack:
-  #   command: "npx"
-  #   args: ["-y", "@modelcontextprotocol/server-slack"]
-  #   env:
-  #     PATH: "${PATH}"
-  #     SLACK_BOT_TOKEN: "your-slack-bot-token-here"
-  
+# OAuth-Enabled MCP Servers
+# Automatic RFC 8414/9728 discovery - no manual scope configuration needed
+oauthMcpServers:
+  globalping:
+    enabled: true
+    base_url: "https://mcp.globalping.dev/sse"  # MCP connection endpoint
+    oauth_termination_here: false
+    enable_dynamic_registration:
+      enabled: true
+      oauth_discovery_base_url: "https://mcp.globalping.dev"  # OAuth discovery base URL
+      client_name: "MagicTunnel-{{hostname}}"
+      redirect_uri_template: "http://localhost:{{port}}/auth/callback/{{server_name}}"
+      application_type: "web"
+      client_uri: "https://github.com/MagicBeansAI/magictunnel"
+    transport:
+      transport_type: "streamable-http"  # Preferred MCP 2025-06-18 transport
+      timeout_seconds: 30
+      max_retries: 3
+      retry_delay_ms: 1000
+    connection:
+      pool_size: 5
+      idle_timeout_seconds: 300
+      reuse_connections: true
+      enable_http2: false
+      headers: {}
 
-  # # PostgreSQL server (containerized example)
-  # postgres:
-  #   command: "docker"
-  #   args: ["run", "--rm", "-i", "--network", "host", "mcp-server-postgres:latest"]
-  #   env:
-  #     DATABASE_URL: "postgresql://user:password@localhost:5432/dbname"
-  
-
-# =============================================================================
-# NETWORK MCP SERVICES (HTTP/SSE)
-# =============================================================================
-# Network-based MCP services accessible over HTTP, SSE, or WebSocket protocols
-# These services don't require process spawning - they're remote endpoints
-
-# HTTP MCP Services - RESTful MCP endpoints
-httpServices:
-  # Example HTTP MCP service
-  # api_service:
-  #   enabled: false
-  #   base_url: "https://api.example.com/mcp"
-  #   auth:
-  #     type: "bearer"                    # none|bearer|api_key|basic
-  #     token: "${MCP_API_TOKEN}"         # Environment variable reference
-  #   timeout: 30                       # Request timeout in seconds
-  #   retry_attempts: 3                 # Maximum retry attempts
-  #   retry_delay_ms: 1000             # Delay between retries
-  #   max_idle_connections: 10          # Connection pool size
-  #   idle_timeout: 60                  # Connection idle timeout
-
-  # Production HTTP service example
-  # production_api:
-  #   enabled: false
-  #   base_url: "https://mcp.production.com/v1"
-  #   auth:
-  #     type: "api_key"
-  #     header: "X-API-Key"
-  #     key: "${PRODUCTION_MCP_API_KEY}"
-  #   timeout: 45
-  #   retry_attempts: 5
-  #   retry_delay_ms: 2000
-  #   max_idle_connections: 20
-  #   idle_timeout: 90
-
-# SSE MCP Services - Server-Sent Events streaming endpoints
-sseServices:
-  # Example SSE MCP service
-  # streaming_service:
-  #   enabled: false
-  #   base_url: "https://stream.example.com/mcp/events"
-  #   auth:
-  #     type: "bearer"                    # none|bearer|api_key|query_param
-  #     token: "${MCP_STREAM_TOKEN}"      # Environment variable reference
-  #   single_session: true              # Whether service supports only single session
-  #   connection_timeout: 30            # Connection timeout in seconds
-  #   request_timeout: 60               # Request timeout in seconds
-  #   max_queue_size: 100               # Queue size for single-session services
-  #   heartbeat_interval: 30            # Heartbeat interval in seconds (0 to disable)
-  #   reconnect: true                   # Enable automatic reconnection
-  #   max_reconnect_attempts: 10        # Max reconnection attempts (0 for unlimited)
-  #   reconnect_delay_ms: 1000         # Initial reconnection delay
-  #   max_reconnect_delay_ms: 30000    # Maximum reconnection delay
-
-  # Real-time analytics service example
-  # analytics_stream:
-  #   enabled: false
-  #   base_url: "https://analytics.example.com/mcp/stream"
-  #   auth:
-  #     type: "query_param"
-  #     param: "token"
-  #     value: "${ANALYTICS_TOKEN}"
-  #   single_session: false             # Multi-session capable
-  #   connection_timeout: 15
-  #   request_timeout: 45
-  #   max_queue_size: 10                # Small queue for multi-session
-  #   heartbeat_interval: 20
-  #   reconnect: true
-  #   max_reconnect_attempts: 5
-  #   reconnect_delay_ms: 2000
-  #   max_reconnect_delay_ms: 60000
-
-# WebSocket MCP Services - Full duplex WebSocket endpoints (Future)
-websocketServices:
-  # Example WebSocket MCP service (not yet implemented)
-  # ws_service:
-  #   enabled: false
-  #   base_url: "wss://ws.example.com/mcp"
-  #   auth:
-  #     type: "bearer"
-  #     token: "${MCP_WS_TOKEN}"
-  #   ping_interval: 30
-  #   pong_timeout: 10
-  #   reconnect: true
-  #   max_reconnect_attempts: 10
-
-# =============================================================================
-# PROCESS-BASED MCP SERVERS 
-# =============================================================================
-# Note: All servers above are examples and may require:
-# 1. Installation of the respective MCP server packages
-# 2. Proper API keys and credentials in environment variables
-# 3. Adjustment of paths and arguments for your specific setup
-#
-# To enable a server, ensure:
-# - The command and dependencies are installed
-# - Required environment variables are set
-# - Paths are correct for your system
-#
-# Magic Tunnel will automatically:
-# - Spawn these processes (for mcpServers)
-# - Connect to network endpoints (for httpServices/sseServices)
-# - Perform MCP handshake
-# - Discover available tools and capabilities  
-# - Generate capability files for hot-reload integration
+# Network MCP Services
+httpServices: {}
+sseServices: {}
+websocketServices: {}

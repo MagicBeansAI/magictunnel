@@ -79,7 +79,7 @@ visibility:
 smart_discovery:
   enabled: true
   tool_selection_mode: hybrid
-  default_confidence_threshold: 0.7
+  default_confidence_threshold: 0.05
   max_tools_to_consider: 10
   max_high_quality_matches: 3
   high_quality_threshold: 0.95
@@ -94,7 +94,7 @@ smart_discovery:
     max_retries: 3
     enabled: true
   llm_tool_selection:
-    enabled: true
+    enabled: false
     provider: openai
     model: gpt-4o-mini
     api_key: null
@@ -151,10 +151,9 @@ security:
     enabled: true
     default_action: deny
     emergency_lockdown: false
-    tools: {}
-    servers: {}
-    capability_patterns: []
-    global_patterns: []
+    data_file: "./security/allowlist-data.yaml"
+    audit_decisions: true
+    # Legacy fields removed - now using data_file structure
   sanitization:
     enabled: false
     policies: []

@@ -16,18 +16,27 @@ fn debug_bloom_filter_behavior() {
     let mut security_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     security_dir.push("security");
     
-    // Create service with pattern loader
+    // Create service with enhanced data file approach
+    let mut data_file = security_dir.clone();
+    data_file.push("allowlist-data.yaml");
+    
     let config = AllowlistConfig {
         enabled: true,
         default_action: AllowlistAction::Allow,
         emergency_lockdown: false,
         tools: HashMap::new(),
-        servers: HashMap::new(),
+        tool_patterns: Vec::new(),
+        capabilities: HashMap::new(),
         capability_patterns: Vec::new(),
         global_patterns: Vec::new(),
+        mt_level_rules: HashMap::new(),
+        data_file: data_file.to_string_lossy().to_string(),
     };
     
-    let service = AllowlistService::with_pattern_loader(config, &security_dir).unwrap();
+    let service = match AllowlistService::with_data_file(config.clone(), data_file.to_string_lossy().to_string()) {
+        Ok(s) => s,
+        Err(_) => AllowlistService::new(config).unwrap()
+    };
     
     let context = AllowlistContext {
         user_id: Some("debug_bloom".to_string()),

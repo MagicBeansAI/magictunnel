@@ -116,6 +116,8 @@ pub enum ErrorCategory {
     ToolExecutionFailed,
     /// Configuration or system error
     SystemError,
+    /// Security policy violation
+    SecurityError,
     /// Network or connectivity error
     NetworkError,
     /// Authentication or authorization error
@@ -680,6 +682,10 @@ impl FallbackManager {
                     suggestions.push("Look for tools without the specific limitations that prevented the match".to_string());
                     suggestions.push("Try a more general version of your request to avoid constraint conflicts".to_string());
                 }
+                ErrorCategory::SecurityError => {
+                    suggestions.push("Try using alternative tools that provide similar functionality".to_string());
+                    suggestions.push("Contact your administrator about access permissions".to_string());
+                }
                 _ => {}
             }
         }
@@ -875,6 +881,18 @@ impl FallbackManager {
                         "🔄 Consider using multiple tools in sequence to achieve your goal".to_string(),
                     ]
                 };
+
+                (message.to_string(), actions)
+            }
+            ErrorCategory::SecurityError => {
+                let message = "🔒 The tool you're trying to use has been restricted by security policies.";
+
+                let actions = vec![
+                    "🔍 Try using a different tool that accomplishes the same goal".to_string(),
+                    "👤 Contact your administrator if you believe you should have access to this tool".to_string(),
+                    "📋 Review the available tools to find alternatives".to_string(),
+                    "🛡️ Check if your request can be fulfilled with permitted tools".to_string(),
+                ];
 
                 (message.to_string(), actions)
             }

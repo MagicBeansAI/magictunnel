@@ -1,96 +1,83 @@
-//! Simple pattern testing utility
+//! Simple allowlist data file testing utility
 
 use std::path::PathBuf;
-use magictunnel::security::{PatternLoader, AllowlistService, AllowlistConfig, AllowlistAction};
+use magictunnel::security::{AllowlistService, AllowlistConfig, AllowlistAction};
 use std::collections::HashMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🧪 MagicTunnel Pattern System Test");
+    println!("🧪 MagicTunnel Enhanced Allowlist System Test");
     
-    // Get security directory
-    let mut security_dir = PathBuf::from(".");
-    security_dir.push("security");
+    // Check for allowlist-data.yaml file
+    let mut data_file = PathBuf::from(".");
+    data_file.push("security");
+    data_file.push("allowlist-data.yaml");
     
-    if !security_dir.exists() {
-        println!("❌ Security directory not found at {:?}", security_dir);
+    if !data_file.exists() {
+        println!("❌ Allowlist data file not found at {:?}", data_file);
+        println!("💡 Make sure allowlist-data.yaml exists in the security/ directory");
         return Ok(());
     }
     
-    // Test pattern loader
-    println!("📁 Testing pattern loader...");
-    let pattern_loader = PatternLoader::new(&security_dir);
+    // Test enhanced data file loading
+    println!("📁 Testing enhanced data file approach...");
     
-    // Load capability patterns
-    match pattern_loader.load_capability_patterns() {
-        Ok(patterns) => {
-            println!("✅ Loaded {} capability patterns", patterns.len());
-            for (i, pattern) in patterns.iter().take(3).enumerate() {
-                println!("  {}. {} (priority: {})", 
-                    i + 1, 
-                    pattern.rule.name.as_ref().unwrap_or(&"unnamed".to_string()),
-                    pattern.rule.priority.unwrap_or(0)
-                );
-            }
-        }
-        Err(e) => {
-            println!("❌ Failed to load capability patterns: {}", e);
-        }
-    }
-    
-    // Load global patterns
-    match pattern_loader.load_global_patterns() {
-        Ok(patterns) => {
-            println!("✅ Loaded {} global patterns", patterns.len());
-            for (i, pattern) in patterns.iter().take(3).enumerate() {
-                println!("  {}. {} (priority: {})", 
-                    i + 1, 
-                    pattern.rule.name.as_ref().unwrap_or(&"unnamed".to_string()),
-                    pattern.rule.priority.unwrap_or(0)
-                );
-            }
-        }
-        Err(e) => {
-            println!("❌ Failed to load global patterns: {}", e);
-        }
-    }
-    
-    // Test service integration
-    println!("\n🔧 Testing service integration...");
+    // Create basic config
     let config = AllowlistConfig {
         enabled: true,
         default_action: AllowlistAction::Allow,
         emergency_lockdown: false,
         tools: HashMap::new(),
-        servers: HashMap::new(),
+        tool_patterns: Vec::new(),
+        capabilities: HashMap::new(),
         capability_patterns: Vec::new(),
         global_patterns: Vec::new(),
+        mt_level_rules: HashMap::new(),
+        data_file: "./security/allowlist-data.yaml".to_string(),
     };
     
-    match AllowlistService::with_pattern_loader(config, &security_dir) {
+    match AllowlistService::with_data_file(config, "./security/allowlist-data.yaml".to_string()) {
         Ok(service) => {
             let loaded_config = service.get_config();
-            println!("✅ Service created successfully");
-            println!("   Capability patterns: {}", loaded_config.capability_patterns.len());
-            println!("   Global patterns: {}", loaded_config.global_patterns.len());
+            println!("✅ Service created successfully with enhanced data file approach");
+            println!("   Data file: {}", loaded_config.data_file);
+            println!("   Tool rules: {}", loaded_config.tools.len());
+            println!("   Capability rules: {}", loaded_config.capability_patterns.len());
             
-            // Test pattern testing framework
-            match service.test_patterns() {
-                Ok(results) => {
-                    println!("✅ Pattern tests completed");
-                    println!("   Total tests: {}", results.total_tests());
-                    println!("   Passed: {}", results.passed_tests());
-                    println!("   Success rate: {:.1}%", results.success_rate() * 100.0);
+            // Test real-time pattern testing
+            println!("\n🔧 Testing real-time pattern testing API...");
+            let test_request = magictunnel::security::allowlist_data::RealTimePatternTestRequest {
+                pattern: magictunnel::security::allowlist_data::TestPattern {
+                    name: "test_pattern".to_string(),
+                    regex: "test_.*".to_string(),
+                    action: magictunnel::security::AllowlistAction::Allow,
+                    scope: magictunnel::security::allowlist_data::PatternScope::Tools,
+                    priority: 10,
+                },
+                test_tools: vec!["test_tool".to_string(), "prod_tool".to_string()],
+                include_evaluation_chain: true,
+            };
+            
+            match service.test_patterns_batch(vec![test_request]) {
+                Ok(responses) => {
+                    println!("✅ Pattern testing completed");
+                    println!("   Total pattern responses: {}", responses.len());
+                    if let Some(first_response) = responses.first() {
+                        println!("   Tool test results: {}", first_response.tool_results.len());
+                        println!("   Pattern tested: {}", first_response.pattern.name);
+                    }
                 }
                 Err(e) => {
-                    println!("❌ Pattern tests failed: {}", e);
+                    println!("❌ Pattern testing failed: {}", e);
                 }
             }
+            
+            println!("✅ Enhanced allowlist system test completed successfully");
         }
         Err(e) => {
             println!("❌ Failed to create service: {}", e);
         }
     }
     
-    println!("\n🎉 Pattern system test completed!");
+    println!("\n🎉 Enhanced allowlist system test completed!");
     Ok(())
 }

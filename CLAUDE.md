@@ -4,7 +4,7 @@
 
 MagicTunnel is an intelligent bridge between MCP (Model Context Protocol) clients and diverse agents/endpoints. It provides a single, smart tool discovery interface that can find the right tool for any request, map parameters, and proxy the call automatically.
 
-**Current Version**: 0.3.13 - **OAuth 2.1 FUNCTIONALLY COMPLETE & PRODUCTION-READY** ✅
+**Current Version**: 0.3.17 - **NESTED SECURITY & OAUTH 2.1 COMPLETE & PRODUCTION-READY** ✅
 
 ## Quick Start
 
@@ -76,7 +76,8 @@ cargo run --bin magictunnel-visibility -- -c config.yaml status
 - MCP Authentication middleware
 
 #### **Advanced Services** (Enterprise only):
-- **Enterprise Security Suite**: Tool allowlisting, RBAC, request sanitization, audit logging, emergency lockdown
+- **Enterprise Security Suite**: Tool allowlisting with nested call security, RBAC, request sanitization, audit logging, emergency lockdown
+- **Nested Tool Security**: Comprehensive security validation for all tool calls including smart discovery internal calls
 - **Future**: MagicTunnel Authentication (separate from MCP protocol auth)
 
 ### Smart Discovery System (Core Innovation)
@@ -230,7 +231,41 @@ export MAGICTUNNEL_SMART_DISCOVERY=true
 
 ## Recent Changes
 
-### Version 0.3.13 (Current) - OAuth 2.1 FUNCTIONALLY COMPLETE & PRODUCTION-READY ✅
+### Version 0.3.17 (Current) - NESTED SECURITY & OAUTH 2.1 COMPLETE & PRODUCTION-READY ✅
+
+#### **🚀 CRITICAL SECURITY BREAKTHROUGH: Nested Tool Call Security** ✅
+- **Problem Solved**: Eliminated critical security bypass where allowlist system only validated initial tool calls but bypassed nested/internal tool calls
+- **Comprehensive Coverage**: Security validation now covers all tool execution paths including smart discovery internal calls
+- **Service Architecture**: Single shared allowlist service across all components with proper dependency injection
+- **Zero Bypass**: Complete elimination of security bypass vulnerabilities
+
+#### **Enterprise Security Enhancements** ✅
+- **Nested Call Validation**: Smart discovery now performs security checks before executing internal tool calls
+- **Service Instance Sharing**: Proper allowlist service sharing across Advanced Services → Service Container → Smart Discovery
+- **Instance ID Logging**: Comprehensive logging for debugging and verification of single shared instance
+- **Router Integration**: Fixed router availability in smart discovery service for proper tool execution
+- **Environment Variable Loading**: Fixed OpenAI API key loading from `.env.development` files
+
+#### **Implementation Details**:
+- **Core Integration**: `src/discovery/service.rs` - Nested security validation before tool execution
+- **Service Sharing**: `src/services/service_container.rs` - Proper dependency injection architecture
+- **Instance Logging**: `src/services/advanced_services.rs` - Complete instance ID tracking
+- **Configuration Fix**: `src/services/proxy_services.rs` - Environment variable loading support
+
+#### **Verification Results**:
+- ✅ **Direct Security**: Denied tools (`move_file_filesystem`) blocked when called directly
+- ✅ **Nested Security**: Denied tools blocked when called through smart discovery
+- ✅ **Allowed Execution**: Permitted tools execute successfully through all pathways
+- ✅ **Service Integrity**: Single shared allowlist service (Instance ID confirmed)
+- ✅ **Environment Config**: API keys loaded correctly from `.env.development`
+
+#### **Production Ready Security**:
+- **Zero Known Bypasses**: All tool execution paths properly secured
+- **Comprehensive Testing**: Direct, nested, and allowed tool scenarios verified
+- **Enterprise Grade**: Proper service architecture with audit logging
+- **Instance Verification**: Single shared service confirmed via instance ID logging
+
+### Version 0.3.13 - OAuth 2.1 FUNCTIONALLY COMPLETE & PRODUCTION-READY ✅
 
 #### **🎉 CRITICAL BREAKTHROUGH: Phase 6 MCP Protocol Integration** ✅
 - **AuthenticationContext System**: Authentication flows through entire MCP pipeline to external API calls

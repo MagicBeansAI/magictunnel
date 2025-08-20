@@ -471,6 +471,71 @@ impl RegistryService {
             .collect()
     }
     
+    /// Get all tools with their server and capability context for allowlist processing
+    /// Returns: Vec<(tool_name, tool_definition, server, capability)>
+    pub fn get_all_tools_with_context(&self) -> Vec<(String, ToolDefinition, String, String)> {
+        let registry = self.registry.load();
+        let mut tools_with_context = Vec::new();
+        
+        // Iterate through all capability files to get server/capability context
+        for (file_path, capability_file) in &registry.files {
+            // Extract server and capability from file path
+            // Example: "/path/capabilities/external-mcp/filesystem.yaml" 
+            //   -> server: "external-mcp", capability: "filesystem"
+            let (server, capability) = self.extract_server_capability_from_path(file_path);
+            
+            // Add all tools from this capability file with their context
+            for tool in &capability_file.tools {
+                tools_with_context.push((
+                    tool.name.clone(),
+                    tool.clone(),
+                    server.clone(),
+                    capability.clone(),
+                ));
+            }
+            
+            // TODO: Also handle enhanced tools if present (MCP 2025-06-18 format)
+            // For now, we focus on regular tools since enhanced tools need proper conversion method
+        }
+        
+        tools_with_context
+    }
+    
+    /// Extract server and capability from capability file path
+    /// Example: "capabilities/external-mcp/filesystem.yaml" -> ("external-mcp", "filesystem")
+    fn extract_server_capability_from_path(&self, file_path: &std::path::Path) -> (String, String) {
+        let path_str = file_path.to_string_lossy();
+        
+        // Split path and find capabilities directory
+        let parts: Vec<&str> = path_str.split('/').collect();
+        
+        // Look for the pattern: .../capabilities/{server}/{capability}.yaml
+        if let Some(capabilities_idx) = parts.iter().rposition(|&part| part == "capabilities") {
+            if capabilities_idx + 2 < parts.len() {
+                let server = parts[capabilities_idx + 1].to_string();
+                let capability_file = parts[capabilities_idx + 2];
+                // Remove .yaml extension to get capability name
+                let capability = capability_file.strip_suffix(".yaml")
+                    .unwrap_or(capability_file)
+                    .to_string();
+                return (server, capability);
+            }
+        }
+        
+        // Fallback: try to extract from filename and parent directory
+        if let Some(file_name) = file_path.file_stem() {
+            let capability = file_name.to_string_lossy().to_string();
+            if let Some(parent) = file_path.parent() {
+                if let Some(server_name) = parent.file_name() {
+                    return (server_name.to_string_lossy().to_string(), capability);
+                }
+            }
+        }
+        
+        // Ultimate fallback
+        ("unknown".to_string(), "general".to_string())
+    }
+    
     /// Get registry metadata for monitoring
     pub fn metadata(&self) -> RegistryMetadata {
         let registry = self.registry.load();

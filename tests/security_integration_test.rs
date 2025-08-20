@@ -25,9 +25,12 @@ async fn test_security_integration_basic() {
         default_action: AllowlistAction::Allow,
         emergency_lockdown: false,
         tools: HashMap::new(),
-        servers: HashMap::new(),
+        tool_patterns: vec![],
+        capabilities: HashMap::new(),
         capability_patterns: vec![],
         global_patterns: vec![],
+        mt_level_rules: HashMap::new(),
+        data_file: "./security/allowlist-data.yaml".to_string(),
     });
     
     // Initialize security middleware
@@ -92,7 +95,6 @@ async fn test_security_integration_blocked() {
         action: AllowlistAction::Allow,
         reason: Some("Explicitly allowed tool".to_string()),
         pattern: None,
-        priority: None,
         name: Some("allowed_tool".to_string()),
         enabled: true,
     });
@@ -102,9 +104,12 @@ async fn test_security_integration_blocked() {
         default_action: AllowlistAction::Deny,
         emergency_lockdown: false,
         tools: tool_rules,
-        servers: HashMap::new(),
+        tool_patterns: vec![],
+        capabilities: HashMap::new(),
         capability_patterns: vec![],
         global_patterns: vec![],
+        mt_level_rules: HashMap::new(),
+        data_file: "./security/allowlist-data.yaml".to_string(),
     });
     
     // Initialize security middleware

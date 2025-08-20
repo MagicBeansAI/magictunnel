@@ -22,7 +22,7 @@ use super::emergency::EmergencyLockdownManager;
 /// Security middleware for MCP requests
 pub struct SecurityMiddleware {
     config: SecurityConfig,
-    allowlist_service: Option<AllowlistService>,
+    allowlist_service: Option<Arc<AllowlistService>>,
     sanitization_service: Option<SanitizationService>,
     rbac_service: Option<Arc<RwLock<RbacService>>>,
     audit_service: Option<Arc<AuditService>>,
@@ -150,8 +150,11 @@ pub enum SecuritySeverity {
 }
 
 impl SecurityMiddleware {
-    /// Create a new security middleware
-    pub async fn new(config: SecurityConfig) -> Result<Self> {
+    /// Create a new security middleware with a shared allowlist service
+    pub async fn with_shared_allowlist(
+        config: SecurityConfig, 
+        shared_allowlist_service: Option<Arc<AllowlistService>>
+    ) -> Result<Self> {
         let mut middleware = Self {
             config: config.clone(),
             allowlist_service: None,
@@ -161,16 +164,48 @@ impl SecurityMiddleware {
             emergency_manager: None,
         };
         
-        // Initialize allowlist service (unified: regular or ultra-fast based on config)
+        // Use shared allowlist service if provided
         if let Some(allowlist_config) = &config.allowlist {
             if allowlist_config.enabled {
-                let service = AllowlistService::new(allowlist_config.clone())
-                    .map_err(|e| ProxyError::config(format!("Failed to initialize allowlist service: {}", e)))?;
-                
-                middleware.allowlist_service = Some(service);
-                info!("Allowlist service initialized (high-performance)");
+                if let Some(shared_service) = shared_allowlist_service {
+                    let instance_id = format!("{:p}", shared_service.as_ref());
+                    info!("✅ Using shared allowlist service from AdvancedServices - Instance ID: {}", instance_id);
+                    middleware.allowlist_service = Some(shared_service);
+                } else {
+                    // Fallback to creating own service
+                    let service = if !allowlist_config.data_file.is_empty() {
+                        info!("🔄 Creating fallback allowlist service with data file: {}", allowlist_config.data_file);
+                        AllowlistService::with_data_file(
+                            allowlist_config.clone(),
+                            allowlist_config.data_file.clone()
+                        ).map_err(|e| ProxyError::config(format!("Failed to initialize allowlist service with data file '{}': {}", allowlist_config.data_file, e)))?
+                    } else {
+                        info!("🔄 Creating fallback allowlist service without data file (config-only)");
+                        AllowlistService::new(allowlist_config.clone())
+                            .map_err(|e| ProxyError::config(format!("Failed to initialize allowlist service: {}", e)))?
+                    };
+                    let arc_service = Arc::new(service);
+                    let instance_id = format!("{:p}", arc_service.as_ref());
+                    info!("🔒 Fallback allowlist service created - Instance ID: {}", instance_id);
+                    middleware.allowlist_service = Some(arc_service);
+                }
+                info!("✅ Allowlist service configured successfully");
             }
         }
+        
+        // Initialize other services
+        Self::initialize_other_services(&mut middleware).await?;
+        Self::finalize_middleware(middleware).await
+    }
+
+    /// Create a new security middleware (legacy method for backward compatibility)
+    pub async fn new(config: SecurityConfig) -> Result<Self> {
+        Self::with_shared_allowlist(config, None).await
+    }
+    
+    /// Initialize non-allowlist services
+    async fn initialize_other_services(middleware: &mut Self) -> Result<()> {
+        let config = &middleware.config;
         
         // Initialize sanitization service
         if let Some(sanitization_config) = &config.sanitization {
@@ -213,6 +248,11 @@ impl SecurityMiddleware {
             }
         }
         
+        Ok(())
+    }
+    
+    /// Create security middleware with all services
+    async fn finalize_middleware(mut middleware: Self) -> Result<Self> {
         info!("Security middleware initialized with {} active services", middleware.active_service_count());
         Ok(middleware)
     }

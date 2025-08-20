@@ -10,6 +10,8 @@ pub mod llm_client;
 pub mod external_process;
 pub mod external_manager;
 pub mod external_integration;
+pub mod oauth_discovery;
+pub mod oauth_external_manager;
 pub mod network_service_manager;
 // Network clients for external MCP services
 pub mod clients;
@@ -48,6 +50,8 @@ pub use server::McpServer;
 pub use external_integration::{ExternalMcpIntegration, ExternalMcpAgent};
 pub use external_manager::ExternalMcpManager;
 pub use external_process::ExternalMcpProcess;
+pub use oauth_discovery::{OAuthMcpDiscoveryManager, OAuthMcpDiscoveryConfig, AuthenticatedMcpConnection};
+pub use oauth_external_manager::OAuthExternalMcpManager;
 pub use network_service_manager::{NetworkMcpServiceManager, NetworkMcpService};
 // Network clients
 pub use clients::{HttpMcpClient, HttpClientConfig, HttpAuthConfig, SseMcpClient, SseClientConfig, SseAuthConfig, StreamableHttpMcpClient, StreamableHttpClientConfig, WebSocketMcpClient, WebSocketClientConfig, ConnectionState};

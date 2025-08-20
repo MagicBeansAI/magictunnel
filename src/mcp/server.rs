@@ -366,6 +366,72 @@ impl McpServer {
         
         Ok(server)
     }
+    
+    /// Create MCP server with existing services (shared instances)
+    /// This ensures the MCP server uses the same smart discovery service instance that has the allowlist service set
+    pub async fn with_config_and_services(
+        config: &crate::config::Config,
+        enhancement_storage: Option<Arc<crate::discovery::EnhancementStorageService>>,
+        smart_discovery_service: Option<Arc<crate::discovery::SmartDiscoveryService>>,
+    ) -> Result<Self> {
+        info!("Creating MCP server with existing shared services");
+        info!("🔍 Enhancement storage provided: {}", enhancement_storage.is_some());
+        info!("🔍 Smart discovery service provided: {}", smart_discovery_service.is_some());
+        
+        // Create server with full config first but skip smart discovery creation
+        let mut server = Self::with_config_skip_smart_discovery(config).await?;
+        
+        // Use the provided smart discovery service if available and update router
+        if let Some(smart_discovery) = smart_discovery_service {
+            info!("🔄 Using existing smart discovery service instance (with allowlist integration)");
+            info!("🔄 Updating router to include smart discovery service");
+            
+            // Create a new router that includes the smart discovery service
+            let router_with_discovery = crate::routing::Router::with_external_mcp_registry_and_smart_discovery(
+                server.external_integration.clone().unwrap(),
+                server.registry.clone(),
+                smart_discovery.clone(),
+            );
+            
+            // Update the server's router and smart discovery service
+            let router_arc = Arc::new(router_with_discovery);
+            server.router = router_arc.clone();
+            server.smart_discovery = Some(smart_discovery.clone());
+            
+            // CRITICAL FIX: Set the router in the smart discovery service so it can execute tools
+            smart_discovery.set_router(router_arc).await;
+            info!("🔄 Set router in smart discovery service for tool execution");
+            
+            info!("✅ Router updated with smart discovery service integration");
+        }
+        
+        // If enhancement storage is provided, initialize the enhancement service with background loading
+        if let Some(storage) = enhancement_storage {
+            info!("Enhancement storage provided - initializing enhancement service with background loading");
+            server = server.with_enhancement_service(config).await?;
+            
+            // Spawn background thread to load stored enhanced tools
+            if let Some(enhancement_service) = server.enhancement_service() {
+                let enhancement_service_clone = Arc::clone(enhancement_service);
+                tokio::spawn(async move {
+                    info!("🔄 Starting deferred tool enhancement service background loading");
+                    
+                    // Run the full initialization with storage loading
+                    if let Err(e) = enhancement_service_clone.initialize_with_analysis().await {
+                        error!("Failed to complete deferred enhancement service initialization: {}", e);
+                    } else {
+                        info!("✅ Deferred tool enhancement background loading completed");
+                    }
+                });
+            } else {
+                warn!("Enhancement service not available after initialization - background loading skipped");
+            }
+        }
+        
+        info!("✅ MCP server created with shared services");
+        
+        Ok(server)
+    }
 
     /// Create MCP server with full configuration
     pub async fn with_config(config: &crate::config::Config) -> Result<Self> {
@@ -607,6 +673,139 @@ impl McpServer {
             server = server.with_roots_service(&config)?;
         }
 
+        Ok(server)
+    }
+    
+    /// Create MCP server with full configuration but skip smart discovery creation
+    /// Used when an existing smart discovery service will be provided externally
+    async fn with_config_skip_smart_discovery(config: &crate::config::Config) -> Result<Self> {
+        info!("Initializing MCP server with full configuration (skipping smart discovery creation)");
+
+        // Initialize the high-performance registry service with hot-reload
+        let registry = RegistryService::start_with_hot_reload(config.registry.clone()).await?;
+
+        // Initialize tool aggregation service with conflict resolution
+        let mut tool_aggregation = crate::registry::ToolAggregationService::new(Arc::new(config.clone()));
+        tool_aggregation.set_registry_service(registry.clone());
+
+        // Start external MCP integration if enabled
+        let external_integration = Arc::new(tokio::sync::RwLock::new(
+            crate::mcp::external_integration::ExternalMcpIntegration::new(Arc::new(config.clone()))
+        ));
+
+        // Track whether external MCP integration actually started successfully
+        let external_mcp_started = if config.external_mcp.as_ref().map(|c| c.enabled).unwrap_or(false) {
+            info!("External MCP is enabled in configuration");
+            debug!("External MCP config: {:?}", config.external_mcp);
+            debug!("Current working directory: {:?}", std::env::current_dir());
+            debug!("Executable path: {:?}", std::env::current_exe());
+            
+            let mut integration = external_integration.write().await;
+            info!("Starting external MCP integration...");
+            match integration.start().await {
+                Err(e) => {
+                    warn!("Failed to start external MCP integration: {}", e);
+                    info!("Continuing without external MCP integration");
+                    false
+                }
+                Ok(()) => {
+                    info!("External MCP integration started successfully");
+                    true
+                }
+            }
+        } else {
+            info!("External MCP is disabled in configuration");
+            false
+        };
+
+        // Create router with enhanced conflict resolution
+        info!("Creating router with enhanced external MCP integration");
+        let router = crate::routing::Router::with_external_mcp_and_registry(
+            external_integration.clone(),
+            registry.clone(),
+        );
+
+        // Create resource manager with enhanced discovery
+        let resource_manager = Arc::new(ResourceManager::new());
+
+        // Create prompt manager for prompt operations
+        let prompt_manager = Arc::new(PromptManager::new());
+
+        // Initialize logger manager with configuration
+        let logger_manager = Arc::new(McpLoggerManager::new());
+
+        // Initialize notification manager
+        let notification_manager = Arc::new(McpNotificationManager::new());
+
+        // Initialize required services
+        let session_manager = Arc::new(McpSessionManager::new());
+        let message_validator = Arc::new(McpMessageValidator::new());
+        let cancellation_manager = Arc::new(CancellationManager::new(CancellationConfig::default()));
+        let progress_tracker = Arc::new(ProgressTracker::new(ProgressConfig::default()));
+        let tool_validator = Arc::new(RuntimeToolValidator::new(crate::mcp::tool_validation::ValidationConfig::default())?);
+
+        // Create server WITHOUT smart discovery service (will be set externally)
+        let mut server = McpServer {
+            registry,
+            tool_aggregation: None,
+            router: Arc::new(router),
+            resource_manager,
+            prompt_manager,
+            logger_manager,
+            notification_manager,
+            auth_middleware: None,
+            auth_resolver: None,
+            security_middleware: None,
+            session_manager,
+            message_validator,
+            cancellation_manager,
+            progress_tracker,
+            tool_validator,
+            smart_discovery: None, // Will be set externally
+            external_integration: Some(external_integration),
+            config: Some(Arc::new(config.clone())),
+            sampling_service: None,
+            tool_enhancement_service: None,
+            enhancement_service: None,
+            elicitation_service: None,
+            roots_service: None,
+            client_sender: None,
+        };
+
+        // Configure authentication if present
+        server = server.with_config_authentication(config)?;
+
+        // Configure security if enabled
+        if let Some(security_config) = &config.security {
+            server = server.with_security(security_config.clone()).await?;
+        }
+
+        // Configure sampling service if smart discovery is enabled
+        if config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false) {
+            server = server.with_sampling_service(&config)?;
+        }
+
+        // Configure tool enhancement service if smart discovery is enabled
+        if config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false) {
+            server = server.with_tool_enhancement_service(&config)?;
+        }
+
+        // Configure elicitation service if smart discovery is enabled
+        if config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false) {
+            server = server.with_elicitation_service(&config)?;
+        }
+
+        // Configure enhancement pipeline service if smart discovery and services are enabled
+        if config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false) {
+            server = server.with_enhancement_service(&config).await?;
+        }
+
+        // Configure roots service if smart discovery is enabled
+        if config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false) {
+            server = server.with_roots_service(&config)?;
+        }
+
+        info!("✅ MCP server created without smart discovery service (will be set externally)");
         Ok(server)
     }
 
@@ -1110,6 +1309,8 @@ impl McpServer {
                 .route("/auth/oauth/authorize", web::get().to(oauth_authorize_handler))
                 .route("/auth/oauth/callback", web::get().to(oauth_callback_handler))
                 .route("/auth/oauth/token", web::post().to(oauth_token_handler))
+                // OAuth discovery callback endpoints - server-specific callbacks
+                .route("/auth/callback/{server_name}", web::get().to(oauth_discovery_callback_handler))
 
                 // Dashboard API routes
                 .configure({
@@ -4529,4 +4730,130 @@ async fn oauth_token_handler(
             .content_type("application/json")
             .json(error_response)
     }
+}
+
+/// OAuth discovery callback endpoint - handles authorization code from external OAuth providers
+async fn oauth_discovery_callback_handler(
+    req: HttpRequest,
+    path: web::Path<String>,
+    query: web::Query<std::collections::HashMap<String, String>>,
+    mcp_server: web::Data<Arc<McpServer>>,
+) -> HttpResponse {
+    let server_name = path.into_inner();
+    
+    info!("🔄 Received OAuth discovery callback for server: {}", server_name);
+    
+    // Extract query parameters
+    let authorization_code = query.get("code").cloned();
+    let state = query.get("state").cloned();
+    let error = query.get("error").cloned();
+    let error_description = query.get("error_description").cloned();
+    
+    // Handle the callback if external integration is available
+    if let Some(external_integration) = &mcp_server.external_integration {
+        let integration = external_integration.read().await;
+        
+        if let Some(oauth_manager) = integration.get_oauth_discovery_manager() {
+            match oauth_manager.handle_oauth_callback(
+                &server_name,
+                authorization_code,
+                state,
+                error.clone(),
+                error_description.clone(),
+            ).await {
+                Ok(()) => {
+                    // Success - return a user-friendly page
+                    let success_html = format!(r#"
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <title>OAuth Authorization Successful</title>
+                            <style>
+                                body {{ font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }}
+                                .success {{ color: green; }}
+                                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                            </style>
+                        </head>
+                        <body>
+                            <div class="container">
+                                <h1 class="success">✅ Authorization Successful</h1>
+                                <p>You have successfully authorized MagicTunnel to access <strong>{}</strong>.</p>
+                                <p>You can now close this browser window and return to MagicTunnel.</p>
+                                <script>
+                                    // Auto-close after 3 seconds
+                                    setTimeout(() => {{
+                                        window.close();
+                                    }}, 3000);
+                                </script>
+                            </div>
+                        </body>
+                        </html>
+                    "#, server_name);
+                    
+                    return HttpResponse::Ok()
+                        .content_type("text/html")
+                        .body(success_html);
+                }
+                Err(e) => {
+                    error!("Failed to handle OAuth callback for server {}: {}", server_name, e);
+                    
+                    let error_html = format!(r#"
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <title>OAuth Authorization Failed</title>
+                            <style>
+                                body {{ font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }}
+                                .error {{ color: red; }}
+                                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                            </style>
+                        </head>
+                        <body>
+                            <div class="container">
+                                <h1 class="error">❌ Authorization Failed</h1>
+                                <p>Failed to complete OAuth authorization for <strong>{}</strong>.</p>
+                                <p>Error: {}</p>
+                                <p>Please try again or contact support if the problem persists.</p>
+                            </div>
+                        </body>
+                        </html>
+                    "#, server_name, e);
+                    
+                    return HttpResponse::BadRequest()
+                        .content_type("text/html")
+                        .body(error_html);
+                }
+            }
+        } else {
+            warn!("OAuth discovery manager not available for callback: {}", server_name);
+        }
+    } else {
+        warn!("External integration not available for OAuth callback: {}", server_name);
+    }
+    
+    // Fallback error response
+    let error_html = r#"
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>OAuth Authorization Error</title>
+            <style>
+                body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+                .error { color: red; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1 class="error">❌ Authorization Error</h1>
+                <p>OAuth discovery service is not available.</p>
+                <p>Please check your MagicTunnel configuration and try again.</p>
+            </div>
+        </body>
+        </html>
+    "#;
+    
+    HttpResponse::InternalServerError()
+        .content_type("text/html")
+        .body(error_html)
 }

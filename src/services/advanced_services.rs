@@ -164,15 +164,23 @@ impl AdvancedServices {
                 .and_then(|s| s.allowlist.as_ref())
                 .map(|c| c.enabled)
                 .unwrap_or(false) {
-                match crate::security::AllowlistService::new(
-                    config.security.as_ref().unwrap().allowlist.as_ref().unwrap().clone()
+                let allowlist_config = config.security.as_ref().unwrap().allowlist.as_ref().unwrap();
+                
+                // Use enhanced data file approach (data_file is now mandatory)
+                let data_file_path = &allowlist_config.data_file;
+                    
+                match crate::security::AllowlistService::with_data_file(
+                    allowlist_config.clone(),
+                    data_file_path.clone()
                 ) {
                     Ok(service) => {
-                        info!("✅ Allowlist service initialized successfully");
-                        Some(Arc::new(service))
+                        let arc_service = Arc::new(service);
+                        let instance_id = format!("{:p}", arc_service.as_ref());
+                        info!("✅ Allowlist service initialized successfully with data file: {} - Instance ID: {}", data_file_path, instance_id);
+                        Some(arc_service)
                     },
                     Err(e) => {
-                        error!("❌ Failed to initialize allowlist service: {}", e);
+                        error!("❌ Failed to initialize allowlist service with data file '{}': {}", data_file_path, e);
                         None
                     }
                 }

@@ -6,6 +6,7 @@ mod config;
 mod environment;
 mod resolver;
 mod validator;
+pub mod oauth_discovery;
 
 // Re-export the main configuration types
 pub use config::{
@@ -26,6 +27,13 @@ pub use config::{
     HttpAuthType, SseAuthType, WebSocketAuthType,
     // MCP 2025-06-18 feature types
     SamplingConfig, ToolEnhancementConfig, ElicitationConfig, LlmConfig, SamplingElicitationStrategy
+};
+
+// Re-export OAuth discovery configuration types
+pub use oauth_discovery::{
+    OAuthMcpServerConfig, OAuthMcpServersConfig, DynamicRegistrationConfig, 
+    StaticOAuthCredentials, McpTransportConfig, ConnectionConfig,
+    KeepAliveConfig, TokenRefreshConfig
 };
 
 // Re-export environment and resolver types

@@ -1,6 +1,6 @@
 [package]
 name = "magictunnel"
-version = "0.3.16"
+version = "0.3.17"
 edition = "2021"
 authors = ["gouravd"]
 description = "MagicTunnel - Fastest way to make LLMs talk to your internal systems and external ones"
@@ -129,6 +129,7 @@ rand = "0.8"  # Random number generation for encryption
 # Database support
 tokio-postgres = "0.7"
 rusqlite = { version = "0.30", features = ["bundled"] }
+webbrowser = "1.0.5"
 
 [dev-dependencies]
 # Testing

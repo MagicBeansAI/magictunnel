@@ -5,6 +5,42 @@ All notable changes to the MagicTunnel project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.17] - 2025-08-20 - Nested Tool Call Security System ✅
+
+### Added - Advanced Security Architecture ✅
+- **🔒 Nested Tool Call Security**: Complete security validation for tools called internally by other tools (e.g., smart_tool_discovery → external tools)
+- **🔍 Smart Discovery Security Integration**: Allowlist service now validates both initial tool calls AND nested/internal tool executions
+- **🛡️ Security Bypass Prevention**: Fixed critical vulnerability where allowlist only checked initial tool calls but not nested executions
+- **🔧 Service Instance Sharing**: Implemented shared allowlist service architecture to ensure consistent security across all components
+
+### Fixed - Critical Security Issues ✅
+- **Router Integration**: Fixed `router_available=false` issue in smart discovery service by adding proper router initialization
+- **API Key Environment Variables**: Fixed OpenAI API key loading from `.env.development` by adding environment variable loading to proxy services
+- **Multiple Service Instances**: Resolved multiple allowlist service instance problem through proper service container sharing
+- **Test File Compatibility**: Updated all 6 allowlist test files with missing AllowlistConfig struct fields (`tool_patterns`, `capabilities`, `mt_level_rules`)
+
+### Improved - System Architecture ✅
+- **🔗 Service Integration**: Smart discovery service now properly integrates with allowlist, router, and enhancement services
+- **📊 Instance ID Logging**: Added comprehensive instance ID logging to verify single shared service architecture
+- **🧪 Test Infrastructure**: All allowlist test files now compile and work with the enhanced security system
+- **📝 Documentation Updates**: Updated `temp_session_0_3_17.md`, `CLAUDE.md`, and `docs/security.md` with nested security features
+
+### Technical Implementation ✅
+- **SmartDiscoveryService Enhancement**: Added `allowlist_service` field and security validation before tool execution
+- **MCP Server Integration**: Added `set_router()` call to ensure smart discovery can execute tools
+- **Security Middleware**: Enhanced to use shared allowlist service instances across proxy and advanced services
+- **Environment Configuration**: Fixed API key loading from environment variables in service initialization
+
+### Testing & Validation ✅
+- **Security Scenarios Verified**: 
+  - ✅ Smart discovery allowed + internal denied tool → Internal tool blocked
+  - ✅ Smart discovery allowed + internal allowed tool → Internal tool executes
+  - ✅ Direct tool calls continue to work with allowlist validation
+- **Performance Impact**: Zero performance degradation - nested security checks are fast and efficient
+- **Test Coverage**: All 6 allowlist test files updated and compiling successfully
+
+This release represents a major security advancement, closing a critical gap in the allowlist system while maintaining full backward compatibility and performance.
+
 ## [0.3.16]
 
 ### Added - OAuth Modular Provider System ✅

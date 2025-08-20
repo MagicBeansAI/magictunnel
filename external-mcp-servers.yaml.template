@@ -1,380 +1,100 @@
 # External MCP Servers Configuration Template
-# This file uses Claude Desktop's exact configuration format for maximum compatibility.
-# Copy this to external-mcp-servers.yaml and customize for your needs.
-#
-# IMPORTANT: External MCP servers do NOT support 'enabled' or 'hidden' flags.
-# To enable/disable a server: include/exclude it from this configuration file.
-# The 'enabled' and 'hidden' flags only apply to individual tools in capability files.
+# Copy this to external-mcp-servers.yaml and customize for your needs
 
-# =============================================================================
-# MCP SERVERS CONFIGURATION (Claude Desktop Format)
-# =============================================================================
-# This section defines MCP servers that Magic Tunnel will spawn and manage.
-# Each server entry follows Claude Desktop's exact configuration format.
-#
-# Format:
-# mcpServers:
-#   server-name:
-#     command: "command-to-run"           # Required: Command to execute
-#     args: ["arg1", "arg2", ...]         # Required: Arguments array
-#     env:                                # Optional: Environment variables
-#       VAR_NAME: "value"
-#     cwd: "/working/directory"           # Optional: Working directory
-#
-# =============================================================================
-
+# Process-based MCP Servers
 mcpServers:
-  # ==========================================================================
-  # FILESYSTEM OPERATIONS
-  # ==========================================================================
+  # Filesystem operations
+  # filesystem:
+  #   command: "npx"
+  #   args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp", "/Users"]
+  #   env:
+  #     PATH: "${PATH}"
   
-  # Filesystem server - File and directory operations
-  # Provides: read_file, write_file, create_directory, list_directory, etc.
-  filesystem:
-    command: "npx"
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp", "/Users"]
-    env:
-      PATH: "${PATH}"
+  # Git operations
+  # git:
+  #   command: "uv"
+  #   args: ["run", "mcp-server-git", "--repository", "."]
+  #   env:
+  #     PATH: "${PATH}"
   
-  # ==========================================================================
-  # VERSION CONTROL
-  # ==========================================================================
+  # Database operations
+  # sqlite:
+  #   command: "npx"
+  #   args: ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "./data.db"]
+  #   env:
+  #     PATH: "${PATH}"
   
-  # Git server - Git repository operations
-  # Provides: git_status, git_commit, git_push, git_log, etc.
-  git:
-    command: "uv"
-    args: ["run", "mcp-server-git", "--repository", "."]
-    env:
-      PATH: "${PATH}"
+  # Web search
+  # brave-search:
+  #   command: "npx"
+  #   args: ["-y", "@modelcontextprotocol/server-brave-search"]
+  #   env:
+  #     PATH: "${PATH}"
+  #     BRAVE_API_KEY: "${BRAVE_API_KEY}"
   
-  # ==========================================================================
-  # DATABASE OPERATIONS
-  # ==========================================================================
-  
-  # SQLite server - SQLite database operations
-  # Provides: query, execute, create_table, etc.
-  sqlite:
-    command: "npx"
-    args: ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "./data.db"]
-    env:
-      PATH: "${PATH}"
-  
-  # PostgreSQL server (containerized)
-  # Provides: query, execute, schema operations, etc.
-  postgres:
-    command: "docker"
-    args: ["run", "--rm", "-i", "--network", "host", "mcp-server-postgres:latest"]
-    env:
-      DATABASE_URL: "postgresql://user:password@localhost:5432/dbname"
-  
-  # ==========================================================================
-  # WEB SERVICES & APIs
-  # ==========================================================================
-  
-  # Brave Search server - Web search capabilities
-  # Provides: web_search, news_search, etc.
-  # Requires: BRAVE_API_KEY environment variable
-  brave-search:
-    command: "npx"
-    args: ["-y", "@modelcontextprotocol/server-brave-search"]
-    env:
-      PATH: "${PATH}"
-      BRAVE_API_KEY: "your-brave-api-key-here"  # Replace with actual API key
-  
-  # GitHub server - GitHub repository and issue operations
-  # Provides: create_issue, list_repos, get_file, etc.
-  # Requires: GITHUB_PERSONAL_ACCESS_TOKEN environment variable
-  github:
-    command: "npx"
-    args: ["-y", "@modelcontextprotocol/server-github"]
-    env:
-      PATH: "${PATH}"
-      GITHUB_PERSONAL_ACCESS_TOKEN: "your-github-token-here"  # Replace with actual token
-  
-  # ==========================================================================
-  # COMMUNICATION & COLLABORATION
-  # ==========================================================================
-  
-  # Slack server - Slack workspace operations
-  # Provides: send_message, list_channels, get_user_info, etc.
-  # Requires: SLACK_BOT_TOKEN environment variable
-  slack:
-    command: "npx"
-    args: ["-y", "@modelcontextprotocol/server-slack"]
-    env:
-      PATH: "${PATH}"
-      SLACK_BOT_TOKEN: "your-slack-bot-token-here"  # Replace with actual token
-  
-  # ==========================================================================
-  # CLOUD STORAGE
-  # ==========================================================================
-  
-  # Google Drive server - Google Drive file operations
-  # Provides: list_files, download_file, upload_file, etc.
-  # Requires: GOOGLE_APPLICATION_CREDENTIALS environment variable
-  gdrive:
-    command: "npx"
-    args: ["-y", "@modelcontextprotocol/server-gdrive"]
-    env:
-      PATH: "${PATH}"
-      GOOGLE_APPLICATION_CREDENTIALS: "/path/to/credentials.json"  # Replace with actual path
-  
-  # ==========================================================================
-  # CUSTOM SERVERS
-  # ==========================================================================
-  
-  # Custom Python MCP server example
-  # Replace with your own custom server implementation
-  custom-python:
-    command: "uv"
-    args: ["run", "python", "-m", "my_custom_mcp_server"]
-    cwd: "/path/to/custom/server"  # Replace with actual path
-    env:
-      PATH: "${PATH}"
-      PYTHONPATH: "/path/to/custom/server"
-      # Add any custom environment variables your server needs
-  
-  # Custom Node.js MCP server example
-  # Replace with your own custom server implementation
-  custom-node:
-    command: "node"
-    args: ["dist/index.js"]
-    cwd: "/path/to/custom/node/server"  # Replace with actual path
-    env:
-      PATH: "${PATH}"
-      NODE_ENV: "production"
-      # Add any custom environment variables your server needs
+  # GitHub integration
+  # github:
+  #   command: "npx"
+  #   args: ["-y", "@modelcontextprotocol/server-github"]
+  #   env:
+  #     PATH: "${PATH}"
+  #     GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_TOKEN}"
 
-# =============================================================================
-# NETWORK MCP SERVICES CONFIGURATION
-# =============================================================================
-# This section defines network-based MCP services that Magic Tunnel will connect to.
-# These services don't require process spawning - they're remote HTTP/SSE/WebSocket endpoints.
-#
-# Format for HTTP Services:
-# httpServices:
-#   service-name:
-#     enabled: true/false                 # Required: Whether service is enabled
-#     base_url: "https://api.example.com" # Required: Service endpoint URL
-#     auth:                               # Required: Authentication configuration
-#       type: "none|bearer|api_key|basic" # Required: Authentication type
-#       # ... auth-specific fields
-#     timeout: 30                         # Optional: Request timeout (seconds)
-#     retry_attempts: 3                   # Optional: Max retry attempts
-#     retry_delay_ms: 1000               # Optional: Delay between retries
-#     max_idle_connections: 10            # Optional: Connection pool size
-#     idle_timeout: 60                    # Optional: Connection idle timeout
-#
-# Format for SSE Services:
-# sseServices:
-#   service-name:
-#     enabled: true/false                 # Required: Whether service is enabled
-#     base_url: "https://stream.example.com" # Required: SSE endpoint URL
-#     auth: { ... }                       # Required: Authentication (same as HTTP)
-#     single_session: true/false          # Optional: Single session mode
-#     connection_timeout: 30              # Optional: Connection timeout
-#     request_timeout: 60                 # Optional: Request timeout
-#     max_queue_size: 100                 # Optional: Queue size (single session)
-#     heartbeat_interval: 30              # Optional: Heartbeat interval
-#     reconnect: true/false               # Optional: Enable reconnection
-#     max_reconnect_attempts: 10          # Optional: Max reconnect attempts
-#     reconnect_delay_ms: 1000           # Optional: Reconnect delay
-#     max_reconnect_delay_ms: 30000      # Optional: Max reconnect delay
-# =============================================================================
+# OAuth-Enabled MCP Servers
+# Automatic RFC 8414/9728 discovery - no manual scope configuration needed
+oauthMcpServers:
+  # Example: Network monitoring service with OAuth
+  # globalping:
+  #   enabled: true
+  #   base_url: "https://mcp.globalping.dev/sse"  # MCP connection endpoint
+  #   oauth_termination_here: true  # MagicTunnel handles OAuth browser flow
+  #   enable_dynamic_registration:
+  #     enabled: true
+  #     oauth_discovery_base_url: "https://mcp.globalping.dev"  # OAuth discovery base (optional - derived from base_url if not specified)
+  #     client_name: "MagicTunnel-{{hostname}}"
+  #     redirect_uri_template: "http://localhost:{{port}}/auth/callback/{{server_name}}"
+  #     application_type: "web"
+  #     client_uri: "https://github.com/MagicBeansAI/magictunnel"
+  
+  # Example: Production server with static credentials
+  # production_mcp:
+  #   enabled: false
+  #   base_url: "https://mcp.production.com"
+  #   oauth_termination_here: false  # Forward OAuth to client
+  #   enable_dynamic_registration:
+  #     enabled: false  # Use static credentials instead
+  #     # oauth_discovery_base_url not needed when using static credentials
+  #   static_credentials:
+  #     client_id: "${PROD_MCP_CLIENT_ID}"
+  #     client_secret: "${PROD_MCP_CLIENT_SECRET}"
+  #     authorization_endpoint: "https://auth.prod.com/oauth/authorize"
+  #     token_endpoint: "https://auth.prod.com/oauth/token"
+  #     scopes: ["read", "write"]
 
-# HTTP MCP Services - RESTful MCP endpoints
+# Network MCP Services
 httpServices:
-  # ==========================================================================
-  # PRODUCTION API SERVICES
-  # ==========================================================================
-  
-  # Production HTTP MCP API example
-  # Provides: RESTful access to MCP tools via HTTP requests
-  # production_api:
-  #   enabled: false  # Set to true to enable
-  #   base_url: "https://api.production.com/mcp"
-  #   auth:
-  #     type: "bearer"
-  #     token: "${PRODUCTION_MCP_TOKEN}"  # Use environment variable
-  #   timeout: 45
-  #   retry_attempts: 5
-  #   retry_delay_ms: 2000
-  #   max_idle_connections: 20
-  #   idle_timeout: 90
-
-  # API Key authenticated service example
-  # analytics_api:
+  # Example HTTP API service
+  # api_service:
   #   enabled: false
-  #   base_url: "https://analytics.example.com/mcp"
+  #   base_url: "https://api.example.com/mcp"
   #   auth:
-  #     type: "api_key"
-  #     header: "X-API-Key"
-  #     key: "${ANALYTICS_API_KEY}"
+  #     type: "bearer"  # none|bearer|api_key|basic
+  #     token: "${API_TOKEN}"
   #   timeout: 30
-  #   retry_attempts: 3
-  #   retry_delay_ms: 1000
 
-  # Basic authentication example
-  # legacy_api:
-  #   enabled: false
-  #   base_url: "https://legacy.internal.com/mcp"
-  #   auth:
-  #     type: "basic"
-  #     username: "${LEGACY_USERNAME}"
-  #     password: "${LEGACY_PASSWORD}"
-  #   timeout: 60
-  #   retry_attempts: 2
-
-# SSE MCP Services - Server-Sent Events streaming endpoints
 sseServices:
-  # ==========================================================================
-  # REAL-TIME STREAMING SERVICES
-  # ==========================================================================
-  
-  # Real-time analytics streaming service
-  # Provides: Live data streams, real-time notifications, event processing
-  # realtime_analytics:
-  #   enabled: false  # Set to true to enable
-  #   base_url: "https://stream.analytics.com/mcp/events"
+  # Example SSE streaming service
+  # stream_service:
+  #   enabled: false
+  #   base_url: "https://stream.example.com/mcp/events"
   #   auth:
   #     type: "bearer"
-  #     token: "${ANALYTICS_STREAM_TOKEN}"
-  #   single_session: false  # Multi-session capable
-  #   connection_timeout: 15
-  #   request_timeout: 45
-  #   max_queue_size: 10     # Small queue for multi-session
-  #   heartbeat_interval: 20
-  #   reconnect: true
-  #   max_reconnect_attempts: 5
-  #   reconnect_delay_ms: 2000
-  #   max_reconnect_delay_ms: 60000
+  #     token: "${STREAM_TOKEN}"
+  #   single_session: false
 
-  # Single-session streaming service example
-  # monitoring_stream:
-  #   enabled: false
-  #   base_url: "https://monitor.example.com/mcp/stream"
-  #   auth:
-  #     type: "api_key"
-  #     header: "X-Monitor-Key"
-  #     key: "${MONITORING_API_KEY}"
-  #   single_session: true   # Single session - requests are queued
-  #   connection_timeout: 30
-  #   request_timeout: 120
-  #   max_queue_size: 200    # Large queue for high volume
-  #   heartbeat_interval: 30
-  #   reconnect: true
-  #   max_reconnect_attempts: 0  # Unlimited reconnection attempts
-  #   reconnect_delay_ms: 1000
-  #   max_reconnect_delay_ms: 30000
+websocketServices: {}  # Future implementation
 
-  # Query parameter authentication example
-  # public_stream:
-  #   enabled: false
-  #   base_url: "https://public.stream.com/mcp/events"
-  #   auth:
-  #     type: "query_param"
-  #     param: "token"
-  #     value: "${PUBLIC_STREAM_TOKEN}"
-  #   single_session: true
-  #   connection_timeout: 30
-  #   request_timeout: 60
-  #   heartbeat_interval: 45
-
-# WebSocket MCP Services - Full duplex WebSocket endpoints (Future)
-websocketServices:
-  # ==========================================================================
-  # WEBSOCKET SERVICES (NOT YET IMPLEMENTED)
-  # ==========================================================================
-  
-  # WebSocket service example - placeholder for future implementation
-  # realtime_collaboration:
-  #   enabled: false
-  #   base_url: "wss://collab.example.com/mcp"
-  #   auth:
-  #     type: "bearer"
-  #     token: "${COLLAB_WS_TOKEN}"
-  #   ping_interval: 30
-  #   pong_timeout: 10
-  #   reconnect: true
-  #   max_reconnect_attempts: 10
-
-# =============================================================================
-# CONFIGURATION NOTES
-# =============================================================================
-#
-# 1. INSTALLATION REQUIREMENTS:
-#    PROCESS-BASED SERVERS:
-#    - Node.js and npm/npx for @modelcontextprotocol/server-* packages
-#    - Python and uv for Python-based MCP servers
-#    - Docker for containerized servers
-#
-#    NETWORK-BASED SERVICES:
-#    - No local installation required (services are remote)
-#    - Valid network connectivity to service endpoints
-#    - Proper authentication credentials for each service
-#
-# 2. ENVIRONMENT VARIABLES:
-#    - Replace placeholder values (your-api-key-here, etc.) with actual credentials
-#    - Use ${VAR_NAME} syntax to reference system environment variables
-#    - Store sensitive credentials in your system environment, not in this file
-#    - Network services support the same environment variable substitution
-#
-# 3. PATHS AND URLS:
-#    PROCESS-BASED: Use absolute paths for reliability
-#    - Adjust paths to match your system configuration
-#    - Ensure working directories (cwd) exist and are accessible
-#
-#    NETWORK-BASED: Use complete URLs with proper protocols
-#    - HTTP services: https://api.example.com/mcp
-#    - SSE services: https://stream.example.com/mcp/events
-#    - WebSocket services: wss://ws.example.com/mcp (future)
-#
-# 4. MAGIC TUNNEL BEHAVIOR:
-#    PROCESS-BASED SERVERS:
-#    - Automatically spawns configured server processes
-#    - Manages process lifecycle and stdio communication
-#
-#    NETWORK-BASED SERVICES:
-#    - Connects to remote HTTP/SSE/WebSocket endpoints
-#    - Manages connection pooling and reconnection logic
-#    - Supports authentication and health monitoring
-#
-#    UNIFIED BEHAVIOR:
-#    - Performs MCP handshake with all servers/services
-#    - Discovers available tools, resources, and prompts
-#    - Generates capability files in ./capabilities/external-mcp/
-#    - Integrates all tools into Smart Tool Discovery
-#    - Supports hot-reload when configuration changes
-#
-# 5. AUTHENTICATION TYPES:
-#    HTTP SERVICES: none, bearer, api_key, basic
-#    SSE SERVICES: none, bearer, api_key, query_param
-#    - Bearer: Authorization: Bearer <token>
-#    - API Key: Custom-Header: <key>
-#    - Basic: Authorization: Basic <base64(user:pass)>
-#    - Query Param: ?token=<value> (SSE only)
-#
-# 6. TROUBLESHOOTING:
-#    PROCESS-BASED:
-#    - Check Magic Tunnel logs for spawn/connection errors
-#    - Verify commands can be run manually from command line
-#    - Ensure all required dependencies are installed
-#    - Validate environment variables are set correctly
-#
-#    NETWORK-BASED:
-#    - Check network connectivity to service endpoints
-#    - Verify authentication credentials are valid
-#    - Test endpoints manually with curl/HTTP client
-#    - Monitor service logs for connection issues
-#    - Check firewall and proxy settings
-#
-# 7. CONFIGURATION EXAMPLES:
-#    See the examples above for common patterns:
-#    - Production APIs with Bearer authentication
-#    - Analytics services with API key authentication  
-#    - Legacy systems with Basic authentication
-#    - Real-time streams with SSE and query parameters
-#    - Single vs multi-session service configurations
-#
-# =============================================================================
+# Configuration Notes:
+# - Use ${VAR_NAME} for environment variables
+# - OAuth servers use automatic RFC discovery
+# - All tools integrate into Smart Tool Discovery

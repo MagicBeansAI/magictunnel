@@ -1,5 +1,49 @@
 {
   "tool_metrics": {
+    "ping_globalping": {
+      "tool_name": "ping_globalping",
+      "category": "unknown",
+      "last_updated": "2025-07-30T07:35:12.135911Z",
+      "total_executions": 1,
+      "successful_executions": 1,
+      "failed_executions": 0,
+      "timeout_count": 0,
+      "success_rate": 1.0,
+      "avg_execution_time_ms": 60001.0,
+      "median_execution_time_ms": 60001.0,
+      "p95_execution_time_ms": 60001.0,
+      "recent_execution_times": [
+        60001
+      ],
+      "top_30_appearances": 3,
+      "top_10_appearances": 3,
+      "top_3_appearances": 3,
+      "avg_confidence_score": 0.3505784025267949,
+      "avg_discovery_position": 1.6666666666666667,
+      "recent_confidence_scores": [
+        0.8393542551994324,
+        0.1061904761904762,
+        0.1061904761904762
+      ],
+      "primary_execution_source": "smart_discovery",
+      "execution_sources": {
+        "smart_discovery": 1
+      },
+      "error_types": {},
+      "usage_by_hour": {
+        "7": 1
+      },
+      "usage_by_day": {
+        "3": 1
+      },
+      "first_execution": "2025-07-30T07:34:12.134872Z",
+      "last_execution": "2025-07-30T07:34:12.134872Z",
+      "last_successful_execution": "2025-07-30T07:34:12.134872Z",
+      "avg_output_size": 0.0,
+      "output_types": {
+        "json": 1
+      }
+    },
     "test_file_tool": {
       "tool_name": "test_file_tool",
       "category": "filesystem",
@@ -56,6 +100,340 @@
       "avg_output_size": 1024.0,
       "output_types": {
         "text": 6
+      }
+    },
+    "read_text_file_filesystem": {
+      "tool_name": "read_text_file_filesystem",
+      "category": "unknown",
+      "last_updated": "2025-08-20T07:47:03.409674Z",
+      "total_executions": 5,
+      "successful_executions": 5,
+      "failed_executions": 0,
+      "timeout_count": 0,
+      "success_rate": 1.0,
+      "avg_execution_time_ms": 1.4,
+      "median_execution_time_ms": 1.0,
+      "p95_execution_time_ms": 2.0,
+      "recent_execution_times": [
+        1,
+        1,
+        2,
+        2,
+        1
+      ],
+      "top_30_appearances": 26,
+      "top_10_appearances": 26,
+      "top_3_appearances": 14,
+      "avg_confidence_score": 0.2604391391552413,
+      "avg_discovery_position": 3.8076923076923075,
+      "recent_confidence_scores": [
+        0.8166236531734468,
+        0.9448912620544434,
+        0.9448912620544434,
+        0.22540963888168336,
+        0.22540963888168336,
+        0.22540963888168336,
+        0.05,
+        0.05,
+        0.9448912620544434,
+        0.9448912620544434,
+        0.056999999999999995,
+        0.114,
+        0.056999999999999995,
+        0.056999999999999995,
+        0.056999999999999995,
+        0.056999999999999995,
+        0.065,
+        0.09,
+        0.09,
+        0.15,
+        0.15,
+        0.15,
+        0.15,
+        0.0525,
+        0.0525,
+        0.049999999999999996
+      ],
+      "primary_execution_source": "smart_discovery",
+      "execution_sources": {
+        "smart_discovery": 5
+      },
+      "error_types": {},
+      "usage_by_hour": {
+        "5": 2,
+        "4": 1,
+        "7": 2
+      },
+      "usage_by_day": {
+        "3": 5
+      },
+      "first_execution": "2025-08-20T04:45:12.829354Z",
+      "last_execution": "2025-08-20T07:47:03.408457Z",
+      "last_successful_execution": "2025-08-20T07:47:03.408457Z",
+      "avg_output_size": 3049.8,
+      "output_types": {
+        "json": 5
+      }
+    },
+    "so_today_visit_performance": {
+      "tool_name": "so_today_visit_performance",
+      "category": "unknown",
+      "last_updated": "2025-07-31T05:48:48.800904Z",
+      "total_executions": 1,
+      "successful_executions": 1,
+      "failed_executions": 0,
+      "timeout_count": 0,
+      "success_rate": 1.0,
+      "avg_execution_time_ms": 8263.0,
+      "median_execution_time_ms": 8263.0,
+      "p95_execution_time_ms": 8263.0,
+      "recent_execution_times": [
+        8263
+      ],
+      "top_30_appearances": 1,
+      "top_10_appearances": 1,
+      "top_3_appearances": 1,
+      "avg_confidence_score": 0.27464618682861325,
+      "avg_discovery_position": 1.0,
+      "recent_confidence_scores": [
+        0.27464618682861325
+      ],
+      "primary_execution_source": "smart_discovery",
+      "execution_sources": {
+        "smart_discovery": 1
+      },
+      "error_types": {},
+      "usage_by_hour": {
+        "5": 1
+      },
+      "usage_by_day": {
+        "4": 1
+      },
+      "first_execution": "2025-07-31T05:48:40.537310Z",
+      "last_execution": "2025-07-31T05:48:40.537310Z",
+      "last_successful_execution": "2025-07-31T05:48:40.537310Z",
+      "avg_output_size": 34701.0,
+      "output_types": {
+        "json": 1
+      }
+    },
+    "calc_tool": {
+      "tool_name": "calc_tool",
+      "category": "utilities",
+      "last_updated": "2025-07-30T07:51:40.441878Z",
+      "total_executions": 6,
+      "successful_executions": 6,
+      "failed_executions": 0,
+      "timeout_count": 0,
+      "success_rate": 1.0,
+      "avg_execution_time_ms": 55.0,
+      "median_execution_time_ms": 55.0,
+      "p95_execution_time_ms": 60.0,
+      "recent_execution_times": [
+        50,
+        55,
+        60,
+        50,
+        55,
+        60
+      ],
+      "top_30_appearances": 6,
+      "top_10_appearances": 6,
+      "top_3_appearances": 0,
+      "avg_confidence_score": 0.75,
+      "avg_discovery_position": 6.0,
+      "recent_confidence_scores": [
+        0.7,
+        0.75,
+        0.7999999999999999,
+        0.7,
+        0.75,
+        0.7999999999999999
+      ],
+      "primary_execution_source": "api",
+      "execution_sources": {
+        "api": 6
+      },
+      "error_types": {},
+      "usage_by_hour": {
+        "7": 6
+      },
+      "usage_by_day": {
+        "3": 6
+      },
+      "first_execution": "2025-07-30T07:51:40.355855Z",
+      "last_execution": "2025-07-30T07:51:40.441872Z",
+      "last_successful_execution": "2025-07-30T07:51:40.441872Z",
+      "avg_output_size": 64.0,
+      "output_types": {
+        "json": 6
+      }
+    },
+    "list_directory_filesystem": {
+      "tool_name": "list_directory_filesystem",
+      "category": "unknown",
+      "last_updated": "2025-08-20T08:26:04.494221Z",
+      "total_executions": 1,
+      "successful_executions": 1,
+      "failed_executions": 0,
+      "timeout_count": 0,
+      "success_rate": 1.0,
+      "avg_execution_time_ms": 1.0,
+      "median_execution_time_ms": 1.0,
+      "p95_execution_time_ms": 1.0,
+      "recent_execution_times": [
+        1
+      ],
+      "top_30_appearances": 1,
+      "top_10_appearances": 1,
+      "top_3_appearances": 1,
+      "avg_confidence_score": 0.1425,
+      "avg_discovery_position": 1.0,
+      "recent_confidence_scores": [
+        0.1425
+      ],
+      "primary_execution_source": "smart_discovery",
+      "execution_sources": {
+        "smart_discovery": 1
+      },
+      "error_types": {},
+      "usage_by_hour": {
+        "8": 1
+      },
+      "usage_by_day": {
+        "3": 1
+      },
+      "first_execution": "2025-08-20T08:26:04.492656Z",
+      "last_execution": "2025-08-20T08:26:04.492656Z",
+      "last_successful_execution": "2025-08-20T08:26:04.492656Z",
+      "avg_output_size": 1465.0,
+      "output_types": {
+        "json": 1
+      }
+    },
+    "file_tool": {
+      "tool_name": "file_tool",
+      "category": "filesystem",
+      "last_updated": "2025-07-30T07:51:40.437821Z",
+      "total_executions": 16,
+      "successful_executions": 12,
+      "failed_executions": 4,
+      "timeout_count": 0,
+      "success_rate": 0.75,
+      "avg_execution_time_ms": 1175.0,
+      "median_execution_time_ms": 1175.0,
+      "p95_execution_time_ms": 1350.0,
+      "recent_execution_times": [
+        1000,
+        1050,
+        1100,
+        1150,
+        1200,
+        1250,
+        1300,
+        1350,
+        1000,
+        1050,
+        1100,
+        1150,
+        1200,
+        1250,
+        1300,
+        1350
+      ],
+      "top_30_appearances": 16,
+      "top_10_appearances": 16,
+      "top_3_appearances": 12,
+      "avg_confidence_score": 0.73,
+      "avg_discovery_position": 2.875,
+      "recent_confidence_scores": [
+        0.8,
+        0.78,
+        0.76,
+        0.74,
+        0.7200000000000001,
+        0.7000000000000001,
+        0.68,
+        0.66,
+        0.8,
+        0.78,
+        0.76,
+        0.74,
+        0.7200000000000001,
+        0.7000000000000001,
+        0.68,
+        0.66
+      ],
+      "primary_execution_source": "direct",
+      "execution_sources": {
+        "direct": 16
+      },
+      "error_types": {
+        "FileNotFound": 4
+      },
+      "usage_by_hour": {
+        "7": 16
+      },
+      "usage_by_day": {
+        "3": 16
+      },
+      "first_execution": "2025-07-30T07:51:40.350429Z",
+      "last_execution": "2025-07-30T07:51:40.437815Z",
+      "last_successful_execution": "2025-07-30T07:51:40.435140Z",
+      "avg_output_size": 1024.0,
+      "output_types": {
+        "text": 12
+      }
+    },
+    "list_allowed_directories_filesystem": {
+      "tool_name": "list_allowed_directories_filesystem",
+      "category": "unknown",
+      "last_updated": "2025-08-20T02:28:38.476173Z",
+      "total_executions": 1,
+      "successful_executions": 1,
+      "failed_executions": 0,
+      "timeout_count": 0,
+      "success_rate": 1.0,
+      "avg_execution_time_ms": 1.0,
+      "median_execution_time_ms": 1.0,
+      "p95_execution_time_ms": 1.0,
+      "recent_execution_times": [
+        1
+      ],
+      "top_30_appearances": 10,
+      "top_10_appearances": 10,
+      "top_3_appearances": 3,
+      "avg_confidence_score": 0.20356513781547547,
+      "avg_discovery_position": 4.1,
+      "recent_confidence_scores": [
+        0.6668256890773774,
+        0.115,
+        0.6943256890773772,
+        0.056999999999999995,
+        0.115,
+        0.09,
+        0.065,
+        0.09,
+        0.0525,
+        0.09
+      ],
+      "primary_execution_source": "smart_discovery",
+      "execution_sources": {
+        "smart_discovery": 1
+      },
+      "error_types": {},
+      "usage_by_hour": {
+        "2": 1
+      },
+      "usage_by_day": {
+        "3": 1
+      },
+      "first_execution": "2025-08-20T02:28:38.475019Z",
+      "last_execution": "2025-08-20T02:28:38.475019Z",
+      "last_successful_execution": "2025-08-20T02:28:38.475019Z",
+      "avg_output_size": 81.0,
+      "output_types": {
+        "json": 1
       }
     },
     "ping_tool": {
@@ -160,198 +538,86 @@
         "json": 28
       }
     },
-    "file_tool": {
-      "tool_name": "file_tool",
-      "category": "filesystem",
-      "last_updated": "2025-07-30T07:51:40.437821Z",
-      "total_executions": 16,
-      "successful_executions": 12,
-      "failed_executions": 4,
-      "timeout_count": 0,
-      "success_rate": 0.75,
-      "avg_execution_time_ms": 1175.0,
-      "median_execution_time_ms": 1175.0,
-      "p95_execution_time_ms": 1350.0,
-      "recent_execution_times": [
-        1000,
-        1050,
-        1100,
-        1150,
-        1200,
-        1250,
-        1300,
-        1350,
-        1000,
-        1050,
-        1100,
-        1150,
-        1200,
-        1250,
-        1300,
-        1350
-      ],
-      "top_30_appearances": 16,
-      "top_10_appearances": 16,
-      "top_3_appearances": 12,
-      "avg_confidence_score": 0.73,
-      "avg_discovery_position": 2.875,
-      "recent_confidence_scores": [
-        0.8,
-        0.78,
-        0.76,
-        0.74,
-        0.7200000000000001,
-        0.7000000000000001,
-        0.68,
-        0.66,
-        0.8,
-        0.78,
-        0.76,
-        0.74,
-        0.7200000000000001,
-        0.7000000000000001,
-        0.68,
-        0.66
-      ],
-      "primary_execution_source": "direct",
-      "execution_sources": {
-        "direct": 16
-      },
-      "error_types": {
-        "FileNotFound": 4
-      },
-      "usage_by_hour": {
-        "7": 16
-      },
-      "usage_by_day": {
-        "3": 16
-      },
-      "first_execution": "2025-07-30T07:51:40.350429Z",
-      "last_execution": "2025-07-30T07:51:40.437815Z",
-      "last_successful_execution": "2025-07-30T07:51:40.435140Z",
-      "avg_output_size": 1024.0,
-      "output_types": {
-        "text": 12
-      }
-    },
-    "calc_tool": {
-      "tool_name": "calc_tool",
-      "category": "utilities",
-      "last_updated": "2025-07-30T07:51:40.441878Z",
-      "total_executions": 6,
-      "successful_executions": 6,
-      "failed_executions": 0,
-      "timeout_count": 0,
-      "success_rate": 1.0,
-      "avg_execution_time_ms": 55.0,
-      "median_execution_time_ms": 55.0,
-      "p95_execution_time_ms": 60.0,
-      "recent_execution_times": [
-        50,
-        55,
-        60,
-        50,
-        55,
-        60
-      ],
-      "top_30_appearances": 6,
-      "top_10_appearances": 6,
-      "top_3_appearances": 0,
-      "avg_confidence_score": 0.75,
-      "avg_discovery_position": 6.0,
-      "recent_confidence_scores": [
-        0.7,
-        0.75,
-        0.7999999999999999,
-        0.7,
-        0.75,
-        0.7999999999999999
-      ],
-      "primary_execution_source": "api",
-      "execution_sources": {
-        "api": 6
-      },
-      "error_types": {},
-      "usage_by_hour": {
-        "7": 6
-      },
-      "usage_by_day": {
-        "3": 6
-      },
-      "first_execution": "2025-07-30T07:51:40.355855Z",
-      "last_execution": "2025-07-30T07:51:40.441872Z",
-      "last_successful_execution": "2025-07-30T07:51:40.441872Z",
-      "avg_output_size": 64.0,
-      "output_types": {
-        "json": 6
-      }
-    },
-    "ping_globalping": {
-      "tool_name": "ping_globalping",
+    "enhanced_memory_stress_test": {
+      "tool_name": "enhanced_memory_stress_test",
       "category": "unknown",
-      "last_updated": "2025-07-30T07:35:12.135911Z",
+      "last_updated": "2025-08-20T02:29:04.093631Z",
       "total_executions": 1,
-      "successful_executions": 1,
-      "failed_executions": 0,
+      "successful_executions": 0,
+      "failed_executions": 1,
       "timeout_count": 0,
-      "success_rate": 1.0,
-      "avg_execution_time_ms": 60001.0,
-      "median_execution_time_ms": 60001.0,
-      "p95_execution_time_ms": 60001.0,
+      "success_rate": 0.0,
+      "avg_execution_time_ms": 0.0,
+      "median_execution_time_ms": 0.0,
+      "p95_execution_time_ms": 0.0,
       "recent_execution_times": [
-        60001
+        0
       ],
-      "top_30_appearances": 3,
-      "top_10_appearances": 3,
-      "top_3_appearances": 3,
-      "avg_confidence_score": 0.3505784025267949,
-      "avg_discovery_position": 1.6666666666666667,
+      "top_30_appearances": 5,
+      "top_10_appearances": 5,
+      "top_3_appearances": 1,
+      "avg_confidence_score": 0.20121820421971776,
+      "avg_discovery_position": 7.6,
       "recent_confidence_scores": [
-        0.8393542551994324,
-        0.1061904761904762,
-        0.1061904761904762
+        0.800643652677536,
+        0.065,
+        0.05147368421052632,
+        0.05147368421052632,
+        0.0375
       ],
       "primary_execution_source": "smart_discovery",
       "execution_sources": {
         "smart_discovery": 1
       },
-      "error_types": {},
+      "error_types": {
+        "execution_error": 1
+      },
       "usage_by_hour": {
-        "7": 1
+        "2": 1
       },
       "usage_by_day": {
         "3": 1
       },
-      "first_execution": "2025-07-30T07:34:12.134872Z",
-      "last_execution": "2025-07-30T07:34:12.134872Z",
-      "last_successful_execution": "2025-07-30T07:34:12.134872Z",
+      "first_execution": "2025-08-20T02:29:04.093600Z",
+      "last_execution": "2025-08-20T02:29:04.093600Z",
+      "last_successful_execution": null,
       "avg_output_size": 0.0,
-      "output_types": {
-        "json": 1
-      }
+      "output_types": {}
     },
-    "so_today_visit_performance": {
-      "tool_name": "so_today_visit_performance",
+    "write_file_filesystem": {
+      "tool_name": "write_file_filesystem",
       "category": "unknown",
-      "last_updated": "2025-07-31T05:48:48.800904Z",
+      "last_updated": "2025-08-20T04:40:57.115464Z",
       "total_executions": 1,
       "successful_executions": 1,
       "failed_executions": 0,
       "timeout_count": 0,
       "success_rate": 1.0,
-      "avg_execution_time_ms": 8263.0,
-      "median_execution_time_ms": 8263.0,
-      "p95_execution_time_ms": 8263.0,
+      "avg_execution_time_ms": 8.0,
+      "median_execution_time_ms": 8.0,
+      "p95_execution_time_ms": 8.0,
       "recent_execution_times": [
-        8263
+        8
       ],
-      "top_30_appearances": 1,
-      "top_10_appearances": 1,
-      "top_3_appearances": 1,
-      "avg_confidence_score": 0.27464618682861325,
-      "avg_discovery_position": 1.0,
+      "top_30_appearances": 13,
+      "top_10_appearances": 13,
+      "top_3_appearances": 3,
+      "avg_confidence_score": 0.21188841711557824,
+      "avg_discovery_position": 5.461538461538462,
       "recent_confidence_scores": [
-        0.27464618682861325
+        0.552,
+        0.056999999999999995,
+        0.2664703047275543,
+        0.1865217626094818,
+        0.3515217626094818,
+        0.3515217626094818,
+        0.1865217626094818,
+        0.1865217626094818,
+        0.2664703047275543,
+        0.09,
+        0.09,
+        0.08499999999999999,
+        0.08499999999999999
       ],
       "primary_execution_source": "smart_discovery",
       "execution_sources": {
@@ -359,18 +625,132 @@
       },
       "error_types": {},
       "usage_by_hour": {
-        "5": 1
-      },
-      "usage_by_day": {
         "4": 1
       },
-      "first_execution": "2025-07-31T05:48:40.537310Z",
-      "last_execution": "2025-07-31T05:48:40.537310Z",
-      "last_successful_execution": "2025-07-31T05:48:40.537310Z",
-      "avg_output_size": 34701.0,
+      "usage_by_day": {
+        "3": 1
+      },
+      "first_execution": "2025-08-20T04:40:57.106944Z",
+      "last_execution": "2025-08-20T04:40:57.106944Z",
+      "last_successful_execution": "2025-08-20T04:40:57.106944Z",
+      "avg_output_size": 75.0,
       "output_types": {
         "json": 1
       }
+    },
+    "test_ping_tool": {
+      "tool_name": "test_ping_tool",
+      "category": "networking",
+      "last_updated": "2025-08-11T12:07:55.209748Z",
+      "total_executions": 15,
+      "successful_executions": 14,
+      "failed_executions": 1,
+      "timeout_count": 1,
+      "success_rate": 0.9333333333333332,
+      "avg_execution_time_ms": 270.0,
+      "median_execution_time_ms": 270.0,
+      "p95_execution_time_ms": 340.0,
+      "recent_execution_times": [
+        200,
+        210,
+        220,
+        230,
+        240,
+        250,
+        260,
+        270,
+        280,
+        290,
+        300,
+        310,
+        320,
+        330,
+        340
+      ],
+      "top_30_appearances": 15,
+      "top_10_appearances": 15,
+      "top_3_appearances": 15,
+      "avg_confidence_score": 0.935,
+      "avg_discovery_position": 1.0,
+      "recent_confidence_scores": [
+        0.9,
+        0.905,
+        0.91,
+        0.915,
+        0.92,
+        0.925,
+        0.93,
+        0.935,
+        0.94,
+        0.945,
+        0.95,
+        0.955,
+        0.96,
+        0.965,
+        0.97
+      ],
+      "primary_execution_source": "smart_discovery",
+      "execution_sources": {
+        "smart_discovery": 15
+      },
+      "error_types": {
+        "NetworkError": 1
+      },
+      "usage_by_hour": {
+        "12": 15
+      },
+      "usage_by_day": {
+        "1": 15
+      },
+      "first_execution": "2025-08-11T12:07:55.098489Z",
+      "last_execution": "2025-08-11T12:07:55.209745Z",
+      "last_successful_execution": "2025-08-11T12:07:55.207962Z",
+      "avg_output_size": 512.0,
+      "output_types": {
+        "json": 14
+      }
+    },
+    "enhanced_api_health_checker": {
+      "tool_name": "enhanced_api_health_checker",
+      "category": "unknown",
+      "last_updated": "2025-08-20T08:26:19.702205Z",
+      "total_executions": 1,
+      "successful_executions": 0,
+      "failed_executions": 1,
+      "timeout_count": 0,
+      "success_rate": 0.0,
+      "avg_execution_time_ms": 0.0,
+      "median_execution_time_ms": 0.0,
+      "p95_execution_time_ms": 0.0,
+      "recent_execution_times": [
+        0
+      ],
+      "top_30_appearances": 1,
+      "top_10_appearances": 1,
+      "top_3_appearances": 1,
+      "avg_confidence_score": 0.13,
+      "avg_discovery_position": 1.0,
+      "recent_confidence_scores": [
+        0.13
+      ],
+      "primary_execution_source": "smart_discovery",
+      "execution_sources": {
+        "smart_discovery": 1
+      },
+      "error_types": {
+        "execution_error": 1
+      },
+      "usage_by_hour": {
+        "8": 1
+      },
+      "usage_by_day": {
+        "3": 1
+      },
+      "first_execution": "2025-08-20T08:26:19.702164Z",
+      "last_execution": "2025-08-20T08:26:19.702164Z",
+      "last_successful_execution": null,
+      "avg_output_size": 0.0,
+      "output_types": {}
     },
     "test_calc_tool": {
       "tool_name": "test_calc_tool",
@@ -418,76 +798,133 @@
         "json": 3
       }
     },
-    "test_ping_tool": {
-      "tool_name": "test_ping_tool",
-      "category": "networking",
-      "last_updated": "2025-08-11T12:07:55.209748Z",
-      "total_executions": 15,
-      "successful_executions": 14,
-      "failed_executions": 1,
-      "timeout_count": 1,
-      "success_rate": 0.9333333333333333,
-      "avg_execution_time_ms": 270.0,
-      "median_execution_time_ms": 270.0,
-      "p95_execution_time_ms": 340.0,
+    "enhanced_concurrent_request_test": {
+      "tool_name": "enhanced_concurrent_request_test",
+      "category": "unknown",
+      "last_updated": "2025-08-20T04:35:01.213798Z",
+      "total_executions": 2,
+      "successful_executions": 0,
+      "failed_executions": 2,
+      "timeout_count": 0,
+      "success_rate": 0.0,
+      "avg_execution_time_ms": 0.0,
+      "median_execution_time_ms": 0.0,
+      "p95_execution_time_ms": 0.0,
       "recent_execution_times": [
-        200,
-        210,
-        220,
-        230,
-        240,
-        250,
-        260,
-        270,
-        280,
-        290,
-        300,
-        310,
-        320,
-        330,
-        340
+        0,
+        0
       ],
-      "top_30_appearances": 15,
-      "top_10_appearances": 15,
-      "top_3_appearances": 15,
-      "avg_confidence_score": 0.935,
-      "avg_discovery_position": 1.0,
+      "top_30_appearances": 5,
+      "top_10_appearances": 5,
+      "top_3_appearances": 4,
+      "avg_confidence_score": 0.5538895184993745,
+      "avg_discovery_position": 2.2,
       "recent_confidence_scores": [
-        0.9,
-        0.905,
-        0.91,
-        0.915,
-        0.92,
-        0.925,
-        0.93,
-        0.935,
-        0.9400000000000001,
-        0.9450000000000001,
-        0.9500000000000001,
-        0.9550000000000001,
-        0.96,
-        0.9650000000000001,
-        0.97
+        0.7487806117534639,
+        0.2537806117534638,
+        0.26932514548301695,
+        0.7487806117534639,
+        0.7487806117534639
       ],
       "primary_execution_source": "smart_discovery",
       "execution_sources": {
-        "smart_discovery": 15
+        "smart_discovery": 2
       },
       "error_types": {
-        "NetworkError": 1
+        "execution_error": 2
       },
       "usage_by_hour": {
-        "12": 15
+        "1": 1,
+        "4": 1
       },
       "usage_by_day": {
-        "1": 15
+        "3": 2
       },
-      "first_execution": "2025-08-11T12:07:55.098489Z",
-      "last_execution": "2025-08-11T12:07:55.209745Z",
-      "last_successful_execution": "2025-08-11T12:07:55.207962Z",
-      "avg_output_size": 512.0,
+      "first_execution": "2025-08-20T01:56:44.342845Z",
+      "last_execution": "2025-08-20T04:35:01.213754Z",
+      "last_successful_execution": null,
+      "avg_output_size": 0.0,
+      "output_types": {}
+    },
+    "move_file_filesystem": {
+      "tool_name": "move_file_filesystem",
+      "category": "unknown",
+      "last_updated": "2025-08-20T05:49:40.203712Z",
+      "total_executions": 8,
+      "successful_executions": 8,
+      "failed_executions": 0,
+      "timeout_count": 0,
+      "success_rate": 1.0,
+      "avg_execution_time_ms": 1.0,
+      "median_execution_time_ms": 1.0,
+      "p95_execution_time_ms": 2.0,
+      "recent_execution_times": [
+        1,
+        0,
+        1,
+        0,
+        2,
+        1,
+        1,
+        2
+      ],
+      "top_30_appearances": 31,
+      "top_10_appearances": 31,
+      "top_3_appearances": 29,
+      "avg_confidence_score": 0.3882912981740889,
+      "avg_discovery_position": 1.3870967741935485,
+      "recent_confidence_scores": [
+        0.2564120388031006,
+        0.22492870759963987,
+        0.22492870759963987,
+        0.7868983805179597,
+        0.7868983805179597,
+        0.795646402835846,
+        0.795646402835846,
+        0.795646402835846,
+        0.795646402835846,
+        0.795646402835846,
+        0.795646402835846,
+        0.795646402835846,
+        0.795646402835846,
+        0.795646402835846,
+        0.795646402835846,
+        0.075,
+        0.1,
+        0.075,
+        0.075,
+        0.15,
+        0.099,
+        0.099,
+        0.115,
+        0.15,
+        0.15,
+        0.15,
+        0.15,
+        0.15,
+        0.09,
+        0.09,
+        0.0825
+      ],
+      "primary_execution_source": "smart_discovery",
+      "execution_sources": {
+        "smart_discovery": 8
+      },
+      "error_types": {},
+      "usage_by_hour": {
+        "5": 5,
+        "3": 1,
+        "4": 2
+      },
+      "usage_by_day": {
+        "3": 8
+      },
+      "first_execution": "2025-08-20T03:32:04.873032Z",
+      "last_execution": "2025-08-20T05:49:40.201231Z",
+      "last_successful_execution": "2025-08-20T05:49:40.201231Z",
+      "avg_output_size": 394.5,
       "output_types": {
-        "json": 14
+        "json": 8
       }
     }
   },
@@ -1876,7 +2313,7 @@
       "input_hash": "ping_hash_8",
       "discovery_context": {
         "position": 1,
-        "confidence_score": 0.9400000000000001,
+        "confidence_score": 0.94,
         "discovery_method": "hybrid",
         "query": "ping server",
         "timestamp": "2025-08-11T12:07:55.197579Z"
@@ -1898,7 +2335,7 @@
       "input_hash": "ping_hash_9",
       "discovery_context": {
         "position": 1,
-        "confidence_score": 0.9450000000000001,
+        "confidence_score": 0.945,
         "discovery_method": "hybrid",
         "query": "ping server",
         "timestamp": "2025-08-11T12:07:55.199261Z"
@@ -1920,7 +2357,7 @@
       "input_hash": "ping_hash_10",
       "discovery_context": {
         "position": 1,
-        "confidence_score": 0.9500000000000001,
+        "confidence_score": 0.95,
         "discovery_method": "hybrid",
         "query": "ping server",
         "timestamp": "2025-08-11T12:07:55.200965Z"
@@ -1942,7 +2379,7 @@
       "input_hash": "ping_hash_11",
       "discovery_context": {
         "position": 1,
-        "confidence_score": 0.9550000000000001,
+        "confidence_score": 0.955,
         "discovery_method": "hybrid",
         "query": "ping server",
         "timestamp": "2025-08-11T12:07:55.204014Z"
@@ -1986,7 +2423,7 @@
       "input_hash": "ping_hash_13",
       "discovery_context": {
         "position": 1,
-        "confidence_score": 0.9650000000000001,
+        "confidence_score": 0.965,
         "discovery_method": "hybrid",
         "query": "ping server",
         "timestamp": "2025-08-11T12:07:55.207962Z"
@@ -2260,7 +2697,451 @@
       },
       "execution_source": "api",
       "service_source": null
+    },
+    {
+      "execution_id": "ec35c13f-4137-47ef-aac0-bf584fe074c3",
+      "tool_name": "enhanced_concurrent_request_test",
+      "start_time": "2025-08-20T01:56:44.342845Z",
+      "duration_ms": 0,
+      "result": {
+        "Error": {
+          "error_type": "execution_error",
+          "error_message": "Routing error: Unknown routing type: enhanced_http",
+          "is_timeout": false
+        }
+      },
+      "input_hash": "9d929433f3efd79717adedaa3e90f737",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.7487806117534639,
+        "discovery_method": "hybrid",
+        "query": "test allowlist hierarchy",
+        "timestamp": "2025-08-20T01:56:44.342845Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "20b8880c-08ca-4873-9ed7-aed002eae800",
+      "tool_name": "list_allowed_directories_filesystem",
+      "start_time": "2025-08-20T02:28:38.475019Z",
+      "duration_ms": 1,
+      "result": {
+        "Success": {
+          "output_size": 81,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "99914b932bd37a50b983c5e7c90ae93b",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.6668256890773774,
+        "discovery_method": "hybrid",
+        "query": "test allowlist hierarchy",
+        "timestamp": "2025-08-20T02:28:38.475019Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "c6634fc9-ebcd-4d52-8c28-561a4561724a",
+      "tool_name": "enhanced_memory_stress_test",
+      "start_time": "2025-08-20T02:29:04.093600Z",
+      "duration_ms": 0,
+      "result": {
+        "Error": {
+          "error_type": "execution_error",
+          "error_message": "Routing error: Unknown routing type: enhanced_subprocess",
+          "is_timeout": false
+        }
+      },
+      "input_hash": "2e3782c64076e60ab3ce365433a69b16",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.800643652677536,
+        "discovery_method": "hybrid",
+        "query": "run enhanced_memory_stress_test",
+        "timestamp": "2025-08-20T02:29:04.093600Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "6d726ddb-3e31-4354-ab4e-f3313ec9ea16",
+      "tool_name": "move_file_filesystem",
+      "start_time": "2025-08-20T03:32:04.873032Z",
+      "duration_ms": 1,
+      "result": {
+        "Success": {
+          "output_size": 285,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "6418f2e59b42e7b79a80e945302452ca",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.2564120388031006,
+        "discovery_method": "hybrid",
+        "query": "delete all files",
+        "timestamp": "2025-08-20T03:32:04.873032Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "847a7d57-5022-4caa-b062-ea48222975f0",
+      "tool_name": "enhanced_concurrent_request_test",
+      "start_time": "2025-08-20T04:35:01.213754Z",
+      "duration_ms": 0,
+      "result": {
+        "Error": {
+          "error_type": "execution_error",
+          "error_message": "Routing error: Unknown routing type: enhanced_http",
+          "is_timeout": false
+        }
+      },
+      "input_hash": "7237425f3cf071b610c26ec18df0adde",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.7487806117534639,
+        "discovery_method": "hybrid",
+        "query": "test allowlist hierarchy",
+        "timestamp": "2025-08-20T04:35:01.213754Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "ccbb2736-8106-4852-a3af-fc0a545d1008",
+      "tool_name": "write_file_filesystem",
+      "start_time": "2025-08-20T04:40:57.106944Z",
+      "duration_ms": 8,
+      "result": {
+        "Success": {
+          "output_size": 75,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "6d0d30ea20e1544e9832627ad6c6b7be",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.552,
+        "discovery_method": "hybrid",
+        "query": "delete my user data file completely",
+        "timestamp": "2025-08-20T04:40:57.106944Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "aa73de9f-8dde-4baa-9602-81cb8f3e7954",
+      "tool_name": "move_file_filesystem",
+      "start_time": "2025-08-20T04:41:28.235364Z",
+      "duration_ms": 0,
+      "result": {
+        "Success": {
+          "output_size": 285,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "be1942f42b099865064ea01d9c461050",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.22492870759963987,
+        "discovery_method": "hybrid",
+        "query": "use file_delete_user_data to remove user files",
+        "timestamp": "2025-08-20T04:41:28.235364Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "506199be-38a2-4975-ba7e-a7e0211e4106",
+      "tool_name": "move_file_filesystem",
+      "start_time": "2025-08-20T04:44:21.378940Z",
+      "duration_ms": 1,
+      "result": {
+        "Success": {
+          "output_size": 246,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "3ef0bafe1bb115fdb405a89fa5bc0dc8",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.7868983805179597,
+        "discovery_method": "hybrid",
+        "query": "move source.txt to destination.txt",
+        "timestamp": "2025-08-20T04:44:21.378940Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "9fcd8ef4-472a-4701-b79c-4e5912f0f75b",
+      "tool_name": "read_text_file_filesystem",
+      "start_time": "2025-08-20T04:45:12.829354Z",
+      "duration_ms": 1,
+      "result": {
+        "Success": {
+          "output_size": 14581,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "c211c02a08a9b9f5fcbbc6a8b37c7e46",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.8166236531734468,
+        "discovery_method": "hybrid",
+        "query": "read the contents of README.md",
+        "timestamp": "2025-08-20T04:45:12.829354Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "16c5c470-5a49-4b2b-8457-79354831792c",
+      "tool_name": "read_text_file_filesystem",
+      "start_time": "2025-08-20T05:14:00.246714Z",
+      "duration_ms": 1,
+      "result": {
+        "Success": {
+          "output_size": 167,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "cd116f57ff6f7d94cb0d6a811a6d98e2",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.9448912620544434,
+        "discovery_method": "hybrid",
+        "query": "read a text file",
+        "timestamp": "2025-08-20T05:14:00.246714Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "4faf8708-2e3b-43d9-bde3-6ab3e63a6fc3",
+      "tool_name": "move_file_filesystem",
+      "start_time": "2025-08-20T05:14:34.166292Z",
+      "duration_ms": 0,
+      "result": {
+        "Success": {
+          "output_size": 468,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "99914b932bd37a50b983c5e7c90ae93b",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.795646402835846,
+        "discovery_method": "hybrid",
+        "query": "move a file from one location to another",
+        "timestamp": "2025-08-20T05:14:34.166292Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "cf66153a-c7ce-43ad-b6bb-02bcb262ae06",
+      "tool_name": "move_file_filesystem",
+      "start_time": "2025-08-20T05:22:11.998072Z",
+      "duration_ms": 2,
+      "result": {
+        "Success": {
+          "output_size": 468,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "99914b932bd37a50b983c5e7c90ae93b",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.795646402835846,
+        "discovery_method": "hybrid",
+        "query": "move a file from one location to another",
+        "timestamp": "2025-08-20T05:22:11.998072Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "52e404f1-73e9-4970-8461-2d735ca11a05",
+      "tool_name": "move_file_filesystem",
+      "start_time": "2025-08-20T05:32:56.055441Z",
+      "duration_ms": 1,
+      "result": {
+        "Success": {
+          "output_size": 468,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "99914b932bd37a50b983c5e7c90ae93b",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.795646402835846,
+        "discovery_method": "hybrid",
+        "query": "move a file from one location to another",
+        "timestamp": "2025-08-20T05:32:56.055441Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "34eb00eb-5f9e-4d09-98e8-08630d43c8aa",
+      "tool_name": "move_file_filesystem",
+      "start_time": "2025-08-20T05:42:09.238081Z",
+      "duration_ms": 1,
+      "result": {
+        "Success": {
+          "output_size": 468,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "99914b932bd37a50b983c5e7c90ae93b",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.795646402835846,
+        "discovery_method": "hybrid",
+        "query": "move a file from one location to another",
+        "timestamp": "2025-08-20T05:42:09.238081Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "3e274749-8f44-4f4a-830c-a68440a2fbdc",
+      "tool_name": "move_file_filesystem",
+      "start_time": "2025-08-20T05:49:40.201231Z",
+      "duration_ms": 2,
+      "result": {
+        "Success": {
+          "output_size": 468,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "99914b932bd37a50b983c5e7c90ae93b",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.795646402835846,
+        "discovery_method": "hybrid",
+        "query": "move a file from one location to another",
+        "timestamp": "2025-08-20T05:49:40.201231Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "023755b3-b6b5-452d-9579-d500bfa6468e",
+      "tool_name": "read_text_file_filesystem",
+      "start_time": "2025-08-20T05:50:30.125557Z",
+      "duration_ms": 2,
+      "result": {
+        "Success": {
+          "output_size": 167,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "cd116f57ff6f7d94cb0d6a811a6d98e2",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.9448912620544434,
+        "discovery_method": "hybrid",
+        "query": "read a text file",
+        "timestamp": "2025-08-20T05:50:30.125557Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "2a44a5f7-cc6d-4fe6-8157-49411da1ad9f",
+      "tool_name": "read_text_file_filesystem",
+      "start_time": "2025-08-20T07:40:43.032560Z",
+      "duration_ms": 2,
+      "result": {
+        "Success": {
+          "output_size": 167,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "cd116f57ff6f7d94cb0d6a811a6d98e2",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.15,
+        "discovery_method": "hybrid",
+        "query": "read a text file",
+        "timestamp": "2025-08-20T07:40:43.032560Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "208adea2-153a-47aa-bfa3-1e24e0bd11b0",
+      "tool_name": "read_text_file_filesystem",
+      "start_time": "2025-08-20T07:47:03.408457Z",
+      "duration_ms": 1,
+      "result": {
+        "Success": {
+          "output_size": 167,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "cd116f57ff6f7d94cb0d6a811a6d98e2",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.15,
+        "discovery_method": "hybrid",
+        "query": "read a text file",
+        "timestamp": "2025-08-20T07:47:03.408457Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "c91b8760-9a4d-4072-a493-ac1f4752d4e7",
+      "tool_name": "list_directory_filesystem",
+      "start_time": "2025-08-20T08:26:04.492656Z",
+      "duration_ms": 1,
+      "result": {
+        "Success": {
+          "output_size": 1465,
+          "output_type": "json"
+        }
+      },
+      "input_hash": "2ec2feb6af835f72a4277322b94bc1a1",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.1425,
+        "discovery_method": "hybrid",
+        "query": "list files in current directory",
+        "timestamp": "2025-08-20T08:26:04.492656Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
+    },
+    {
+      "execution_id": "37cd3efb-f7a9-421c-b39b-4ac04cf1471e",
+      "tool_name": "enhanced_api_health_checker",
+      "start_time": "2025-08-20T08:26:19.702164Z",
+      "duration_ms": 0,
+      "result": {
+        "Error": {
+          "error_type": "execution_error",
+          "error_message": "Routing error: Unknown routing type: enhanced_http",
+          "is_timeout": false
+        }
+      },
+      "input_hash": "c876dc764d331d3d092c5f764b96b0cb",
+      "discovery_context": {
+        "position": 1,
+        "confidence_score": 0.13,
+        "discovery_method": "hybrid",
+        "query": "check system health",
+        "timestamp": "2025-08-20T08:26:19.702164Z"
+      },
+      "execution_source": "smart_discovery",
+      "service_source": null
     }
   ],
-  "last_saved": "2025-08-11T12:07:55.230545Z"
+  "last_saved": "2025-08-20T08:26:19.702221Z"
 }

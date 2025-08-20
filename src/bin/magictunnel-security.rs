@@ -178,7 +178,6 @@ async fn show_status(config: &Config) -> Result<()> {
             if allowlist_config.enabled {
                 println!("  - Default Action: {:?}", allowlist_config.default_action);
                 println!("  - Tool Rules: {}", allowlist_config.tools.len());
-                println!("  - Server Rules: {}", allowlist_config.servers.len());
                 println!("  - Capability Patterns: {}", allowlist_config.capability_patterns.len());
                 println!("  - Global Patterns: {}", allowlist_config.global_patterns.len());
             }

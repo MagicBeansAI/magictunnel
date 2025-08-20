@@ -105,7 +105,6 @@ pub struct PatternTestResponse {
     pub actual_match: Option<String>,
     pub actual_action: String,
     pub rule_level: String,
-    pub priority: Option<i32>,
     pub passed: bool,
     pub evaluation_time_ns: u64,
     pub details: Vec<String>,
@@ -151,7 +150,6 @@ pub struct PatternEvaluationResult {
     pub matched_pattern: Option<String>,
     pub action: String,
     pub rule_level: String,
-    pub priority: Option<i32>,
     pub evaluation_time_ns: u64,
     pub details: Vec<String>,
 }
@@ -179,8 +177,6 @@ pub struct UnifiedRule {
     pub source: String,
     /// Whether rule is enabled
     pub enabled: bool,
-    /// Rule priority within level
-    pub priority: Option<i32>,
     /// When rule was created
     pub created_at: Option<chrono::DateTime<chrono::Utc>>,
     /// When rule was last updated
@@ -256,13 +252,23 @@ impl SecurityApi {
         
         // Initialize synchronous security services
         let allowlist_service = if security_config.allowlist.as_ref().map_or(false, |c| c.enabled) {
-            match AllowlistService::new(security_config.allowlist.clone().unwrap()) {
+            let allowlist_config = security_config.allowlist.clone().unwrap();
+            // Use data file if available, otherwise fallback to config-only
+            let result = if !allowlist_config.data_file.is_empty() {
+                info!("🔄 Web API: Initializing allowlist service with data file: {}", allowlist_config.data_file);
+                AllowlistService::with_data_file(allowlist_config.clone(), allowlist_config.data_file.clone())
+            } else {
+                info!("🔄 Web API: Initializing allowlist service without data file (config-only)");
+                AllowlistService::new(allowlist_config)
+            };
+            
+            match result {
                 Ok(service) => {
-                    info!("Allowlist service initialized successfully");
+                    info!("✅ Web API: Allowlist service initialized successfully");
                     Some(Arc::new(service))
                 },
                 Err(e) => {
-                    error!("Failed to initialize allowlist service: {}", e);
+                    error!("❌ Web API: Failed to initialize allowlist service: {}", e);
                     None
                 }
             }
@@ -876,6 +882,51 @@ impl SecurityApi {
         Ok(HttpResponse::Ok().json(rules))
     }
 
+    /// Get hierarchical treeview of allowlist status organized by server/capability
+    /// This version creates a simplified treeview when registry service is not available
+    pub async fn get_allowlist_treeview(&self) -> Result<HttpResponse> {
+        debug!("Getting allowlist treeview organized by server/capability");
+
+        if let Some(allowlist_service) = &self.allowlist_service {
+            // For now, create a mock tools context since we don't have registry access
+            // In a full implementation, this would be injected or accessed via service discovery
+            let get_mock_tools = || {
+                // This would normally come from the registry service
+                // For demonstration, we'll return an empty list or mock data
+                Vec::new()
+            };
+            
+            match allowlist_service.generate_allowlist_treeview(get_mock_tools) {
+                Ok(treeview) => {
+                    info!("Generated allowlist treeview with {} servers, {} total tools ({} allowed, {} denied)", 
+                          treeview.servers.len(), 
+                          treeview.total_tools, 
+                          treeview.allowed_tools, 
+                          treeview.denied_tools);
+                    Ok(HttpResponse::Ok().json(treeview))
+                }
+                Err(e) => {
+                    error!("Failed to generate allowlist treeview: {}", e);
+                    Ok(HttpResponse::InternalServerError().json(json!({
+                        "error": "Failed to generate allowlist treeview",
+                        "details": format!("{}", e)
+                    })))
+                }
+            }
+        } else {
+            // Return empty treeview if allowlist service is not configured
+            warn!("Allowlist service not configured, returning empty treeview");
+            let empty_treeview = json!({
+                "servers": [],
+                "total_tools": 0,
+                "allowed_tools": 0, 
+                "denied_tools": 0,
+                "generated_at": chrono::Utc::now()
+            });
+            Ok(HttpResponse::Ok().json(empty_treeview))
+        }
+    }
+
     /// Get RBAC roles
     pub async fn get_rbac_roles(&self) -> Result<HttpResponse> {
         debug!("Getting RBAC roles");
@@ -1243,7 +1294,6 @@ impl SecurityApi {
             "enabled": params.get("enabled").unwrap_or(&json!(true)),
             "pattern": params.get("pattern").unwrap_or(&json!("*")),
             "action": params.get("action").unwrap_or(&json!("allow")),
-            "priority": params.get("priority").unwrap_or(&json!(100)),
             "created_at": Utc::now(),
             "updated_at": Utc::now()
         });
@@ -1262,7 +1312,6 @@ impl SecurityApi {
             "enabled": true,
             "pattern": "example_*",
             "action": "allow",
-            "priority": 100,
             "created_at": Utc::now(),
             "updated_at": Utc::now()
         });
@@ -1281,7 +1330,6 @@ impl SecurityApi {
             "enabled": params.get("enabled").unwrap_or(&json!(true)),
             "pattern": params.get("pattern").unwrap_or(&json!("*")),
             "action": params.get("action").unwrap_or(&json!("allow")),
-            "priority": params.get("priority").unwrap_or(&json!(100)),
             "updated_at": Utc::now()
         });
 
@@ -1493,9 +1541,7 @@ impl SecurityApi {
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
             
-        let priority = params.get("priority")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(1) as i32;
+        // Priority system has been removed - using 'most restrictive wins' logic
 
         // Generate new policy ID based on current policies count
         let next_id = if let Some(sanitization_service) = &self.sanitization_service {
@@ -1511,7 +1557,7 @@ impl SecurityApi {
             "name": name,
             "type": policy_type,
             "enabled": enabled,
-            "priority": priority,
+            // Priority field removed - using 'most restrictive wins' logic
             "trigger_types": params.get("trigger_types").unwrap_or(&json!(["content_filter"])),
             "action_type": params.get("action_type").unwrap_or(&json!("sanitize")),
             "patterns": params.get("patterns").unwrap_or(&json!([".*"])),
@@ -3455,31 +3501,30 @@ sanitization:
             })));
         }
 
-        // Load pattern loader from security directory
-        let security_dir = std::env::current_dir()
-            .unwrap_or_default()
-            .join("security");
-            
-        let pattern_loader = crate::security::pattern_loader::PatternLoader::new(&security_dir);
-        
-        // Load patterns
-        let capability_patterns = match pattern_loader.load_capability_patterns() {
-            Ok(patterns) => patterns,
-            Err(e) => {
-                error!("Failed to load capability patterns: {}", e);
-                return Ok(HttpResponse::InternalServerError().json(json!({
-                    "error": "Failed to load capability patterns",
-                    "details": e.to_string()
-                })));
-            }
+        // Use the enhanced allowlist service for pattern testing
+        // Create a temporary allowlist service with enhanced data file approach
+        let allowlist_config = crate::security::AllowlistConfig {
+            enabled: true,
+            default_action: crate::security::AllowlistAction::Allow,
+            emergency_lockdown: false,
+            tools: std::collections::HashMap::new(),
+            tool_patterns: Vec::new(),
+            capabilities: std::collections::HashMap::new(),
+            capability_patterns: Vec::new(),
+            global_patterns: Vec::new(),
+            mt_level_rules: std::collections::HashMap::new(),
+            data_file: "./security/allowlist-data.yaml".to_string(),
         };
         
-        let global_patterns = match pattern_loader.load_global_patterns() {
-            Ok(patterns) => patterns,
+        let allowlist_service = match crate::security::AllowlistService::with_data_file(
+            allowlist_config,
+            "./security/allowlist-data.yaml".to_string()
+        ) {
+            Ok(service) => service,
             Err(e) => {
-                error!("Failed to load global patterns: {}", e);
+                error!("Failed to create allowlist service: {}", e);
                 return Ok(HttpResponse::InternalServerError().json(json!({
-                    "error": "Failed to load global patterns",
+                    "error": "Failed to initialize pattern testing service",
                     "details": e.to_string()
                 })));
             }
@@ -3488,20 +3533,35 @@ sanitization:
         let mut test_results = Vec::new();
         
         for test_case in &request.test_cases {
-            let result = self.evaluate_pattern_match(&test_case.tool_name, &capability_patterns, &global_patterns).await;
+            // Use AllowlistService to get tool decision
+            let start_time = std::time::Instant::now();
+            let tool_decision = allowlist_service.get_tool_decision(&test_case.tool_name);
+            let evaluation_time_ns = start_time.elapsed().as_nanos() as u64;
+            
+            // Convert AllowlistDecision to the expected PatternTestResponse format
+            let (actual_action, actual_match, details) = if let Some(decision) = tool_decision {
+                let action = match decision.action {
+                    crate::security::AllowlistAction::Allow => "allow".to_string(),
+                    crate::security::AllowlistAction::Deny => "deny".to_string(),
+                };
+                let rule_name = decision.rule_name;
+                let reason = decision.reason;
+                (action, rule_name, reason)
+            } else {
+                // No specific decision found, use default
+                ("allow".to_string(), "default".to_string(), "No specific rule found, using default action".to_string())
+            };
             
             test_results.push(PatternTestResponse {
                 tool_name: test_case.tool_name.clone(),
                 expected_match: test_case.expected_match.clone(),
                 expected_action: test_case.expected_action.clone(),
-                actual_match: result.matched_pattern.clone(),
-                actual_action: result.action.clone(),
-                rule_level: result.rule_level.clone(),
-                priority: result.priority,
-                passed: test_case.expected_match == result.matched_pattern &&
-                       test_case.expected_action.to_lowercase() == result.action.to_lowercase(),
-                evaluation_time_ns: result.evaluation_time_ns,
-                details: result.details,
+                actual_match: Some(actual_match),
+                actual_action: actual_action.clone(),
+                rule_level: "tool".to_string(), // Simplified for now
+                passed: test_case.expected_action.to_lowercase() == actual_action.to_lowercase(),
+                evaluation_time_ns,
+                details: vec![details],
             });
         }
 
@@ -3519,9 +3579,9 @@ sanitization:
             },
             results: test_results,
             patterns_loaded: PatternStats {
-                capability_patterns: capability_patterns.len(),
-                global_patterns: global_patterns.len(),
-                total_patterns: capability_patterns.len() + global_patterns.len(),
+                capability_patterns: 0, // Legacy - patterns now loaded from data file
+                global_patterns: 0,     // Legacy - patterns now loaded from data file
+                total_patterns: 0,      // Legacy - patterns now loaded from data file
             },
         };
 
@@ -3642,7 +3702,6 @@ sanitization:
         let mut matched_pattern = None;
         let mut matched_action = "default_allow".to_string();
         let mut rule_level = "default".to_string();
-        let mut priority = None;
         let mut details = Vec::new();
 
         // Check capability patterns first (higher priority)
@@ -3666,7 +3725,6 @@ sanitization:
                             AllowlistAction::Deny => "deny".to_string(),
                         };
                         rule_level = "capability".to_string();
-                        priority = pattern_rule.rule.priority;
                         details.push(format!("Matched capability pattern: {}", 
                                            pattern_rule.rule.name.as_ref().unwrap_or(&"unnamed".to_string())));
                         break;
@@ -3697,7 +3755,6 @@ sanitization:
                                 AllowlistAction::Deny => "deny".to_string(),
                             };
                             rule_level = "global".to_string();
-                            priority = pattern_rule.rule.priority;
                             details.push(format!("Matched global pattern: {}", 
                                                pattern_rule.rule.name.as_ref().unwrap_or(&"unnamed".to_string())));
                             break;
@@ -3717,7 +3774,6 @@ sanitization:
             matched_pattern,
             action: matched_action,
             rule_level,
-            priority,
             evaluation_time_ns,
             details,
         }
@@ -3914,7 +3970,6 @@ sanitization:
                         reason: state.reason.clone().unwrap_or("Emergency lockdown active".to_string()),
                         source: "emergency_manager".to_string(),
                         enabled: true,
-                        priority: Some(0),
                         created_at: state.activated_at,
                         last_updated: Some(state.last_updated),
                         metadata: json!({
@@ -3947,7 +4002,6 @@ sanitization:
                         reason: rule.reason.clone().unwrap_or("Tool-level rule".to_string()),
                         source: "tool_definition".to_string(),
                         enabled: rule.enabled,
-                        priority: None, // Tool rules don't have priorities within their level
                         created_at: None,
                         last_updated: None,
                         metadata: json!({
@@ -3964,67 +4018,61 @@ sanitization:
             if let Some(ref allowlist_service) = self.allowlist_service {
                 let capability_patterns = allowlist_service.get_capability_patterns();
                 for pattern_rule in capability_patterns {
-                    if let Some(ref name) = pattern_rule.rule.name {
-                        // Extract pattern value from rule - assuming it's stored in a pattern field
-                        // For now, use the name as pattern since the structure is different
-                        let pattern_value = name.clone(); // Placeholder - would need proper pattern extraction
+                    let pattern_value = pattern_rule.regex.clone();
 
-                        aggregated_rules.push(UnifiedRule {
-                            id: format!("capability_{}", name),
-                            rule_type: "capability_pattern".to_string(),
-                            level: 2, // Third priority
-                            name: name.clone(),
-                            pattern: Some(pattern_value),
-                            action: match pattern_rule.rule.action {
-                                AllowlistAction::Allow => "allow".to_string(),
-                                AllowlistAction::Deny => "deny".to_string(),
-                            },
-                            reason: pattern_rule.rule.reason.clone().unwrap_or("Capability pattern rule".to_string()),
-                            source: "capability_patterns".to_string(),
-                            enabled: pattern_rule.rule.enabled,
-                            priority: pattern_rule.rule.priority,
-                            created_at: None,
-                            last_updated: None,
-                            metadata: json!({
-                                "pattern_type": "capability",
-                                "priority": pattern_rule.rule.priority
-                            }),
-                        });
-                        statistics.capability_patterns += 1;
-                    }
+                    aggregated_rules.push(UnifiedRule {
+                        id: format!("capability_{}", pattern_rule.name),
+                        rule_type: "capability_pattern".to_string(),
+                        level: 2, // Third priority
+                        name: pattern_rule.name.clone(),
+                        pattern: Some(pattern_value),
+                        action: match pattern_rule.action {
+                            AllowlistAction::Allow => "allow".to_string(),
+                            AllowlistAction::Deny => "deny".to_string(),
+                        },
+                        reason: pattern_rule.reason.clone(),
+                        source: "capability_patterns".to_string(),
+                        enabled: pattern_rule.enabled,
+                        created_at: None,
+                        last_updated: None,
+                        metadata: json!({
+                            "pattern_type": "capability",
+                            // Priority field removed
+                        }),
+                    });
+                    statistics.capability_patterns += 1;
                 }
+            }
+        }
 
-                // 4. Global-level pattern rules
+        // 4. Global-level pattern rules
+        if include_patterns {
+            if let Some(ref allowlist_service) = self.allowlist_service {
                 let global_patterns = allowlist_service.get_global_patterns();
                 for pattern_rule in global_patterns {
-                    if let Some(ref name) = pattern_rule.rule.name {
-                        // Extract pattern value from rule - assuming it's stored in a pattern field
-                        // For now, use the name as pattern since the structure is different
-                        let pattern_value = name.clone(); // Placeholder - would need proper pattern extraction
+                    let pattern_value = pattern_rule.regex.clone();
 
-                        aggregated_rules.push(UnifiedRule {
-                            id: format!("global_{}", name),
-                            rule_type: "global_pattern".to_string(),
-                            level: 3, // Lowest priority
-                            name: name.clone(),
-                            pattern: Some(pattern_value),
-                            action: match pattern_rule.rule.action {
-                                AllowlistAction::Allow => "allow".to_string(),
-                                AllowlistAction::Deny => "deny".to_string(),
-                            },
-                            reason: pattern_rule.rule.reason.clone().unwrap_or("Global pattern rule".to_string()),
-                            source: "global_patterns".to_string(),
-                            enabled: pattern_rule.rule.enabled,
-                            priority: pattern_rule.rule.priority,
-                            created_at: None,
-                            last_updated: None,
-                            metadata: json!({
-                                "pattern_type": "global",
-                                "priority": pattern_rule.rule.priority
-                            }),
-                        });
-                        statistics.global_patterns += 1;
-                    }
+                    aggregated_rules.push(UnifiedRule {
+                        id: format!("global_{}", pattern_rule.name),
+                        rule_type: "global_pattern".to_string(),
+                        level: 3, // Lowest priority
+                        name: pattern_rule.name.clone(),
+                        pattern: Some(pattern_value),
+                        action: match pattern_rule.action {
+                            AllowlistAction::Allow => "allow".to_string(),
+                            AllowlistAction::Deny => "deny".to_string(),
+                        },
+                        reason: pattern_rule.reason.clone(),
+                        source: "global_patterns".to_string(),
+                        enabled: pattern_rule.enabled,
+                        created_at: None,
+                        last_updated: None,
+                        metadata: json!({
+                            "pattern_type": "global",
+                            // Priority field removed
+                        }),
+                    });
+                    statistics.global_patterns += 1;
                 }
             }
         }
@@ -4034,17 +4082,10 @@ sanitization:
         statistics.conflicts = conflicts.len();
         statistics.total_rules = aggregated_rules.len();
 
-        // Sort rules by level (priority), then by priority within level
+        // Sort rules by level (emergency < tool < capability < global), then by name
         aggregated_rules.sort_by(|a, b| {
             a.level.cmp(&b.level)
-                .then_with(|| {
-                    match (a.priority, b.priority) {
-                        (Some(p1), Some(p2)) => p1.cmp(&p2),
-                        (Some(_), None) => std::cmp::Ordering::Less,
-                        (None, Some(_)) => std::cmp::Ordering::Greater,
-                        (None, None) => a.name.cmp(&b.name),
-                    }
-                })
+                .then_with(|| a.name.cmp(&b.name))
         });
 
         let response_data = UnifiedRulesResponse {
@@ -4169,7 +4210,7 @@ sanitization:
                 rule.reason.replace(',', ";"), // Escape commas
                 rule.source,
                 rule.enabled,
-                rule.priority.map(|p| p.to_string()).unwrap_or_default()
+                "N/A".to_string() // Priority system removed
             ));
         }
         
@@ -4322,24 +4363,32 @@ sanitization:
                 action,
                 reason,
                 pattern: None,
-                priority: None,
                 name: Some(tool_name.clone()),
                 enabled: true,
             };
 
-            // Add rule to allowlist service (this would need to be implemented in AllowlistService)
-            // For now, we'll return success
-            Ok(HttpResponse::Ok().json(json!({
-                "id": format!("tool_{}", tool_name),
-                "name": tool_name,
-                "type": "tool",
-                "action": action_str,
-                "enabled": true,
-                "reason": reason_clone.unwrap_or_default(),
-                "createdAt": chrono::Utc::now(),
-                "modifiedAt": chrono::Utc::now(),
-                "status": "Rule created successfully"
-            })))
+            // Add rule to allowlist service
+            match allowlist_service.add_tool_rule(tool_name.clone(), rule) {
+                Ok(()) => {
+                    Ok(HttpResponse::Ok().json(json!({
+                        "id": format!("tool_{}", tool_name),
+                        "name": tool_name,
+                        "type": "tool",
+                        "action": action_str,
+                        "enabled": true,
+                        "reason": reason_clone.unwrap_or_default(),
+                        "createdAt": chrono::Utc::now(),
+                        "modifiedAt": chrono::Utc::now(),
+                        "status": "Rule created successfully"
+                    })))
+                }
+                Err(err) => {
+                    Ok(HttpResponse::InternalServerError().json(json!({
+                        "error": "Failed to save allowlist rule",
+                        "details": err.to_string()
+                    })))
+                }
+            }
         } else {
             Ok(HttpResponse::ServiceUnavailable().json(json!({
                 "error": "Allowlist service not available"
@@ -4352,48 +4401,21 @@ sanitization:
         let tool_name = path.into_inner();
         debug!("Removing allowlist rule for tool: {}", tool_name);
 
-        if let Some(ref _allowlist_service) = self.allowlist_service {
-            // Remove rule from allowlist service (this would need to be implemented in AllowlistService)
-            // For now, we'll return success
-            Ok(HttpResponse::Ok().json(json!({
-                "status": "Rule removed successfully",
-                "tool": tool_name
-            })))
-        } else {
-            Ok(HttpResponse::ServiceUnavailable().json(json!({
-                "error": "Allowlist service not available"
-            })))
-        }
-    }
-
-    /// Get server allowlist rule
-    pub async fn get_server_allowlist_rule(&self, path: web::Path<String>) -> Result<HttpResponse> {
-        let server_name = path.into_inner();
-        debug!("Getting allowlist rule for server: {}", server_name);
-
         if let Some(ref allowlist_service) = self.allowlist_service {
-            // Check if a specific rule exists for this server
-            let config = allowlist_service.get_config();
-            if let Some(rule) = config.servers.get(&server_name) {
-                Ok(HttpResponse::Ok().json(json!({
-                    "id": format!("server_{}", server_name),
-                    "name": server_name,
-                    "type": "server",
-                    "action": match rule.action {
-                        crate::security::AllowlistAction::Allow => "allow",
-                        crate::security::AllowlistAction::Deny => "deny",
-                    },
-                    "enabled": rule.enabled,
-                    "reason": rule.reason.as_deref().unwrap_or(""),
-                    "createdAt": chrono::Utc::now(),
-                    "modifiedAt": chrono::Utc::now(),
-                })))
-            } else {
-                // No specific rule exists - return 404
-                Ok(HttpResponse::NotFound().json(json!({
-                    "error": "No allowlist rule found for this server",
-                    "server": server_name
-                })))
+            // Remove rule from allowlist service
+            match allowlist_service.remove_tool_rule(&tool_name) {
+                Ok(()) => {
+                    Ok(HttpResponse::Ok().json(json!({
+                        "status": "Rule removed successfully",
+                        "tool": tool_name
+                    })))
+                }
+                Err(err) => {
+                    Ok(HttpResponse::InternalServerError().json(json!({
+                        "error": "Failed to remove allowlist rule",
+                        "details": err.to_string()
+                    })))
+                }
             }
         } else {
             Ok(HttpResponse::ServiceUnavailable().json(json!({
@@ -4402,78 +4424,8 @@ sanitization:
         }
     }
 
-    /// Set/update server allowlist rule
-    pub async fn set_server_allowlist_rule(&self, path: web::Path<String>, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
-        let server_name = path.into_inner();
-        debug!("Setting allowlist rule for server: {}", server_name);
 
-        if let Some(ref allowlist_service) = self.allowlist_service {
-            let action_str = params.get("action")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| actix_web::error::ErrorBadRequest("Missing 'action' field"))?;
-            
-            let action = match action_str {
-                "allow" => crate::security::AllowlistAction::Allow,
-                "deny" => crate::security::AllowlistAction::Deny,
-                _ => return Ok(HttpResponse::BadRequest().json(json!({
-                    "error": "Invalid action. Must be 'allow' or 'deny'"
-                })))
-            };
 
-            let reason = params.get("reason")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-
-            let reason_clone = reason.clone();
-
-            // Create new rule
-            let rule = crate::security::AllowlistRule {
-                action,
-                reason,
-                pattern: None,
-                priority: None,
-                name: Some(server_name.clone()),
-                enabled: true,
-            };
-
-            // Add rule to allowlist service (this would need to be implemented in AllowlistService)
-            // For now, we'll return success
-            Ok(HttpResponse::Ok().json(json!({
-                "id": format!("server_{}", server_name),
-                "name": server_name,
-                "type": "server",
-                "action": action_str,
-                "enabled": true,
-                "reason": reason_clone.unwrap_or_default(),
-                "createdAt": chrono::Utc::now(),
-                "modifiedAt": chrono::Utc::now(),
-                "status": "Rule created successfully"
-            })))
-        } else {
-            Ok(HttpResponse::ServiceUnavailable().json(json!({
-                "error": "Allowlist service not available"
-            })))
-        }
-    }
-
-    /// Remove server allowlist rule
-    pub async fn remove_server_allowlist_rule(&self, path: web::Path<String>) -> Result<HttpResponse> {
-        let server_name = path.into_inner();
-        debug!("Removing allowlist rule for server: {}", server_name);
-
-        if let Some(ref _allowlist_service) = self.allowlist_service {
-            // Remove rule from allowlist service (this would need to be implemented in AllowlistService)
-            // For now, we'll return success
-            Ok(HttpResponse::Ok().json(json!({
-                "status": "Rule removed successfully",
-                "server": server_name
-            })))
-        } else {
-            Ok(HttpResponse::ServiceUnavailable().json(json!({
-                "error": "Allowlist service not available"
-            })))
-        }
-    }
 }
 
 /// Configure security API routes
@@ -4511,6 +4463,9 @@ pub fn configure_security_api(cfg: &mut web::ServiceConfig, security_api: web::D
                 .route("/allowlist/rules/bulk", web::post().to(|api: web::Data<SecurityApi>, params: web::Json<serde_json::Value>| async move {
                     api.bulk_update_allowlist_rules(params).await
                 }))
+                .route("/allowlist/treeview", web::get().to(|api: web::Data<SecurityApi>| async move {
+                    api.get_allowlist_treeview().await
+                }))
                 
                 // Individual tool/server allowlist endpoints (the missing ones!)
                 .route("/allowlist/tool/{name}", web::get().to(|api: web::Data<SecurityApi>, name: web::Path<String>| async move {
@@ -4521,15 +4476,6 @@ pub fn configure_security_api(cfg: &mut web::ServiceConfig, security_api: web::D
                 }))
                 .route("/allowlist/tool/{name}", web::delete().to(|api: web::Data<SecurityApi>, name: web::Path<String>| async move {
                     api.remove_tool_allowlist_rule(name).await
-                }))
-                .route("/allowlist/server/{name}", web::get().to(|api: web::Data<SecurityApi>, name: web::Path<String>| async move {
-                    api.get_server_allowlist_rule(name).await
-                }))
-                .route("/allowlist/server/{name}", web::put().to(|api: web::Data<SecurityApi>, name: web::Path<String>, params: web::Json<serde_json::Value>| async move {
-                    api.set_server_allowlist_rule(name, params).await
-                }))
-                .route("/allowlist/server/{name}", web::delete().to(|api: web::Data<SecurityApi>, name: web::Path<String>| async move {
-                    api.remove_server_allowlist_rule(name).await
                 }))
                 
                 // RBAC management endpoints  

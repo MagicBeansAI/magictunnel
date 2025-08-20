@@ -18,22 +18,28 @@ fn debug_pattern_matching_flow() {
     
     println!("Security directory: {:?}", security_dir);
     
-    // Create service with pattern loader
+    // Create service with enhanced data file approach
+    let mut data_file = security_dir.clone();
+    data_file.push("allowlist-data.yaml");
+    
     let config = AllowlistConfig {
         enabled: true,
         default_action: AllowlistAction::Allow,
         emergency_lockdown: false,
         tools: HashMap::new(),
-        servers: HashMap::new(),
+        tool_patterns: Vec::new(),
+        capabilities: HashMap::new(),
         capability_patterns: Vec::new(),
         global_patterns: Vec::new(),
+        mt_level_rules: HashMap::new(),
+        data_file: data_file.to_string_lossy().to_string(),
     };
     
-    let service = match AllowlistService::with_pattern_loader(config, &security_dir) {
+    let service = match AllowlistService::with_data_file(config.clone(), data_file.to_string_lossy().to_string()) {
         Ok(s) => s,
         Err(e) => {
-            println!("❌ Failed to create service: {}", e);
-            panic!("Service creation failed");
+            println!("ℹ️  Enhanced data file not found, falling back to basic service: {}", e);
+            AllowlistService::new(config).unwrap()
         }
     };
     

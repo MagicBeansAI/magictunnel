@@ -195,9 +195,40 @@ impl ProxyServices {
         let discovery_config = config.smart_discovery.as_ref()
             .ok_or_else(|| ProxyError::config("Smart discovery config missing".to_string()))?;
         
+        // Clone config and load API keys from environment variables
+        let mut config_with_api_key = discovery_config.clone();
+        
+        // Set API key for llm_tool_selection from environment if not set
+        if config_with_api_key.llm_tool_selection.api_key.is_none() {
+            if let Some(api_key_env) = &config_with_api_key.llm_tool_selection.api_key_env {
+                if let Ok(api_key) = std::env::var(api_key_env) {
+                    config_with_api_key.llm_tool_selection.api_key = Some(api_key);
+                    info!("Loaded API key from {} environment variable for llm_tool_selection", api_key_env);
+                }
+            } else if let Ok(api_key) = std::env::var("OPENAI_API_KEY") {
+                config_with_api_key.llm_tool_selection.api_key = Some(api_key);
+                info!("Loaded OpenAI API key from OPENAI_API_KEY environment variable for llm_tool_selection");
+            }
+        }
+        
+        // Set API key for llm_mapper from environment if not set
+        if config_with_api_key.llm_mapper.api_key.is_none() {
+            if let Some(api_key_env) = &config_with_api_key.llm_mapper.api_key_env {
+                if let Ok(api_key) = std::env::var(api_key_env) {
+                    config_with_api_key.llm_mapper.api_key = Some(api_key);
+                    info!("🔑 Loaded API key from {} environment variable for llm_mapper", api_key_env);
+                } else {
+                    warn!("⚠️ API key environment variable {} not found for llm_mapper", api_key_env);
+                }
+            } else if let Ok(api_key) = std::env::var("OPENAI_API_KEY") {
+                config_with_api_key.llm_mapper.api_key = Some(api_key);
+                info!("🔑 Loaded OpenAI API key from OPENAI_API_KEY environment variable for llm_mapper");
+            }
+        }
+        
         let service = crate::discovery::SmartDiscoveryService::new(
             Arc::clone(registry),
-            discovery_config.clone(),
+            config_with_api_key,
         ).await?;
         
         Ok(Arc::new(service))

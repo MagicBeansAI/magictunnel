@@ -94,7 +94,7 @@
     </button>
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
     <!-- Protocol Version -->
     <div>
       <p class="text-sm text-gray-600">Protocol Version</p>
@@ -105,6 +105,12 @@
     <div>
       <p class="text-sm text-gray-600">Uptime</p>
       <p class="text-sm font-medium text-gray-900">{formatUptime(server.uptime_seconds)}</p>
+    </div>
+
+    <!-- Available Tools -->
+    <div>
+      <p class="text-sm text-gray-600">Available Tools</p>
+      <p class="text-sm font-medium text-gray-900">{server.tools_count}</p>
     </div>
 
     <!-- Capabilities Count -->
