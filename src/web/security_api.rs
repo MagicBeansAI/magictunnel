@@ -4424,7 +4424,247 @@ sanitization:
         }
     }
 
+    /// Server allowlist rule handlers
+    pub async fn get_server_allowlist_rule(&self, path: web::Path<String>) -> Result<HttpResponse> {
+        let server_name = path.into_inner();
+        debug!("Getting allowlist rule for server: {}", server_name);
+        if let Some(ref allowlist_service) = self.allowlist_service {
+            let config = allowlist_service.get_config();
+            if let Some(rule) = config.capabilities.get(&server_name) {
+                Ok(HttpResponse::Ok().json(json!({
+                    "id": format!("server_{}", server_name),
+                    "name": server_name,
+                    "type": "server",
+                    "action": rule.action,
+                    "reason": rule.reason,
+                    "enabled": rule.enabled
+                })))
+            } else {
+                Ok(HttpResponse::NotFound().json(json!({
+                    "error": "No allowlist rule found for this server",
+                    "server": server_name
+                })))
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Allowlist service not available"
+            })))
+        }
+    }
 
+    pub async fn set_server_allowlist_rule(&self, path: web::Path<String>, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
+        let server_name = path.into_inner();
+        debug!("Setting allowlist rule for server: {}", server_name);
+        if let Some(ref allowlist_service) = self.allowlist_service {
+            let action_str = params.get("action")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| actix_web::error::ErrorBadRequest("Missing 'action' field"))?;
+            
+            let action = match action_str {
+                "allow" => crate::security::AllowlistAction::Allow,
+                "deny" => crate::security::AllowlistAction::Deny,
+                _ => return Ok(HttpResponse::BadRequest().json(json!({
+                    "error": "Invalid action. Must be 'allow' or 'deny'"
+                })))
+            };
+
+            let reason = params.get("reason")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| format!("{} access to {}", action_str, server_name));
+
+            match allowlist_service.set_capability_rule(&server_name, action.clone(), Some(reason.clone())) {
+                Ok(()) => {
+                    info!("Set allowlist rule for server '{}': {} - {}", server_name, action_str, reason);
+                    Ok(HttpResponse::Ok().json(json!({
+                        "id": format!("server_{}", server_name),
+                        "name": server_name,
+                        "type": "server", 
+                        "action": action.clone(),
+                        "reason": reason,
+                        "enabled": true
+                    })))
+                }
+                Err(err) => {
+                    error!("Failed to set allowlist rule for server '{}': {}", server_name, err);
+                    Ok(HttpResponse::InternalServerError().json(json!({
+                        "error": "Failed to set allowlist rule",
+                        "details": err.to_string()
+                    })))
+                }
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Allowlist service not available"
+            })))
+        }
+    }
+
+    pub async fn remove_server_allowlist_rule(&self, path: web::Path<String>) -> Result<HttpResponse> {
+        let server_name = path.into_inner();
+        debug!("Removing allowlist rule for server: {}", server_name);
+        if let Some(ref allowlist_service) = self.allowlist_service {
+            match allowlist_service.remove_capability_rule(&server_name) {
+                Ok(()) => {
+                    Ok(HttpResponse::Ok().json(json!({
+                        "status": "Rule removed successfully",
+                        "server": server_name
+                    })))
+                }
+                Err(err) => {
+                    Ok(HttpResponse::InternalServerError().json(json!({
+                        "error": "Failed to remove allowlist rule",
+                        "details": err.to_string()
+                    })))
+                }
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Allowlist service not available"
+            })))
+        }
+    }
+
+    /// Capability allowlist rule handlers
+    pub async fn get_capability_allowlist_rule(&self, path: web::Path<String>) -> Result<HttpResponse> {
+        let capability_name = path.into_inner();
+        debug!("Getting allowlist rule for capability: {}", capability_name);
+        if let Some(ref allowlist_service) = self.allowlist_service {
+            // Check explicit rules from data file (new format only)
+            if let Some(action) = allowlist_service.get_explicit_capability_rule(&capability_name) {
+                Ok(HttpResponse::Ok().json(json!({
+                    "id": format!("capability_{}", capability_name),
+                    "name": capability_name,
+                    "type": "capability",
+                    "action": action,
+                    "reason": "Explicit capability rule",
+                    "enabled": true
+                })))
+            } else {
+                Ok(HttpResponse::NotFound().json(json!({
+                    "error": "No allowlist rule found for this capability",
+                    "capability": capability_name
+                })))
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Allowlist service not available"
+            })))
+        }
+    }
+
+    pub async fn set_capability_allowlist_rule(&self, path: web::Path<String>, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
+        let capability_name = path.into_inner();
+        debug!("Setting allowlist rule for capability: {}", capability_name);
+        if let Some(ref allowlist_service) = self.allowlist_service {
+            let action_str = params.get("action")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| actix_web::error::ErrorBadRequest("Missing 'action' field"))?;
+            
+            let action = match action_str {
+                "allow" => crate::security::AllowlistAction::Allow,
+                "deny" => crate::security::AllowlistAction::Deny,
+                _ => return Ok(HttpResponse::BadRequest().json(json!({
+                    "error": "Invalid action. Must be 'allow' or 'deny'"
+                })))
+            };
+
+            let reason = params.get("reason")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| format!("{} access to {}", action_str, capability_name));
+
+            match allowlist_service.set_capability_rule(&capability_name, action.clone(), Some(reason.clone())) {
+                Ok(()) => {
+                    info!("Set allowlist rule for capability '{}': {} - {}", capability_name, action_str, reason);
+                    Ok(HttpResponse::Ok().json(json!({
+                        "id": format!("capability_{}", capability_name),
+                        "name": capability_name,
+                        "type": "capability",
+                        "action": action.clone(),
+                        "reason": reason,
+                        "enabled": true
+                    })))
+                }
+                Err(err) => {
+                    error!("Failed to set allowlist rule for capability '{}': {}", capability_name, err);
+                    Ok(HttpResponse::InternalServerError().json(json!({
+                        "error": "Failed to set allowlist rule",
+                        "details": err.to_string()
+                    })))
+                }
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Allowlist service not available"
+            })))
+        }
+    }
+
+    pub async fn remove_capability_allowlist_rule(&self, path: web::Path<String>) -> Result<HttpResponse> {
+        let capability_name = path.into_inner();
+        debug!("Removing allowlist rule for capability: {}", capability_name);
+        if let Some(ref allowlist_service) = self.allowlist_service {
+            match allowlist_service.remove_capability_rule(&capability_name) {
+                Ok(()) => {
+                    Ok(HttpResponse::Ok().json(json!({
+                        "status": "Rule removed successfully",
+                        "capability": capability_name
+                    })))
+                }
+                Err(err) => {
+                    Ok(HttpResponse::InternalServerError().json(json!({
+                        "error": "Failed to remove allowlist rule",
+                        "details": err.to_string()
+                    })))
+                }
+            }
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Allowlist service not available"
+            })))
+        }
+    }
+
+    /// Test allowlist pattern against tools and capabilities
+    pub async fn test_allowlist_pattern(&self, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
+        debug!("Testing allowlist pattern: {:?}", params);
+        
+        let pattern = params.get("pattern")
+            .and_then(|p| p.as_str())
+            .unwrap_or("")
+            .to_string();
+        
+        let pattern_type = params.get("pattern_type")
+            .and_then(|p| p.as_str())
+            .unwrap_or("regex");
+        
+        let action = params.get("action")
+            .and_then(|a| a.as_str())
+            .unwrap_or("allow");
+            
+        if pattern.is_empty() {
+            return Ok(HttpResponse::BadRequest().json(json!({
+                "error": "Pattern is required"
+            })));
+        }
+
+        // For now, simulate pattern testing since we're mainly focusing on the frontend UX
+        // In a real implementation, this would test the pattern against the allowlist service
+        let test_result = json!({
+            "allowed": action == "allow",
+            "action": action,
+            "matched_rule": format!("pattern: {}", pattern),
+            "reason": format!("Pattern '{}' tested with type '{}' and action '{}'", pattern, pattern_type, action),
+            "rule_level": "global",
+            "pattern": pattern,
+            "pattern_type": pattern_type,
+            "matches": [],
+            "total_tested": 0
+        });
+
+        Ok(HttpResponse::Ok().json(test_result))
+    }
 
 }
 

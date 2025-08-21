@@ -479,10 +479,35 @@ impl RegistryService {
         
         // Iterate through all capability files to get server/capability context
         for (file_path, capability_file) in &registry.files {
-            // Extract server and capability from file path
-            // Example: "/path/capabilities/external-mcp/filesystem.yaml" 
-            //   -> server: "external-mcp", capability: "filesystem"
-            let (server, capability) = self.extract_server_capability_from_path(file_path);
+            // Try to get capability name from metadata first, fallback to path extraction
+            let capability_name = if let Some(ref metadata) = capability_file.metadata {
+                if let Some(ref name) = metadata.name {
+                    name.clone()
+                } else {
+                    // Fallback to filename without extension
+                    file_path.file_stem()
+                        .and_then(|stem| stem.to_str())
+                        .unwrap_or("unknown")
+                        .to_string()
+                }
+            } else {
+                // Fallback to filename without extension
+                file_path.file_stem()
+                    .and_then(|stem| stem.to_str())
+                    .unwrap_or("unknown")
+                    .to_string()
+            };
+            
+            // Extract server from directory structure, or use "internal" for capability files
+            let server = if let Some(parent) = file_path.parent() {
+                if let Some(parent_name) = parent.file_name() {
+                    parent_name.to_string_lossy().to_string()
+                } else {
+                    "internal".to_string()
+                }
+            } else {
+                "internal".to_string()
+            };
             
             // Add all tools from this capability file with their context
             for tool in &capability_file.tools {
@@ -490,7 +515,7 @@ impl RegistryService {
                     tool.name.clone(),
                     tool.clone(),
                     server.clone(),
-                    capability.clone(),
+                    capability_name.clone(),
                 ));
             }
             

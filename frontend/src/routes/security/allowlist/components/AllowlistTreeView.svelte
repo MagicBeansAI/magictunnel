@@ -3,6 +3,38 @@
   import type { AllowlistRule } from '$lib/types/security';
   
   export let treeData: any;
+  export let highlightedNodeIds: Set<string> = new Set();
+  export let parentHighlightIds: Set<string> = new Set();
+  
+  // Auto-expand nodes with highlighted children
+  $: if (treeData && (highlightedNodeIds.size > 0 || parentHighlightIds.size > 0)) {
+    expandNodesWithHighlightedChildren(treeData);
+  }
+  
+  function expandNodesWithHighlightedChildren(node: any) {
+    if (!node) return;
+    
+    // Check if any child nodes are highlighted
+    let hasHighlightedChild = false;
+    if (node.children) {
+      for (const child of node.children) {
+        // Recursively check children first
+        expandNodesWithHighlightedChildren(child);
+        
+        // Check if this child is highlighted
+        if (highlightedNodeIds.has(child.id) || parentHighlightIds.has(child.id)) {
+          hasHighlightedChild = true;
+        }
+      }
+    }
+    
+    // If this node has highlighted children, expand it
+    if (hasHighlightedChild && node.expanded !== undefined) {
+      node.expanded = true;
+      // Trigger reactivity
+      treeData = treeData;
+    }
+  }
   
   const dispatch = createEventDispatcher();
   
@@ -15,6 +47,43 @@
     parent?: TreeNode;
     expanded: boolean;
     level: number;
+  }
+  
+  // Check node highlighting status
+  function getNodeHighlightStatus(node: TreeNode): { type: 'direct' | 'parent' | 'none'; highlighted: boolean } {
+    if (highlightedNodeIds.has(node.id)) {
+      return { type: 'direct', highlighted: true };
+    }
+    if (parentHighlightIds.has(node.id)) {
+      return { type: 'parent', highlighted: true };
+    }
+    return { type: 'none', highlighted: false };
+  }
+  
+  // Get highlighting class for node
+  function getHighlightClass(node: TreeNode): string {
+    const status = getNodeHighlightStatus(node);
+    
+    if (status.type === 'direct') {
+      return 'bg-green-100 border-l-4 border-l-green-500 shadow-sm';
+    }
+    if (status.type === 'parent') {
+      return 'bg-yellow-100 border-l-4 border-l-yellow-400 shadow-sm';
+    }
+    return '';
+  }
+  
+  // Get highlight indicator for node
+  function getHighlightIndicator(node: TreeNode): string {
+    const status = getNodeHighlightStatus(node);
+    
+    if (status.type === 'direct') {
+      return '🎯';
+    }
+    if (status.type === 'parent') {
+      return '📂';
+    }
+    return '';
   }
   
   // Get rule status and styling
@@ -115,7 +184,7 @@
       {@const serverRender = renderNode(serverNode, serverIndex, treeData.children)}
       <div class="relative">
         <!-- Server Row -->
-        <div class="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
+        <div class="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all {getHighlightClass(serverNode)}">
           <!-- Indentation and Tree Lines -->
           <div style="margin-left: {serverRender.indentation}" class="{serverRender.connectorClass}">
             <div class="flex items-center gap-2">
@@ -135,6 +204,11 @@
               
               <!-- Server Icon and Name -->
               <span class="text-lg">{serverNode.name.includes('Operations') ? '🏠' : '🔌'}</span>
+              {#if getHighlightIndicator(serverNode)}
+                <span class="text-sm" title="{getNodeHighlightStatus(serverNode).type === 'direct' ? 'Direct match' : 'Has matching children'}">
+                  {getHighlightIndicator(serverNode)}
+                </span>
+              {/if}
               <span class="font-medium text-gray-900">{serverNode.name}</span>
               
               <!-- Server Status -->
@@ -178,13 +252,18 @@
           <div class="ml-4">
             {#each serverNode.children as toolNode, toolIndex}
               {@const toolRender = renderNode(toolNode, toolIndex, serverNode.children)}
-              <div class="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
+              <div class="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all {getHighlightClass(toolNode)}">
                 <!-- Tool Indentation and Tree Lines -->
                 <div style="margin-left: {toolRender.indentation}" class="{toolRender.connectorClass}">
                   <div class="flex items-center gap-2">
                     <!-- Tool Icon and Name -->
                     <div class="w-5 h-5"></div> <!-- Spacer for alignment -->
                     <span class="text-md">🔧</span>
+                    {#if getHighlightIndicator(toolNode)}
+                      <span class="text-sm" title="{getNodeHighlightStatus(toolNode).type === 'direct' ? 'Direct match' : 'Has matching children'}">
+                        {getHighlightIndicator(toolNode)}
+                      </span>
+                    {/if}
                     <span class="text-sm text-gray-700">{toolNode.name}</span>
                     
                     <!-- Tool Status -->

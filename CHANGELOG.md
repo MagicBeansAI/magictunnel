@@ -5,7 +5,43 @@ All notable changes to the MagicTunnel project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.17] - 2025-08-20 - Nested Tool Call Security System ✅
+## [0.3.18] - Enhanced Allowlist Pattern Testing UX ✅
+
+### Added - Advanced Pattern Testing Interface ✅
+- **🎯 Hierarchical Pattern Highlighting**: Real-time visual feedback system with green highlighting for direct matches and yellow for parent indicators
+- **⚡ Smart Bulk Apply**: Apply allowlist rules to multiple matching tools/capabilities with accurate counts (only applies to direct matches, not parent indicators)
+- **🔍 Enhanced Pattern Testing**: Test patterns with regex, glob, and exact matching with immediate visual feedback in the tree view
+- **📂 Auto-Expansion**: Automatically expand tree nodes that contain highlighted matches for better visibility
+- **🎨 Visual Indicators**: Target emoji (🎯) for direct matches, folder emoji (📂) for parent indicators with descriptive tooltips
+
+### Fixed - Critical UX and Architecture Issues ✅
+- **Pattern Matching Variable Declaration**: Fixed undefined `matchingNodes` variable causing JavaScript errors in pattern testing
+- **Allowlist API Endpoints**: Resolved apparent "404 errors" - endpoints were working correctly, returning proper 404 for non-existent rules (expected behavior)
+- **File-Based Grouping**: Fixed internal server grouping to use capability source files instead of categories, aligning with actual allowlist control structure
+- **Backend Tool Metadata**: Updated registry service to use YAML metadata names instead of path-based extraction for proper tool naming
+- **Tree View Loading**: Eliminated "loading" state issues by ensuring proper API endpoint functionality
+
+### Improved - Allowlist Management Architecture ✅
+- **🏗️ File-Based Organization**: Internal capabilities now grouped by source YAML file (e.g., "File Capabilities", "Network Capabilities") for logical allowlist control
+- **🔧 Enhanced TreeView**: Improved expand/collapse behavior with hierarchical highlighting and auto-expansion of matching nodes
+- **📊 Pattern Testing Flow**: Complete UX flow from pattern input → highlighting → bulk application with clear visual feedback
+- **🎪 Professional Interface**: Enhanced pattern testing UI with gradient headers, numbered items, and clear action indicators
+
+### Technical Implementation ✅
+- **PatternTester Component**: Added proper variable declarations and reactive state management for pattern matching results
+- **AllowlistTreeView Enhancement**: Implemented hierarchical highlighting system with automatic expansion for highlighted children
+- **Registry Service Updates**: Modified `get_all_tools_with_context()` to prioritize YAML metadata over file path extraction
+- **API Endpoint Validation**: Verified all allowlist CRUD operations work correctly with proper error handling
+
+### UI/UX Enhancements ✅
+- **Enhanced Results Display**: Pattern testing results show match hierarchy, action badges, and bulk application controls
+- **Visual Feedback System**: Clear distinction between direct matches (green) and parent indicators (yellow) with emoji indicators
+- **Smart Bulk Operations**: Bulk apply only affects direct matches with accurate counts and clear confirmation
+- **Responsive Design**: Mobile-friendly pattern testing interface with collapsible sections and clear navigation
+
+This release significantly enhances the allowlist management experience with advanced pattern testing capabilities, hierarchical highlighting, and improved organizational structure for better usability and control.
+
+## [0.3.17] - Nested Tool Call Security System ✅
 
 ### Added - Advanced Security Architecture ✅
 - **🔒 Nested Tool Call Security**: Complete security validation for tools called internally by other tools (e.g., smart_tool_discovery → external tools)

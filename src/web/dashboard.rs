@@ -440,6 +440,19 @@ impl DashboardApi {
                 "general"
             };
 
+            // Extract source information from routing and annotations
+            let source_info = if let Some(ref annotations) = tool.annotations {
+                json!({
+                    "type": annotations.get("source").unwrap_or(&"internal".to_string()).clone(),
+                    "server_name": annotations.get("server").unwrap_or(&"internal".to_string()).clone()
+                })
+            } else {
+                json!({
+                    "type": "internal",
+                    "server_name": "internal"
+                })
+            };
+
             json!({
                 "name": name,
                 "description": tool.description,
@@ -447,6 +460,8 @@ impl DashboardApi {
                 "category": category,
                 "enabled": tool.is_enabled(),
                 "hidden": tool.is_hidden(),
+                "source": source_info,
+                "routing": tool.routing,
                 "last_used": null,     // TODO: Track usage
                 "success_rate": null   // TODO: Track success rate
             })
@@ -819,25 +834,34 @@ impl DashboardApi {
 
     /// GET /dashboard/api/capabilities - All capability tools including hidden/disabled
     pub async fn get_capabilities_catalog(&self) -> Result<HttpResponse> {
-        // Get all tools including hidden ones to show the complete capability set
-        let all_tools = self.registry.get_all_tools_including_hidden();
+        // Get all tools with their file context (server, capability)
+        let all_tools_with_context = self.registry.get_all_tools_with_context();
         
-        let capabilities_data = all_tools.iter().map(|(name, tool)| {
-            // Determine category from tool name or description
-            let category = if name.contains("file") || name.contains("read") || name.contains("write") {
-                "file"
+        let capabilities_data = all_tools_with_context.iter().map(|(name, tool, server, capability)| {
+            // Use the capability from file path as category, fallback to old logic
+            let category = if capability != "unknown" {
+                capability.clone()
+            } else if name.contains("file") || name.contains("read") || name.contains("write") {
+                "file".to_string()
             } else if name.contains("http") || name.contains("api") || name.contains("request") {
-                "network"  
+                "network".to_string()
             } else if name.contains("git") || name.contains("repo") {
-                "dev"
+                "dev".to_string()
             } else if name.contains("database") || name.contains("sql") {
-                "data"
+                "data".to_string()
             } else if name.contains("system") || name.contains("monitor") {
-                "system"
+                "system".to_string()
             } else if name.contains("ai") || name.contains("llm") || name.contains("smart") {
-                "ai"
+                "ai".to_string()
             } else {
-                "general"
+                "general".to_string()
+            };
+            
+            // Create source path for frontend grouping
+            let source = if server == "unknown" || capability == "unknown" {
+                "unknown".to_string()
+            } else {
+                format!("capabilities/{}/{}.yaml", server, capability)
             };
                 
             json!({
@@ -845,6 +869,7 @@ impl DashboardApi {
                 "description": tool.description,
                 "input_schema": tool.input_schema,
                 "category": category,
+                "source": source,  // Add source file path for proper grouping
                 "enabled": tool.is_enabled(),
                 "hidden": tool.is_hidden(),
                 "last_used": null,     // TODO: Track usage
@@ -7838,6 +7863,33 @@ pub fn configure_dashboard_api(
                 }))
                 .route("/security/allowlist/tools/{tool_name}", web::delete().to(|api: web::Data<crate::web::SecurityApi>, path: web::Path<String>| async move {
                     api.remove_tool_allowlist_rule(path).await
+                }))
+                
+                // Server allowlist endpoints
+                .route("/security/allowlist/servers/{server_name}", web::get().to(|api: web::Data<crate::web::SecurityApi>, path: web::Path<String>| async move {
+                    api.get_server_allowlist_rule(path).await
+                }))
+                .route("/security/allowlist/servers/{server_name}", web::post().to(|api: web::Data<crate::web::SecurityApi>, path: web::Path<String>, params: web::Json<serde_json::Value>| async move {
+                    api.set_server_allowlist_rule(path, params).await
+                }))
+                .route("/security/allowlist/servers/{server_name}", web::delete().to(|api: web::Data<crate::web::SecurityApi>, path: web::Path<String>| async move {
+                    api.remove_server_allowlist_rule(path).await
+                }))
+                
+                // Capability allowlist endpoints  
+                .route("/security/allowlist/capabilities/{capability_name}", web::get().to(|api: web::Data<crate::web::SecurityApi>, path: web::Path<String>| async move {
+                    api.get_capability_allowlist_rule(path).await
+                }))
+                .route("/security/allowlist/capabilities/{capability_name}", web::post().to(|api: web::Data<crate::web::SecurityApi>, path: web::Path<String>, params: web::Json<serde_json::Value>| async move {
+                    api.set_capability_allowlist_rule(path, params).await
+                }))
+                .route("/security/allowlist/capabilities/{capability_name}", web::delete().to(|api: web::Data<crate::web::SecurityApi>, path: web::Path<String>| async move {
+                    api.remove_capability_allowlist_rule(path).await
+                }))
+                
+                // Pattern testing endpoint
+                .route("/security/allowlist/test", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.test_allowlist_pattern(params).await
                 }))
                 
                 // Audit logging endpoints

@@ -17,16 +17,46 @@
   let batchTestInputs = '';
   let batchResults: any[] = [];
   
+  // Pattern matching results
+  let matchingNodes: any[] = [];
+  
   // Handle pattern test
   async function handleTest() {
     if (testMode === 'single') {
       if (!pattern.trim()) return;
       testing = true;
-      dispatch('test-pattern');
+      
+      const matches = getMatchingNodes();
+      const directMatches = matches.filter(m => m.matchType === 'direct');
+      const parentMatches = matches.filter(m => m.matchType === 'parent');
+      
+      dispatch('test-pattern', {
+        pattern,
+        patternType,
+        action: testAction,
+        matchingNodes: matches,
+        directMatches,
+        parentMatches
+      });
       testing = false;
     } else {
       await handleBatchTest();
     }
+  }
+
+  // Handle bulk apply for matching nodes
+  async function handleBulkApply() {
+    if (!pattern.trim() || matchingNodes.length === 0) return;
+    
+    const matches = getMatchingNodes();
+    const directMatches = matches.filter(m => m.matchType === 'direct');
+    
+    dispatch('bulk-apply', {
+      pattern,
+      action: testAction,
+      matches: directMatches,
+      total: directMatches.length
+    });
   }
   
   // Handle batch pattern testing
@@ -79,35 +109,86 @@
     }
   }
   
-  // Get matches from tree data
+  // Get matches from tree data with hierarchical classification
   function getMatchingNodes(): any[] {
-    if (!treeData || !patternTestResults) return [];
+    if (!treeData || !pattern.trim()) {
+      console.log('🔍 Early return: treeData?', !!treeData, 'pattern?', !!pattern.trim());
+      return [];
+    }
     
-    const matches: any[] = [];
+    console.log('🔍 Pattern matching debug:', {
+      pattern: pattern.trim(),
+      patternType,
+      treeDataName: treeData.name,
+      hasChildren: treeData.children ? treeData.children.length : 0
+    });
+    
+    const directMatches: any[] = [];
+    const parentIndicators: Set<string> = new Set();
     
     function checkNode(node: any) {
-      // Check if this node matches the pattern
-      if (doesNodeMatch(node, pattern, patternType)) {
-        matches.push({
+      let hasMatchingChild = false;
+      
+      // Recursively check children first
+      if (node.children) {
+        node.children.forEach(child => {
+          const childHasMatch = checkNode(child);
+          if (childHasMatch) {
+            hasMatchingChild = true;
+          }
+        });
+      }
+      
+      // Check if this node directly matches the pattern
+      const directMatch = doesNodeMatch(node, pattern, patternType);
+      
+      if (directMatch) {
+        directMatches.push({
           id: node.id,
           name: node.name,
           type: node.type,
           path: getNodePath(node),
-          level: node.level
+          level: node.level,
+          matchType: 'direct'
         });
+      } else if (hasMatchingChild) {
+        // This node doesn't match directly but has matching children
+        parentIndicators.add(node.id);
       }
       
-      // Recursively check children
-      if (node.children) {
-        node.children.forEach(checkNode);
-      }
+      return directMatch || hasMatchingChild;
     }
     
     if (treeData.children) {
       treeData.children.forEach(checkNode);
     }
     
-    return matches;
+    // Add parent indicators to the matches array
+    const allMatches = [...directMatches];
+    
+    // Add parent indicators with metadata
+    function addParentIndicators(node: any) {
+      if (parentIndicators.has(node.id)) {
+        allMatches.push({
+          id: node.id,
+          name: node.name,
+          type: node.type,
+          path: getNodePath(node),
+          level: node.level,
+          matchType: 'parent'
+        });
+      }
+      
+      if (node.children) {
+        node.children.forEach(addParentIndicators);
+      }
+    }
+    
+    if (treeData.children) {
+      treeData.children.forEach(addParentIndicators);
+    }
+    
+    return allMatches;
   }
   
   // Check if a node matches the pattern
@@ -117,6 +198,13 @@
     const name = node.name.toLowerCase();
     const pattern = testPattern.toLowerCase();
     
+    const match = testPatternMatch(name, pattern, type);
+    console.log('🎯 Testing:', node.name, 'vs', testPattern, '→', match);
+    
+    return match;
+  }
+  
+  function testPatternMatch(name: string, pattern: string, type: string): boolean {
     switch (type) {
       case 'exact':
         return name === pattern;
@@ -153,7 +241,10 @@
     return path.join(' > ');
   }
   
-  $: matchingNodes = getMatchingNodes();
+  $: {
+    matchingNodes = getMatchingNodes();
+    console.log('🔄 Reactive update - matchingNodes length:', matchingNodes.length, 'pattern:', pattern);
+  }
   
   // Example patterns
   const examplePatterns = {
@@ -233,8 +324,17 @@
       disabled={!pattern.trim() || testing}
       class="flex-1 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
     >
-      {testing ? 'Testing...' : 'Test Pattern'}
+      {testing ? 'Testing...' : 'Test & Highlight'}
     </button>
+    {#if matchingNodes.length > 0}
+      <button
+        on:click={handleBulkApply}
+        class="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium flex items-center gap-1"
+      >
+        <span>⚡</span>
+        Apply ({matchingNodes.filter(m => m.matchType === 'direct').length})
+      </button>
+    {/if}
     <button
       on:click={clearPattern}
       class="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 text-sm"
@@ -322,18 +422,27 @@
     </div>
   {/if}
 
-  <!-- Single Pattern Results -->
+  <!-- Single Pattern Results with Enhanced UI -->
   {#if testMode === 'single' && pattern && matchingNodes.length > 0}
     <div class="border border-gray-200 rounded-md">
-      <div class="bg-gray-50 px-3 py-2 border-b border-gray-200">
-        <h4 class="text-sm font-medium text-gray-700">
-          Matching Nodes ({matchingNodes.length})
-        </h4>
+      <div class="bg-gradient-to-r from-blue-50 to-indigo-50 px-3 py-2 border-b border-gray-200">
+        <div class="flex items-center justify-between">
+          <h4 class="text-sm font-medium text-gray-700">
+            🎯 Pattern Matches ({matchingNodes.length})
+          </h4>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-gray-500">Pattern: <code class="bg-white px-1 rounded">{pattern}</code></span>
+          </div>
+        </div>
+        <div class="mt-1 text-xs text-gray-600">
+          These items match your pattern and will be {testAction === 'allow' ? 'allowed' : 'denied'} when applied
+        </div>
       </div>
       <div class="max-h-64 overflow-y-auto">
-        {#each matchingNodes as match}
-          <div class="flex items-center justify-between px-3 py-2 border-b border-gray-100 last:border-b-0">
+        {#each matchingNodes as match, index}
+          <div class="flex items-center justify-between px-3 py-2 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors">
             <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-400 w-6">{index + 1}</span>
               <span class="text-sm">
                 {match.type === 'server' ? '🔌' : '🔧'}
               </span>
@@ -342,11 +451,37 @@
                 <div class="text-xs text-gray-500">{match.path}</div>
               </div>
             </div>
-            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {testAction === 'allow' ? 'text-green-700 bg-green-100' : 'text-red-700 bg-red-100'}">
-              {testAction === 'allow' ? '✅ Allow' : '🚫 Deny'}
-            </span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-400">{match.type}</span>
+              <div class="flex items-center gap-2">
+                <span class="text-xs px-2 py-1 rounded-full {match.matchType === 'direct' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">
+                  {match.matchType === 'direct' ? '🎯 Direct' : '📂 Parent'}
+                </span>
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {testAction === 'allow' ? 'text-green-700 bg-green-100' : 'text-red-700 bg-red-100'}">
+                  {testAction === 'allow' ? '✅ Allow' : '🚫 Deny'}
+                </span>
+              </div>
+            </div>
           </div>
         {/each}
+      </div>
+      
+      <!-- Bulk Apply Actions -->
+      <div class="bg-gray-50 px-3 py-2 border-t border-gray-200">
+        <div class="flex items-center justify-between">
+          <div class="text-xs text-gray-600">
+            Ready to apply {testAction} rule to {matchingNodes.filter(m => m.matchType === 'direct').length} direct match{matchingNodes.filter(m => m.matchType === 'direct').length !== 1 ? 'es' : ''}
+          </div>
+          <div class="flex gap-2">
+            <button
+              on:click={handleBulkApply}
+              class="px-3 py-1 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 flex items-center gap-1"
+            >
+              <span>⚡</span>
+              Bulk Apply {testAction === 'allow' ? 'Allow' : 'Deny'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   {:else if testMode === 'single' && pattern && matchingNodes.length === 0}

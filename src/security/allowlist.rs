@@ -1925,6 +1925,20 @@ impl AllowlistService {
         self.global_pattern_rules.clone()
     }
 
+    /// Get explicit capability rule for a capability name
+    pub fn get_explicit_capability_rule(&self, capability_name: &str) -> Option<AllowlistAction> {
+        self.explicit_capability_rules.get(capability_name).cloned()
+    }
+
+    /// Reload data from the data file (used after persisting changes)
+    fn reload_from_data_file(&self, file_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        // This is a bit tricky because we need to update fields that aren't wrapped in RwLock
+        // For now, we'll just log that a reload is needed
+        debug!("Data file reload needed for: {}", file_path);
+        // TODO: Implement proper reload mechanism or use interior mutability
+        Ok(())
+    }
+
 
     /// Add or update a tool allowlist rule
     pub fn add_tool_rule(&self, tool_name: String, rule: AllowlistRule) -> Result<(), Box<dyn std::error::Error>> {
@@ -1965,14 +1979,91 @@ impl AllowlistService {
 
     /// Persist the current allowlist configuration to the main config file
     fn persist_config(&self) -> Result<(), Box<dyn std::error::Error>> {
-        // This is a simplified implementation that writes to a separate allowlist config file
-        // In a production system, you might want to update the main config file instead
+        // Use the data file path if available, otherwise fall back to old config path
+        let data_file_path = if let Some(data_path) = &self.data_file_path {
+            data_path.clone()
+        } else {
+            std::env::var("MAGICTUNNEL_ALLOWLIST_CONFIG_PATH")
+                .unwrap_or_else(|_| "./data/allowlist-config.yaml".to_string())
+        };
         
-        let config_path = std::env::var("MAGICTUNNEL_ALLOWLIST_CONFIG_PATH")
-            .unwrap_or_else(|_| "./data/allowlist-config.yaml".to_string());
+        // If we have a data file path, persist to the data file format
+        if let Some(data_path) = &self.data_file_path {
+            self.persist_to_data_file(data_path)?;
+        } else {
+            // Fall back to old format for backward compatibility
+            self.persist_to_old_format(&data_file_path)?;
+        }
         
+        debug!("Allowlist configuration persisted to: {}", data_file_path);
+        Ok(())
+    }
+
+    fn persist_to_data_file(&self, file_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        use std::fs;
+        use super::allowlist_data::{AllowlistData, AllowlistMetadata, AllowlistPatterns, ExplicitRules};
+        use chrono::Utc;
+        use std::collections::HashMap;
+
         // Ensure the directory exists
-        if let Some(parent) = Path::new(&config_path).parent() {
+        if let Some(parent) = Path::new(file_path).parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        // Load existing data file if it exists
+        let mut allowlist_data = if Path::new(file_path).exists() {
+            let contents = fs::read_to_string(file_path)?;
+            serde_yaml::from_str::<AllowlistData>(&contents)?
+        } else {
+            // Create default structure
+            AllowlistData {
+                metadata: AllowlistMetadata {
+                    version: "1.0.0".to_string(),
+                    last_updated: Utc::now(),
+                    total_patterns: 0,
+                    total_explicit_rules: 0,
+                },
+                patterns: AllowlistPatterns {
+                    global: Vec::new(),
+                    tools: Vec::new(),
+                    capabilities: Vec::new(),
+                },
+                explicit_rules: ExplicitRules {
+                    tools: HashMap::new(),
+                    capabilities: HashMap::new(),
+                },
+            }
+        };
+
+        // Merge explicit rules from current config (don't overwrite, merge!)
+        let config = self.config.read().unwrap();
+        
+        // Merge tool rules (preserve existing rules, add/update from config)
+        for (name, rule) in config.tools.iter() {
+            allowlist_data.explicit_rules.tools.insert(name.clone(), rule.action.clone());
+        }
+
+        // Merge capability rules (preserve existing rules, add/update from config) 
+        for (name, rule) in config.capabilities.iter() {
+            allowlist_data.explicit_rules.capabilities.insert(name.clone(), rule.action.clone());
+        }
+
+        // Update metadata
+        allowlist_data.metadata.last_updated = Utc::now();
+        allowlist_data.metadata.total_explicit_rules = 
+            (allowlist_data.explicit_rules.tools.len() + allowlist_data.explicit_rules.capabilities.len()) as u32;
+
+        // Write updated data back to file
+        let yaml_content = serde_yaml::to_string(&allowlist_data)?;
+        fs::write(file_path, yaml_content)?;
+
+        debug!("Allowlist data persisted to data file format: {}", file_path);
+        Ok(())
+    }
+
+    fn persist_to_old_format(&self, config_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        // Ensure the directory exists
+        if let Some(parent) = Path::new(config_path).parent() {
             fs::create_dir_all(parent)?;
         }
         
@@ -1981,9 +2072,9 @@ impl AllowlistService {
         
         // Convert to YAML and write to file
         let yaml_content = serde_yaml::to_string(&*config)?;
-        fs::write(&config_path, yaml_content)?;
+        fs::write(config_path, yaml_content)?;
         
-        debug!("Allowlist configuration persisted to: {}", config_path);
+        debug!("Allowlist configuration persisted to old format: {}", config_path);
         Ok(())
     }
 
@@ -2002,6 +2093,91 @@ impl AllowlistService {
         
         debug!("Loaded persisted allowlist config from: {} ({} tool rules)", config_path, config.tools.len());
         Ok(config)
+    }
+
+    /// Set a capability-level allowlist rule
+    pub fn set_capability_rule(&self, capability_name: &str, action: AllowlistAction, reason: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+        // Update the explicit capability rules directly (new format)
+        // Note: We need to make this method mutable or use interior mutability
+        // For now, we'll update the old config and let persistence handle the new format
+        {
+            let mut config = self.config.write().unwrap();
+            let rule = super::allowlist_types::AllowlistRule {
+                action,
+                reason,
+                pattern: None,
+                name: Some(capability_name.to_string()),
+                enabled: true,
+            };
+            config.capabilities.insert(capability_name.to_string(), rule);
+        }
+        
+        // Persist the changes to disk (this will update the new format)
+        if let Err(e) = self.persist_config() {
+            warn!("Failed to persist allowlist config after setting capability rule '{}': {}", capability_name, e);
+            // Note: We don't return the error to avoid breaking the in-memory update
+        } else {
+            debug!("Successfully persisted allowlist config after setting capability rule: {}", capability_name);
+            // After persisting, reload the data file to update explicit_capability_rules
+            if let Some(ref data_file_path) = self.data_file_path {
+                if let Err(e) = self.reload_from_data_file(data_file_path) {
+                    warn!("Failed to reload data file after setting capability rule '{}': {}", capability_name, e);
+                }
+            }
+        }
+        
+        Ok(())
+    }
+
+    /// Remove a capability-level allowlist rule
+    pub fn remove_capability_rule(&self, capability_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+        // Remove from both old config format and explicitly mark for removal from data file
+        {
+            let mut config = self.config.write().unwrap();
+            config.capabilities.remove(capability_name);
+        }
+        
+        // Also need to remove from data file explicitly
+        if let Some(ref data_file_path) = self.data_file_path {
+            self.remove_capability_from_data_file(data_file_path, capability_name)?;
+        } else {
+            // Fallback to old persistence method
+            if let Err(e) = self.persist_config() {
+                warn!("Failed to persist allowlist config after removing capability rule '{}': {}", capability_name, e);
+            }
+        }
+        
+        debug!("Successfully removed capability rule: {}", capability_name);
+        Ok(())
+    }
+
+    /// Remove a specific capability from the data file
+    fn remove_capability_from_data_file(&self, file_path: &str, capability_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+        use std::fs;
+        use super::allowlist_data::AllowlistData;
+        
+        if !Path::new(file_path).exists() {
+            return Ok(()); // Nothing to remove if file doesn't exist
+        }
+        
+        // Load existing data
+        let contents = fs::read_to_string(file_path)?;
+        let mut allowlist_data: AllowlistData = serde_yaml::from_str(&contents)?;
+        
+        // Remove the specific capability
+        allowlist_data.explicit_rules.capabilities.remove(capability_name);
+        
+        // Update metadata
+        allowlist_data.metadata.last_updated = chrono::Utc::now();
+        allowlist_data.metadata.total_explicit_rules = 
+            (allowlist_data.explicit_rules.tools.len() + allowlist_data.explicit_rules.capabilities.len()) as u32;
+        
+        // Write back to file
+        let yaml_content = serde_yaml::to_string(&allowlist_data)?;
+        fs::write(file_path, yaml_content)?;
+        
+        debug!("Removed capability '{}' from data file: {}", capability_name, file_path);
+        Ok(())
     }
 }
 

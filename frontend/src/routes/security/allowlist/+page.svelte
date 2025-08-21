@@ -30,6 +30,9 @@
   let treeData: TreeNode | null = null;
   let selectedPattern = '';
   let patternTestResults: any = null;
+  let highlightedNodeIds: Set<string> = new Set();
+  let parentHighlightIds: Set<string> = new Set();
+  let currentMatches: any[] = [];
 
   // Check if Allowlist is enabled
   async function checkAllowlistConfig() {
@@ -112,11 +115,11 @@
       }
 
       // Add tools for this external server  
-      const capabilities = server.capabilities || [];
-      console.log(`Server ${server.name} has ${capabilities.length} capabilities:`, capabilities);
+      const tools = server.tools || [];
+      console.log(`Server ${server.name} has ${tools.length} tools:`, tools);
       
-      if (capabilities && capabilities.length > 0) {
-        for (const tool of capabilities) {
+      if (tools && tools.length > 0) {
+        for (const tool of tools) {
           const toolNode: TreeNode = {
             id: `tool:${server.name}:${tool.name}`,
             name: tool.name,
@@ -222,22 +225,68 @@
     }
   }
 
-  // Handle pattern testing
-  async function handlePatternTest() {
-    if (!selectedPattern.trim()) {
-      patternTestResults = null;
-      return;
-    }
-
+  // Handle pattern testing with hierarchical highlighting
+  async function handlePatternTest(event: CustomEvent) {
+    const { pattern, patternType, action, matchingNodes, directMatches, parentMatches } = event.detail;
+    
     try {
+      // Update pattern and results
+      selectedPattern = pattern;
+      currentMatches = matchingNodes || [];
+      
+      // Set up hierarchical highlighting
+      highlightedNodeIds = new Set((directMatches || []).map(match => match.id));
+      parentHighlightIds = new Set((parentMatches || []).map(match => match.id));
+      
+      // Test the pattern via API for validation
       patternTestResults = await api.testAllowlistRule({
-        pattern: selectedPattern,
-        pattern_type: 'regex',
-        action: 'allow'
+        pattern,
+        pattern_type: patternType,
+        action
       });
+      
+      console.log(`Pattern testing: '${pattern}' - ${directMatches?.length || 0} direct matches, ${parentMatches?.length || 0} parent indicators`);
+      console.log('Direct matches:', Array.from(highlightedNodeIds));
+      console.log('Parent indicators:', Array.from(parentHighlightIds));
     } catch (err) {
       console.error('Failed to test pattern:', err);
       error = `Failed to test pattern: ${err}`;
+    }
+  }
+  
+  // Handle bulk apply
+  async function handleBulkApply(event: CustomEvent) {
+    const { pattern, action, matches, total } = event.detail;
+    
+    if (!matches || matches.length === 0) {
+      error = 'No matches to apply';
+      return;
+    }
+    
+    try {
+      console.log(`Bulk applying ${action} to ${total} items:`, matches);
+      
+      // Apply rules to each matched item
+      for (const match of matches) {
+        if (match.id.startsWith('server:')) {
+          const serverName = match.id.replace('server:', '');
+          await api.setServerAllowlistRule(serverName, action, `Bulk ${action} via pattern: ${pattern}`);
+        } else if (match.id.startsWith('tool:')) {
+          const [, serverName, toolName] = match.id.split(':');
+          await api.setToolAllowlistRule(toolName, action, `Bulk ${action} via pattern: ${pattern}`);
+        }
+      }
+      
+      // Clear highlights and rebuild tree
+      highlightedNodeIds = new Set();
+      parentHighlightIds = new Set();
+      currentMatches = [];
+      await buildTreeData();
+      
+      console.log(`Successfully applied ${action} to ${total} items`);
+    } catch (err) {
+      console.error('Failed to bulk apply rules:', err);
+      error = `Failed to bulk apply: ${err}`;
     }
   }
 
@@ -324,6 +373,8 @@
           <div class="p-6">
             <AllowlistTreeView 
               {treeData} 
+              {highlightedNodeIds}
+              {parentHighlightIds}
               on:rule-change={handleRuleChange}
             />
           </div>
@@ -345,6 +396,7 @@
               {patternTestResults}
               {treeData}
               on:test-pattern={handlePatternTest}
+              on:bulk-apply={handleBulkApply}
             />
           </div>
         </div>

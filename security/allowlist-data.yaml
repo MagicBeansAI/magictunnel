@@ -1,80 +1,56 @@
-# MagicTunnel Allowlist Runtime Data
-# This file contains patterns and explicit rules that determine tool access
-# Managed through the web interface - do not edit manually
-
 metadata:
-  version: "1.0.0"
-  last_updated: "2025-08-19T08:00:00Z"
+  version: 1.0.0
+  last_updated: 2025-08-21T03:46:53.944962Z
   total_patterns: 8
-  total_explicit_rules: 3
-
-# Pattern-based rules (evaluated by regex matching)
+  total_explicit_rules: 4
 patterns:
-  # Global patterns (apply to all tools when no other rule matches)
   global:
-    - name: "destructive_operations"
-      regex: ".*(?:delete|destroy|remove|rm|kill|terminate|drop|truncate|purge).*"
-      action: deny
-      reason: "Destructive operations require explicit approval"
-      enabled: true
-      
-    - name: "read_operations"
-      regex: ".*(?:read|get|list|show|view|info|status|health).*"
-      action: allow
-      reason: "Read operations are generally safe"
-      enabled: true
-      
-    - name: "credential_operations"
-      regex: ".*(?:password|key|token|secret|credential|auth|login|oauth).*"
-      action: deny
-      reason: "Credential operations require security review"
-      enabled: true
-
-  # Tool-specific patterns  
+  - name: destructive_operations
+    regex: .*(?:delete|destroy|remove|rm|kill|terminate|drop|truncate|purge).*
+    action: deny
+    reason: Destructive operations require explicit approval
+    enabled: true
+  - name: read_operations
+    regex: .*(?:read|get|list|show|view|info|status|health).*
+    action: allow
+    reason: Read operations are generally safe
+    enabled: true
+  - name: credential_operations
+    regex: .*(?:password|key|token|secret|credential|auth|login|oauth).*
+    action: deny
+    reason: Credential operations require security review
+    enabled: true
   tools:
-    - name: "file_operations"
-      regex: "file_(?:read|get|list|stat|info).*"
-      action: allow
-      reason: "Safe file operations permitted"
-      enabled: true
-      
-    - name: "database_read"
-      regex: "(?:db|database)_(?:read|select|query|get|list).*"
-      action: allow
-      reason: "Database read operations permitted"
-      enabled: true
-
-  # Capability-specific patterns
+  - name: file_operations
+    regex: file_(?:read|get|list|stat|info).*
+    action: allow
+    reason: Safe file operations permitted
+    enabled: true
+  - name: database_read
+    regex: (?:db|database)_(?:read|select|query|get|list).*
+    action: allow
+    reason: Database read operations permitted
+    enabled: true
   capabilities:
-    - name: "system_administration"
-      regex: ".*(?:sudo|admin|root|chmod|chown|systemctl|service).*"
-      action: deny
-      reason: "System administration tools blocked by default"
-      enabled: true
-      
-    - name: "network_tools"
-      regex: ".*(?:ssh|telnet|ftp|sftp|wget|curl|ping|nmap).*"
-      action: deny
-      reason: "Network tools require security review"
-      enabled: true
-      
-    - name: "development_tools"
-      regex: "(?:git|npm|pip|cargo|build|compile|test).*"
-      action: allow
-      reason: "Development tools generally permitted"
-      enabled: true
-
-# Individual explicit rules (override all patterns)
+  - name: system_administration
+    regex: .*(?:sudo|admin|root|chmod|chown|systemctl|service).*
+    action: deny
+    reason: System administration tools blocked by default
+    enabled: true
+  - name: network_tools
+    regex: .*(?:ssh|telnet|ftp|sftp|wget|curl|ping|nmap).*
+    action: deny
+    reason: Network tools require security review
+    enabled: true
+  - name: development_tools
+    regex: (?:git|npm|pip|cargo|build|compile|test).*
+    action: allow
+    reason: Development tools generally permitted
+    enabled: true
 explicit_rules:
-  # Tool-level overrides
   tools:
-    smart_tool_discovery: allow  # Always allow smart discovery
-    move_file_filesystem: deny  # Explicit security block - actual destructive tool
-    
-  # Capability-level overrides  
+    read_file: allow
+    read_file_filesystem: allow
   capabilities:
-    database_tools: deny  # Block entire database capability
-    
-  # Server-level overrides
-  servers:
-    filesystem: allow  # Always allow filesystem server
+    test_persistence_fixed: allow
+    Enhanced Database Tools Capabilities: allow

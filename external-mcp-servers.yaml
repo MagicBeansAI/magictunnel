@@ -3,7 +3,7 @@
 # Process-based MCP Servers
 mcpServers:
   filesystem:
-    enabled: false
+    enabled: true
     command: "npx"
     args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp", "/Users"]
     env:
