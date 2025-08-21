@@ -6,9 +6,17 @@
   export let highlightedNodeIds: Set<string> = new Set();
   export let parentHighlightIds: Set<string> = new Set();
   
-  // Auto-expand nodes with highlighted children
+  // Track manually collapsed nodes to prevent auto-expand override
+  let manuallyCollapsedNodes: Set<string> = new Set();
+  
+  // Auto-expand nodes with highlighted children (but respect manual user interaction)
   $: if (treeData && (highlightedNodeIds.size > 0 || parentHighlightIds.size > 0)) {
     expandNodesWithHighlightedChildren(treeData);
+  }
+  
+  // Reset manually collapsed nodes when highlights are cleared
+  $: if (highlightedNodeIds.size === 0 && parentHighlightIds.size === 0) {
+    manuallyCollapsedNodes.clear();
   }
   
   function expandNodesWithHighlightedChildren(node: any) {
@@ -28,8 +36,8 @@
       }
     }
     
-    // If this node has highlighted children, expand it
-    if (hasHighlightedChild && node.expanded !== undefined) {
+    // Only auto-expand if this node has highlighted children and hasn't been manually collapsed
+    if (hasHighlightedChild && node.expanded !== undefined && !manuallyCollapsedNodes.has(node.id)) {
       node.expanded = true;
       // Trigger reactivity
       treeData = treeData;
@@ -86,17 +94,59 @@
     return '';
   }
   
-  // Get rule status and styling
-  function getRuleStatus(node: TreeNode): { status: string; color: string; icon: string; inherited: boolean } {
+  // Get rule status and styling with enhanced source information
+  function getRuleStatus(node: TreeNode): { status: string; color: string; icon: string; inherited: boolean; ruleSource?: string } {
     if (node.rule) {
       if (!node.rule.enabled) {
-        return { status: 'Disabled', color: 'text-gray-500 bg-gray-100', icon: '⏸️', inherited: false };
+        return { 
+          status: 'Disabled', 
+          color: 'text-gray-500 bg-gray-100', 
+          icon: '⏸️', 
+          inherited: false,
+          ruleSource: node.rule.rule_source || 'Disabled Rule'
+        };
       }
+      
+      // Get rule type icon for better visual identification
+      const getRuleTypeIcon = (ruleType: string) => {
+        switch (ruleType) {
+          case 'explicit_tool':
+          case 'explicit_capability':
+            return '📌'; // Explicit rules
+          case 'tool_pattern':
+          case 'capability_pattern':
+            return '🎯'; // Pattern rules
+          case 'global_pattern':
+            return '🌍'; // Global pattern rules
+          case 'default_action':
+            return '⚙️'; // Default policy
+          case 'emergency_lockdown':
+            return '🚨'; // Emergency lockdown
+          default:
+            return '❓'; // Unknown
+        }
+      };
+      
+      const ruleTypeIcon = node.rule.rule_type ? getRuleTypeIcon(node.rule.rule_type) : '';
+      const ruleSourceDesc = node.rule.rule_source || 'Unknown Rule';
+      
       switch (node.rule.action) {
         case 'allow':
-          return { status: 'Allow', color: 'text-green-700 bg-green-100', icon: '✅', inherited: false };
+          return { 
+            status: `${ruleTypeIcon} Allow`, 
+            color: 'text-green-700 bg-green-100', 
+            icon: '✅', 
+            inherited: false,
+            ruleSource: ruleSourceDesc
+          };
         case 'deny':
-          return { status: 'Deny', color: 'text-red-700 bg-red-100', icon: '🚫', inherited: false };
+          return { 
+            status: `${ruleTypeIcon} Deny`, 
+            color: 'text-red-700 bg-red-100', 
+            icon: '🚫', 
+            inherited: false,
+            ruleSource: ruleSourceDesc
+          };
       }
     }
     
@@ -107,26 +157,43 @@
         status: `Inherited ${parentStatus.status}`, 
         color: `${parentStatus.color} border-dashed`, 
         icon: parentStatus.icon, 
-        inherited: true 
+        inherited: true,
+        ruleSource: `Inherited from ${node.parent.name}`
       };
     }
     
-    return { status: 'Default', color: 'text-blue-700 bg-blue-100', icon: '⚙️', inherited: false };
+    return { 
+      status: 'Default', 
+      color: 'text-blue-700 bg-blue-100', 
+      icon: '⚙️', 
+      inherited: false,
+      ruleSource: 'Default Policy'
+    };
   }
   
   // Toggle node expansion
   function toggleExpanded(node: TreeNode) {
     node.expanded = !node.expanded;
+    
+    // Track manually collapsed nodes to prevent auto-expand from overriding user choice
+    if (!node.expanded) {
+      manuallyCollapsedNodes.add(node.id);
+    } else {
+      manuallyCollapsedNodes.delete(node.id);
+    }
+    
     treeData = treeData; // Trigger reactivity
   }
   
   // Handle rule change
   function handleRuleChange(node: TreeNode, action: 'allow' | 'deny' | 'remove') {
+    console.log('🎯 Button clicked! Node:', node.id, 'Action:', action, 'Current rule:', node.rule);
     dispatch('rule-change', {
       nodeId: node.id,
       action,
       rule: node.rule
     });
+    console.log('📤 Event dispatched to parent component');
   }
   
   // Get indentation for tree levels
@@ -212,7 +279,10 @@
               <span class="font-medium text-gray-900">{serverNode.name}</span>
               
               <!-- Server Status -->
-              <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {serverRender.status.color} {serverRender.status.inherited ? 'border border-current' : ''}">
+              <span 
+                class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {serverRender.status.color} {serverRender.status.inherited ? 'border border-current' : ''}"
+                title="{serverRender.status.ruleSource || ''}"
+              >
                 {serverRender.status.icon} {serverRender.status.status}
                 {#if serverRender.status.inherited}<span class="ml-1 opacity-60">(inherited)</span>{/if}
               </span>
@@ -267,7 +337,10 @@
                     <span class="text-sm text-gray-700">{toolNode.name}</span>
                     
                     <!-- Tool Status -->
-                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {toolRender.status.color} {toolRender.status.inherited ? 'border border-current' : ''}">
+                    <span 
+                      class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {toolRender.status.color} {toolRender.status.inherited ? 'border border-current' : ''}"
+                      title="{toolRender.status.ruleSource || ''}"
+                    >
                       {toolRender.status.icon} {toolRender.status.status}
                       {#if toolRender.status.inherited}<span class="ml-1 opacity-60">(inherited)</span>{/if}
                     </span>

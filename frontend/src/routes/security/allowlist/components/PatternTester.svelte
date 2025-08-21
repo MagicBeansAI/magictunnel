@@ -209,18 +209,29 @@
       case 'exact':
         return name === pattern;
       case 'glob':
-        // Convert glob to regex
-        const globRegex = new RegExp(
-          pattern
-            .replace(/\*/g, '.*')
-            .replace(/\?/g, '.')
-        );
-        return globRegex.test(name);
+        // Convert glob to regex with proper anchoring and escaping
+        let regexPattern = pattern
+          // Escape regex special characters except * and ?
+          .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+          // Convert glob wildcards to regex
+          .replace(/\*/g, '.*')
+          .replace(/\?/g, '.');
+        
+        // Add anchors to ensure full string match (like shell glob behavior)
+        regexPattern = '^' + regexPattern + '$';
+        
+        const globRegex = new RegExp(regexPattern);
+        const result = globRegex.test(name);
+        console.log(`🔍 Glob test: "${name}" vs "${pattern}" -> regex: "${regexPattern}" -> ${result}`);
+        return result;
       case 'regex':
         try {
           const regex = new RegExp(pattern);
-          return regex.test(name);
+          const result = regex.test(name);
+          console.log(`🔍 Regex test: "${name}" vs "${pattern}" -> ${result}`);
+          return result;
         } catch {
+          console.log(`🔍 Regex test: "${name}" vs "${pattern}" -> ERROR (invalid regex)`);
           return false;
         }
       default:
@@ -249,16 +260,16 @@
   // Example patterns
   const examplePatterns = {
     regex: [
-      '^file.*',
-      '.*_test$',
-      '(read|write)_.*',
-      'debug|test|dev'
+      '^file.*',      // Starts with "file"
+      '.*_test$',     // Ends with "_test"
+      '(read|write)_.*', // Starts with "read_" or "write_"
+      'debug|test|dev'   // Contains "debug", "test", or "dev"
     ],
     glob: [
-      'file*',
-      '*_test',
-      'General*',
-      'Network*'
+      'file*',        // Starts with "file" (exact glob match)
+      '*_test',       // Ends with "_test" (exact glob match)
+      'General*',     // Starts with "General" (exact glob match)
+      '*Operations'   // Ends with "Operations" (exact glob match)
     ],
     exact: [
       'file_read',
@@ -530,10 +541,12 @@
         <div><code>^file.*</code> - Starts with "file"</div>
         <div><code>.*_test$</code> - Ends with "_test"</div>
         <div><code>(read|write)_.*</code> - Starts with "read_" or "write_"</div>
+        <div><code>file</code> - Contains "file" anywhere</div>
       {:else if patternType === 'glob'}
-        <div><code>file*</code> - Starts with "file"</div>
-        <div><code>*_test</code> - Ends with "_test"</div>
+        <div><code>file*</code> - Starts with "file" (matches "file_read", not "_file")</div>
+        <div><code>*_test</code> - Ends with "_test" (matches "my_test", not "test_")</div>
         <div><code>*Operations</code> - Ends with "Operations"</div>
+        <div><code>*file*</code> - Contains "file" anywhere</div>
       {:else}
         <div><code>file_read</code> - Exact match for "file_read"</div>
         <div><code>ping</code> - Exact match for "ping"</div>

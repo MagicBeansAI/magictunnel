@@ -1,8 +1,8 @@
 metadata:
   version: 1.0.0
-  last_updated: 2025-08-21T03:46:53.944962Z
+  last_updated: 2025-08-21T21:07:25.387664Z
   total_patterns: 8
-  total_explicit_rules: 4
+  total_explicit_rules: 0
 patterns:
   global:
   - name: destructive_operations
@@ -48,9 +48,5 @@ patterns:
     reason: Development tools generally permitted
     enabled: true
 explicit_rules:
-  tools:
-    read_file: allow
-    read_file_filesystem: allow
-  capabilities:
-    test_persistence_fixed: allow
-    Enhanced Database Tools Capabilities: allow
+  tools: {}
+  capabilities: {}

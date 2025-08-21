@@ -11,6 +11,7 @@ use crate::mcp::metrics::{McpMetricsCollector, McpHealthThresholds, HealthStatus
 use crate::mcp::health_checker::{McpHealthChecker, HealthCheckConfig};
 use crate::mcp::notifications::McpNotificationManager;
 use crate::registry::types::{CapabilityFile, ToolDefinition, RoutingConfig};
+use crate::utils::{sanitize_capability_name, sanitize_tool_name, ensure_unique_capability_name};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -1088,8 +1089,13 @@ mcpServers:
         let existing_settings = Self::load_existing_tool_settings(&file_path).await;
 
         // Convert tools to capability format with enhanced 2025-06-18 metadata
+        let mut existing_names = std::collections::HashSet::new();
         let tool_definitions: Vec<ToolDefinition> = tools.iter().map(|tool| {
-            let tool_full_name = format!("{}_{}", tool.name, server_name);
+            // Generate sanitized tool name with collision detection
+            let raw_tool_name = format!("{}_{}", tool.name, server_name);
+            let sanitized_tool_name = sanitize_tool_name(&raw_tool_name);
+            let tool_full_name = ensure_unique_capability_name(&sanitized_tool_name, &existing_names);
+            existing_names.insert(tool_full_name.clone());
             
             // Get existing settings for this tool, preserving user preferences
             let (enabled, hidden) = existing_settings.get(&tool_full_name)
@@ -1142,10 +1148,14 @@ mcpServers:
             }
         }).collect();
 
+        // Generate sanitized capability name
+        let raw_capability_name = format!("{}-external-mcp", server_name);
+        let sanitized_capability_name = sanitize_capability_name(&raw_capability_name);
+        
         // Create capability file
         let capability_file = CapabilityFile {
             metadata: Some(crate::registry::types::FileMetadata {
-                name: Some(format!("{}-external-mcp", server_name)),
+                name: Some(sanitized_capability_name),
                 version: Some("1.0.0".to_string()),
                 description: Some(format!("External MCP server capabilities for {}", server_name)),
                 author: Some("Magic Tunnel External MCP Manager".to_string()),

@@ -33,6 +33,7 @@
 
 use crate::error::{ProxyError, Result};
 use crate::registry::types::{CapabilityFile, FileMetadata, ToolDefinition};
+use crate::utils::{sanitize_capability_name, sanitize_tool_name};
 use std::collections::{HashMap, HashSet};
 
 /// Capability Merger
@@ -121,10 +122,11 @@ impl CapabilityMerger {
                     all_tools.push(dupe_tools.last().unwrap().clone());
                 }
                 MergeStrategy::Rename => {
-                    // Add all duplicates with renamed versions
+                    // Add all duplicates with renamed versions and sanitized names
                     for (i, tool) in dupe_tools.iter().enumerate() {
                         let mut renamed_tool = tool.clone();
-                        renamed_tool.name = format!("{}_v{}", name, i + 1);
+                        let raw_name = format!("{}_v{}", name, i + 1);
+                        renamed_tool.name = sanitize_tool_name(&raw_name);
                         all_tools.push(renamed_tool);
                     }
                 }
@@ -193,9 +195,14 @@ impl CapabilityMerger {
             }
         }
 
-        // Set merged name if not already set
+        // Set merged name if not already set (with sanitization)
         if merged.name.is_none() {
-            merged.name = Some("merged_capabilities".to_string());
+            merged.name = Some(sanitize_capability_name("merged_capabilities"));
+        } else {
+            // Sanitize existing merged name
+            if let Some(ref name) = merged.name {
+                merged.name = Some(sanitize_capability_name(name));
+            }
         }
 
         // Set merged description

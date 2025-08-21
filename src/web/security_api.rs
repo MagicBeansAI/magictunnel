@@ -238,6 +238,7 @@ pub struct SecurityApi {
     sanitization_service: Option<Arc<SanitizationService>>,
     emergency_manager: Option<Arc<EmergencyLockdownManager>>,
     change_tracker: Option<Arc<ConfigurationChangeTracker>>,
+    registry_service: Option<Arc<crate::registry::service::RegistryService>>,
     security_config: Arc<SecurityConfig>,
     config_file_path: Option<std::path::PathBuf>,
 }
@@ -332,6 +333,7 @@ impl SecurityApi {
             sanitization_service,
             emergency_manager,
             change_tracker: None,
+            registry_service: None,
             security_config,
             config_file_path,
         }
@@ -345,6 +347,7 @@ impl SecurityApi {
         rbac_service: Option<Arc<RbacService>>,
         sanitization_service: Option<Arc<SanitizationService>>,
         emergency_manager: Option<Arc<EmergencyLockdownManager>>,
+        registry_service: Option<Arc<crate::registry::service::RegistryService>>,
         config_file_path: Option<std::path::PathBuf>,
     ) -> Self {
         info!("Initializing Security API with pre-initialized services");
@@ -356,6 +359,7 @@ impl SecurityApi {
             sanitization_service,
             emergency_manager,
             change_tracker: None,
+            registry_service,
             security_config,
             config_file_path,
         }
@@ -888,15 +892,19 @@ impl SecurityApi {
         debug!("Getting allowlist treeview organized by server/capability");
 
         if let Some(allowlist_service) = &self.allowlist_service {
-            // For now, create a mock tools context since we don't have registry access
-            // In a full implementation, this would be injected or accessed via service discovery
-            let get_mock_tools = || {
-                // This would normally come from the registry service
-                // For demonstration, we'll return an empty list or mock data
-                Vec::new()
+            // Get tools from the registry service if available
+            let get_tools = || {
+                if let Some(registry_service) = &self.registry_service {
+                    // Get all tools from registry with their context information
+                    registry_service.get_all_tools_with_context()
+                } else {
+                    // Fallback to empty list if registry service not available
+                    warn!("Registry service not available, using empty tools list for allowlist treeview");
+                    Vec::new()
+                }
             };
             
-            match allowlist_service.generate_allowlist_treeview(get_mock_tools) {
+            match allowlist_service.generate_allowlist_treeview(get_tools) {
                 Ok(treeview) => {
                     info!("Generated allowlist treeview with {} servers, {} total tools ({} allowed, {} denied)", 
                           treeview.servers.len(), 
@@ -4304,28 +4312,86 @@ sanitization:
         debug!("Getting allowlist rule for tool: {}", tool_name);
 
         if let Some(ref allowlist_service) = self.allowlist_service {
-            // Check if a specific rule exists for this tool
-            let config = allowlist_service.get_config();
-            if let Some(rule) = config.tools.get(&tool_name) {
-                Ok(HttpResponse::Ok().json(json!({
-                    "id": format!("tool_{}", tool_name),
-                    "name": tool_name,
-                    "type": "tool",
-                    "action": match rule.action {
-                        crate::security::AllowlistAction::Allow => "allow",
-                        crate::security::AllowlistAction::Deny => "deny",
-                    },
-                    "enabled": rule.enabled,
-                    "reason": rule.reason.as_deref().unwrap_or(""),
-                    "createdAt": chrono::Utc::now(),
-                    "modifiedAt": chrono::Utc::now(),
-                })))
+            // Use proper allowlist checking that considers explicit rules from YAML
+            let context = crate::security::AllowlistContext {
+                user_id: Some("api".to_string()),
+                user_roles: vec![],
+                api_key_name: None,
+                permissions: vec![],
+                source: Some("web_api".to_string()),
+                client_ip: None,
+            };
+            let parameters = std::collections::HashMap::new();
+            let result = allowlist_service.check_tool_access(&tool_name, &parameters, &context);
+            
+            // Extract rule type from matched rule or rule level
+            let rule_type = if let Some(ref matched_rule) = result.matched_rule {
+                if matched_rule.contains("explicit_tool") {
+                    "explicit_tool".to_string()
+                } else if matched_rule.contains("tool_pattern") {
+                    "tool_pattern".to_string()
+                } else if matched_rule.contains("capability_pattern") {
+                    "capability_pattern".to_string()
+                } else if matched_rule.contains("global_pattern") {
+                    "global_pattern".to_string()
+                } else if matched_rule.contains("emergency") {
+                    "emergency_lockdown".to_string()
+                } else {
+                    "default_action".to_string()
+                }
             } else {
-                // No specific rule exists - return 404
-                Ok(HttpResponse::NotFound().json(json!({
-                    "error": "No allowlist rule found for this tool",
-                    "tool": tool_name
-                })))
+                // Fallback to rule level mapping
+                match result.rule_level {
+                    crate::security::allowlist_types::RuleLevel::Emergency => "emergency_lockdown".to_string(),
+                    crate::security::allowlist_types::RuleLevel::Tool => "explicit_tool".to_string(),
+                    crate::security::allowlist_types::RuleLevel::Capability => "capability_pattern".to_string(), 
+                    crate::security::allowlist_types::RuleLevel::Global => "global_pattern".to_string(),
+                    crate::security::allowlist_types::RuleLevel::Default => "default_action".to_string(),
+                }
+            };
+            
+            // Map rule type to user-friendly description
+            let rule_source_description = match rule_type.as_str() {
+                "explicit_tool" => "Explicit Tool Rule",
+                "tool_pattern" => "Tool Pattern Rule", 
+                "capability_pattern" => "Capability Pattern Rule",
+                "global_pattern" => "Global Pattern Rule",
+                "default_action" => "Default Policy",
+                "emergency_lockdown" => "Emergency Lockdown",
+                _ => "Unknown Rule Type"
+            };
+            
+            match result.action {
+                crate::security::AllowlistAction::Allow => {
+                    Ok(HttpResponse::Ok().json(json!({
+                        "id": format!("tool_{}", tool_name),
+                        "name": tool_name,
+                        "type": "tool",
+                        "action": "allow",
+                        "enabled": true,
+                        "reason": result.reason.to_string(),
+                        "source": format!("{:?}", result.rule_level),
+                        "rule_type": rule_type,
+                        "rule_source": rule_source_description,
+                        "createdAt": chrono::Utc::now(),
+                        "modifiedAt": chrono::Utc::now(),
+                    })))
+                },
+                crate::security::AllowlistAction::Deny => {
+                    Ok(HttpResponse::Ok().json(json!({
+                        "id": format!("tool_{}", tool_name),
+                        "name": tool_name,
+                        "type": "tool",
+                        "action": "deny",
+                        "enabled": true,
+                        "reason": result.reason.to_string(),
+                        "source": format!("{:?}", result.rule_level),
+                        "rule_type": rule_type,
+                        "rule_source": rule_source_description,
+                        "createdAt": chrono::Utc::now(),
+                        "modifiedAt": chrono::Utc::now(),
+                    })))
+                }
             }
         } else {
             Ok(HttpResponse::ServiceUnavailable().json(json!({
@@ -4528,26 +4594,45 @@ sanitization:
     /// Capability allowlist rule handlers
     pub async fn get_capability_allowlist_rule(&self, path: web::Path<String>) -> Result<HttpResponse> {
         let capability_name = path.into_inner();
-        debug!("Getting allowlist rule for capability: {}", capability_name);
+        debug!("🔍 Getting allowlist rule for capability: {} (using proper hierarchy evaluation)", capability_name);
         if let Some(ref allowlist_service) = self.allowlist_service {
-            // Check explicit rules from data file (new format only)
-            if let Some(action) = allowlist_service.get_explicit_capability_rule(&capability_name) {
-                Ok(HttpResponse::Ok().json(json!({
-                    "id": format!("capability_{}", capability_name),
-                    "name": capability_name,
-                    "type": "capability",
-                    "action": action,
-                    "reason": "Explicit capability rule",
-                    "enabled": true
-                })))
-            } else {
-                Ok(HttpResponse::NotFound().json(json!({
-                    "error": "No allowlist rule found for this capability",
-                    "capability": capability_name
-                })))
-            }
+            // **ARCHITECTURAL FIX**: Use proper hierarchy evaluation instead of precomputed decisions
+            // This ensures always current rules without needing complex reload mechanisms
+            let context = crate::security::AllowlistContext {
+                user_id: Some("api_user".to_string()),
+                user_roles: vec![],
+                api_key_name: None,
+                permissions: vec![],
+                source: Some("security_api".to_string()),
+                client_ip: None,
+            };
+            
+            let result = allowlist_service.check_capability_access(&capability_name, &context);
+            debug!("✅ Evaluated capability {} using hierarchy: allowed={}, rule={:?}", 
+                   capability_name, result.allowed, result.matched_rule);
+            
+            let action_str = if result.allowed { "allow" } else { "deny" };
+            let rule_type = match result.rule_level {
+                crate::security::allowlist_types::RuleLevel::Emergency => "emergency_lockdown",
+                crate::security::allowlist_types::RuleLevel::Tool => "explicit_tool", 
+                crate::security::allowlist_types::RuleLevel::Capability => "explicit_capability",
+                crate::security::allowlist_types::RuleLevel::Global => "global_pattern",
+                crate::security::allowlist_types::RuleLevel::Default => "default_action",
+            };
+            
+            Ok(HttpResponse::Ok().json(json!({
+                "id": format!("capability_{}", capability_name),
+                "name": capability_name,
+                "type": "capability",
+                "action": action_str,
+                "reason": result.reason.as_ref(),
+                "enabled": true,
+                "rule_type": rule_type,
+                "rule_source": result.matched_rule.unwrap_or_else(|| "unknown".to_string())
+            })))
         } else {
-            Ok(HttpResponse::ServiceUnavailable().json(json!({
+            debug!("❌ No allowlist service available for capability {}", capability_name);
+            Ok(HttpResponse::InternalServerError().json(json!({
                 "error": "Allowlist service not available"
             })))
         }
@@ -4664,6 +4749,73 @@ sanitization:
         });
 
         Ok(HttpResponse::Ok().json(test_result))
+    }
+
+    /// Get all allowlist patterns organized by type
+    pub async fn get_allowlist_patterns(&self) -> Result<HttpResponse> {
+        debug!("Getting all allowlist patterns");
+        
+        if let Some(ref allowlist_service) = self.allowlist_service {
+            let global_patterns = allowlist_service.get_global_patterns();
+            let tool_patterns = allowlist_service.get_tool_patterns();
+            let capability_patterns = allowlist_service.get_capability_patterns();
+            
+            let patterns = json!({
+                "global": global_patterns.iter().map(|p| json!({
+                    "id": format!("global_{}", p.name),
+                    "name": p.name,
+                    "regex": p.regex,
+                    "action": match p.action {
+                        crate::security::AllowlistAction::Allow => "allow",
+                        crate::security::AllowlistAction::Deny => "deny",
+                    },
+                    "reason": p.reason,
+                    "enabled": p.enabled,
+                    "type": "global",
+                    "scope": "Global (all tools and capabilities)"
+                })).collect::<Vec<_>>(),
+                "tools": tool_patterns.iter().map(|p| json!({
+                    "id": format!("tool_{}", p.name),
+                    "name": p.name,
+                    "regex": p.regex,
+                    "action": match p.action {
+                        crate::security::AllowlistAction::Allow => "allow",
+                        crate::security::AllowlistAction::Deny => "deny",
+                    },
+                    "reason": p.reason,
+                    "enabled": p.enabled,
+                    "type": "tool",
+                    "scope": "Tool-specific patterns"
+                })).collect::<Vec<_>>(),
+                "capabilities": capability_patterns.iter().map(|p| json!({
+                    "id": format!("capability_{}", p.name),
+                    "name": p.name,
+                    "regex": p.regex,
+                    "action": match p.action {
+                        crate::security::AllowlistAction::Allow => "allow",
+                        crate::security::AllowlistAction::Deny => "deny",
+                    },
+                    "reason": p.reason,
+                    "enabled": p.enabled,
+                    "type": "capability",
+                    "scope": "Capability-specific patterns"
+                })).collect::<Vec<_>>(),
+                "summary": {
+                    "total_patterns": global_patterns.len() + tool_patterns.len() + capability_patterns.len(),
+                    "global_count": global_patterns.len(),
+                    "tool_count": tool_patterns.len(),
+                    "capability_count": capability_patterns.len(),
+                    "enabled_count": global_patterns.iter().chain(tool_patterns.iter()).chain(capability_patterns.iter())
+                        .filter(|p| p.enabled).count()
+                }
+            });
+            
+            Ok(HttpResponse::Ok().json(patterns))
+        } else {
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "error": "Allowlist service not available"
+            })))
+        }
     }
 
 }

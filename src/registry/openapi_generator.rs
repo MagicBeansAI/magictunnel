@@ -16,6 +16,7 @@ use crate::registry::types::{
     ValidationExtensions
 };
 use crate::mcp::tool_validation::SecurityClassification;
+use crate::utils::{sanitize_capability_name, sanitize_tool_name, ensure_unique_capability_name};
 use openapiv3::{OpenAPI, Operation, Parameter, RequestBody, Response};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -1388,10 +1389,20 @@ impl OpenAPICapabilityGenerator {
     /// Generate enhanced MCP 2025-06-18 format capability file
     fn generate_enhanced_capability_file(&self, operations: Vec<OpenAPIOperation>) -> Result<CapabilityFile> {
         let mut enhanced_tools = Vec::new();
+        let mut existing_names = std::collections::HashSet::new();
 
         for operation in operations {
             match self.operation_to_enhanced_tool_definition(operation) {
-                Ok(tool) => enhanced_tools.push(tool),
+                Ok(mut tool) => {
+                    // Sanitize tool name to ensure it follows naming conventions
+                    tool.name = sanitize_tool_name(&tool.name);
+                    
+                    // Ensure uniqueness by checking against existing tool names
+                    tool.name = ensure_unique_capability_name(&tool.name, &existing_names);
+                    existing_names.insert(tool.name.clone());
+                    
+                    enhanced_tools.push(tool);
+                }
                 Err(e) => {
                     // Log warning but continue processing other operations
                     tracing::warn!("Failed to convert operation to enhanced tool: {}", e);
@@ -1399,8 +1410,13 @@ impl OpenAPICapabilityGenerator {
             }
         }
 
+        // Generate sanitized capability name from base URL
+        let raw_capability_name = format!("Enhanced OpenAPI REST API - {}", 
+            self.base_url.replace("https://", "").replace("http://", "").replace("/", " "));
+        let sanitized_capability_name = sanitize_capability_name(&raw_capability_name);
+
         let enhanced_metadata = EnhancedFileMetadata {
-            name: "Enhanced OpenAPI REST API".to_string(),
+            name: sanitized_capability_name,
             description: format!("Auto-generated REST API tools for {} - MCP 2025-06-18 compliant with AI enhancement", self.base_url),
             version: "3.0.0".to_string(),
             author: "OpenAPI Schema Generator".to_string(),
@@ -1432,10 +1448,20 @@ impl OpenAPICapabilityGenerator {
     /// Generate legacy format capability file
     fn generate_legacy_capability_file(&self, operations: Vec<OpenAPIOperation>) -> Result<CapabilityFile> {
         let mut tools = Vec::new();
+        let mut existing_names = std::collections::HashSet::new();
 
         for operation in operations {
             match self.operation_to_tool_definition(operation) {
-                Ok(tool) => tools.push(tool),
+                Ok(mut tool) => {
+                    // Sanitize tool name to ensure it follows naming conventions
+                    tool.name = sanitize_tool_name(&tool.name);
+                    
+                    // Ensure uniqueness by checking against existing tool names
+                    tool.name = ensure_unique_capability_name(&tool.name, &existing_names);
+                    existing_names.insert(tool.name.clone());
+                    
+                    tools.push(tool);
+                }
                 Err(e) => {
                     // Log warning but continue processing other operations
                     tracing::warn!("Failed to convert operation to tool: {}", e);
@@ -1443,8 +1469,13 @@ impl OpenAPICapabilityGenerator {
             }
         }
 
+        // Generate sanitized capability name from base URL
+        let raw_capability_name = format!("OpenAPI REST API - {}", 
+            self.base_url.replace("https://", "").replace("http://", "").replace("/", " "));
+        let sanitized_capability_name = sanitize_capability_name(&raw_capability_name);
+
         let metadata = FileMetadata {
-            name: Some("OpenAPI REST API".to_string()),
+            name: Some(sanitized_capability_name),
             description: Some(format!("Auto-generated REST API tools for {}", self.base_url)),
             version: Some("1.0.0".to_string()),
             author: Some("OpenAPI Schema Generator".to_string()),
@@ -1622,7 +1653,8 @@ impl OpenAPICapabilityGenerator {
             base_name
         };
 
-        Ok(tool_name)
+        // Sanitize the generated tool name to ensure it follows naming conventions
+        Ok(sanitize_tool_name(&tool_name))
     }
 
     /// Generate tool description

@@ -8017,6 +8017,9 @@ pub fn configure_dashboard_api(
                 .route("/security/allowlist/rules/{rule_id}", web::delete().to(|api: web::Data<crate::web::SecurityApi>, rule_id: web::Path<String>| async move {
                     api.delete_allowlist_rule(rule_id).await
                 }))
+                .route("/security/allowlist/patterns", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_allowlist_patterns().await
+                }))
                 
                 // Security configuration endpoints
                 .route("/security/config", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
@@ -8103,6 +8106,7 @@ pub fn configure_dashboard_api(
                 security_services.rbac_service.clone(),
                 security_services.sanitization_service.clone(),
                 security_services.lockdown_manager.clone(),
+                service_container.get_registry().cloned(),
                 service_container.config_file_path.clone(),
             );
             

@@ -1,6 +1,7 @@
 use crate::registry::types::{CapabilityFile, ToolDefinition, RoutingConfig, FileMetadata, EnhancedToolDefinition, EnhancedFileMetadata, EnhancedRoutingConfig, AiEnhancedDiscovery, CoreDefinition, ExecutionConfig, DiscoveryEnhancement, MonitoringConfig, AccessConfig, SandboxConfig, PerformanceConfig, WorkflowIntegration, SemanticContext, ClassificationMetadata, DiscoveryMetadata, McpCapabilities, ProgressTrackingConfig, CancellationConfig, MetricsConfig};
 use crate::mcp::tool_validation::SecurityClassification;
 use crate::error::ProxyError;
+use crate::utils::{sanitize_capability_name, sanitize_tool_name, ensure_unique_capability_name};
 use serde_json::{Value, Map};
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
@@ -6654,8 +6655,14 @@ impl GraphQLCapabilityGenerator {
         for operation in operations {
             // Try to convert operation to enhanced tool, but handle directive-based skipping
             match self.operation_to_enhanced_tool_definition(operation) {
-                Ok(tool) => {
-                    // Skip duplicate tool names
+                Ok(mut tool) => {
+                    // Sanitize tool name to ensure it follows naming conventions
+                    tool.name = sanitize_tool_name(&tool.name);
+                    
+                    // Ensure uniqueness by checking against existing tool names
+                    tool.name = ensure_unique_capability_name(&tool.name, &seen_names);
+                    
+                    // Skip duplicate tool names (after sanitization)
                     if seen_names.contains(&tool.name) {
                         continue;
                     }
@@ -6674,8 +6681,13 @@ impl GraphQLCapabilityGenerator {
             }
         }
 
+        // Generate sanitized capability name from endpoint URL
+        let raw_capability_name = format!("Enhanced GraphQL API - {}", 
+            self.endpoint_url.replace("https://", "").replace("http://", "").replace("/", " "));
+        let sanitized_capability_name = sanitize_capability_name(&raw_capability_name);
+
         let enhanced_metadata = EnhancedFileMetadata {
-            name: "Enhanced GraphQL API".to_string(),
+            name: sanitized_capability_name,
             description: format!("Auto-generated GraphQL API tools for {} - MCP 2025-06-18 compliant with AI enhancement", self.endpoint_url),
             version: "3.0.0".to_string(),
             author: "GraphQL Schema Generator v3.0".to_string(),

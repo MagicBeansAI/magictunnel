@@ -115,6 +115,24 @@ impl ServiceContainer {
                         info!("🔒 Integrating allowlist service with smart discovery for nested tool call security");
                         smart_discovery.set_allowlist_service(Arc::clone(allowlist_service)).await;
                         info!("✅ Smart discovery now has allowlist service - nested tool calls will be security validated");
+                        
+                        // CRITICAL FIX: Refresh precomputed decisions with loaded YAML explicit rules
+                        // This ensures that explicit rules from allowlist-data.yaml show up correctly in tree view
+                        if let Some(registry) = self.get_registry() {
+                            info!("🔄 Refreshing allowlist precomputed decisions with explicit rules from YAML file");
+                            match allowlist_service.refresh_precomputed_decisions(|| {
+                                registry.get_all_tools_with_context()
+                                    .into_iter()
+                                    .map(|(tool_name, tool_def, _server, _capability)| (tool_name, tool_def))
+                                    .collect()
+                            }) {
+                                Ok(()) => info!("✅ Successfully refreshed allowlist precomputed decisions - tree view will now show explicit rules"),
+                                Err(e) => error!("❌ Failed to refresh allowlist precomputed decisions: {}", e)
+                            }
+                        } else {
+                            info!("ℹ️ Registry service not available - skipping precomputed decisions refresh");
+                        }
+                        
                         return Ok(());
                     } else {
                         info!("🔍 DEBUG: No allowlist service in security services");

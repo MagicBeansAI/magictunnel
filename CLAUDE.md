@@ -122,6 +122,7 @@ cargo run --bin magictunnel-visibility -- -c config.yaml status
 
 ### Documentation
 - `docs/ROUTING_ARCHITECTURE.md`, `docs/BIDIRECTIONAL_COMMUNICATION_FLOW.md`
+- `docs/api_endpoints.md` - **Comprehensive API endpoints documentation** ✅
 - `CHANGELOG.md`, `README.md`, `how_to_run.md`
 
 ## Development Patterns

@@ -11,6 +11,7 @@ use crate::auth::MultiLevelAuthConfig;
 use crate::security::audit_log::AuditLogger;
 use crate::config::{ExternalMcpConfig, OAuthConfig, McpClientConfig};
 use crate::error::{ProxyError, Result};
+use crate::utils::{sanitize_tool_name, ensure_unique_capability_name};
 
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -688,11 +689,23 @@ impl OAuthExternalMcpManager {
         // Get tools from OAuth servers
         // In a real implementation, this would fetch tools from OAuth connections
         let oauth_connections = self.oauth_connections.read().await;
+        let mut existing_names = std::collections::HashSet::new();
+        
         for server_name in oauth_connections.keys() {
+            // Generate sanitized tool name with collision detection
+            let raw_tool_name = format!("oauth_tool_{}", server_name);
+            let sanitized_tool_name = sanitize_tool_name(&raw_tool_name);
+            let unique_tool_name = ensure_unique_capability_name(&sanitized_tool_name, &existing_names);
+            existing_names.insert(unique_tool_name.clone());
+            
+            // Generate sanitized server key
+            let raw_server_key = format!("oauth_{}", server_name);
+            let sanitized_server_key = sanitize_tool_name(&raw_server_key);
+            
             // Mock tools for OAuth servers
             let oauth_tools = vec![
                 Tool {
-                    name: format!("oauth_tool_{}", server_name),
+                    name: unique_tool_name.clone(),
                     title: Some(format!("OAuth Tool {}", server_name)),
                     description: Some(format!("OAuth-authenticated tool from server: {}", server_name)),
                     input_schema: json!({"type": "object", "properties": {}}),
@@ -700,7 +713,7 @@ impl OAuthExternalMcpManager {
                     annotations: None,
                 },
             ];
-            all_tools.insert(format!("oauth_{}", server_name), oauth_tools);
+            all_tools.insert(sanitized_server_key, oauth_tools);
         }
 
         all_tools

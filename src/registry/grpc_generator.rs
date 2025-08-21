@@ -14,6 +14,7 @@ use crate::registry::types::{
     MetricsConfig, EnhancedRoutingConfig, SemanticContext, WorkflowIntegration
 };
 use crate::mcp::tool_validation::SecurityClassification;
+use crate::utils::{sanitize_capability_name, sanitize_tool_name, ensure_unique_capability_name};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -286,10 +287,20 @@ impl GrpcCapabilityGenerator {
     /// Generate enhanced MCP 2025-06-18 format capability file
     fn generate_enhanced_capability_file(&self, tools: Vec<ToolDefinition>) -> Result<CapabilityFile> {
         let mut enhanced_tools = Vec::new();
+        let mut existing_names = std::collections::HashSet::new();
 
         for tool in tools {
             match self.tool_to_enhanced_definition(tool) {
-                Ok(enhanced_tool) => enhanced_tools.push(enhanced_tool),
+                Ok(mut enhanced_tool) => {
+                    // Sanitize tool name to ensure it follows naming conventions
+                    enhanced_tool.name = sanitize_tool_name(&enhanced_tool.name);
+                    
+                    // Ensure uniqueness by checking against existing tool names
+                    enhanced_tool.name = ensure_unique_capability_name(&enhanced_tool.name, &existing_names);
+                    existing_names.insert(enhanced_tool.name.clone());
+                    
+                    enhanced_tools.push(enhanced_tool);
+                }
                 Err(e) => {
                     // Log warning but continue processing other tools
                     tracing::warn!("Failed to convert tool to enhanced definition: {}", e);
@@ -297,8 +308,13 @@ impl GrpcCapabilityGenerator {
             }
         }
 
+        // Generate sanitized capability name from endpoint
+        let raw_capability_name = format!("Enhanced gRPC Service Capabilities - {}", 
+            self.config.endpoint.replace("https://", "").replace("http://", "").replace("/", " "));
+        let sanitized_capability_name = sanitize_capability_name(&raw_capability_name);
+
         let enhanced_metadata = EnhancedFileMetadata {
-            name: "Enhanced gRPC Service Capabilities".to_string(),
+            name: sanitized_capability_name,
             description: format!("Auto-generated gRPC service tools for {} - MCP 2025-06-18 compliant with AI enhancement", self.config.endpoint),
             version: "3.0.0".to_string(),
             author: "gRPC Capability Generator".to_string(),
@@ -328,8 +344,25 @@ impl GrpcCapabilityGenerator {
     }
 
     /// Generate legacy format capability file
-    fn generate_legacy_capability_file(&self, tools: Vec<ToolDefinition>) -> Result<CapabilityFile> {
-        let metadata = FileMetadata::with_name("grpc-capabilities".to_string())
+    fn generate_legacy_capability_file(&self, mut tools: Vec<ToolDefinition>) -> Result<CapabilityFile> {
+        let mut existing_names = std::collections::HashSet::new();
+        
+        // Sanitize tool names
+        for tool in &mut tools {
+            // Sanitize tool name to ensure it follows naming conventions
+            tool.name = sanitize_tool_name(&tool.name);
+            
+            // Ensure uniqueness by checking against existing tool names
+            tool.name = ensure_unique_capability_name(&tool.name, &existing_names);
+            existing_names.insert(tool.name.clone());
+        }
+
+        // Generate sanitized capability name from endpoint
+        let raw_capability_name = format!("gRPC Service Capabilities - {}", 
+            self.config.endpoint.replace("https://", "").replace("http://", "").replace("/", " "));
+        let sanitized_capability_name = sanitize_capability_name(&raw_capability_name);
+        
+        let metadata = FileMetadata::with_name(sanitized_capability_name)
             .description("gRPC service capabilities".to_string())
             .version("1.0.0".to_string())
             .author("gRPC Capability Generator".to_string())

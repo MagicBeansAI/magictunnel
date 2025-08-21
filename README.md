@@ -229,6 +229,7 @@ MagicTunnel is **fully compliant** with the latest MCP 2025-06-18 specification:
 - [🛠️ Adding Tools](docs/tools.md) - How to add your own tools
 - [🏗️ Architecture](docs/architecture.md) - Technical architecture
 - [🔌 API Reference](docs/api.md) - Complete API documentation
+- [📡 API Endpoints Reference](docs/api_endpoints.md) - **Comprehensive REST API endpoints documentation** ✅
 - [🧪 Testing](docs/testing.md) - Testing and validation
 - [🚀 Deployment](docs/deploy.md) - Production deployment
 - [🔒 Security](docs/security.md) - Enterprise security features and configuration

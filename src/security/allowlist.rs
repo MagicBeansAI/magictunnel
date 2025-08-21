@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, atomic::{AtomicBool, AtomicU32, Ordering}};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 use chrono::{DateTime, Utc};
 use regex::RegexSet;
 use std::sync::RwLock;
@@ -318,18 +318,18 @@ pub struct AllowlistService {
     decision_audit_trails: Arc<RwLock<HashMap<String, super::allowlist_data::DecisionAuditTrail>>>,
     
     /// === ENHANCED PATTERN STRUCTURES ===
-    /// Pattern rules loaded from data file
-    global_pattern_rules: Vec<super::allowlist_data::PatternRule>,
-    raw_tool_pattern_rules: Vec<super::allowlist_data::PatternRule>,
-    capability_pattern_rules: Vec<super::allowlist_data::PatternRule>,
+    /// Pattern rules loaded from data file (thread-safe for concurrent updates)
+    global_pattern_rules: Arc<RwLock<Vec<super::allowlist_data::PatternRule>>>,
+    raw_tool_pattern_rules: Arc<RwLock<Vec<super::allowlist_data::PatternRule>>>,
+    capability_pattern_rules: Arc<RwLock<Vec<super::allowlist_data::PatternRule>>>,
     
     /// Pattern sets for enhanced evaluation
     tool_pattern_set: Option<RegexSet>,
     capability_pattern_set: Option<RegexSet>,
     
-    /// Explicit rules from data file
-    explicit_tool_rules: HashMap<String, AllowlistAction>,
-    explicit_capability_rules: HashMap<String, AllowlistAction>,
+    /// Explicit rules from data file (thread-safe for concurrent updates)
+    explicit_tool_rules: Arc<RwLock<HashMap<String, AllowlistAction>>>,
+    explicit_capability_rules: Arc<RwLock<HashMap<String, AllowlistAction>>>,
     
     /// Bloom filter for ultra-fast pattern rejection
     bloom_filter: Option<BloomFilter>,
@@ -407,14 +407,14 @@ impl AllowlistService {
             precomputed_decisions: Arc::new(RwLock::new(HashMap::new())),
             decision_audit_trails: Arc::new(RwLock::new(HashMap::new())),
             
-            // Enhanced pattern structures
-            global_pattern_rules: Vec::new(),
-            raw_tool_pattern_rules: Vec::new(),
-            capability_pattern_rules: Vec::new(),
+            // Enhanced pattern structures (thread-safe)
+            global_pattern_rules: Arc::new(RwLock::new(Vec::new())),
+            raw_tool_pattern_rules: Arc::new(RwLock::new(Vec::new())),
+            capability_pattern_rules: Arc::new(RwLock::new(Vec::new())),
             tool_pattern_set: None,
             capability_pattern_set: None,
-            explicit_tool_rules: HashMap::new(),
-            explicit_capability_rules: HashMap::new(),
+            explicit_tool_rules: Arc::new(RwLock::new(HashMap::new())),
+            explicit_capability_rules: Arc::new(RwLock::new(HashMap::new())),
             bloom_filter: None,
         };
         
@@ -470,14 +470,14 @@ impl AllowlistService {
             precomputed_decisions: Arc::new(RwLock::new(HashMap::new())),
             decision_audit_trails: Arc::new(RwLock::new(HashMap::new())),
             
-            // Enhanced pattern structures
-            global_pattern_rules: Vec::new(),
-            raw_tool_pattern_rules: Vec::new(),
-            capability_pattern_rules: Vec::new(),
+            // Enhanced pattern structures (thread-safe)
+            global_pattern_rules: Arc::new(RwLock::new(Vec::new())),
+            raw_tool_pattern_rules: Arc::new(RwLock::new(Vec::new())),
+            capability_pattern_rules: Arc::new(RwLock::new(Vec::new())),
             tool_pattern_set: None,
             capability_pattern_set: None,
-            explicit_tool_rules: HashMap::new(),
-            explicit_capability_rules: HashMap::new(),
+            explicit_tool_rules: Arc::new(RwLock::new(HashMap::new())),
+            explicit_capability_rules: Arc::new(RwLock::new(HashMap::new())),
             bloom_filter: None,
         };
         
@@ -562,17 +562,38 @@ impl AllowlistService {
             self.capability_pattern_set = Some(RegexSet::new(&capability_patterns)?);
         }
         
-        // Store pattern rules for decision making
-        self.global_pattern_rules = allowlist_data.patterns.global.clone();
-        self.raw_tool_pattern_rules = allowlist_data.patterns.tools.clone();
-        self.capability_pattern_rules = allowlist_data.patterns.capabilities.clone();
+        // Store pattern rules for decision making (thread-safe)
+        {
+            let mut global_patterns = self.global_pattern_rules.write().unwrap();
+            *global_patterns = allowlist_data.patterns.global.clone();
+        }
+        {
+            let mut tool_patterns = self.raw_tool_pattern_rules.write().unwrap();
+            *tool_patterns = allowlist_data.patterns.tools.clone();
+        }
+        {
+            let mut capability_patterns = self.capability_pattern_rules.write().unwrap();
+            *capability_patterns = allowlist_data.patterns.capabilities.clone();
+        }
         
         // Store explicit rules for O(1) lookup
         debug!("📥 Loading explicit tool rules from YAML: {:?}", allowlist_data.explicit_rules.tools);
-        self.explicit_tool_rules = allowlist_data.explicit_rules.tools.clone();
-        self.explicit_capability_rules = allowlist_data.explicit_rules.capabilities.clone();
+        {
+            let mut tool_rules = self.explicit_tool_rules.write().unwrap();
+            tool_rules.clear();
+            for (tool_name, action) in &allowlist_data.explicit_rules.tools {
+                tool_rules.insert(tool_name.clone(), action.clone());
+            }
+        }
+        {
+            let mut capability_rules = self.explicit_capability_rules.write().unwrap();
+            capability_rules.clear();
+            for (capability_name, action) in &allowlist_data.explicit_rules.capabilities {
+                capability_rules.insert(capability_name.clone(), action.clone());
+            }
+        }
         debug!("✅ Loaded {} explicit tool rules into self.explicit_tool_rules (instance: {:p})", 
-               self.explicit_tool_rules.len(), self);
+               self.explicit_tool_rules.read().unwrap().len(), self);
         
         // Update bloom filter with new patterns and rules
         self.update_bloom_filter(&allowlist_data)?;
@@ -684,7 +705,7 @@ impl AllowlistService {
                 
                 // Step 1: Check explicit tool rules (highest priority)
                 step += 1;
-                if let Some(action) = self.explicit_tool_rules.get(tool_name) {
+                if let Some(action) = self.explicit_tool_rules.read().unwrap().get(tool_name) {
                     evaluation_chain.push(RuleEvaluation {
                         step,
                         rule_type: "explicit_tool".to_string(),
@@ -841,21 +862,24 @@ impl AllowlistService {
     }
     
     /// Find matching tool pattern for a tool name
-    fn find_matching_tool_pattern(&self, tool_name: &str) -> Option<&super::allowlist_data::PatternRule> {
+    fn find_matching_tool_pattern(&self, tool_name: &str) -> Option<super::allowlist_data::PatternRule> {
         if let Some(ref pattern_set) = self.tool_pattern_set {
             let matches: Vec<usize> = pattern_set.matches(tool_name).iter().collect();
             if !matches.is_empty() {
+                let tool_patterns = self.raw_tool_pattern_rules.read().unwrap();
                 // Find most restrictive match - any DENY wins over ALLOW
                 return matches.iter()
-                    .filter_map(|&idx| self.raw_tool_pattern_rules.get(idx))
+                    .filter_map(|&idx| tool_patterns.get(idx))
                     .filter(|rule| rule.enabled)
                     .find(|rule| rule.action == AllowlistAction::Deny)  // Any deny wins
+                    .cloned()
                     .or_else(|| {
                         // If no denies, take the first allow
                         matches.iter()
-                            .filter_map(|&idx| self.raw_tool_pattern_rules.get(idx))
+                            .filter_map(|&idx| tool_patterns.get(idx))
                             .filter(|rule| rule.enabled)
                             .find(|rule| rule.action == AllowlistAction::Allow)
+                            .cloned()
                     });
             }
         }
@@ -863,9 +887,10 @@ impl AllowlistService {
     }
     
     /// Find matching capability pattern for a tool
-    fn find_matching_capability_pattern(&self, tool_name: &str, _tool_def: &crate::registry::types::ToolDefinition) -> Option<&super::allowlist_data::PatternRule> {
+    fn find_matching_capability_pattern(&self, tool_name: &str, _tool_def: &crate::registry::types::ToolDefinition) -> Option<super::allowlist_data::PatternRule> {
         // For now, match against tool name - could be enhanced to use tool's capability metadata
-        self.capability_pattern_rules.iter()
+        let capability_patterns = self.capability_pattern_rules.read().unwrap();
+        capability_patterns.iter()
             .filter(|rule| rule.enabled)
             .find(|rule| {
                 if let Ok(regex) = regex::Regex::new(&rule.regex) {
@@ -874,11 +899,28 @@ impl AllowlistService {
                     false
                 }
             })
+            .cloned()
+    }
+    
+    /// Find matching capability pattern for a specific capability name
+    fn find_matching_capability_pattern_for_capability(&self, capability_name: &str) -> Option<super::allowlist_data::PatternRule> {
+        let capability_patterns = self.capability_pattern_rules.read().unwrap();
+        capability_patterns.iter()
+            .filter(|rule| rule.enabled)
+            .find(|rule| {
+                if let Ok(regex) = regex::Regex::new(&rule.regex) {
+                    regex.is_match(capability_name)
+                } else {
+                    false
+                }
+            })
+            .cloned()
     }
     
     /// Find matching global pattern for a tool name  
-    fn find_matching_global_pattern(&self, tool_name: &str) -> Option<&super::allowlist_data::PatternRule> {
-        self.global_pattern_rules.iter()
+    fn find_matching_global_pattern(&self, tool_name: &str) -> Option<super::allowlist_data::PatternRule> {
+        let global_patterns = self.global_pattern_rules.read().unwrap();
+        global_patterns.iter()
             .filter(|rule| rule.enabled)
             .find(|rule| {
                 if let Ok(regex) = regex::Regex::new(&rule.regex) {
@@ -887,6 +929,7 @@ impl AllowlistService {
                     false
                 }
             })
+            .cloned()
     }
     
     /// Get all tools with their precomputed allowlist status for treeview API
@@ -940,6 +983,12 @@ impl AllowlistService {
         self.precomputed_decisions.read().unwrap().get(tool_name).cloned()
     }
     
+    /// Get precomputed decision for a specific capability (fast O(1) lookup)
+    /// This uses the same source as reload_from_data_file updates, ensuring consistency
+    pub fn get_capability_decision(&self, capability_name: &str) -> Option<super::allowlist_data::AllowlistDecision> {
+        self.precomputed_decisions.read().unwrap().get(capability_name).cloned()
+    }
+    
     /// Get audit trail for a specific tool's decision
     pub fn get_tool_audit_trail(&self, tool_name: &str) -> Option<super::allowlist_data::DecisionAuditTrail> {
         self.decision_audit_trails.read().unwrap().get(tool_name).cloned()
@@ -962,7 +1011,7 @@ impl AllowlistService {
         
         // Apply the same hierarchy as precompute_all_decisions
         // 1. Explicit tool rules (highest priority)
-        if let Some(action) = self.explicit_tool_rules.get(tool_name) {
+        if let Some(action) = self.explicit_tool_rules.read().unwrap().get(tool_name) {
             return AllowlistDecision::new(
                 action.clone(),
                 RuleSource::ExplicitTool,
@@ -1271,9 +1320,9 @@ impl AllowlistService {
         // 2. Check explicit tool rules from YAML data file (highest priority for regular rules)
         debug!("🔧 Config tools available: {:?}", config.tools.keys().collect::<Vec<_>>());
         debug!("🔧 Explicit tool rules available: {:?} (instance: {:p})", 
-               self.explicit_tool_rules.keys().collect::<Vec<_>>(), self);
+               self.explicit_tool_rules.read().unwrap().keys().collect::<Vec<_>>(), self);
         
-        if let Some(action) = self.explicit_tool_rules.get(tool_name) {
+        if let Some(action) = self.explicit_tool_rules.read().unwrap().get(tool_name) {
             debug!("🔍 Checking explicit tool rules for '{}'. Found: {:?}", tool_name, action);
             let mut result = match action {
                 AllowlistAction::Allow => AllowlistResult::allow_fast("Explicit tool rule: allowed", RuleLevel::Tool),
@@ -1828,6 +1877,135 @@ impl AllowlistService {
 
 // Legacy compatibility wrapper methods
 impl AllowlistService {
+    /// Check capability access using the proper hierarchy evaluation system
+    pub fn check_capability_access(
+        &self,
+        capability_name: &str,
+        context: &AllowlistContext,
+    ) -> AllowlistResult {
+        debug!("🚀 MAIN: check_capability_access called for capability: '{}'", capability_name);
+        let start_time = Instant::now();
+        let result = self.check_capability_access_internal(capability_name, context);
+        debug!("🎯 MAIN: check_capability_access result for '{}': allowed={}", capability_name, result.allowed);
+        let evaluation_time_ns = start_time.elapsed().as_nanos() as u64;
+        
+        // Log rule evaluation asynchronously for audit trail (non-blocking)
+        self.log_rule_evaluation_async(capability_name, context, &result, &HashMap::new(), evaluation_time_ns);
+        
+        result
+    }
+    
+    /// Internal capability access evaluation with proper hierarchy
+    pub fn check_capability_access_internal(
+        &self,
+        capability_name: &str,
+        context: &AllowlistContext,
+    ) -> AllowlistResult {
+        let start_time = Instant::now();
+        
+        // Create fast context for cache key computation  
+        let fast_context = context.to_fast_context();
+        
+        // Check cache first (O(1) lookup)
+        let cache_key = self.compute_cache_key_fast(capability_name, &fast_context);
+        if let Some(cached) = self.check_decision_cache_fast(cache_key) {
+            debug!("💾 CACHE HIT for capability '{}', returning cached result: allowed={}", 
+                   capability_name, cached.allowed());
+            self.record_cache_hit();
+            let mut result = cached.into_result();
+            result.decision_time_ns = start_time.elapsed().as_nanos() as u64;
+            return result;
+        }
+        
+        debug!("❌ CACHE MISS for capability '{}', proceeding with fresh evaluation", capability_name);
+        self.record_cache_miss();
+        
+        // Check if allowlist is enabled
+        let config = self.config.read().unwrap();
+        debug!("🔧 Allowlist enabled: {}", config.enabled);
+        if !config.enabled {
+            debug!("⚠️ EARLY RETURN: Allowlist disabled");
+            let mut result = AllowlistResult::allow_fast("Allowlist disabled", RuleLevel::Default);
+            result.decision_time_ns = start_time.elapsed().as_nanos() as u64;
+            self.cache_decision_fast(cache_key, &result);
+            self.update_stats(&result);
+            return result;
+        }
+        
+        // Check emergency lockdown (atomic check, fastest path)
+        debug!("🚨 Emergency lockdown active: {}", self.emergency_active.load(Ordering::Relaxed));
+        if self.emergency_active.load(Ordering::Relaxed) {
+            debug!("⚠️ EARLY RETURN: Emergency lockdown");
+            let mut result = AllowlistResult::deny_fast("Emergency lockdown", RuleLevel::Emergency);
+            result.decision_time_ns = start_time.elapsed().as_nanos() as u64;
+            self.cache_decision_fast(cache_key, &result);
+            self.update_stats(&result);
+            return result;
+        }
+        
+        // Apply hierarchy evaluation:
+        // 1. Emergency Lockdown (already checked above)
+        // 2. Explicit capability rules (highest priority)
+        debug!("🔧 Explicit capability rules available: {:?} (instance: {:p})", 
+               self.explicit_capability_rules.read().unwrap().keys().collect::<Vec<_>>(), self);
+        
+        if let Some(action) = self.explicit_capability_rules.read().unwrap().get(capability_name) {
+            debug!("🔍 Checking explicit capability rules for '{}'. Found: {:?}", capability_name, action);
+            let mut result = match action {
+                AllowlistAction::Allow => AllowlistResult::allow_fast("Explicit capability rule: Allow", RuleLevel::Capability),
+                AllowlistAction::Deny => AllowlistResult::deny_fast("Explicit capability rule: Deny", RuleLevel::Capability),
+            };
+            result.matched_rule = Some(format!("explicit_capability:{}", capability_name));
+            result.decision_time_ns = start_time.elapsed().as_nanos() as u64;
+            self.cache_decision_fast(cache_key, &result);
+            self.update_stats(&result);
+            return result;
+        }
+        
+        // 3. Capability pattern matching
+        if let Some(matching_pattern) = self.find_matching_capability_pattern_for_capability(capability_name) {
+            debug!("🎯 Found matching capability pattern for '{}': {:?}", capability_name, matching_pattern.action);
+            let mut result = match matching_pattern.action {
+                AllowlistAction::Allow => AllowlistResult::allow_fast("Capability pattern: Allow", RuleLevel::Capability), 
+                AllowlistAction::Deny => AllowlistResult::deny_fast("Capability pattern: Deny", RuleLevel::Capability),
+            };
+            result.matched_rule = Some(format!("capability_pattern:{}", matching_pattern.name));
+            result.reason = Arc::from(matching_pattern.reason.as_str());
+            result.decision_time_ns = start_time.elapsed().as_nanos() as u64;
+            self.cache_decision_fast(cache_key, &result);
+            self.update_stats(&result);
+            return result;
+        }
+        
+        // 4. Global pattern matching  
+        if let Some(matching_pattern) = self.find_matching_global_pattern(capability_name) {
+            debug!("🌍 Found matching global pattern for '{}': {:?}", capability_name, matching_pattern.action);
+            let mut result = match matching_pattern.action {
+                AllowlistAction::Allow => AllowlistResult::allow_fast("Global pattern: Allow", RuleLevel::Global),
+                AllowlistAction::Deny => AllowlistResult::deny_fast("Global pattern: Deny", RuleLevel::Global),
+            };
+            result.matched_rule = Some(format!("global_pattern:{}", matching_pattern.name));
+            result.reason = Arc::from(matching_pattern.reason.as_str());
+            result.decision_time_ns = start_time.elapsed().as_nanos() as u64;
+            self.cache_decision_fast(cache_key, &result);
+            self.update_stats(&result);
+            return result;
+        }
+        
+        // 5. Default action (lowest priority)
+        debug!("🔧 Default action: {:?}", config.default_action);
+        let mut result = match config.default_action {
+            AllowlistAction::Allow => AllowlistResult::allow_fast("Default action: Allow", RuleLevel::Default),
+            AllowlistAction::Deny => AllowlistResult::deny_fast("Default action: Deny", RuleLevel::Default),
+        };
+        result.matched_rule = Some("default_action".to_string());
+        result.reason = Arc::from("Default policy applied");
+        result.decision_time_ns = start_time.elapsed().as_nanos() as u64;
+        self.cache_decision_fast(cache_key, &result);
+        self.update_stats(&result);
+        result
+    }
+
     /// Legacy method - delegates to ultra-fast implementation
     pub fn check_tool_access(
         &self,
@@ -1917,63 +2095,160 @@ impl AllowlistService {
 
     /// Get capability-level pattern rules
     pub fn get_capability_patterns(&self) -> Vec<super::allowlist_data::PatternRule> {
-        self.capability_pattern_rules.clone()
+        self.capability_pattern_rules.read().unwrap().clone()
     }
 
     /// Get global-level pattern rules
     pub fn get_global_patterns(&self) -> Vec<super::allowlist_data::PatternRule> {
-        self.global_pattern_rules.clone()
+        self.global_pattern_rules.read().unwrap().clone()
+    }
+    
+    /// Get tool-level pattern rules
+    pub fn get_tool_patterns(&self) -> Vec<super::allowlist_data::PatternRule> {
+        self.raw_tool_pattern_rules.read().unwrap().clone()
     }
 
     /// Get explicit capability rule for a capability name
     pub fn get_explicit_capability_rule(&self, capability_name: &str) -> Option<AllowlistAction> {
-        self.explicit_capability_rules.get(capability_name).cloned()
+        self.explicit_capability_rules.read().unwrap().get(capability_name).cloned()
     }
 
     /// Reload data from the data file (used after persisting changes)
     fn reload_from_data_file(&self, file_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-        // This is a bit tricky because we need to update fields that aren't wrapped in RwLock
-        // For now, we'll just log that a reload is needed
-        debug!("Data file reload needed for: {}", file_path);
-        // TODO: Implement proper reload mechanism or use interior mutability
+        use std::fs;
+        use super::allowlist_data::{AllowlistData, AllowlistDecision, RuleSource};
+        use chrono::Utc;
+
+        debug!("🔄 Reloading allowlist data from file: {}", file_path);
+        
+        // Read and parse the data file
+        let contents = fs::read_to_string(file_path)?;
+        let data: AllowlistData = serde_yaml::from_str(&contents)?;
+        
+        // Clear and rebuild precomputed decisions
+        {
+            let mut decisions = self.precomputed_decisions.write().unwrap();
+            decisions.clear();
+            
+            // Rebuild decisions from explicit rules
+            for (tool_name, action) in &data.explicit_rules.tools {
+                decisions.insert(tool_name.clone(), AllowlistDecision {
+                    action: action.clone(),
+                    rule_source: RuleSource::ExplicitTool,
+                    rule_name: format!("explicit_tool_{}", tool_name),
+                    reason: format!("Explicit rule for tool: {}", tool_name),
+                    confidence: 1.0,
+                    evaluated_at: Utc::now(),
+                });
+            }
+            
+            for (capability_name, action) in &data.explicit_rules.capabilities {
+                decisions.insert(capability_name.clone(), AllowlistDecision {
+                    action: action.clone(),
+                    rule_source: RuleSource::ExplicitCapability,
+                    rule_name: format!("explicit_capability_{}", capability_name),
+                    reason: format!("Explicit rule for capability: {}", capability_name),
+                    confidence: 1.0,
+                    evaluated_at: Utc::now(),
+                });
+            }
+        }
+        
+        // **CRITICAL FIX**: Update explicit_capability_rules HashMap that hierarchy evaluation uses
+        {
+            let mut capability_rules = self.explicit_capability_rules.write().unwrap();
+            capability_rules.clear();
+            for (capability_name, action) in &data.explicit_rules.capabilities {
+                capability_rules.insert(capability_name.clone(), action.clone());
+            }
+            debug!("🔄 Updated explicit_capability_rules HashMap: {:?}", 
+                   capability_rules.keys().collect::<Vec<_>>());
+        }
+        
+        // **CRITICAL FIX**: Update explicit_tool_rules HashMap that hierarchy evaluation uses
+        {
+            let mut tool_rules = self.explicit_tool_rules.write().unwrap();
+            tool_rules.clear();
+            for (tool_name, action) in &data.explicit_rules.tools {
+                tool_rules.insert(tool_name.clone(), action.clone());
+            }
+            debug!("🔄 Updated explicit_tool_rules HashMap: {:?}", 
+                   tool_rules.keys().collect::<Vec<_>>());
+        }
+        
+        // **PATTERN FIX**: Reload pattern data for API endpoints
+        // This was missing and causing patterns to not appear in the UI
+        {
+            let mut global_patterns = self.global_pattern_rules.write().unwrap();
+            *global_patterns = data.patterns.global.clone();
+        }
+        {
+            let mut tool_patterns = self.raw_tool_pattern_rules.write().unwrap();
+            *tool_patterns = data.patterns.tools.clone();
+        }
+        {
+            let mut capability_patterns = self.capability_pattern_rules.write().unwrap();
+            *capability_patterns = data.patterns.capabilities.clone();
+        }
+        
+        debug!("✅ Successfully reloaded allowlist data - {} tool rules, {} capability rules, {} global patterns, {} tool patterns, {} capability patterns", 
+               data.explicit_rules.tools.len(), 
+               data.explicit_rules.capabilities.len(),
+               data.patterns.global.len(),
+               data.patterns.tools.len(),
+               data.patterns.capabilities.len());
+        
         Ok(())
     }
 
 
     /// Add or update a tool allowlist rule
     pub fn add_tool_rule(&self, tool_name: String, rule: AllowlistRule) -> Result<(), Box<dyn std::error::Error>> {
+        // Update old in-memory config for backward compatibility
         {
             let mut config = self.config.write().unwrap();
             config.tools.insert(tool_name.clone(), rule.clone());
         }
         
-        // Persist the changes to disk
-        if let Err(e) = self.persist_config() {
-            warn!("Failed to persist allowlist config after adding tool rule '{}': {}", tool_name, e);
-            // Note: We don't return the error to avoid breaking the in-memory update
-            // The change is still applied in memory, just not persisted
+        // **UNIFIED APPROACH**: Add directly to YAML data file
+        if let Some(ref data_file_path) = self.data_file_path {
+            self.add_tool_to_data_file(data_file_path, &tool_name, &rule.action)?;
         } else {
-            debug!("Successfully persisted allowlist config after adding tool rule: {}", tool_name);
+            return Err("No data file path configured for allowlist persistence".into());
         }
         
+        // Update explicit_tool_rules HashMap immediately for real-time evaluation
+        {
+            let mut tool_rules = self.explicit_tool_rules.write().unwrap();
+            tool_rules.insert(tool_name.clone(), rule.action.clone());
+        }
+        
+        info!("Added tool allowlist rule: {} -> {:?}", tool_name, rule.action);
         Ok(())
     }
 
     /// Remove a tool allowlist rule
     pub fn remove_tool_rule(&self, tool_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+        // Remove from old in-memory config for backward compatibility
         {
             let mut config = self.config.write().unwrap();
             config.tools.remove(tool_name);
         }
         
-        // Persist the changes to disk
-        if let Err(e) = self.persist_config() {
-            warn!("Failed to persist allowlist config after removing tool rule '{}': {}", tool_name, e);
-            // Note: We don't return the error to avoid breaking the in-memory update
+        // **UNIFIED APPROACH**: Always use direct YAML file manipulation
+        if let Some(ref data_file_path) = self.data_file_path {
+            self.remove_tool_from_data_file(data_file_path, tool_name)?;
         } else {
-            debug!("Successfully persisted allowlist config after removing tool rule: {}", tool_name);
+            return Err("No data file path configured for allowlist persistence".into());
         }
         
+        // Update explicit_tool_rules HashMap immediately for real-time evaluation
+        {
+            let mut tool_rules = self.explicit_tool_rules.write().unwrap();
+            tool_rules.remove(tool_name);
+        }
+        
+        info!("Removed tool allowlist rule: {}", tool_name);
         Ok(())
     }
 
@@ -2097,13 +2372,11 @@ impl AllowlistService {
 
     /// Set a capability-level allowlist rule
     pub fn set_capability_rule(&self, capability_name: &str, action: AllowlistAction, reason: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
-        // Update the explicit capability rules directly (new format)
-        // Note: We need to make this method mutable or use interior mutability
-        // For now, we'll update the old config and let persistence handle the new format
+        // Update old in-memory config for backward compatibility
         {
             let mut config = self.config.write().unwrap();
             let rule = super::allowlist_types::AllowlistRule {
-                action,
+                action: action.clone(),
                 reason,
                 pattern: None,
                 name: Some(capability_name.to_string()),
@@ -2112,42 +2385,88 @@ impl AllowlistService {
             config.capabilities.insert(capability_name.to_string(), rule);
         }
         
-        // Persist the changes to disk (this will update the new format)
-        if let Err(e) = self.persist_config() {
-            warn!("Failed to persist allowlist config after setting capability rule '{}': {}", capability_name, e);
-            // Note: We don't return the error to avoid breaking the in-memory update
+        // **UNIFIED APPROACH**: Add directly to YAML data file
+        if let Some(ref data_file_path) = self.data_file_path {
+            self.add_capability_to_data_file(data_file_path, capability_name, &action)?;
         } else {
-            debug!("Successfully persisted allowlist config after setting capability rule: {}", capability_name);
-            // After persisting, reload the data file to update explicit_capability_rules
-            if let Some(ref data_file_path) = self.data_file_path {
-                if let Err(e) = self.reload_from_data_file(data_file_path) {
-                    warn!("Failed to reload data file after setting capability rule '{}': {}", capability_name, e);
-                }
-            }
+            return Err("No data file path configured for allowlist persistence".into());
         }
         
+        // Update explicit_capability_rules HashMap immediately for real-time evaluation
+        {
+            let mut capability_rules = self.explicit_capability_rules.write().unwrap();
+            capability_rules.insert(capability_name.to_string(), action.clone());
+        }
+        
+        info!("Set capability allowlist rule: {} -> {:?}", capability_name, action);
         Ok(())
     }
 
     /// Remove a capability-level allowlist rule
     pub fn remove_capability_rule(&self, capability_name: &str) -> Result<(), Box<dyn std::error::Error>> {
-        // Remove from both old config format and explicitly mark for removal from data file
+        // Remove from old in-memory config for backward compatibility
         {
             let mut config = self.config.write().unwrap();
             config.capabilities.remove(capability_name);
         }
         
-        // Also need to remove from data file explicitly
+        // **UNIFIED APPROACH**: Always use direct YAML file manipulation
         if let Some(ref data_file_path) = self.data_file_path {
             self.remove_capability_from_data_file(data_file_path, capability_name)?;
         } else {
-            // Fallback to old persistence method
-            if let Err(e) = self.persist_config() {
-                warn!("Failed to persist allowlist config after removing capability rule '{}': {}", capability_name, e);
-            }
+            return Err("No data file path configured for allowlist persistence".into());
         }
         
-        debug!("Successfully removed capability rule: {}", capability_name);
+        // Update explicit_capability_rules HashMap immediately for real-time evaluation
+        {
+            let mut capability_rules = self.explicit_capability_rules.write().unwrap();
+            capability_rules.remove(capability_name);
+        }
+        
+        info!("Removed capability allowlist rule: {}", capability_name);
+        Ok(())
+    }
+
+    /// Add or update a specific capability in the data file
+    fn add_capability_to_data_file(&self, file_path: &str, capability_name: &str, action: &AllowlistAction) -> Result<(), Box<dyn std::error::Error>> {
+        use std::fs;
+        use super::allowlist_data::AllowlistData;
+        
+        // Load existing data or create new if file doesn't exist
+        let allowlist_data = if Path::new(file_path).exists() {
+            let contents = fs::read_to_string(file_path)?;
+            serde_yaml::from_str(&contents)?
+        } else {
+            // Create new data structure
+            AllowlistData::default()
+        };
+        
+        let mut allowlist_data: AllowlistData = allowlist_data;
+        
+        // Add/update the specific capability
+        allowlist_data.explicit_rules.capabilities.insert(capability_name.to_string(), action.clone());
+        
+        // Update metadata
+        allowlist_data.metadata.last_updated = chrono::Utc::now();
+        allowlist_data.metadata.total_explicit_rules = 
+            (allowlist_data.explicit_rules.tools.len() + allowlist_data.explicit_rules.capabilities.len()) as u32;
+        
+        // Ensure the directory exists
+        if let Some(parent) = Path::new(file_path).parent() {
+            fs::create_dir_all(parent)?;
+        }
+        
+        // Write back to file
+        let yaml_content = serde_yaml::to_string(&allowlist_data)?;
+        fs::write(file_path, yaml_content)?;
+        
+        debug!("Added/updated capability '{}' -> {:?} in data file: {}", capability_name, action, file_path);
+        
+        // **CRITICAL FIX**: Reload data to update in-memory HashMap after addition
+        if let Err(e) = self.reload_from_data_file(file_path) {
+            warn!("Failed to reload data file after adding capability '{}': {}", capability_name, e);
+        }
+        
         Ok(())
     }
 
@@ -2177,6 +2496,90 @@ impl AllowlistService {
         fs::write(file_path, yaml_content)?;
         
         debug!("Removed capability '{}' from data file: {}", capability_name, file_path);
+        
+        // **CRITICAL FIX**: Reload data to update in-memory HashMap after removal
+        if let Err(e) = self.reload_from_data_file(file_path) {
+            warn!("Failed to reload data file after removing capability '{}': {}", capability_name, e);
+        }
+        
+        Ok(())
+    }
+
+    /// Add or update a specific tool in the data file
+    fn add_tool_to_data_file(&self, file_path: &str, tool_name: &str, action: &AllowlistAction) -> Result<(), Box<dyn std::error::Error>> {
+        use std::fs;
+        use super::allowlist_data::AllowlistData;
+        
+        // Load existing data or create new if file doesn't exist
+        let allowlist_data = if Path::new(file_path).exists() {
+            let contents = fs::read_to_string(file_path)?;
+            serde_yaml::from_str(&contents)?
+        } else {
+            // Create new data structure
+            AllowlistData::default()
+        };
+        
+        let mut allowlist_data: AllowlistData = allowlist_data;
+        
+        // Add/update the specific tool
+        allowlist_data.explicit_rules.tools.insert(tool_name.to_string(), action.clone());
+        
+        // Update metadata
+        allowlist_data.metadata.last_updated = chrono::Utc::now();
+        allowlist_data.metadata.total_explicit_rules = 
+            (allowlist_data.explicit_rules.tools.len() + allowlist_data.explicit_rules.capabilities.len()) as u32;
+        
+        // Ensure the directory exists
+        if let Some(parent) = Path::new(file_path).parent() {
+            fs::create_dir_all(parent)?;
+        }
+        
+        // Write back to file
+        let yaml_content = serde_yaml::to_string(&allowlist_data)?;
+        fs::write(file_path, yaml_content)?;
+        
+        debug!("Added/updated tool '{}' -> {:?} in data file: {}", tool_name, action, file_path);
+        
+        // **CRITICAL FIX**: Reload data to update in-memory HashMap after addition
+        if let Err(e) = self.reload_from_data_file(file_path) {
+            warn!("Failed to reload data file after adding tool '{}': {}", tool_name, e);
+        }
+        
+        Ok(())
+    }
+
+    /// Remove a specific tool from the data file
+    fn remove_tool_from_data_file(&self, file_path: &str, tool_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+        use std::fs;
+        use super::allowlist_data::AllowlistData;
+        
+        if !Path::new(file_path).exists() {
+            return Ok(()); // Nothing to remove if file doesn't exist
+        }
+        
+        // Load existing data
+        let contents = fs::read_to_string(file_path)?;
+        let mut allowlist_data: AllowlistData = serde_yaml::from_str(&contents)?;
+        
+        // Remove the specific tool
+        allowlist_data.explicit_rules.tools.remove(tool_name);
+        
+        // Update metadata
+        allowlist_data.metadata.last_updated = chrono::Utc::now();
+        allowlist_data.metadata.total_explicit_rules = 
+            (allowlist_data.explicit_rules.tools.len() + allowlist_data.explicit_rules.capabilities.len()) as u32;
+        
+        // Write back to file
+        let yaml_content = serde_yaml::to_string(&allowlist_data)?;
+        fs::write(file_path, yaml_content)?;
+        
+        debug!("Removed tool '{}' from data file: {}", tool_name, file_path);
+        
+        // **CRITICAL FIX**: Reload data to update in-memory HashMap after removal
+        if let Err(e) = self.reload_from_data_file(file_path) {
+            warn!("Failed to reload data file after removing tool '{}': {}", tool_name, e);
+        }
+        
         Ok(())
     }
 }
@@ -2503,8 +2906,8 @@ impl AllowlistService {
         
         // Check explicit tool rules (highest priority for normal rules)
         debug!("🔍 Checking explicit tool rules for '{}'. Available rules: {:?}", 
-               tool_name, self.explicit_tool_rules.keys().collect::<Vec<_>>());
-        if let Some(action) = self.explicit_tool_rules.get(tool_name) {
+               tool_name, self.explicit_tool_rules.read().unwrap().keys().collect::<Vec<_>>());
+        if let Some(action) = self.explicit_tool_rules.read().unwrap().get(tool_name) {
             debug!("✅ Found explicit rule for '{}': {:?}", tool_name, action);
             if let Some(ref mut chain) = evaluation_chain {
                 chain.push(PatternEvaluationStep {

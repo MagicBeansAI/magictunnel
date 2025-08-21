@@ -20,6 +20,7 @@ mod services;
 mod startup;
 mod supervisor;
 mod tls;
+mod utils;
 mod web;
 
 use config::Config;

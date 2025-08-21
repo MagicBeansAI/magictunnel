@@ -11,7 +11,7 @@
 # ✅ Full MCP 2025-06-18 Specification Compliance
 
 metadata:
-  name: Enhanced HTTP Client Tools
+  name: enhanced-http-client-tools
   description: Tools for making HTTP requests and web API interactions - MCP 2025-06-18 compliant with AI enhancement
   version: 3.0.0
   author: Web Team

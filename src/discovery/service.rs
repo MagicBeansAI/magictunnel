@@ -1620,6 +1620,11 @@ impl SmartDiscoveryService {
         examples
     }
     
+    /// Get the registry service
+    pub fn get_registry(&self) -> &Arc<RegistryService> {
+        &self.registry
+    }
+
     /// Get fallback statistics
     pub fn get_fallback_stats(&self) -> serde_json::Value {
         if let Ok(fallback_manager) = self.fallback_manager.lock() {
