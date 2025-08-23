@@ -293,6 +293,13 @@ impl From<ProxyError> for McpError {
                     serde_json::json!({ "category": "security" })
                 )
             }
+            ProxyError::Audit(message) => {
+                McpError::with_data(
+                    McpErrorCode::InternalError,
+                    format!("Audit error: {}", message),
+                    serde_json::json!({ "category": "audit" })
+                )
+            }
         }
     }
 }

@@ -31,7 +31,7 @@ pub struct AdvancedServices {
 /// Container for actual security service instances
 pub struct SecurityServices {
     pub allowlist_service: Option<Arc<crate::security::AllowlistService>>,
-    pub audit_service: Option<Arc<crate::security::AuditService>>,
+    pub audit_collector: Option<Arc<crate::security::AuditCollector>>,
     pub rbac_service: Option<Arc<crate::security::RbacService>>,
     pub sanitization_service: Option<Arc<crate::security::SanitizationService>>,
     pub lockdown_manager: Option<Arc<crate::security::EmergencyLockdownManager>>,
@@ -41,7 +41,7 @@ impl std::fmt::Debug for SecurityServices {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SecurityServices")
             .field("allowlist_service", &self.allowlist_service.is_some())
-            .field("audit_service", &self.audit_service.is_some())
+            .field("audit_collector", &self.audit_collector.is_some())
             .field("rbac_service", &self.rbac_service.is_some())
             .field("sanitization_service", &self.sanitization_service.is_some())
             .field("lockdown_manager", &self.lockdown_manager.is_some())
@@ -188,20 +188,22 @@ impl AdvancedServices {
                 None
             };
             
-            // Initialize audit service if configured (async)
-            let audit_service = if config.security.as_ref()
+            // Initialize centralized audit collector if configured
+            let audit_collector = if config.security.as_ref()
                 .and_then(|s| s.audit.as_ref())
                 .map(|c| c.enabled)
                 .unwrap_or(false) {
-                match crate::security::AuditService::new(
+                match crate::security::initialize_audit_system(
                     config.security.as_ref().unwrap().audit.as_ref().unwrap().clone()
                 ).await {
-                    Ok(service) => {
-                        info!("✅ Audit service initialized successfully");
-                        Some(Arc::new(service))
+                    Ok(_) => {
+                        info!("✅ Global audit collector initialized successfully");
+                        // Note: We use the global collector directly via get_audit_collector()
+                        // No need to store a separate instance - all services use the global one
+                        None  // Don't store a separate instance
                     },
                     Err(e) => {
-                        error!("❌ Failed to initialize audit service: {}", e);
+                        error!("❌ Failed to initialize global audit collector: {}", e);
                         None
                     }
                 }
@@ -274,7 +276,7 @@ impl AdvancedServices {
             
             Some(SecurityServices {
                 allowlist_service,
-                audit_service,
+                audit_collector,
                 rbac_service,
                 sanitization_service,
                 lockdown_manager,

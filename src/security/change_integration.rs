@@ -476,12 +476,58 @@ pub mod user_helpers {
             }
         };
 
+        // Extract roles based on permissions and authentication method
+        let roles = match auth_result {
+            AuthenticationResult::ApiKey(key_entry) => {
+                // Map API key permissions to roles
+                if key_entry.permissions.contains(&"admin".to_string()) {
+                    vec!["admin".to_string()]
+                } else if key_entry.permissions.contains(&"write".to_string()) {
+                    vec!["user".to_string(), "writer".to_string()]
+                } else if key_entry.permissions.contains(&"read".to_string()) {
+                    vec!["user".to_string(), "reader".to_string()]
+                } else {
+                    vec!["guest".to_string()]
+                }
+            },
+            AuthenticationResult::OAuth(_) => {
+                // OAuth users get default user role
+                vec!["user".to_string(), "oauth_user".to_string()]
+            },
+            AuthenticationResult::Jwt(jwt_result) => {
+                // Extract roles from JWT permissions
+                if jwt_result.permissions.contains(&"admin".to_string()) {
+                    vec!["admin".to_string()]
+                } else if jwt_result.permissions.contains(&"write".to_string()) {
+                    vec!["user".to_string(), "writer".to_string()]
+                } else {
+                    vec!["user".to_string(), "reader".to_string()]
+                }
+            },
+            AuthenticationResult::ServiceAccount(sa_result) => {
+                // Service accounts get service role plus permission-based roles
+                let mut roles = vec!["service_account".to_string()];
+                if sa_result.permissions.contains(&"admin".to_string()) {
+                    roles.push("admin".to_string());
+                } else if sa_result.permissions.contains(&"write".to_string()) {
+                    roles.push("writer".to_string());
+                } else {
+                    roles.push("reader".to_string());
+                }
+                roles
+            },
+            AuthenticationResult::DeviceCode(_) => {
+                // Device code users get standard user role
+                vec!["user".to_string(), "device_user".to_string()]
+            }
+        };
+        
         ChangeUser {
             id: Some(auth_result.get_user_id()),
             name: None, // Could be extracted from auth result if available
             auth_method,
             api_key_name,
-            roles: vec![], // TODO: Extract roles if available in auth result
+            roles,
             client_ip: None, // Would need to be passed from request context
             user_agent: None, // Would need to be passed from request context
         }

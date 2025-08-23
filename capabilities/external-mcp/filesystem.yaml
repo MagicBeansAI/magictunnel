@@ -36,8 +36,8 @@ tools:
       timeout: 30
       tool_name: read_file
   annotations:
-    server: filesystem
     source: external_mcp
+    server: filesystem
     original_name: read_file
   hidden: true
   enabled: true
@@ -70,9 +70,9 @@ tools:
       timeout: 30
       tool_name: read_text_file
   annotations:
-    original_name: read_text_file
     server: filesystem
     source: external_mcp
+    original_name: read_text_file
   hidden: true
   enabled: true
   sampling_strategy: null
@@ -98,8 +98,8 @@ tools:
       timeout: 30
       tool_name: read_media_file
   annotations:
-    source: external_mcp
     server: filesystem
+    source: external_mcp
     original_name: read_media_file
   hidden: true
   enabled: true
@@ -128,9 +128,9 @@ tools:
       timeout: 30
       tool_name: read_multiple_files
   annotations:
-    original_name: read_multiple_files
     source: external_mcp
     server: filesystem
+    original_name: read_multiple_files
   hidden: true
   enabled: true
   sampling_strategy: null
@@ -159,9 +159,9 @@ tools:
       timeout: 30
       tool_name: write_file
   annotations:
-    source: external_mcp
-    server: filesystem
     original_name: write_file
+    server: filesystem
+    source: external_mcp
   hidden: true
   enabled: true
   sampling_strategy: null
@@ -235,8 +235,8 @@ tools:
       timeout: 30
       tool_name: create_directory
   annotations:
-    server: filesystem
     source: external_mcp
+    server: filesystem
     original_name: create_directory
   hidden: true
   enabled: true
@@ -298,9 +298,9 @@ tools:
       timeout: 30
       tool_name: list_directory_with_sizes
   annotations:
-    original_name: list_directory_with_sizes
     server: filesystem
     source: external_mcp
+    original_name: list_directory_with_sizes
   hidden: true
   enabled: true
   sampling_strategy: null
@@ -326,9 +326,9 @@ tools:
       timeout: 30
       tool_name: directory_tree
   annotations:
+    original_name: directory_tree
     source: external_mcp
     server: filesystem
-    original_name: directory_tree
   hidden: true
   enabled: true
   sampling_strategy: null
@@ -358,8 +358,8 @@ tools:
       tool_name: move_file
   annotations:
     server: filesystem
-    original_name: move_file
     source: external_mcp
+    original_name: move_file
   hidden: true
   enabled: true
   sampling_strategy: null
@@ -393,9 +393,9 @@ tools:
       timeout: 30
       tool_name: search_files
   annotations:
-    original_name: search_files
-    source: external_mcp
     server: filesystem
+    source: external_mcp
+    original_name: search_files
   hidden: true
   enabled: true
   sampling_strategy: null
@@ -421,9 +421,9 @@ tools:
       timeout: 30
       tool_name: get_file_info
   annotations:
-    source: external_mcp
     server: filesystem
     original_name: get_file_info
+    source: external_mcp
   hidden: true
   enabled: true
   sampling_strategy: null
@@ -444,9 +444,9 @@ tools:
       timeout: 30
       tool_name: list_allowed_directories
   annotations:
-    source: external_mcp
     original_name: list_allowed_directories
     server: filesystem
+    source: external_mcp
   hidden: true
   enabled: true
   sampling_strategy: null

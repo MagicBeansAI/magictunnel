@@ -1,8 +1,8 @@
 metadata:
   version: 1.0.0
-  last_updated: 2025-08-21T21:07:25.387664Z
+  last_updated: 2025-08-23T10:54:38.586530Z
   total_patterns: 8
-  total_explicit_rules: 0
+  total_explicit_rules: 2
 patterns:
   global:
   - name: destructive_operations
@@ -48,5 +48,7 @@ patterns:
     reason: Development tools generally permitted
     enabled: true
 explicit_rules:
-  tools: {}
-  capabilities: {}
+  tools:
+    magictunnel-internal.smart_tool_discovery: allow
+  capabilities:
+    magictunnel-internal: allow

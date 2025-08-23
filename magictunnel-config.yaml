@@ -151,7 +151,7 @@ security:
     enabled: true
     default_action: deny
     emergency_lockdown: false
-    data_file: "./security/allowlist-data.yaml"
+    data_file: "/Users/gouravd/Development/magicbeanbs100x/magictunnel/security/allowlist-data.yaml"
     audit_decisions: true
     # Legacy fields removed - now using data_file structure
   sanitization:
@@ -170,25 +170,43 @@ security:
     inherit_permissions: true
   audit:
     enabled: true
-    events:
+    storage:
+      type: file
+      directory: /Users/gouravd/Development/magicbeanbs100x/magictunnel/logs/audit
+      max_file_size: 104857600
+      max_files: 10
+      compress: true
+      sync_interval_secs: 5
+      rollover:
+        max_total_size_gb: 2.0
+        max_age_days: 30
+        check_interval_secs: 1800
+        auto_cleanup: true
+    event_types:
     - authentication
     - authorization
     - tool_execution
     - security_violation
-    storage:
-      type: File
-      directory: ./logs
-      rotation:
-        max_file_size: 104857600
-        max_files: 10
-        compress: true
+    - oauth_flow
+    - mcp_connection
+    - admin_action
     retention_days: 90
-    include_bodies: false
-    max_body_size: 1024
-    mask_sensitive_data: true
+    streaming:
+      enabled: true
+      max_connections: 100
+      buffer_size: 1000
+      heartbeat_interval: 30
+    performance:
+      max_queue_size: 10000
+      worker_threads: 2
+      batch_size: 100
+      flush_interval_secs: 5
+      compression: true
+    multi_tenant: false
+    integrity_checks: true
   emergency_lockdown:
     enabled: true
-    state_file_path: ./data/emergency_lockdown.json
+    state_file_path: /Users/gouravd/Development/magicbeanbs100x/magictunnel/data/emergency_lockdown.json
     log_blocked_requests: true
     authorized_users: []
 streamable_http: null
@@ -222,7 +240,7 @@ resource_generation: null
 content_storage: null
 external_content: null
 enhancement_storage:
-  storage_dir: ./storage/enhanced_tools
+  storage_dir: /Users/gouravd/Development/magicbeanbs100x/magictunnel/storage/enhanced_tools
   max_storage_mb: 512
   cleanup_policy:
     max_age_days: 90

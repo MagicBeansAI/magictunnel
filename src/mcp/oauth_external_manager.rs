@@ -8,7 +8,7 @@ use crate::mcp::oauth_discovery::{OAuthMcpDiscoveryManager, OAuthMcpDiscoveryCon
 use crate::mcp::external_manager::ExternalMcpManager;
 use crate::mcp::types::Tool;
 use crate::auth::MultiLevelAuthConfig;
-use crate::security::audit_log::AuditLogger;
+use crate::security::{AuditCollector, AuditEvent, AuditEventType, AuditSeverity, get_audit_collector};
 use crate::config::{ExternalMcpConfig, OAuthConfig, McpClientConfig};
 use crate::error::{ProxyError, Result};
 use crate::utils::{sanitize_tool_name, ensure_unique_capability_name};
@@ -98,7 +98,7 @@ pub struct OAuthExternalMcpManager {
     /// All configured servers with status tracking
     configured_servers: Arc<RwLock<HashMap<String, ServerInfo>>>,
     /// Audit logger
-    audit_logger: Arc<AuditLogger>,
+    audit_logger: Arc<AuditCollector>,
 }
 
 impl OAuthExternalMcpManager {
@@ -112,8 +112,20 @@ impl OAuthExternalMcpManager {
         // Create traditional manager for process-based servers
         let traditional_manager = Arc::new(ExternalMcpManager::new(external_config, client_config));
 
-        // Create audit logger
-        let audit_logger = Arc::new(AuditLogger::new(true, true));
+        // Create audit logger reference
+        // Use global audit collector if available, otherwise create a fallback
+        let audit_logger = if let Some(_collector) = get_audit_collector() {
+            // Global collector exists, create a new collector for this specific use case
+            // since we can't directly use the static reference in an Arc
+            info!("Creating audit collector for OAuth external manager (global collector available)");
+            Arc::new(AuditCollector::new(crate::security::audit::AuditConfig::default()).await?)
+        } else {
+            // Fallback: create default collector if not initialized
+            warn!("Audit collector not initialized globally, creating default for OAuth external manager");
+            Arc::new(
+                AuditCollector::new(crate::security::audit::AuditConfig::default()).await?
+            )
+        };
 
         // Create OAuth discovery manager
         let oauth_discovery_manager = Arc::new(
@@ -569,47 +581,165 @@ impl OAuthExternalMcpManager {
     ) -> Result<()> {
         info!("🔍 Discovering tools from OAuth MCP server: {}", server_name);
 
-        // Create authenticated client based on transport type
-        // For now, we'll simulate tool discovery
-        let mock_tools = vec![
-            Tool {
-                name: format!("ping_{}", server_name),
-                title: Some(format!("Ping {}", server_name)),
-                description: Some(format!("Ping tool from OAuth-enabled server: {}", server_name)),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {
-                        "target": {
-                            "type": "string",
-                            "description": "Target to ping"
+        // Create authenticated client and discover tools
+        let tools = match connection.transport_type.as_str() {
+            "sse" => {
+                match connection.create_sse_client() {
+                    Ok(mut client) => {
+                        // Send tools/list request with authentication
+                        let request_params = json!({});
+                        
+                        match client.list_tools().await {
+                            Ok(tools) => {
+                                info!("✅ Successfully discovered {} tools from OAuth SSE MCP server: {}", tools.len(), server_name);
+                                tools
+                            },
+                            Err(e) => {
+                                error!("Failed to list tools from OAuth SSE MCP server {}: {}", server_name, e);
+                                Vec::new()
+                            }
                         }
                     },
-                    "required": ["target"]
-                }),
-                output_schema: None,
-                annotations: None,
+                    Err(e) => {
+                        error!("Failed to create SSE client for {}: {}", server_name, e);
+                        Vec::new()
+                    }
+                }
             },
-            Tool {
-                name: format!("status_{}", server_name),
-                title: Some(format!("Status {}", server_name)),
-                description: Some(format!("Status check from OAuth-enabled server: {}", server_name)),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {}
-                }),
-                output_schema: None,
-                annotations: None,
+            "http" => {
+                match connection.create_http_client() {
+                    Ok(client) => {
+                        // Use the list_tools method which handles authentication internally
+                        match client.list_tools().await {
+                            Ok(tools) => {
+                                info!("✅ Successfully discovered {} tools from OAuth HTTP MCP server: {}", tools.len(), server_name);
+                                tools
+                            },
+                            Err(e) => {
+                                warn!("Failed to list tools from OAuth HTTP MCP server {}: {}", server_name, e);
+                                Vec::new()
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        error!("Failed to create HTTP client for {}: {}", server_name, e);
+                        Vec::new()
+                    }
+                }
             },
-        ];
+            "websocket" => {
+                warn!("WebSocket transport not yet fully implemented for OAuth MCP servers");
+                Vec::new()
+            },
+            _ => {
+                error!("Unknown transport type: {}", connection.transport_type);
+                Vec::new()
+            }
+        };
 
-        info!("✅ Discovered {} tools from OAuth MCP server: {}", mock_tools.len(), server_name);
+        // Store discovered tools in the capabilities registry if any were found
+        if !tools.is_empty() {
+            if let Err(e) = self.store_oauth_tools_in_registry(server_name, &tools, connection).await {
+                error!("Failed to store tools from {} in registry: {}", server_name, e);
+            } else {
+                info!("✅ Stored {} tools from OAuth MCP server {} in registry", tools.len(), server_name);
+            }
+        } else {
+            warn!("No tools discovered from OAuth MCP server: {}", server_name);
+        }
 
-        // In a real implementation, this would:
-        // 1. Create authenticated SSE/HTTP client using connection.create_sse_client()
-        // 2. Send authenticated tools/list request
-        // 3. Parse response and extract tools
-        // 4. Generate capability files similar to traditional manager
-        // 5. Store tools in the registry
+        Ok(())
+    }
+
+    /// Store discovered OAuth tools in the capabilities registry
+    async fn store_oauth_tools_in_registry(&self, server_name: &str, tools: &[Tool], connection: &AuthenticatedMcpConnection) -> Result<()> {
+        use crate::registry::types::{CapabilityFile, ToolDefinition, FileMetadata, RoutingConfig};
+        use std::collections::HashMap;
+
+        // Convert MCP tools to ToolDefinitions
+        let mut tool_definitions = HashMap::new();
+        
+        for tool in tools {
+            let tool_def = ToolDefinition {
+                name: tool.name.clone(),
+                description: tool.description.clone().unwrap_or_else(|| tool.name.clone()),
+                input_schema: tool.input_schema.clone(),
+                routing: RoutingConfig::new(
+                    "http".to_string(),
+                    serde_json::json!({
+                        "url": connection.base_url,
+                        "method": "POST",
+                        "headers": {
+                            "Authorization": format!("Bearer {}", connection.access_token),
+                            "Content-Type": "application/json"
+                        },
+                        "timeout": 30,
+                        "retry": 3
+                    })
+                ),
+                annotations: tool.annotations.as_ref().map(|_| {
+                    // Convert ToolAnnotations to HashMap<String, String>
+                    std::collections::HashMap::new()
+                }),
+                hidden: false,
+                enabled: true,
+                prompt_refs: Vec::new(),
+                resource_refs: Vec::new(),
+                sampling_strategy: None,
+                elicitation_strategy: None,
+            };
+            
+            tool_definitions.insert(tool.name.clone(), tool_def);
+        }
+
+        // Create capability file
+        let capability_file = CapabilityFile {
+            metadata: Some(FileMetadata {
+                name: Some(format!("oauth_{}", server_name)),
+                description: Some(format!("OAuth-enabled tools from MCP server: {}", server_name)),
+                version: Some("1.0.0".to_string()),
+                author: Some("OAuth MCP Discovery".to_string()),
+                tags: Some(vec!["oauth".to_string(), "external".to_string(), server_name.to_string()]),
+            }),
+            tools: tool_definitions.into_values().collect(),
+            enhanced_metadata: None,
+            enhanced_tools: None,
+        };
+
+        // Store capability file locally for OAuth servers
+        {
+            let file_path = format!("oauth_servers/{}.yaml", server_name);
+            
+            // Convert capability file to YAML
+            match serde_yaml::to_string(&capability_file) {
+                Ok(yaml_content) => {
+                    // Create directory if it doesn't exist
+                    let oauth_dir = std::path::Path::new("capabilities/oauth_servers");
+                    if !oauth_dir.exists() {
+                        if let Err(e) = std::fs::create_dir_all(oauth_dir) {
+                            error!("Failed to create OAuth servers directory: {}", e);
+                            return Err(crate::error::ProxyError::config(format!("Directory creation failed: {}", e)));
+                        }
+                    }
+
+                    // Write capability file
+                    let full_path = format!("capabilities/{}", file_path);
+                    match std::fs::write(&full_path, yaml_content) {
+                        Ok(_) => {
+                            info!("✅ Created capability file for OAuth server: {}", full_path);
+                        },
+                        Err(e) => {
+                            error!("Failed to write capability file {}: {}", full_path, e);
+                            return Err(crate::error::ProxyError::config(format!("File write failed: {}", e)));
+                        }
+                    }
+                },
+                Err(e) => {
+                    error!("Failed to serialize capability file for {}: {}", server_name, e);
+                    return Err(crate::error::ProxyError::config(format!("Serialization failed: {}", e)));
+                }
+            }
+        }
 
         Ok(())
     }
@@ -634,25 +764,97 @@ impl OAuthExternalMcpManager {
         self.audit_logger.log_mcp_tool_execution(server_name, tool_name, true, true).await;
         self.audit_logger.log_oauth_token_usage(server_name, "POST", "/mcp/tools/call").await;
 
-        // Create authenticated client and execute tool
-        let authenticated_client = connection.create_sse_client()?;
-        
-        // In a real implementation, this would:
-        // 1. Use authenticated_client.send_request() with OAuth token
-        // 2. Handle token refresh if needed
-        // 3. Return actual tool execution result
+        // Execute tool using authenticated client
+        let result = match connection.transport_type.as_str() {
+            "sse" => {
+                match connection.create_sse_client() {
+                    Ok(mut client) => {
+                        // Execute tool using call_tool method
+                        match client.call_tool(tool_name, _arguments.clone()).await {
+                            Ok(response) => {
+                                info!("✅ OAuth tool executed successfully: {} on server: {}", tool_name, server_name);
+                                response
+                            },
+                            Err(e) => {
+                                error!("Failed to execute OAuth tool {} on {}: {}", tool_name, server_name, e);
+                                json!({
+                                    "content": [{
+                                        "type": "text",
+                                        "text": format!("Error executing tool: {}", e)
+                                    }],
+                                    "isError": true
+                                })
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        error!("Failed to create SSE client for tool execution on {}: {}", server_name, e);
+                        json!({
+                            "content": [{
+                                "type": "text", 
+                                "text": format!("Client creation failed: {}", e)
+                            }],
+                            "isError": true
+                        })
+                    }
+                }
+            },
+            "http" => {
+                match connection.create_http_client() {
+                    Ok(client) => {
+                        // Use the call_tool method which handles authentication internally
+                        match client.call_tool(tool_name, _arguments.clone()).await {
+                            Ok(response) => {
+                                info!("✅ OAuth tool executed successfully: {} on server: {}", tool_name, server_name);
+                                response
+                            },
+                            Err(e) => {
+                                error!("Failed to execute OAuth tool {} on {}: {}", tool_name, server_name, e);
+                                json!({
+                                    "content": [{
+                                        "type": "text",
+                                        "text": format!("Tool execution failed: {}", e)
+                                    }],
+                                    "isError": true
+                                })
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        error!("Failed to create HTTP client for tool execution on {}: {}", server_name, e);
+                        json!({
+                            "content": [{
+                                "type": "text",
+                                "text": format!("HTTP client creation failed: {}", e)
+                            }],
+                            "isError": true
+                        })
+                    }
+                }
+            },
+            "websocket" => {
+                warn!("WebSocket transport not yet fully implemented for OAuth tool execution");
+                json!({
+                    "content": [{
+                        "type": "text",
+                        "text": "WebSocket transport not yet supported for OAuth tool execution"
+                    }],
+                    "isError": true
+                })
+            },
+            _ => {
+                error!("Unknown transport type for OAuth tool execution: {}", connection.transport_type);
+                json!({
+                    "content": [{
+                        "type": "text",
+                        "text": format!("Unknown transport type: {}", connection.transport_type)
+                    }],
+                    "isError": true
+                })
+            }
+        };
 
-        // For now, return mock response
-        let mock_response = json!({
-            "content": [{
-                "type": "text",
-                "text": format!("Mock response from OAuth tool '{}' on server '{}'", tool_name, server_name)
-            }],
-            "isError": false
-        });
-
-        info!("✅ OAuth tool executed successfully: {} on server: {}", tool_name, server_name);
-        Ok(mock_response)
+        Ok(result)
     }
 
     /// Execute tool (unified interface for both traditional and OAuth servers)
@@ -784,7 +986,7 @@ impl OAuthExternalMcpManager {
     }
 
     /// Get audit logger for external access
-    pub fn audit_logger(&self) -> Arc<AuditLogger> {
+    pub fn audit_logger(&self) -> Arc<AuditCollector> {
         self.audit_logger.clone()
     }
 

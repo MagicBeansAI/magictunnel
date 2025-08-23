@@ -19,7 +19,6 @@ pub mod middleware;
 pub mod rbac;
 pub mod sanitization;
 pub mod statistics;
-pub mod audit_log;
 
 // Re-export specific types to avoid conflicts
 pub use allowlist_types::{AllowlistConfig, AllowlistContext, AllowlistAction, AllowlistRule, AllowlistPattern};
@@ -33,7 +32,26 @@ pub use allowlist_data::{
     PatternEvaluationStep, RealTimePatternTestSummary
 };
 pub use allowlist::{AllowlistService};
-pub use audit::{AuditConfig, AuditService, AuditEntry, AuditEventType, AuditUser, AuditRequest, AuditTool, AuditResource, AuditSecurity, AuditOutcome, AuditError, AuditQueryFilters};
+
+// Modern centralized audit system
+pub use audit::{
+    AuditConfig,
+    AuditCollector, 
+    AuditEvent, 
+    AuditEventType, 
+    AuditMetadata,
+    AuditStorage,
+    AuditStreamer,
+    initialize_audit_system,
+    get_audit_collector,
+    AuditService,
+    AuditEntry,
+    AuditOutcome,
+    AuditUser,
+    AuditQuery,
+};
+pub use audit::events::AuditSeverity;
+
 pub use config::SecurityConfig;
 pub use middleware::{SecurityMiddleware, SecurityContext, SecurityRequest, SecurityUser, SecurityTool, SecurityResult, extract_security_user};
 pub use rbac::{RbacConfig, RbacService, PermissionContext};
@@ -42,4 +60,3 @@ pub use statistics::{SecurityServiceStatistics, HealthMonitor, ServiceHealth, He
 pub use emergency::{EmergencyLockdownManager, EmergencyLockdownConfig, EmergencyLockdownState, EmergencyLockdownResult, EmergencyLockdownStatistics};
 pub use change_tracker::{ConfigurationChangeTracker, ChangeTrackerConfig, ConfigurationChange, ChangeType, ChangeOperation, ChangeUser, ChangeTarget, ChangeDiff, ChangeImpact, ChangeValidation, ChangeListener, ChangeTrackingStatistics};
 pub use change_integration::{ChangeTrackingIntegration, AllowlistChangeListener, ConfigFileWatcher};
-pub use audit_log::AuditLogger;

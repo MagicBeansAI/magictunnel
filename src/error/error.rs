@@ -64,6 +64,10 @@ pub enum ProxyError {
     #[error("JSON Schema validation error: {0}")]
     JsonSchema(#[from] jsonschema::ValidationError<'static>),
 
+    /// Audit system errors
+    #[error("Audit error: {0}")]
+    Audit(String),
+
     /// Generic errors
     #[error("Internal error: {0}")]
     Internal(#[from] anyhow::Error),
@@ -141,6 +145,11 @@ impl ProxyError {
         }
     }
 
+    /// Create an audit error
+    pub fn audit<S: Into<String>>(message: S) -> Self {
+        Self::Audit(message.into())
+    }
+
     /// Create a user context error (using config error type)
     pub fn user_context<E: std::fmt::Display>(error: E) -> Self {
         Self::Config {
@@ -173,6 +182,7 @@ impl ProxyError {
             ProxyError::Yaml(_) => "yaml",
             ProxyError::Http(_) => "http",
             ProxyError::JsonSchema(_) => "json_schema",
+            ProxyError::Audit(_) => "audit",
             ProxyError::Internal(_) => "internal",
         }
     }
@@ -193,6 +203,7 @@ impl Clone for ProxyError {
             ProxyError::Validation { message } => ProxyError::Validation { message: message.clone() },
             ProxyError::Connection { message } => ProxyError::Connection { message: message.clone() },
             ProxyError::Security { message } => ProxyError::Security { message: message.clone() },
+            ProxyError::Audit(message) => ProxyError::Audit(message.clone()),
 
             // For non-cloneable types, convert to string representation
             ProxyError::Io(e) => ProxyError::routing(format!("IO error: {}", e)),
@@ -202,5 +213,12 @@ impl Clone for ProxyError {
             ProxyError::JsonSchema(e) => ProxyError::routing(format!("JSON Schema error: {}", e)),
             ProxyError::Internal(e) => ProxyError::routing(format!("Internal error: {}", e)),
         }
+    }
+}
+
+// Convert AuditError to ProxyError
+impl From<crate::security::audit::AuditError> for ProxyError {
+    fn from(error: crate::security::audit::AuditError) -> Self {
+        Self::Audit(error.to_string())
     }
 }

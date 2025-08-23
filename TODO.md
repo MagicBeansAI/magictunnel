@@ -4,7 +4,7 @@ This document outlines current tasks and future development plans for MagicTunne
 
 ## 🚀 Current Status
 
-**MagicTunnel v0.3.13** - **Production Ready** with Complete OAuth 2.1 Enterprise Authentication System
+**MagicTunnel v0.3.20** - **Production Ready** with Complete OAuth 2.1 Enterprise Authentication System
 
 📚 **[View Complete Achievement History](TODO_DONE.md)** - Detailed archive of all completed work
 
@@ -122,7 +122,7 @@ This document outlines current tasks and future development plans for MagicTunne
 - [ ] **Create base Roots page** (`frontend/src/routes/roots/+page.svelte`)
 - [ ] **Design page layout** with tabs for Discovery, Security, Management
 - [ ] **Add breadcrumb navigation** and page title
-- [ ] **Create responsive design** for mobile and desktop
+- ✅ **Create responsive design** for mobile and desktop (COMPLETED v0.3.19 - responsive card layout system)
 
 #### 1.2 Backend API Integration
 - [ ] **Create roots API endpoints** in backend (`src/web/roots_api.rs`)
@@ -144,12 +144,12 @@ This document outlines current tasks and future development plans for MagicTunne
 
 #### 2.1 Real-time Features
 - [ ] **Live discovery updates** using WebSocket/SSE
-- [ ] **Real-time permission validation** with instant feedback
-- [ ] **Dynamic security pattern testing** before applying
+- ✅ **Real-time permission validation** with instant feedback
+- ✅ **Dynamic security pattern testing** before applying (COMPLETED v0.3.18 - hierarchical pattern highlighting with real-time feedback)
 - [ ] **Auto-refresh** for discovery results every 5 minutes
 
 #### 2.2 Security & Validation
-- [ ] **Pattern validation** with regex testing interface
+- ✅ **Pattern validation** with regex testing interface (COMPLETED v0.3.18 - comprehensive pattern testing with regex, glob, and exact matching)
 - [ ] **Permission conflict detection** and resolution
 - [ ] **Access testing** - test if paths/URIs are accessible
 - [ ] **Security risk assessment** for new root entries
@@ -292,89 +292,6 @@ frontend/src/routes/roots/
   - [ ] Update error messages to reference new configuration structure
   - [ ] Add configuration validation error messages
   - [ ] Update help text for new configuration options
-
-### Technical Architecture
-
-```rust
-// New Configuration Hierarchy Structure
-
-// Global Level (System Defaults)
-struct GlobalConfig {
-    sampling: SamplingConfig,
-    elicitation: ElicitationConfig,
-    smart_discovery: SmartDiscoveryConfig, // Tool selection only
-}
-
-// MCP Level (Per-Server Overrides) 
-struct McpServerConfig {
-    name: String,
-    sampling_strategy_override: Option<Strategy>,
-    elicitation_strategy_override: Option<Strategy>,
-    // ... other MCP-specific config
-}
-
-// Tool Level (Highest Priority Overrides)
-struct ToolConfig {
-    name: String,
-    sampling_strategy_override: Option<Strategy>,
-    elicitation_strategy_override: Option<Strategy>,
-    // ... other tool-specific config
-}
-
-// Configuration Resolution Logic
-impl ConfigResolver {
-    fn resolve_sampling_strategy(&self, tool_name: &str) -> Strategy {
-        // Tool Level → MCP Level → Service Level → Hard-coded Default
-        self.get_tool_strategy(tool_name)
-            .or_else(|| self.get_mcp_strategy(tool_name))
-            .or_else(|| self.get_service_default())
-            .unwrap_or(Strategy::ClientForwarded)
-    }
-}
-```
-
-### Configuration Examples
-
-```yaml
-# Clean Separation of Concerns
-
-# Smart Discovery - Tool Selection Only  
-smart_discovery:
-  enabled: true
-  tool_selection_mode: "hybrid"
-  # NO sampling/elicitation routing configuration here
-
-# MCP Protocol Services - Routing Only
-sampling:
-  enabled: false
-  default_strategy: "client_forwarded"
-  # Global default - can be overridden at MCP/Tool level
-  
-elicitation:
-  enabled: false  
-  default_strategy: "client_forwarded"
-  # Global default - can be overridden at MCP/Tool level
-
-# External MCP Integration - Individual Server Level
-external_mcp:
-  enabled: false
-  external_routing:
-    # Only client_forwarded supported at proxy level currently
-    sampling:
-      default_strategy: "client_forwarded"
-    elicitation:
-      default_strategy: "client_forwarded"
-```
-
-**Impact**: 
-- **Clean Architecture**: Proper separation between Tool Selection, Protocol Services, and External Integration
-- **Maintainable Configuration**: Clear hierarchical precedence system
-- **Future-Proof**: Foundation for advanced routing strategies at appropriate levels
-- **Developer Experience**: Intuitive configuration structure with clear inheritance rules
-
-**Dependencies**: None - can be implemented independently  
-**Risk**: Medium - requires careful migration of existing configurations
-
 ---
 
 ## 🚨 **CRITICAL: Complete Security System Implementation**
@@ -1136,7 +1053,7 @@ make release VERSION=  # Full release workflow
 ### 4.2 OAuth2 UI Integration 🔐 **LOW PRIORITY**
 **Objective**: Complete OAuth2 system with web dashboard management
 
-**Current State (v0.3.12)**:
+**Current State (v0.3.20)**:
 - ✅ **OAuth 2.1 Backend Complete** - Full enterprise-grade implementation with all 5 phases complete
 - ✅ **Web API Endpoints** - Authorization, callback, and token validation endpoints
 - ✅ **Configuration System** - Complete OAuth configuration framework  

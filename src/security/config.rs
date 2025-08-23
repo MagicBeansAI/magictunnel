@@ -16,7 +16,7 @@ pub struct SecurityConfig {
     pub sanitization: Option<SanitizationConfig>,
     /// Role-based access control configuration
     pub rbac: Option<RbacConfig>,
-    /// Audit logging configuration
+    /// Centralized audit system configuration
     pub audit: Option<AuditConfig>,
     /// Emergency lockdown configuration
     pub emergency_lockdown: Option<EmergencyLockdownConfig>,
@@ -29,7 +29,7 @@ impl Default for SecurityConfig {
             allowlist: None,                   // Enterprise allowlisting opt-in
             sanitization: None,                // Enterprise sanitization opt-in
             rbac: None,                        // Enterprise RBAC opt-in
-            audit: None,                       // Enterprise audit logging opt-in
+            audit: None,                       // Enterprise audit system opt-in
             emergency_lockdown: None,          // Enterprise emergency lockdown opt-in
         }
     }

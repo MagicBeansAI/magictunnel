@@ -12,10 +12,9 @@ use chrono::Utc;
 use crate::error::{Result, ProxyError};
 
 use super::{
-    SecurityConfig, AllowlistService, SanitizationService, RbacService, AuditService,
+    SecurityConfig, AllowlistService, SanitizationService, RbacService,
     AllowlistContext, PermissionContext,
-    AuditEntry, AuditEventType, AuditUser, AuditRequest,
-    AuditTool, AuditResource, AuditSecurity, AuditOutcome, AuditError
+    AuditCollector, AuditEvent, AuditEventType, AuditSeverity, get_audit_collector
 };
 use super::emergency::EmergencyLockdownManager;
 
@@ -25,7 +24,7 @@ pub struct SecurityMiddleware {
     allowlist_service: Option<Arc<AllowlistService>>,
     sanitization_service: Option<SanitizationService>,
     rbac_service: Option<Arc<RwLock<RbacService>>>,
-    audit_service: Option<Arc<AuditService>>,
+    audit_service: Option<Arc<AuditCollector>>,
     emergency_manager: Option<Arc<EmergencyLockdownManager>>,
 }
 
@@ -228,13 +227,18 @@ impl SecurityMiddleware {
         }
         
         
-        // Initialize audit service
+        // Initialize audit service (use centralized audit collector)
         if let Some(audit_config) = &config.audit {
             if audit_config.enabled {
-                let service = AuditService::new(audit_config.clone()).await
-                    .map_err(|e| ProxyError::config(format!("Failed to initialize audit service: {}", e)))?;
-                middleware.audit_service = Some(Arc::new(service));
-                info!("Audit service initialized");
+                // Use the global centralized audit collector directly
+                if let Some(_collector) = get_audit_collector() {
+                    // Middleware will use global collector directly, no separate service needed
+                    info!("✅ Security middleware connected to global audit collector");
+                    middleware.audit_service = None; // We'll use global collector directly
+                } else {
+                    warn!("⚠️ Global audit collector not available, audit features disabled in Security middleware");
+                    middleware.audit_service = None;
+                }
             }
         }
         
@@ -525,12 +529,19 @@ impl SecurityMiddleware {
         result: SecurityResult,
         context: &SecurityContext,
     ) -> SecurityResult {
-        // Log audit event
-        if let Some(audit_service) = &self.audit_service {
+        // Log audit event using global collector
+        if let Some(audit_collector) = get_audit_collector() {
+            debug!("🔍 Global audit collector found, building audit entry");
             let audit_entry = self.build_audit_entry(&result, context).await;
-            if let Err(e) = audit_service.log_event(audit_entry).await {
-                error!("Failed to log audit event: {}", e);
+            debug!("📋 Built audit entry: event_type={:?}, component={}, message='{}'", 
+                   audit_entry.event_type, audit_entry.component, audit_entry.message);
+            if let Err(e) = audit_collector.log_event(audit_entry).await {
+                error!("❌ Failed to log audit event: {}", e);
+            } else {
+                debug!("✅ Successfully logged audit event to global collector");
             }
+        } else {
+            warn!("⚠️  Global audit collector not found - audit event will not be logged");
         }
         
         // Log security events
@@ -547,7 +558,7 @@ impl SecurityMiddleware {
     }
     
     /// Build audit entry from security result and context
-    async fn build_audit_entry(&self, result: &SecurityResult, context: &SecurityContext) -> AuditEntry {
+    async fn build_audit_entry(&self, result: &SecurityResult, context: &SecurityContext) -> AuditEvent {
         let event_type = if result.blocked {
             AuditEventType::SecurityViolation
         } else if context.tool.is_some() {
@@ -558,71 +569,103 @@ impl SecurityMiddleware {
             AuditEventType::Authorization
         };
         
-        let outcome = if result.blocked {
-            AuditOutcome::Blocked
+        let component = "security_middleware";
+        let message = if result.blocked {
+            format!("Security check blocked: {}", result.reason)
         } else if result.requires_approval {
-            AuditOutcome::PendingApproval
-        } else if result.allowed {
-            AuditOutcome::Success
+            format!("Security check requires approval: {}", result.reason)
         } else {
-            AuditOutcome::Failure
+            format!("Security check passed: {}", result.reason)
         };
         
-        AuditEntry {
-            id: AuditEntry::generate_id(),
-            timestamp: Utc::now(),
-            event_type,
-            user: context.user.as_ref().map(|u| AuditUser {
-                id: u.id.clone(),
-                name: None,
-                roles: u.roles.clone(),
-                api_key_name: u.api_key_name.clone(),
-                auth_method: u.auth_method.clone(),
-            }),
-            request: Some(AuditRequest {
-                id: Some(context.request.id.clone()),
-                method: context.request.method.clone(),
-                path: context.request.path.clone(),
-                client_ip: context.request.client_ip.clone(),
-                user_agent: context.request.user_agent.clone(),
-                headers: context.request.headers.clone(),
-                body: context.request.body.clone(),
-                size: context.request.body.as_ref().map(|b| b.len()).unwrap_or(0),
-            }),
-            response: None, // Will be filled in by response handler
-            tool: context.tool.as_ref().map(|t| AuditTool {
-                name: t.name.clone(),
-                parameters: Some(t.parameters.clone()),
-                result: None,
-                execution_time_ms: None,
-                success: result.allowed,
-            }),
-            resource: context.resource.as_ref().map(|r| AuditResource {
-                uri: r.uri.clone(),
-                resource_type: r.resource_type.clone(),
-                operation: r.operation.clone(),
-            }),
-            security: AuditSecurity {
-                authenticated: context.user.is_some(),
-                authorized: result.allowed,
-                permissions_checked: self.determine_required_permissions(context),
-                policies_applied: result.events.iter().map(|e| e.source.clone()).collect(),
-                content_sanitized: result.modified,
-                approval_required: result.requires_approval,
-            },
-            metadata: context.metadata.clone(),
-            outcome,
-            error: if result.blocked {
-                Some(AuditError {
-                    code: "SECURITY_VIOLATION".to_string(),
-                    message: result.reason.clone(),
-                    details: result.error_message.clone(),
-                    stack_trace: None,
-                })
-            } else {
-                None
-            },
+        let mut event = AuditEvent::new(event_type, component.to_string(), message);
+        
+        // Add user information as metadata
+        if let Some(user) = &context.user {
+            if let Some(user_id) = &user.id {
+                event = event.with_metadata("user_id", serde_json::json!(user_id));
+            }
+            event = event.with_metadata("user_roles", serde_json::json!(user.roles));
+            event = event.with_metadata("user_permissions", serde_json::json!(user.permissions));
+            if let Some(api_key) = &user.api_key_name {
+                event = event.with_metadata("api_key_name", serde_json::json!(api_key));
+            }
+            event = event.with_metadata("auth_method", serde_json::json!(user.auth_method));
         }
+        
+        // Add request information as metadata
+        event = event.with_metadata("request_id", serde_json::json!(context.request.id));
+        event = event.with_metadata("request_method", serde_json::json!(context.request.method));
+        event = event.with_metadata("request_path", serde_json::json!(context.request.path));
+        if let Some(client_ip) = &context.request.client_ip {
+            event = event.with_metadata("client_ip", serde_json::json!(client_ip));
+        }
+        if let Some(user_agent) = &context.request.user_agent {
+            event = event.with_metadata("user_agent", serde_json::json!(user_agent));
+        }
+        event = event.with_metadata("request_headers", serde_json::json!(context.request.headers));
+        if let Some(body) = &context.request.body {
+            event = event.with_metadata("request_body_size", serde_json::json!(body.len()));
+        }
+        
+        // Add tool information as metadata
+        if let Some(tool) = &context.tool {
+            event = event.with_metadata("tool_name", serde_json::json!(tool.name));
+            event = event.with_metadata("tool_parameters", serde_json::json!(tool.parameters));
+            if let Some(source) = &tool.source {
+                event = event.with_metadata("tool_source", serde_json::json!(source));
+            }
+        }
+        
+        // Add resource information as metadata
+        if let Some(resource) = &context.resource {
+            event = event.with_metadata("resource_uri", serde_json::json!(resource.uri));
+            event = event.with_metadata("resource_type", serde_json::json!(resource.resource_type));
+            event = event.with_metadata("resource_operation", serde_json::json!(resource.operation));
+        }
+        
+        // Add security result information as metadata
+        event = event.with_metadata("security_allowed", serde_json::json!(result.allowed));
+        event = event.with_metadata("security_blocked", serde_json::json!(result.blocked));
+        event = event.with_metadata("security_requires_approval", serde_json::json!(result.requires_approval));
+        event = event.with_metadata("security_modified", serde_json::json!(result.modified));
+        event = event.with_metadata("security_reason", serde_json::json!(result.reason));
+        
+        // Add security events as metadata
+        let security_events: Vec<serde_json::Value> = result.events.iter().map(|e| {
+            serde_json::json!({
+                "event_type": e.event_type,
+                "source": e.source,
+                "message": e.message,
+                "severity": format!("{:?}", e.severity),
+                "details": e.details
+            })
+        }).collect();
+        event = event.with_metadata("security_events", serde_json::json!(security_events));
+        
+        // Add permissions checked
+        let permissions_checked = self.determine_required_permissions(context);
+        event = event.with_metadata("permissions_checked", serde_json::json!(permissions_checked));
+        
+        // Add policies applied
+        let policies_applied: Vec<String> = result.events.iter().map(|e| e.source.clone()).collect();
+        event = event.with_metadata("policies_applied", serde_json::json!(policies_applied));
+        
+        // Add error information if blocked
+        if result.blocked {
+            event = event.with_metadata("error_code", serde_json::json!("SECURITY_VIOLATION"));
+            event = event.with_metadata("error_message", serde_json::json!(result.reason));
+            if let Some(error_msg) = &result.error_message {
+                event = event.with_metadata("error_details", serde_json::json!(error_msg));
+            }
+        }
+        
+        // Add context metadata
+        for (key, value) in &context.metadata {
+            event = event.with_metadata(&format!("context_{}", key), value.clone());
+        }
+        
+        event
     }
     
     /// Get number of active services
@@ -675,9 +718,55 @@ pub fn extract_security_user(auth_context: Option<&crate::auth::AuthenticationRe
             }
         };
         
+        // Extract roles based on permissions and authentication method
+        let roles = match ctx {
+            crate::auth::AuthenticationResult::ApiKey(key_entry) => {
+                // Map API key permissions to roles
+                if key_entry.permissions.contains(&"admin".to_string()) {
+                    vec!["admin".to_string()]
+                } else if key_entry.permissions.contains(&"write".to_string()) {
+                    vec!["user".to_string(), "writer".to_string()]
+                } else if key_entry.permissions.contains(&"read".to_string()) {
+                    vec!["user".to_string(), "reader".to_string()]
+                } else {
+                    vec!["guest".to_string()]
+                }
+            },
+            crate::auth::AuthenticationResult::OAuth(_) => {
+                // OAuth users get default user role
+                vec!["user".to_string(), "oauth_user".to_string()]
+            },
+            crate::auth::AuthenticationResult::Jwt(jwt_result) => {
+                // Extract roles from JWT permissions
+                if jwt_result.permissions.contains(&"admin".to_string()) {
+                    vec!["admin".to_string()]
+                } else if jwt_result.permissions.contains(&"write".to_string()) {
+                    vec!["user".to_string(), "writer".to_string()]
+                } else {
+                    vec!["user".to_string(), "reader".to_string()]
+                }
+            },
+            crate::auth::AuthenticationResult::ServiceAccount(sa_result) => {
+                // Service accounts get service role plus permission-based roles
+                let mut roles = vec!["service_account".to_string()];
+                if sa_result.permissions.contains(&"admin".to_string()) {
+                    roles.push("admin".to_string());
+                } else if sa_result.permissions.contains(&"write".to_string()) {
+                    roles.push("writer".to_string());
+                } else {
+                    roles.push("reader".to_string());
+                }
+                roles
+            },
+            crate::auth::AuthenticationResult::DeviceCode(_) => {
+                // Device code users get standard user role
+                vec!["user".to_string(), "device_user".to_string()]
+            }
+        };
+        
         SecurityUser {
             id: Some(ctx.get_user_id()),
-            roles: vec![], // TODO: Extract roles from auth result if available
+            roles,
             permissions: ctx.get_permissions(),
             api_key_name,
             auth_method,

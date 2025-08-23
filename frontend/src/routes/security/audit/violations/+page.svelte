@@ -13,7 +13,7 @@
   
   // Filters
   let filterSeverity: 'all' | 'critical' | 'high' | 'medium' | 'low' = 'all';
-  let filterStatus: 'all' | 'active' | 'investigating' | 'resolved' | 'false_positive' = 'all';
+  let filterStatus: 'all' | 'active' | 'resolved' | 'false_positive' = 'all';
   let filterTimeRange: '1h' | '24h' | '7d' | '30d' = '24h';
   let searchQuery = '';
   
@@ -25,6 +25,10 @@
   // Pagination
   let currentPage = 1;
   let itemsPerPage = 20;
+  
+  // Search debouncing
+  let searchDebounceTimer: number | null = null;
+  let searchInput = ''; // Internal search input value
   
   // Load violations data
   async function loadViolationsData() {
@@ -142,7 +146,6 @@
   function getStatusProps(status: string) {
     const statusProps = {
       'active': { color: 'bg-red-100 text-red-800', icon: '🔴', label: 'Active' },
-      'investigating': { color: 'bg-blue-100 text-blue-800', icon: '🔵', label: 'Investigating' },
       'resolved': { color: 'bg-green-100 text-green-800', icon: '✅', label: 'Resolved' },
       'false_positive': { color: 'bg-gray-100 text-gray-800', icon: '❌', label: 'False Positive' }
     };
@@ -152,7 +155,17 @@
   
   // Format date display
   function formatDate(dateString: string): string {
+    if (!dateString) {
+      return 'Unknown';
+    }
+    
     const date = new Date(dateString);
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return 'Invalid Date';
+    }
+    
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const minutes = Math.floor(diff / (1000 * 60));
@@ -184,30 +197,47 @@
     loadViolationsData();
   }
   
+  // Debounced search function
+  function handleSearchInput() {
+    // Clear existing timer
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+    
+    // Set new timer for debounced search
+    searchDebounceTimer = setTimeout(() => {
+      searchQuery = searchInput.trim();
+      applyFilters();
+    }, 500); // 500ms debounce delay
+  }
+  
+  // Manual search trigger
+  function performSearch() {
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+    searchQuery = searchInput.trim();
+    applyFilters();
+  }
+  
   // Quick actions
   async function resolveViolation(violationId: string) {
     const notes = prompt('Resolution notes (optional):');
+    // User canceled the prompt, don't proceed
+    if (notes === null) {
+      return;
+    }
     await updateViolationStatus(violationId, 'resolved', notes || undefined);
   }
   
   async function markFalsePositive(violationId: string) {
     const notes = prompt('Please explain why this is a false positive:');
-    if (notes) {
+    // Only proceed if user provided notes and didn't cancel
+    if (notes && notes.trim()) {
       await updateViolationStatus(violationId, 'false_positive', notes);
     }
   }
   
-  async function startInvestigation(violationId: string) {
-    const assignee = prompt('Assign to (user ID):');
-    if (assignee) {
-      await Promise.all([
-        updateViolationStatus(violationId, 'investigating'),
-        assignViolation(violationId, assignee)
-      ]);
-    } else {
-      await updateViolationStatus(violationId, 'investigating');
-    }
-  }
   
   // Auto-refresh functionality
   function toggleAutoRefresh() {
@@ -231,6 +261,9 @@
     return () => {
       if (refreshInterval) {
         clearInterval(refreshInterval);
+      }
+      if (searchDebounceTimer) {
+        clearTimeout(searchDebounceTimer);
       }
     };
   });
@@ -329,11 +362,6 @@
           <div class="text-sm text-purple-600">Critical</div>
         </div>
         
-        <!-- Under Investigation -->
-        <div class="bg-blue-50 p-4 rounded-lg">
-          <div class="text-2xl font-bold text-blue-700">{violationStats.investigating}</div>
-          <div class="text-sm text-blue-600">Investigating</div>
-        </div>
         
         <!-- Resolved -->
         <div class="bg-green-50 p-4 rounded-lg">
@@ -357,13 +385,24 @@
         <!-- Search -->
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">Search</label>
-          <input
-            type="text"
-            bind:value={searchQuery}
-            on:input={applyFilters}
-            placeholder="Search violations..."
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div class="relative">
+            <input
+              type="text"
+              bind:value={searchInput}
+              on:input={handleSearchInput}
+              on:keydown={(e) => e.key === 'Enter' && performSearch()}
+              placeholder="Search violations..."
+              class="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              type="button"
+              on:click={performSearch}
+              class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600"
+              title="Search"
+            >
+              🔍
+            </button>
+          </div>
         </div>
 
         <!-- Severity Filter -->
@@ -384,7 +423,6 @@
           <select bind:value={filterStatus} class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="all">All Statuses</option>
             <option value="active">Active</option>
-            <option value="investigating">Investigating</option>
             <option value="resolved">Resolved</option>
             <option value="false_positive">False Positive</option>
           </select>
@@ -572,14 +610,6 @@
             <h4 class="text-sm font-medium text-gray-900 mb-3">Quick Actions</h4>
             
             <div class="grid grid-cols-2 gap-2">
-              {#if selectedViolation.status === 'active'}
-                <button
-                  class="btn-sm btn-secondary"
-                  on:click={() => startInvestigation(selectedViolation.id)}
-                >
-                  🔍 Investigate
-                </button>
-              {/if}
               
               {#if selectedViolation.status !== 'resolved'}
                 <button
@@ -603,7 +633,7 @@
                 class="btn-sm btn-secondary"
                 on:click={() => {
                   const note = prompt('Add investigation note:');
-                  if (note) addViolationNote(selectedViolation.id, note);
+                  if (note && note.trim()) addViolationNote(selectedViolation.id, note);
                 }}
               >
                 📝 Add Note

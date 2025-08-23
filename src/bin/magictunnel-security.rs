@@ -13,7 +13,7 @@ use magictunnel::security::{
     AllowlistService, RbacService, AuditService,
     AllowlistContext, PermissionContext, AuditEventType, AuditOutcome
 };
-use magictunnel::security::audit::AuditQueryFilters;
+use magictunnel::security::audit::AuditQuery;
 use serde_json;
 use std::collections::HashMap;
 use chrono::Utc;
@@ -211,7 +211,7 @@ async fn show_status(config: &Config) -> Result<()> {
         if let Some(audit_config) = &security_config.audit {
             println!("Audit Logging: {}", if audit_config.enabled { "✅ ENABLED" } else { "❌ DISABLED" });
             if audit_config.enabled {
-                println!("  - Events: {:?}", audit_config.events);
+                println!("  - Event Types: {:?}", audit_config.event_types);
                 println!("  - Storage: {:?}", audit_config.storage);
                 println!("  - Retention: {} days", audit_config.retention_days);
             }
@@ -396,31 +396,39 @@ async fn handle_audit(config: &Config, action: AuditCommands) -> Result<()> {
             println!("📋 Recent Audit Entries ({})", count);
             println!("========================");
             
-            let filters = AuditQueryFilters {
+            let filters = AuditQuery {
                 start_time: None,
                 end_time: None,
                 event_types: None,
-                user_id: None,
-                tool_name: None,
-                outcome: None,
+                user_ids: None,
+                components: None,
+                severities: None,
+                search_text: None,
                 limit: Some(count),
                 offset: None,
+                sort_by: Some("timestamp".to_string()),
+                sort_desc: true,
+                correlation_id: None,
+                metadata_filters: HashMap::new(),
             };
             
-            let entries = audit_service.query(&filters).await
+            let entries = audit_service.query_events(&filters).await
                 .map_err(|e| anyhow::anyhow!("Failed to query audit entries: {}", e))?;
             
             for (i, entry) in entries.iter().enumerate() {
-                println!("{}. {} - {} - {}", 
+                println!("{}. {} - {:?} - {}", 
                     i + 1, 
                     entry.timestamp.format("%Y-%m-%d %H:%M:%S"),
-                    entry.event_type_string(),
-                    entry.summary()
+                    entry.event_type,
+                    entry.message
                 );
-                println!("   User: {:?}", entry.user.as_ref().map(|u| &u.id));
-                println!("   Outcome: {:?}", entry.outcome);
-                if let Some(error) = &entry.error {
-                    println!("   Error: {}", error.message);
+                println!("   Component: {}", entry.component);
+                println!("   Severity: {:?}", entry.severity);
+                if let Some(user_id) = &entry.metadata.user_id {
+                    println!("   User: {}", user_id);
+                }
+                if let Some(corr_id) = &entry.correlation_id {
+                    println!("   Correlation ID: {}", corr_id);
                 }
                 println!();
             }
@@ -431,28 +439,35 @@ async fn handle_audit(config: &Config, action: AuditCommands) -> Result<()> {
             
             let start_time = Utc::now() - chrono::Duration::hours(hours as i64);
             
-            let filters = AuditQueryFilters {
+            let filters = AuditQuery {
                 start_time: Some(start_time),
                 end_time: None,
                 event_types: None,
-                user_id: user,
-                tool_name: tool,
-                outcome: None,
+                user_ids: user.map(|u| vec![u]),
+                // tool_name and outcome are not fields in AuditQuery
+                // They would be handled through metadata_filters or search_text if needed
+                components: None,
+                severities: None,
+                search_text: tool.map(|t| t.clone()), // Use tool name as search text
                 limit: Some(100),
                 offset: None,
+                sort_by: Some("timestamp".to_string()),
+                sort_desc: true,
+                correlation_id: None,
+                metadata_filters: HashMap::new(),
             };
             
-            let entries = audit_service.query(&filters).await
+            let entries = audit_service.query_events(&filters).await
                 .map_err(|e| anyhow::anyhow!("Failed to search audit entries: {}", e))?;
             
             println!("Found {} entries", entries.len());
             
             for (i, entry) in entries.iter().enumerate() {
-                println!("{}. {} - {} - {}", 
+                println!("{}. {} - {:?} - {}", 
                     i + 1, 
                     entry.timestamp.format("%Y-%m-%d %H:%M:%S"),
-                    entry.event_type_string(),
-                    entry.summary()
+                    entry.event_type,
+                    entry.message
                 );
             }
         }
@@ -462,33 +477,38 @@ async fn handle_audit(config: &Config, action: AuditCommands) -> Result<()> {
             
             let start_time = Utc::now() - chrono::Duration::hours(hours as i64);
             
-            let filters = AuditQueryFilters {
+            let filters = AuditQuery {
                 start_time: Some(start_time),
                 end_time: None,
-                event_types: Some(vec![AuditEventType::SecurityViolation]),
-                user_id: None,
-                tool_name: None,
-                outcome: Some(AuditOutcome::Blocked),
+                event_types: Some(vec!["security_violation".to_string()]),
+                user_ids: None,
+                components: None,
+                severities: None,
+                search_text: None,
                 limit: Some(100),
                 offset: None,
+                sort_by: Some("timestamp".to_string()),
+                sort_desc: true,
+                correlation_id: None,
+                metadata_filters: HashMap::new(),
             };
             
-            let entries = audit_service.query(&filters).await
+            let entries = audit_service.query_events(&filters).await
                 .map_err(|e| anyhow::anyhow!("Failed to query security violations: {}", e))?;
             
             println!("Found {} violations", entries.len());
             
             for (i, entry) in entries.iter().enumerate() {
-                println!("{}. {} - {}", 
+                println!("{}. {} - {:?} - {}", 
                     i + 1, 
                     entry.timestamp.format("%Y-%m-%d %H:%M:%S"),
-                    entry.summary()
+                    entry.event_type,
+                    entry.message
                 );
-                if let Some(error) = &entry.error {
-                    println!("   🚫 {}", error.message);
-                }
-                if let Some(user) = &entry.user {
-                    println!("   👤 User: {:?} (Roles: {:?})", user.id, user.roles);
+                println!("   Component: {}", entry.component);
+                println!("   Severity: {:?}", entry.severity);
+                if let Some(user_id) = &entry.metadata.user_id {
+                    println!("   👤 User: {}", user_id);
                 }
                 println!();
             }

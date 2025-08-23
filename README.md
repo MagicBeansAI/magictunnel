@@ -234,6 +234,7 @@ MagicTunnel is **fully compliant** with the latest MCP 2025-06-18 specification:
 - [🚀 Deployment](docs/deploy.md) - Production deployment
 - [🔒 Security](docs/security.md) - Enterprise security features and configuration
 - [🔒 Security CLI](docs/security-cli.md) - Complete CLI reference for security management
+- [📋 **Centralized Audit System**](docs/CENTRALIZED_AUDIT.md) - **Enterprise-grade audit logging with real-time streaming and compliance features** ✅
 - [📊 System Metrics](docs/SYSTEM_METRICS.md) - Real-time system and process monitoring
 - [📊 Observability](docs/MCP_OBSERVABILITY_ARCHITECTURE.md) - Metrics and monitoring
 

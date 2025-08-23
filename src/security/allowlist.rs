@@ -17,7 +17,7 @@ use once_cell::sync::Lazy;
 use super::statistics::{SecurityServiceStatistics, HealthMonitor, ServiceHealth, HealthStatus, AllowlistStatistics, HourlyMetric, RuleMatch, PerformanceMetrics};
 use super::allowlist_types::{AllowlistResult, AllowlistContext, RuleLevel, AllowlistAction, AllowlistConfig, AllowlistRule, AllowlistPattern};
 use super::allowlist_data::{AllowlistData, AllowlistDecision, RuleSource, ToolWithAllowlistStatus, RealTimePatternTestRequest, RealTimePatternTestResponse, AllowlistSummary, TestPattern, PatternToolTestResult, PatternEvaluationStep, RealTimePatternTestSummary, PatternScope, EvaluationResult, AllowlistTreeviewResponse, TreeviewServerNode, TreeviewCapabilityNode, TreeviewToolNode, TreeviewNodeStatus};
-use super::audit::{AuditService, AuditEntry, AuditEventType, AuditOutcome, AuditUser, AuditTool, AuditSecurity};
+use super::audit::{AuditCollector, AuditEvent, AuditEventType, AuditSeverity, AuditService, AuditEntry, AuditUser, AuditTool, AuditSecurity, AuditOutcome, AuditError};
 use std::fs;
 use std::path::Path;
 
@@ -1803,70 +1803,22 @@ impl AllowlistService {
             
             // Spawn async audit logging task
             tokio::spawn(async move {
-                let audit_entry = AuditEntry {
-                    id: AuditEntry::generate_id(),
-                    timestamp: Utc::now(),
-                    event_type: AuditEventType::ToolExecution,
-                    user: user_id.clone().map(|id| AuditUser {
-                        id: Some(id),
-                        name: None,
-                        roles: user_roles,
-                        api_key_name,
-                        auth_method: "unknown".to_string(), // TODO: extract from context
-                    }),
-                    request: None, // Tool evaluations don't have full HTTP request context
-                    response: None,
-                    tool: Some(AuditTool {
-                        name: tool_name.clone(),
-                        parameters: Some(parameters),
-                        result: Some(serde_json::to_string(&serde_json::json!({
-                            "allowed": allowed,
-                            "reason": reason.to_string(),
-                            "rule_level": format!("{:?}", rule_level),
-                            "matched_rule": matched_rule,
-                            "evaluation_time_ns": evaluation_time_ns
-                        })).unwrap_or_default()),
-                        execution_time_ms: Some((evaluation_time_ns / 1_000_000) as u64),
-                        success: allowed,
-                    }),
-                    resource: None,
-                    security: AuditSecurity {
-                        authenticated: user_id.is_some(),
-                        authorized: allowed,
-                        permissions_checked: vec![], // TODO: track required permissions
-                        policies_applied: vec!["allowlist".to_string()],
-                        content_sanitized: false,
-                        approval_required: false,
-                    },
-                    metadata: {
-                        let mut map = HashMap::new();
-                        map.insert("rule_level".to_string(), serde_json::Value::String(format!("{:?}", rule_level)));
-                        if let Some(rule) = matched_rule {
-                            map.insert("matched_rule".to_string(), serde_json::Value::String(rule));
-                        }
-                        if let Some(src) = source {
-                            map.insert("source".to_string(), serde_json::Value::String(src));
-                        }
-                        if let Some(ip) = client_ip {
-                            map.insert("client_ip".to_string(), serde_json::Value::String(ip));
-                        }
-                        map.insert("evaluation_time_ns".to_string(), serde_json::Value::Number(serde_json::Number::from(evaluation_time_ns)));
-                        map
-                    },
-                    outcome: if allowed { AuditOutcome::Success } else { AuditOutcome::Blocked },
-                    error: if !allowed {
-                        Some(super::audit::AuditError {
-                            code: "ALLOWLIST_DENIED".to_string(),
-                            message: reason.to_string(),
-                            details: Some(format!("Tool '{}' blocked by {} rule", tool_name, format!("{:?}", rule_level).to_lowercase())),
-                            stack_trace: None,
-                        })
-                    } else {
-                        None
-                    },
-                };
+                let audit_event = AuditEvent::new(
+                    AuditEventType::ToolExecution,
+                    "allowlist_service".to_string(),
+                    format!("Tool {} evaluation: {}", tool_name, if allowed { "allowed" } else { "blocked" })
+                )
+                .with_severity(if allowed { AuditSeverity::Info } else { AuditSeverity::Warning })
+                .with_metadata("tool_name", serde_json::json!(tool_name))
+                .with_metadata("allowed", serde_json::json!(allowed))
+                .with_metadata("reason", serde_json::json!(reason.to_string()))
+                .with_metadata("rule_level", serde_json::json!(format!("{:?}", rule_level)))
+                .with_metadata("matched_rule", serde_json::json!(matched_rule.clone()))
+                .with_metadata("evaluation_time_ns", serde_json::json!(evaluation_time_ns))
+                .with_metadata("parameters", serde_json::json!(parameters))
+                .with_metadata("execution_time_ms", serde_json::json!((evaluation_time_ns / 1_000_000) as u64));
                 
-                if let Err(e) = audit_service.log_event(audit_entry).await {
+                if let Err(e) = audit_service.log_event(audit_event).await {
                     // Use debug instead of error to avoid spam in high-performance scenarios
                     debug!("Failed to log allowlist evaluation audit: {}", e);
                 }

@@ -6,7 +6,7 @@
 # Use the new external_mcp system for connecting to external MCP servers.
 
 # =============================================================================
-# DEPLOYMENT CONFIGURATION (v0.3.10)
+# DEPLOYMENT CONFIGURATION (v0.3.20)
 # =============================================================================
 # Multi-mode architecture configuration controls runtime behavior
 deployment:
@@ -580,16 +580,19 @@ smart_discovery:
 # Configuration for MCP 2025-06-18 sampling capabilities - generating sample requests and responses
 # NOTE: Currently only supports client_forwarded strategy (proxy passes requests to client)
 sampling:
-  enabled: false                         # Enable sampling capabilities (env: SAMPLING_ENABLED)
-  default_sampling_strategy: "client_forwarded"  # Only supported strategy: forward to client
+  enabled: true                          # Enable sampling capabilities (env: SAMPLING_ENABLED)
+  default_sampling_strategy: "client_forwarded"  # Default strategy: client_forwarded|magictunnel_handled
+  default_elicitation_strategy: null     # Default elicitation strategy (null = inherit from sampling strategy)
   
   # LLM Configuration for MagicTunnel-handled requests (optional, only needed if strategy is not client_forwarded)
-  # llm_config:
-  #   provider: "openai"                 # LLM provider: openai|anthropic|ollama
-  #   model: "gpt-4o-mini"               # Model name to use
-  #   api_key_env: "OPENAI_API_KEY"      # Environment variable for API key
-  #   max_tokens: 4000                   # Maximum tokens per request
-  #   temperature: 0.7                   # Temperature for randomness
+  llm_config:
+    provider: "openai"                   # LLM provider: openai|anthropic|ollama
+    model: "gpt-4o-mini"                 # Model name to use
+    api_key_env: "OPENAI_API_KEY"        # Environment variable for API key
+    api_base_url: null                   # Custom API base URL (null = use provider default)
+    max_tokens: 4000                     # Maximum tokens per request
+    temperature: null                    # Temperature for randomness (null = use model default)
+    additional_params: null              # Additional provider-specific parameters
   
   # Note: Future LLM-based sampling will support provider prioritization (claude, openai, ollama)
   # Note: Individual MCP server sampling strategies should be configured in external-mcp-servers.yaml
@@ -601,8 +604,8 @@ sampling:
 # Elicitation is OPTIONAL per MCP 2025-06-18 specification and enables dynamic user input during tool execution
 # NOTE: Currently only supports client_forwarded strategy (proxy passes requests to client)
 elicitation:
-  enabled: false                         # Enable elicitation capabilities (OPTIONAL per MCP spec) (env: ELICITATION_ENABLED)
-  default_elicitation_strategy: "client_forwarded"  # Only supported strategy: forward to client
+  enabled: true                          # Enable elicitation capabilities (OPTIONAL per MCP spec) (env: ELICITATION_ENABLED)
+  default_elicitation_strategy: "client_forwarded"  # Default strategy: client_forwarded|magictunnel_handled
   
   
   # MCP 2025-06-18 Compliance Settings
@@ -1016,11 +1019,13 @@ security:
   allowlist:
     enabled: true                      # Enable tool allowlisting and access control
     default_action: deny               # Default action for unlisted tools (allow|deny)
-    # Note: Individual tool and server rules are managed through the web UI
-    # Patterns are managed in /security/ directory files:
-    # - global-patterns.yaml: Global fallback patterns for ultimate rule matching
-    # - capability-patterns.yaml: Auto-applied patterns for new tools by regex
-    # This approach reduces config duplication and centralizes pattern management
+    emergency_lockdown: false          # Emergency lockdown state (overrides all access)
+    data_file: "./security/allowlist-data.yaml"  # Unified allowlist data file for rules and patterns
+    audit_decisions: true              # Log allowlist evaluation decisions for audit trails
+    # Note: All allowlist rules, patterns, and tool permissions are managed through:
+    # 1. Web UI - Interactive management with pattern testing and bulk operations
+    # 2. CLI tools - magictunnel-security for command-line management
+    # 3. Direct YAML editing - Edit allowlist-data.yaml for advanced configurations
     
   # Request/Response Sanitization Configuration
   sanitization:
@@ -1040,25 +1045,62 @@ security:
     default_roles: []                  # Default roles for new users
     inherit_permissions: true          # Allow role inheritance
     
-  # Audit Logging Configuration
+  # Audit System Configuration
+  # Enterprise-grade audit logging with structured events, real-time streaming, and multi-backend storage
   audit:
-    enabled: true                      # Enable audit logging
-    events:                            # Events to audit
-      - "authentication"
-      - "authorization"
-      - "tool_execution"
-      - "security_violation"
+    enabled: true                      # Enable centralized audit system
+    
+    # Storage Configuration
     storage:
-      type: File                       # Storage type: File|Database|Syslog
-      directory: "./logs"              # Directory for audit log files
-      rotation:
-        max_file_size: 104857600       # Maximum file size (100MB in bytes)
-        max_files: 10                  # Maximum number of rotated files
-        compress: true                 # Compress rotated files
+      type: file                       # Storage backend: memory|file|database|external|hybrid
+      directory: "./logs/audit"        # Directory for audit log files
+      max_file_size: 104857600         # Maximum file size (100MB in bytes)
+      max_files: 10                    # Maximum number of rotated files
+      compress: true                   # Compress rotated files
+      sync_interval_secs: 5            # Sync interval for file operations
+      
+      # Automatic Rollover Configuration
+      rollover:
+        max_total_size_gb: 5.0         # Maximum total storage size in GB (size takes precedence)
+        max_age_days: 90               # Maximum file age in days before deletion
+        check_interval_secs: 3600      # How often to check rollover policies (1 hour)
+        auto_cleanup: true             # Enable automatic cleanup of old files
+      
+    # Event Types to Audit
+    event_types:
+      - "authentication"               # Authentication attempts and results
+      - "authorization"                # Authorization decisions and failures
+      - "tool_execution"               # Tool calls and execution results
+      - "security_violation"           # Security policy violations
+      - "oauth_flow"                   # OAuth 2.1 authentication flows
+      - "mcp_connection"               # MCP client/server connections
+      - "admin_action"                 # Administrative actions
+      - "system_health"                # System health and performance metrics
+      - "error_occurred"               # Error events and exceptions
+      
+    # Data Retention Policy
     retention_days: 90                 # How long to retain audit logs
-    include_bodies: false              # Include request/response bodies in logs
-    max_body_size: 1024               # Maximum body size to log (bytes)
-    mask_sensitive_data: true         # Mask sensitive data in logs
+    
+    # Real-time Streaming Configuration
+    streaming:
+      enabled: true                    # Enable WebSocket streaming for real-time monitoring
+      max_connections: 100             # Maximum concurrent WebSocket connections
+      buffer_size: 1000               # Event buffer size for streaming
+      heartbeat_interval: 30           # Heartbeat interval in seconds
+      
+    # Performance Configuration
+    performance:
+      max_queue_size: 10000           # Maximum event queue size
+      worker_threads: 2               # Number of worker threads for processing
+      batch_size: 100                 # Batch size for storage operations
+      flush_interval_secs: 5          # Flush interval for pending events
+      compression: true               # Enable compression for stored events
+      
+    # Multi-tenancy Support
+    multi_tenant: false               # Enable multi-tenant audit isolation
+    
+    # Integrity Verification
+    integrity_checks: true            # Enable audit log integrity verification
     
   # Emergency Lockdown Configuration
   emergency_lockdown:
@@ -1194,7 +1236,7 @@ logging:
 # =============================================================================
 # You can override any configuration value using environment variables:
 #
-# # Multi-Mode Runtime Configuration (v0.3.10)
+# # Multi-Mode Runtime Configuration (v0.3.20)
 # export MAGICTUNNEL_RUNTIME_MODE="advanced"   # proxy|advanced
 # export MAGICTUNNEL_CONFIG_PATH="./my-config.yaml"  # Custom config path
 # export MAGICTUNNEL_SMART_DISCOVERY="true"    # Enable/disable smart discovery

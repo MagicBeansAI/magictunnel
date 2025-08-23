@@ -1,6 +1,6 @@
 [package]
 name = "magictunnel"
-version = "0.3.19"
+version = "0.3.20"
 edition = "2021"
 authors = ["gouravd"]
 description = "MagicTunnel - Fastest way to make LLMs talk to your internal systems and external ones"

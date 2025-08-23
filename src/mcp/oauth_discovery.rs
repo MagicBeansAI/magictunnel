@@ -11,7 +11,7 @@ use std::time::SystemTime;
 use std::collections::HashMap;
 use crate::mcp::clients::sse_client::{SseMcpClient, SseClientConfig, SseAuthConfig};
 use crate::mcp::clients::http_client::{HttpMcpClient, HttpClientConfig, HttpAuthConfig};
-use crate::security::audit_log::AuditLogger;
+use crate::security::{AuditCollector, AuditEvent, AuditEventType, AuditSeverity, get_audit_collector};
 use serde_json::{json, Value};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -159,7 +159,7 @@ pub struct OAuthMcpDiscoveryManager {
     /// HTTP client for discovery and API calls
     http_client: Client,
     /// Audit logger for OAuth events
-    audit_logger: Arc<AuditLogger>,
+    audit_logger: Arc<AuditCollector>,
     /// User context for credential storage
     user_context: Arc<UserContext>,
     /// OAuth callback coordination - maps server_name to callback sender
@@ -182,7 +182,7 @@ impl OAuthMcpDiscoveryManager {
     pub async fn new(
         oauth_config: OAuthConfig,
         multi_level_config: MultiLevelAuthConfig,
-        audit_logger: Arc<AuditLogger>,
+        audit_logger: Arc<AuditCollector>,
     ) -> Result<Self> {
         let user_context = UserContext::new()?;
         let auth_resolver = Arc::new(AuthResolver::with_user_context(multi_level_config, user_context)?);
@@ -755,10 +755,11 @@ impl OAuthMcpDiscoveryManager {
         self.store_dynamic_credentials(server_name, &credentials).await?;
 
         // Log successful registration
+        let scopes_str = credentials.granted_scopes.join(",");
         self.audit_logger.log_oauth_registration_success(
             server_name, 
             &credentials.client_id, 
-            &credentials.granted_scopes
+            &scopes_str
         ).await;
 
         info!("✅ Dynamic OAuth registration successful for server: {} (client_id: {})", 
@@ -880,7 +881,7 @@ impl OAuthMcpDiscoveryManager {
         config: OAuthMcpDiscoveryConfig,
         oauth_config: DiscoveredOAuthConfig,
         connections: Arc<RwLock<HashMap<String, OAuthMcpConnection>>>,
-        audit_logger: Arc<AuditLogger>,
+        audit_logger: Arc<AuditCollector>,
         http_client: Client,
         callback_coordinators: Arc<Mutex<HashMap<String, oneshot::Sender<OAuthCallbackData>>>>,
     ) -> Result<()> {
@@ -983,7 +984,8 @@ impl OAuthMcpDiscoveryManager {
         });
 
         // Log OAuth forwarding
-        self.audit_logger.log_oauth_forwarded_to_client(server_name, &oauth_details).await;
+        let oauth_details_str = oauth_details.to_string();
+        self.audit_logger.log_oauth_forwarded_to_client(server_name, &oauth_details_str).await;
 
         // This would be sent to the MCP client through the existing protocol
         // The client would then handle the OAuth flow and send back the access token
@@ -1199,7 +1201,7 @@ impl OAuthMcpDiscoveryManager {
         code_verifier: &str,
         server_name: &str,
         http_client: &Client,
-        audit_logger: &Arc<AuditLogger>,
+        audit_logger: &Arc<AuditCollector>,
     ) -> Result<TokenResponse> {
         info!("🔄 Exchanging authorization code for access token: {}", server_name);
 
@@ -1277,6 +1279,7 @@ impl OAuthMcpDiscoveryManager {
             server_name: server_name.to_string(),
             base_url: connection.base_url,
             access_token,
+            transport_type: "sse".to_string(), // Default to SSE for now
         })
     }
 }
@@ -1294,6 +1297,7 @@ pub struct AuthenticatedMcpConnection {
     pub server_name: String,
     pub base_url: String,
     pub access_token: String,
+    pub transport_type: String,
 }
 
 impl AuthenticatedMcpConnection {

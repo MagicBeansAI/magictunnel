@@ -8,14 +8,17 @@ use chrono::{DateTime, Utc};
 use std::fs;
 
 use crate::security::{
-    AllowlistService, AuditService, RbacService, SanitizationService,
-    SecurityConfig, SecurityMiddleware, AuditQueryFilters, SecurityServiceStatistics,
-    AuditEntry, AuditEventType, AuditOutcome, AuditUser, AuditSecurity,
+    AllowlistService, RbacService, SanitizationService,
+    SecurityConfig, SecurityMiddleware, SecurityServiceStatistics,
+    AuditCollector, AuditEvent, AuditEventType, AuditSeverity, get_audit_collector,
     AuditStatistics, SanitizationStatistics,
     EmergencyLockdownManager, EmergencyLockdownConfig,
     AllowlistAction, AllowlistPattern,
     ConfigurationChangeTracker, ChangeTrackerConfig, ConfigurationChange, ChangeType, ChangeOperation, ChangeUser, ChangeTarget,
 };
+use crate::security::audit::{AuditService, AuditEntry, AuditOutcome, AuditQuery, AuditError, AuditResult, collector::CollectorStats};
+use async_trait::async_trait;
+
 
 /// Security status response
 #[derive(Debug, Serialize)]
@@ -24,7 +27,7 @@ pub struct SecurityStatusResponse {
     pub overall_health: String,
     pub components: SecurityComponents,
     pub security_metrics: SecurityMetrics,
-    pub recent_events: Vec<AuditEntry>,
+    pub recent_events: Vec<AuditEvent>,
     pub alerts: Vec<SecurityAlert>,
 }
 
@@ -234,7 +237,7 @@ pub struct UnifiedRulesResponse {
 pub struct SecurityApi {
     allowlist_service: Option<Arc<AllowlistService>>,
     rbac_service: Option<Arc<RbacService>>,
-    audit_service: Option<Arc<AuditService>>,
+    audit_collector: Option<Arc<AuditService>>,
     sanitization_service: Option<Arc<SanitizationService>>,
     emergency_manager: Option<Arc<EmergencyLockdownManager>>,
     change_tracker: Option<Arc<ConfigurationChangeTracker>>,
@@ -296,7 +299,7 @@ impl SecurityApi {
 
         // Note: AuditService initialization is async, so we'll initialize it as None and 
         // provide a method to initialize it asynchronously after SecurityApi construction
-        let audit_service = None;
+        let audit_collector = None;
 
         let sanitization_service = if security_config.sanitization.as_ref().map_or(false, |c| c.enabled) {
             match SanitizationService::new(security_config.sanitization.clone().unwrap()) {
@@ -329,7 +332,7 @@ impl SecurityApi {
         Self {
             allowlist_service,
             rbac_service,
-            audit_service,
+            audit_collector,
             sanitization_service,
             emergency_manager,
             change_tracker: None,
@@ -343,7 +346,7 @@ impl SecurityApi {
     pub fn new_with_services(
         security_config: Arc<SecurityConfig>,
         allowlist_service: Option<Arc<AllowlistService>>,
-        audit_service: Option<Arc<AuditService>>,
+        audit_collector: Option<Arc<AuditService>>,
         rbac_service: Option<Arc<RbacService>>,
         sanitization_service: Option<Arc<SanitizationService>>,
         emergency_manager: Option<Arc<EmergencyLockdownManager>>,
@@ -355,7 +358,7 @@ impl SecurityApi {
         Self {
             allowlist_service,
             rbac_service,
-            audit_service,
+            audit_collector,
             sanitization_service,
             emergency_manager,
             change_tracker: None,
@@ -368,17 +371,15 @@ impl SecurityApi {
     /// Asynchronously initialize services that require async construction (AuditService, EmergencyManager)
     /// This should be called right after SecurityApi::new() to complete initialization
     pub async fn initialize_async_services(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // Initialize audit service if configured
+        // Use global audit collector if configured and available  
         if self.security_config.audit.as_ref().map_or(false, |c| c.enabled) {
-            match AuditService::new(self.security_config.audit.clone().unwrap()).await {
-                Ok(service) => {
-                    info!("Audit service initialized successfully");
-                    self.audit_service = Some(Arc::new(service));
-                },
-                Err(e) => {
-                    error!("Failed to initialize audit service: {}", e);
-                    return Err(e);
-                }
+            if get_audit_collector().is_some() {
+                // Security API will use global collector directly, no separate service needed
+                info!("✅ Security API connected to global audit collector");
+                self.audit_collector = None; // We'll use global collector directly
+            } else {
+                warn!("⚠️ Global audit collector not available, audit features disabled in Security API");
+                self.audit_collector = None;
             }
         } else {
             info!("Audit service disabled in configuration");
@@ -690,19 +691,24 @@ impl SecurityApi {
         // Get real security metrics
         let security_metrics = self.calculate_security_metrics().await;
 
-        // Get recent events from audit service
-        let recent_events = if let Some(audit_service) = &self.audit_service {
-            let filters = AuditQueryFilters {
+        // Get recent events from global audit collector
+        let recent_events = if let Some(audit_collector) = get_audit_collector() {
+            let filters = AuditQuery {
                 start_time: Some(Utc::now() - chrono::Duration::hours(24)),
                 end_time: None,
                 event_types: None,
-                user_id: None,
-                tool_name: None,
-                outcome: None,
+                components: None,
+                severities: None,
+                user_ids: None,
+                search_text: None,
                 limit: Some(10),
                 offset: None,
+                sort_by: Some("timestamp".to_string()),
+                sort_desc: true,
+                correlation_id: None,
+                metadata_filters: std::collections::HashMap::new(),
             };
-            audit_service.query(&filters).await.unwrap_or_default()
+            audit_collector.query_events(&filters).await.unwrap_or_default()
         } else {
             vec![]
         };
@@ -720,12 +726,13 @@ impl SecurityApi {
                 "sanitization": sanitization_status,
             },
             "violations": {
-                "total": 0,
-                "last24Hours": 0, 
-                "critical": 0,
-                "high": 0,
-                "medium": 0,
-                "low": 0
+                "total": self.get_real_violation_count().await,
+                "last24Hours": self.get_real_violation_count().await,
+                "critical": self.get_real_violation_count_by_severity("critical").await,
+                "high": self.get_real_violation_count_by_severity("high").await,
+                "medium": self.get_real_violation_count_by_severity("medium").await + 
+                         self.get_real_violation_count_by_severity("info").await, // Map info to medium
+                "low": self.get_real_violation_count_by_severity("low").await
             },
             "health": {
                 "overallStatus": overall_status, // Frontend expects this nested structure
@@ -786,29 +793,35 @@ impl SecurityApi {
         let security_metrics = self.calculate_security_metrics().await;
         
         // Get recent audit events for the time range
-        let recent_events = if let Some(audit_service) = &self.audit_service {
-            let filters = AuditQueryFilters {
+        let recent_events = if let Some(audit_collector) = get_audit_collector() {
+            let filters = AuditQuery {
                 start_time,
                 end_time: None,
                 event_types: None,
-                user_id: None,
-                tool_name: None,
-                outcome: None,
+                components: None,
+                severities: None,
+                user_ids: None,
+                search_text: None,
                 limit: Some(100),
                 offset: None,
+                sort_by: Some("timestamp".to_string()),
+                sort_desc: true,
+                correlation_id: None,
+                metadata_filters: std::collections::HashMap::new(),
             };
-            audit_service.query(&filters).await.unwrap_or_default()
+            audit_collector.query_events(&filters).await.unwrap_or_default()
         } else {
             vec![]
         };
 
         // Calculate additional metrics for the time range
+        // Note: Using centralized audit system - filtering by event types instead of outcomes
         let blocked_in_range = recent_events.iter()
-            .filter(|e| matches!(e.outcome, crate::security::audit::AuditOutcome::Blocked | crate::security::audit::AuditOutcome::Failure))
+            .filter(|e| matches!(e.event_type, crate::security::audit::AuditEventType::SecurityViolation))
             .count() as u64;
             
         let allowed_in_range = recent_events.iter()
-            .filter(|e| matches!(e.outcome, crate::security::audit::AuditOutcome::Success))
+            .filter(|e| !matches!(e.event_type, crate::security::audit::AuditEventType::SecurityViolation))
             .count() as u64;
 
         // Get allowlist statistics
@@ -954,8 +967,8 @@ impl SecurityApi {
     pub async fn get_audit_entries(&self, query: web::Query<serde_json::Value>) -> Result<HttpResponse> {
         debug!("Getting audit entries with query: {:?}", query);
 
-        if let Some(audit_service) = &self.audit_service {
-            let filters = AuditQueryFilters {
+        if let Some(audit_collector) = get_audit_collector() {
+            let filters = AuditQuery {
                 start_time: query.get("start_time")
                     .and_then(|v| v.as_str())
                     .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
@@ -965,14 +978,19 @@ impl SecurityApi {
                     .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
                     .map(|dt| dt.with_timezone(&Utc)),
                 event_types: None,
-                user_id: query.get("user_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                tool_name: query.get("tool_name").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                outcome: None,
+                components: None,
+                severities: None,
+                user_ids: query.get("user_id").and_then(|v| v.as_str()).map(|s| vec![s.to_string()]),
+                search_text: query.get("search_text").and_then(|v| v.as_str()).map(|s| s.to_string()),
                 limit: query.get("limit").and_then(|v| v.as_u64()).map(|l| l as usize).or(Some(50)),
                 offset: query.get("offset").and_then(|v| v.as_u64()).map(|o| o as usize),
+                sort_by: Some("timestamp".to_string()),
+                sort_desc: true,
+                correlation_id: None,
+                metadata_filters: std::collections::HashMap::new(),
             };
             
-            match audit_service.query(&filters).await {
+            match audit_collector.query_events(&filters).await {
                 Ok(entries) => {
                     let total = entries.len();
                     let has_more = total >= filters.limit.unwrap_or(50);
@@ -1010,36 +1028,48 @@ impl SecurityApi {
     pub async fn search_audit_entries(&self, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
         debug!("Searching audit entries with params: {:?}", params);
 
-        if let Some(audit_service) = &self.audit_service {
+        if let Some(audit_collector) = get_audit_collector() {
             let event_types = params.get("event_types")
                 .and_then(|v| v.as_array())
                 .map(|arr| arr.iter()
                     .filter_map(|v| v.as_str())
                     .filter_map(|s| match s {
-                        "authentication" => Some(AuditEventType::Authentication),
-                        "authorization" => Some(AuditEventType::Authorization),
-                        "tool_execution" => Some(AuditEventType::ToolExecution),
-                        "resource_access" => Some(AuditEventType::ResourceAccess),
-                        "prompt_access" => Some(AuditEventType::PromptAccess),
-                        "configuration_change" => Some(AuditEventType::ConfigurationChange),
-                        "error" => Some(AuditEventType::Error),
-                        "security_violation" => Some(AuditEventType::SecurityViolation),
-                        "system" => Some(AuditEventType::System),
+                        "authentication" => Some("authentication".to_string()),
+                        "authorization" => Some("authorization".to_string()),
+                        "tool_execution" => Some("tool_execution".to_string()),
+                        "resource_access" => Some("resource_access".to_string()),
+                        "config_change" => Some("config_change".to_string()),
+                        "error" => Some("error_occurred".to_string()),
+                        "security_violation" => Some("security_violation".to_string()),
+                        "system_health" => Some("system_health".to_string()),
                         _ => None
                     })
                     .collect::<Vec<_>>());
                     
-            let outcome = params.get("outcome")
-                .and_then(|v| v.as_str())
-                .and_then(|s| match s {
-                    "success" => Some(AuditOutcome::Success),
-                    "failure" => Some(AuditOutcome::Failure),
-                    "blocked" => Some(AuditOutcome::Blocked),
-                    "pending_approval" => Some(AuditOutcome::PendingApproval),
-                    _ => None
-                });
+            // Build metadata filters for outcome filtering
+            // Outcomes are stored in metadata/payload fields for the centralized audit system
+            let mut metadata_filters = std::collections::HashMap::new();
             
-            let filters = AuditQueryFilters {
+            // Add outcome filtering if specified
+            if let Some(outcomes) = params.get("outcomes").and_then(|v| v.as_array()) {
+                let outcome_values: Vec<String> = outcomes.iter()
+                    .filter_map(|v| v.as_str())
+                    .filter_map(|s| match s.to_lowercase().as_str() {
+                        "success" => Some("success".to_string()),
+                        "failure" | "failed" => Some("failure".to_string()),
+                        "blocked" => Some("blocked".to_string()),
+                        "pending" | "pending_approval" => Some("pending".to_string()),
+                        _ => None
+                    })
+                    .collect();
+                
+                if !outcome_values.is_empty() {
+                    // Store as JSON value for metadata filtering
+                    metadata_filters.insert("outcome".to_string(), serde_json::json!(outcome_values));
+                }
+            }
+            
+            let filters = AuditQuery {
                 start_time: params.get("start_time")
                     .and_then(|v| v.as_str())
                     .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
@@ -1049,14 +1079,19 @@ impl SecurityApi {
                     .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
                     .map(|dt| dt.with_timezone(&Utc)),
                 event_types,
-                user_id: params.get("user_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                tool_name: params.get("tool_name").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                outcome,
+                components: None,
+                severities: None,
+                user_ids: params.get("user_id").and_then(|v| v.as_str()).map(|s| vec![s.to_string()]),
+                search_text: params.get("search_text").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                sort_by: Some("timestamp".to_string()),
+                sort_desc: true,
+                correlation_id: None,
+                metadata_filters,
                 limit: params.get("limit").and_then(|v| v.as_u64()).map(|l| l as usize).or(Some(100)),
                 offset: params.get("offset").and_then(|v| v.as_u64()).map(|o| o as usize),
             };
             
-            match audit_service.query(&filters).await {
+            match audit_collector.query_events(&filters).await {
                 Ok(entries) => {
                     let total = entries.len();
                     let has_more = total >= filters.limit.unwrap_or(100);
@@ -2510,10 +2545,98 @@ sanitization:
     pub async fn get_security_violations(&self, query: web::Query<serde_json::Value>) -> Result<HttpResponse> {
         debug!("Getting security violations with query: {:?}", query);
         
-        let violations = if let Some(audit_service) = &self.audit_service {
-            audit_service.get_security_violations(&query).await
+        let violations = if let Some(audit_collector) = get_audit_collector() {
+            // Handle time range filtering
+            let (start_time, end_time) = if let Some(time_range) = query.get("timeRange").and_then(|v| v.as_str()) {
+                let now = chrono::Utc::now();
+                let start = match time_range {
+                    "1h" => Some(now - chrono::Duration::hours(1)),
+                    "24h" => Some(now - chrono::Duration::hours(24)), 
+                    "7d" => Some(now - chrono::Duration::days(7)),
+                    "30d" => Some(now - chrono::Duration::days(30)),
+                    _ => None
+                };
+                (start, Some(now))
+            } else {
+                // Use explicit start/end times if provided
+                let start_time = query.get("start_time")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                    .map(|dt| dt.with_timezone(&chrono::Utc));
+                let end_time = query.get("end_time")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                    .map(|dt| dt.with_timezone(&chrono::Utc));
+                (start_time, end_time)
+            };
+
+            // Create AuditQuery for security violations
+            let audit_query = AuditQuery {
+                start_time,
+                end_time,
+                event_types: Some(vec!["security_violation".to_string()]),
+                components: None,
+                severities: query.get("severity")
+                    .and_then(|v| v.as_str())
+                    .filter(|s| *s != "all")
+                    .map(|s| vec![s.to_string()]),
+                user_ids: None,
+                search_text: query.get("search").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                limit: query.get("limit").and_then(|v| v.as_u64()).map(|l| l as usize).or(Some(100)),
+                offset: query.get("offset").and_then(|v| v.as_u64()).map(|o| o as usize),
+                sort_by: Some("timestamp".to_string()),
+                sort_desc: true,
+                correlation_id: None,
+                metadata_filters: std::collections::HashMap::new(),
+            };
+            
+            debug!("🔍 Built audit query for violations: {:?}", audit_query);
+            
+            // First, let's try querying all events to see what we have
+            let all_events_query = AuditQuery {
+                start_time: None,
+                end_time: None,
+                event_types: None,
+                components: None,
+                severities: None,
+                user_ids: None,
+                search_text: None,
+                limit: Some(10),
+                offset: None,
+                sort_by: Some("timestamp".to_string()),
+                sort_desc: true,
+                correlation_id: None,
+                metadata_filters: std::collections::HashMap::new(),
+            };
+            
+            match audit_collector.query_events(&all_events_query).await {
+                Ok(all_events) => {
+                    debug!("📋 Found {} total events in audit system", all_events.len());
+                    for event in &all_events {
+                        debug!("   - Event: id={}, type={:?}, component={}", event.id, event.event_type, event.component);
+                    }
+                },
+                Err(e) => {
+                    error!("❌ Failed to query all events: {}", e);
+                }
+            }
+            
+            match audit_collector.query_events(&audit_query).await {
+                Ok(events) => {
+                    debug!("🎯 Query for security_violation events returned {} events", events.len());
+                    for event in &events {
+                        debug!("   - Violation: id={}, type={:?}, component={}, message={}", event.id, event.event_type, event.component, event.message);
+                    }
+                    serde_json::json!(events)
+                },
+                Err(e) => {
+                    error!("Failed to query security violations: {}", e);
+                    serde_json::json!([])
+                }
+            }
         } else {
-            json!([])
+            error!("⚠️  Global audit collector not found for violations query");
+            serde_json::json!([])
         };
         
         let count = violations.as_array().map(|arr| arr.len()).unwrap_or(0);
@@ -2525,11 +2648,36 @@ sanitization:
     pub async fn get_violation_statistics(&self, query: web::Query<serde_json::Value>) -> Result<HttpResponse> {
         debug!("Getting violation statistics with query: {:?}", query);
         
-        let stats = if let Some(audit_service) = &self.audit_service {
-            let time_range = query.get("timeRange").and_then(|v| v.as_str()).unwrap_or("24h");
-            audit_service.get_violation_statistics(time_range).await
+        let stats = if let Some(audit_collector) = get_audit_collector() {
+            let time_range_str = query.get("timeRange").and_then(|v| v.as_str()).unwrap_or("24h");
+            
+            // Parse time range string to Duration
+            let duration = match time_range_str {
+                "1h" => Some(chrono::Duration::hours(1)),
+                "24h" => Some(chrono::Duration::hours(24)),
+                "7d" => Some(chrono::Duration::days(7)),
+                "30d" => Some(chrono::Duration::days(30)),
+                _ => Some(chrono::Duration::hours(24))
+            };
+            
+            match audit_collector.get_violation_statistics(duration).await {
+                Ok(stats) => stats,
+                Err(e) => {
+                    error!("Failed to get violation statistics: {}", e);
+                    serde_json::json!({
+                        "total": 0,
+                        "byStatus": {},
+                        "bySeverity": {},
+                        "trends": {
+                            "thisWeek": 0,
+                            "lastWeek": 0,
+                            "growth": 0.0
+                        }
+                    })
+                }
+            }
         } else {
-            json!({
+            serde_json::json!({
                 "total": 0,
                 "byStatus": {},
                 "bySeverity": {},
@@ -2549,12 +2697,26 @@ sanitization:
     pub async fn get_violation_related_entries(&self, violation_id: web::Path<String>) -> Result<HttpResponse> {
         debug!("Getting related entries for violation: {}", violation_id);
         
-        let entries = if let Some(audit_service) = &self.audit_service {
-            audit_service.get_violation_related_entries(&violation_id).await
+        let entries = if let Some(audit_collector) = get_audit_collector() {
+            match audit_collector.get_violation_related_entries(&violation_id).await {
+                Ok(events) => serde_json::json!({
+                    "entries": events,
+                    "total": events.len()
+                }),
+                Err(e) => {
+                    error!("Failed to get violation related entries: {}", e);
+                    serde_json::json!({
+                        "entries": [],
+                        "total": 0,
+                        "error": e.to_string()
+                    })
+                }
+            }
         } else {
-            json!({
+            serde_json::json!({
                 "entries": [],
-                "total": 0
+                "total": 0,
+                "message": "Audit service not available"
             })
         };
         
@@ -2566,10 +2728,19 @@ sanitization:
     pub async fn update_violation_status(&self, violation_id: web::Path<String>, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
         debug!("Updating violation {} status: {:?}", violation_id, params);
         
-        let result = if let Some(audit_service) = &self.audit_service {
-            audit_service.update_violation_status(&violation_id, &params).await
+        let result = if let Some(audit_collector) = get_audit_collector() {
+            match audit_collector.update_violation_status(&violation_id, &params).await {
+                Ok(result) => result,
+                Err(e) => {
+                    error!("Failed to update violation status: {}", e);
+                    serde_json::json!({
+                        "success": false,
+                        "message": format!("Update failed: {}", e)
+                    })
+                }
+            }
         } else {
-            json!({
+            serde_json::json!({
                 "success": false,
                 "message": "Audit service not available"
             })
@@ -2583,10 +2754,19 @@ sanitization:
     pub async fn assign_violation(&self, violation_id: web::Path<String>, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
         debug!("Assigning violation {}: {:?}", violation_id, params);
         
-        let result = if let Some(audit_service) = &self.audit_service {
-            audit_service.assign_violation(&violation_id, &params).await
+        let result = if let Some(audit_collector) = get_audit_collector() {
+            match audit_collector.assign_violation(&violation_id, &params).await {
+                Ok(result) => result,
+                Err(e) => {
+                    error!("Failed to assign violation: {}", e);
+                    serde_json::json!({
+                        "success": false,
+                        "message": format!("Assignment failed: {}", e)
+                    })
+                }
+            }
         } else {
-            json!({
+            serde_json::json!({
                 "success": false,
                 "message": "Audit service not available"
             })
@@ -2600,10 +2780,19 @@ sanitization:
     pub async fn add_violation_note(&self, violation_id: web::Path<String>, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
         debug!("Adding note to violation {}: {:?}", violation_id, params);
         
-        let result = if let Some(audit_service) = &self.audit_service {
-            audit_service.add_violation_note(&violation_id, &params).await
+        let result = if let Some(audit_collector) = get_audit_collector() {
+            match audit_collector.add_violation_note(&violation_id, &params).await {
+                Ok(result) => result,
+                Err(e) => {
+                    error!("Failed to add violation note: {}", e);
+                    serde_json::json!({
+                        "success": false,
+                        "message": format!("Note addition failed: {}", e)
+                    })
+                }
+            }
         } else {
-            json!({
+            serde_json::json!({
                 "success": false,
                 "message": "Audit service not available"
             })
@@ -2701,8 +2890,14 @@ sanitization:
     pub async fn get_audit_event_types(&self) -> Result<HttpResponse> {
         debug!("Getting audit event types");
         
-        let event_types = if let Some(audit_service) = &self.audit_service {
-            audit_service.get_audit_event_types().await
+        let event_types = if let Some(audit_collector) = get_audit_collector() {
+            match audit_collector.get_audit_event_types().await {
+                Ok(types) => json!(types),
+                Err(e) => {
+                    error!("Failed to get audit event types: {}", e);
+                    json!([])
+                }
+            }
         } else {
             json!([])
         };
@@ -2716,8 +2911,14 @@ sanitization:
     pub async fn get_audit_users(&self) -> Result<HttpResponse> {
         debug!("Getting audit users");
         
-        let users = if let Some(audit_service) = &self.audit_service {
-            audit_service.get_audit_users().await
+        let users = if let Some(audit_collector) = get_audit_collector() {
+            match audit_collector.get_audit_users().await {
+                Ok(users) => json!(users),
+                Err(e) => {
+                    error!("Failed to get audit users: {}", e);
+                    json!([])
+                }
+            }
         } else {
             json!([])
         };
@@ -2731,9 +2932,95 @@ sanitization:
     pub async fn export_audit_entries(&self, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
         debug!("Exporting audit entries: {:?}", params);
         
-        let csv_data = "timestamp,event_type,user,action,result\n2024-01-01T00:00:00Z,authentication,admin,login,success\n";
+        // Parse export parameters from request
+        let start_time = params.get("start_time")
+            .and_then(|v| v.as_str())
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(|| Utc::now() - chrono::Duration::days(7)); // Default to 7 days ago
+            
+        let end_time = params.get("end_time")
+            .and_then(|v| v.as_str())
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(|| Utc::now());
+            
+        let event_types = params.get("event_types")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect());
+            
+        let limit = params.get("limit")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(1000) as usize; // Default to 1000 entries
         
-        info!("Audit entries exported successfully");
+        // Build audit query
+        let audit_query = AuditQuery {
+            start_time: Some(start_time),
+            end_time: Some(end_time),
+            event_types,
+            components: None,
+            severities: None,
+            user_ids: None,
+            search_text: None,
+            limit: Some(limit),
+            offset: None,
+            sort_by: Some("timestamp".to_string()),
+            sort_desc: true,
+            correlation_id: None,
+            metadata_filters: HashMap::new(),
+        };
+        
+        // Query audit events from the audit service
+        let events = if let Some(audit_collector) = get_audit_collector() {
+            match audit_collector.query_events(&audit_query).await {
+                Ok(events) => events,
+                Err(e) => {
+                    error!("Failed to query audit events for export: {}", e);
+                    return Ok(HttpResponse::InternalServerError()
+                        .json(json!({"error": "Failed to query audit events"})));
+                }
+            }
+        } else {
+            warn!("Audit service not available for export");
+            return Ok(HttpResponse::ServiceUnavailable()
+                .json(json!({"error": "Audit service not available"})));
+        };
+        
+        // Generate CSV data from actual audit events
+        let mut csv_data = String::from("timestamp,event_type,component,user,action,severity,message,correlation_id\n");
+        let events_count = events.len();
+        
+        for event in events {
+            let user_id = event.metadata.user_id.unwrap_or_else(|| "system".to_string());
+            let action = format!("{:?}", event.event_type).to_lowercase();
+            let severity = format!("{:?}", event.severity).to_lowercase();
+            let correlation_id = event.correlation_id.unwrap_or_else(|| "".to_string());
+            
+            // Escape CSV fields properly
+            let message = event.message.replace("\"", "\"\"").replace("\n", " ").replace("\r", "");
+            let component = event.component.replace("\"", "\"\"");
+            let user_escaped = user_id.replace("\"", "\"\"");
+            let correlation_escaped = correlation_id.replace("\"", "\"\"");
+            
+            csv_data.push_str(&format!(
+                "{},{},{},\"{}\",{},{},\"{}\",\"{}\"\n",
+                event.timestamp.to_rfc3339(),
+                action,
+                component,
+                user_escaped,
+                action, // Using action twice for backward compatibility
+                severity,
+                message,
+                correlation_escaped
+            ));
+        }
+        
+        // If no events found, add a header-only message
+        if events_count == 0 {
+            csv_data.push_str("# No audit events found for the specified criteria\n");
+        }
+        
+        info!("Audit entries exported successfully: {} events", events_count);
         Ok(HttpResponse::Ok()
             .content_type("text/csv")
             .insert_header(("Content-Disposition", "attachment; filename=\"audit-export.csv\""))
@@ -2758,16 +3045,177 @@ sanitization:
     pub async fn get_audit_statistics(&self, query: web::Query<serde_json::Value>) -> Result<HttpResponse> {
         debug!("Getting audit statistics with query: {:?}", query);
         
-        // Get real statistics from audit service
-        let stats = match &self.audit_service {
-            Some(audit) => audit.get_statistics().await,
+        let stats = match get_audit_collector() {
+            Some(audit) => {
+                let collector_stats = audit.get_stats().await;
+                
+                // Parse time range from query
+                let time_range = query.get("timeRange").and_then(|v| v.as_str()).unwrap_or("24h");
+                let (start_time, end_time) = self.parse_time_range(time_range);
+                
+                // Build audit query for the time range
+                let audit_query = AuditQuery {
+                    start_time: Some(start_time),
+                    end_time: Some(end_time),
+                    event_types: None,
+                    components: None,
+                    severities: None,
+                    user_ids: None,
+                    search_text: None,
+                    limit: None,
+                    offset: None,
+                    sort_by: Some("timestamp".to_string()),
+                    sort_desc: true,
+                    correlation_id: None,
+                    metadata_filters: std::collections::HashMap::new(),
+                };
+                
+                // Get actual audit events for calculations
+                let events = audit.query_events(&audit_query).await.unwrap_or_default();
+                let total_events = events.len() as u64;
+                
+                // Calculate event type distribution
+                let mut event_type_counts: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+                let mut unique_users: std::collections::HashSet<String> = std::collections::HashSet::new();
+                let mut auth_events = 0u64;
+                let mut failed_auth = 0u64;
+                let mut violations = 0u64;
+                let mut critical_violations = 0u64;
+                
+                for event in &events {
+                    // Count by event type
+                    let event_type = format!("{:?}", event.event_type).to_lowercase();
+                    *event_type_counts.entry(event_type.clone()).or_insert(0) += 1;
+                    
+                    // Count unique users
+                    if let Some(user_id) = &event.metadata.user_id {
+                        unique_users.insert(user_id.clone());
+                    }
+                    
+                    // Count specific event types
+                    match event.event_type {
+                        crate::security::audit::AuditEventType::Authentication => {
+                            auth_events += 1;
+                            if event.message.to_lowercase().contains("failed") || 
+                               event.message.to_lowercase().contains("denied") {
+                                failed_auth += 1;
+                            }
+                        },
+                        crate::security::audit::AuditEventType::SecurityViolation => {
+                            violations += 1;
+                            if event.severity == crate::security::audit::AuditSeverity::Critical {
+                                critical_violations += 1;
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+                
+                // Create event types array for frontend
+                let mut event_types_vec: Vec<serde_json::Value> = event_type_counts
+                    .into_iter()
+                    .map(|(event_type, count)| {
+                        let percentage = if total_events > 0 {
+                            (count as f64 / total_events as f64) * 100.0
+                        } else {
+                            0.0
+                        };
+                        serde_json::json!({
+                            "type": event_type,
+                            "count": count,
+                            "percentage": percentage
+                        })
+                    })
+                    .collect();
+                
+                // Sort by count descending
+                event_types_vec.sort_by(|a, b| {
+                    let a_count = a["count"].as_u64().unwrap_or(0);
+                    let b_count = b["count"].as_u64().unwrap_or(0);
+                    b_count.cmp(&a_count)
+                });
+                
+                // Calculate time-based metrics
+                let time_range_hours = match time_range {
+                    "1h" => 1.0,
+                    "24h" => 24.0,
+                    "7d" => 168.0,
+                    "30d" => 720.0,
+                    _ => 24.0,
+                };
+                
+                let avg_entries_per_day = if time_range_hours > 0.0 {
+                    (total_events as f64 / time_range_hours) * 24.0
+                } else {
+                    0.0
+                };
+                
+                // Use collector stats for storage information
+                let storage_size_bytes = 0u64; // Will be calculated from file system if needed
+                
+                // Build frontend-compatible response
+                let frontend_stats = serde_json::json!({
+                    "health": {
+                        "status": if collector_stats.healthy { "healthy" } else { "error" },
+                        "is_healthy": collector_stats.healthy,
+                        "last_checked": chrono::Utc::now().to_rfc3339(),
+                        "uptime_seconds": collector_stats.uptime.as_secs(),
+                        "performance": {
+                            "avg_response_time_ms": collector_stats.avg_processing_time_ms,
+                            "requests_per_second": collector_stats.events_per_second,
+                            "error_rate": if collector_stats.total_events > 0 { 
+                                (collector_stats.total_errors as f64 / collector_stats.total_events as f64) * 100.0 
+                            } else { 0.0 },
+                            "memory_usage_bytes": storage_size_bytes
+                        }
+                    },
+                    "totalEntries": total_events,
+                    "entries_today": total_events,
+                    "security_events": total_events,
+                    "violations": violations,
+                    "critical_violations": critical_violations,
+                    "storage_size_bytes": storage_size_bytes,
+                    "avg_entries_per_day": avg_entries_per_day,
+                    "eventTypes": event_types_vec,
+                    "authEvents": auth_events,
+                    "failedAuth": failed_auth,
+                    "uniqueUsers": unique_users.len()
+                });
+                
+                frontend_stats
+            },
             None => {
-                warn!("Audit service not available, returning default statistics");
-                AuditStatistics::default()
+                warn!("Audit service not available, returning disabled status");
+                serde_json::json!({
+                    "health": {
+                        "status": "disabled",
+                        "is_healthy": false,
+                        "last_checked": chrono::Utc::now().to_rfc3339(),
+                        "uptime_seconds": 0,
+                        "performance": {
+                            "avg_response_time_ms": 0.0,
+                            "requests_per_second": 0.0,
+                            "error_rate": 0.0,
+                            "memory_usage_bytes": 0
+                        }
+                    },
+                    "totalEntries": 0,
+                    "entries_today": 0,
+                    "security_events": 0,
+                    "violations": 0,
+                    "critical_violations": 0,
+                    "storage_size_bytes": 0,
+                    "avg_entries_per_day": 0.0,
+                    "eventTypes": [],
+                    "authEvents": 0,
+                    "failedAuth": 0,
+                    "uniqueUsers": 0
+                })
             }
         };
         
-        info!("Returning audit statistics");
+        info!("Returning audit statistics with {} total entries", 
+              stats["totalEntries"].as_u64().unwrap_or(0));
         Ok(HttpResponse::Ok().json(stats))
     }
 
@@ -2775,31 +3223,265 @@ sanitization:
     pub async fn get_security_alerts(&self, query: web::Query<serde_json::Value>) -> Result<HttpResponse> {
         debug!("Getting security alerts with query: {:?}", query);
         
-        let alerts = if let Some(sanitization_service) = &self.sanitization_service {
-            sanitization_service.get_security_alerts(&query)
+        let alerts = if let Some(audit_collector) = get_audit_collector() {
+            // Parse query parameters
+            let severity_filter = query.get("severity").and_then(|v| v.as_str());
+            let _status_filter = query.get("status").and_then(|v| v.as_str()).unwrap_or("active");
+            let limit = query.get("limit").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
+            
+            // Query for recent security violations and authentication failures
+            let query_time = chrono::Utc::now() - chrono::Duration::hours(24);
+            let security_query = AuditQuery {
+                start_time: Some(query_time),
+                end_time: Some(chrono::Utc::now()),
+                event_types: Some(vec![
+                    "security_violation".to_string(),
+                    "authentication".to_string(),
+                    "authorization".to_string()
+                ]),
+                components: None,
+                severities: severity_filter.map(|s| vec![s.to_string()]),
+                user_ids: None,
+                search_text: None,
+                limit: Some(limit * 3), // Get more events to process into alerts
+                offset: None,
+                sort_by: Some("timestamp".to_string()),
+                sort_desc: true,
+                correlation_id: None,
+                metadata_filters: std::collections::HashMap::new(),
+            };
+            
+            match audit_collector.query_events(&security_query).await {
+                Ok(events) => {
+                    let mut alerts = Vec::new();
+                    let mut failed_auth_count = 0;
+                    let mut violation_count = 0;
+                    let mut tool_access_users: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+                    
+                    // Analyze events to create alerts
+                    for event in events {
+                        match event.event_type {
+                            crate::security::audit::AuditEventType::Authentication => {
+                                if event.message.to_lowercase().contains("failed") ||
+                                   event.message.to_lowercase().contains("denied") {
+                                    failed_auth_count += 1;
+                                }
+                            },
+                            crate::security::audit::AuditEventType::SecurityViolation => {
+                                violation_count += 1;
+                            },
+                            crate::security::audit::AuditEventType::ToolExecution => {
+                                if let Some(user_id) = &event.metadata.user_id {
+                                    *tool_access_users.entry(user_id.clone()).or_insert(0) += 1;
+                                }
+                            },
+                            _ => {}
+                        }
+                    }
+                    
+                    // Create alerts based on patterns
+                    if failed_auth_count >= 5 {
+                        alerts.push(serde_json::json!({
+                            "id": format!("alert_auth_{}", chrono::Utc::now().timestamp()),
+                            "title": "Multiple Failed Authentication Attempts",
+                            "description": format!("Detected {} failed authentication attempts in the last 24 hours", failed_auth_count),
+                            "severity": if failed_auth_count >= 20 { "critical" } else if failed_auth_count >= 10 { "high" } else { "medium" },
+                            "timestamp": chrono::Utc::now().to_rfc3339(),
+                            "count": failed_auth_count,
+                            "actionRequired": "Review authentication logs and consider implementing rate limiting or IP blocking"
+                        }));
+                    }
+                    
+                    if violation_count > 0 {
+                        alerts.push(serde_json::json!({
+                            "id": format!("alert_violation_{}", chrono::Utc::now().timestamp()),
+                            "title": "Security Policy Violations",
+                            "description": format!("Detected {} security violations in the last 24 hours", violation_count),
+                            "severity": if violation_count >= 10 { "critical" } else if violation_count >= 5 { "high" } else { "medium" },
+                            "timestamp": chrono::Utc::now().to_rfc3339(),
+                            "count": violation_count,
+                            "actionRequired": "Review security policies and investigate violation causes"
+                        }));
+                    }
+                    
+                    // Check for unusual tool access patterns
+                    for (user_id, access_count) in tool_access_users {
+                        if access_count >= 20 {
+                            alerts.push(serde_json::json!({
+                                "id": format!("alert_toolaccess_{}_{}", user_id, chrono::Utc::now().timestamp()),
+                                "title": "Unusual Tool Access Pattern",
+                                "description": format!("User {} accessed {} tools in rapid succession", user_id, access_count),
+                                "severity": if access_count >= 50 { "high" } else { "medium" },
+                                "timestamp": chrono::Utc::now().to_rfc3339(),
+                                "count": 1,
+                                "actionRequired": "Verify user activity is legitimate and not automated"
+                            }));
+                        }
+                    }
+                    
+                    // Limit alerts and filter by status
+                    alerts.truncate(limit);
+                    alerts
+                },
+                Err(e) => {
+                    error!("Failed to query audit events for security alerts: {}", e);
+                    Vec::new()
+                }
+            }
         } else {
-            json!([])
+            Vec::new()
         };
         
-        let count = alerts.as_array().map(|arr| arr.len()).unwrap_or(0);
-        info!("Returning {} security alerts from sanitization service", count);
-        Ok(HttpResponse::Ok().json(alerts))
+        let response = serde_json::json!({
+            "alerts": alerts
+        });
+        
+        info!("Returning {} security alerts from audit analysis", alerts.len());
+        Ok(HttpResponse::Ok().json(response))
     }
 
     /// Export audit log
     pub async fn export_audit_log(&self, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
         debug!("Exporting audit log: {:?}", params);
         
-        let json_data = json!({
-            "export_id": "exp_123",
-            "status": "completed",
-            "download_url": "/api/security/audit/downloads/exp_123",
-            "entries_count": 1547,
-            "file_size": "2.3MB"
-        });
+        let result = if let Some(audit_collector) = get_audit_collector() {
+            // Parse export parameters
+            let start_time = params.get("start_time")
+                .and_then(|v| v.as_str())
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .unwrap_or_else(|| chrono::Utc::now() - chrono::Duration::days(30));
+                
+            let end_time = params.get("end_time")
+                .and_then(|v| v.as_str())
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .unwrap_or_else(|| chrono::Utc::now());
+            
+            let format = params.get("format").and_then(|v| v.as_str()).unwrap_or("json");
+            
+            // Build query for export
+            let export_query = AuditQuery {
+                start_time: Some(start_time),
+                end_time: Some(end_time),
+                event_types: params.get("event_types")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()),
+                components: params.get("components")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()),
+                severities: params.get("severities")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()),
+                user_ids: params.get("user_ids")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()),
+                search_text: params.get("search_text").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                limit: None, // No limit for export
+                offset: None,
+                sort_by: Some("timestamp".to_string()),
+                sort_desc: false, // Chronological order for export
+                correlation_id: None,
+                metadata_filters: std::collections::HashMap::new(),
+            };
+            
+            // Query audit events
+            match audit_collector.query_events(&export_query).await {
+                Ok(events) => {
+                    let entries_count = events.len();
+                    let export_id = format!("exp_{}", chrono::Utc::now().timestamp());
+                    
+                    // Generate export content based on format
+                    let (content, content_type, file_extension) = match format {
+                        "csv" => {
+                            let mut csv_content = String::from("timestamp,event_type,component,user_id,severity,message,correlation_id\n");
+                            for event in &events {
+                                let user_id = event.metadata.user_id.as_deref().unwrap_or("system");
+                                let correlation_id = event.correlation_id.as_deref().unwrap_or("");
+                                let message = event.message.replace("\"", "\"\"").replace("\n", " ");
+                                
+                                csv_content.push_str(&format!(
+                                    "{},{:?},{},\"{}\",{:?},\"{}\",\"{}\"\n",
+                                    event.timestamp.to_rfc3339(),
+                                    event.event_type,
+                                    event.component,
+                                    user_id,
+                                    event.severity,
+                                    message,
+                                    correlation_id
+                                ));
+                            }
+                            (csv_content, "text/csv", "csv")
+                        },
+                        "json" => {
+                            let json_content = serde_json::to_string_pretty(&events)
+                                .unwrap_or_else(|_| "[]".to_string());
+                            (json_content, "application/json", "json")
+                        },
+                        _ => {
+                            return Ok(HttpResponse::BadRequest().json(json!({
+                                "error": "Unsupported format. Use 'json' or 'csv'"
+                            })));
+                        }
+                    };
+                    
+                    // Calculate file size
+                    let file_size_bytes = content.len();
+                    let file_size = if file_size_bytes > 1024 * 1024 {
+                        format!("{:.1}MB", file_size_bytes as f64 / (1024.0 * 1024.0))
+                    } else if file_size_bytes > 1024 {
+                        format!("{:.1}KB", file_size_bytes as f64 / 1024.0)
+                    } else {
+                        format!("{}B", file_size_bytes)
+                    };
+                    
+                    // For direct download, return the content
+                    if params.get("download").and_then(|v| v.as_bool()).unwrap_or(false) {
+                        let filename = format!("audit_export_{}.{}", 
+                            chrono::Utc::now().format("%Y%m%d_%H%M%S"), 
+                            file_extension);
+                        
+                        return Ok(HttpResponse::Ok()
+                            .content_type(content_type)
+                            .insert_header(("Content-Disposition", format!("attachment; filename=\"{}\"", filename)))
+                            .body(content));
+                    }
+                    
+                    // Return export metadata
+                    json!({
+                        "export_id": export_id,
+                        "status": "completed",
+                        "entries_count": entries_count,
+                        "file_size": file_size,
+                        "format": format,
+                        "created_at": chrono::Utc::now().to_rfc3339(),
+                        "download_ready": true
+                    })
+                },
+                Err(e) => {
+                    error!("Failed to export audit events: {}", e);
+                    json!({
+                        "export_id": format!("exp_{}", chrono::Utc::now().timestamp()),
+                        "status": "failed",
+                        "error": "Failed to query audit events",
+                        "entries_count": 0,
+                        "file_size": "0B"
+                    })
+                }
+            }
+        } else {
+            json!({
+                "export_id": format!("exp_{}", chrono::Utc::now().timestamp()),
+                "status": "failed",
+                "error": "Audit service not available",
+                "entries_count": 0,
+                "file_size": "0B"
+            })
+        };
         
-        info!("Audit log export initiated");
-        Ok(HttpResponse::Ok().json(json_data))
+        info!("Audit log export processed: {} entries", 
+              result["entries_count"].as_u64().unwrap_or(0));
+        Ok(HttpResponse::Ok().json(result))
     }
 
     // ============================================================================
@@ -3035,8 +3717,16 @@ sanitization:
                         // Log the successful activation
                         error!("🚨 EMERGENCY LOCKDOWN ACTIVE - All tool requests blocked");
                         
-                        // Audit the lockdown activation
-                        if let Some(audit_service) = &self.audit_service {
+                        // Audit the lockdown activation using centralized audit system
+                        if let Some(collector) = get_audit_collector() {
+                            let audit_event = AuditEvent::new(
+                                AuditEventType::AdminAction,
+                                "emergency_lockdown".to_string(),
+                                "Emergency lockdown activated".to_string(),
+                            );
+                            let _ = collector.log_event(audit_event).await;
+                            /*
+                            // Legacy audit entry structure - now using centralized audit
                             let audit_entry = AuditEntry {
                                 id: AuditEntry::generate_id(),
                                 timestamp: Utc::now(),
@@ -3065,9 +3755,10 @@ sanitization:
                                 metadata: HashMap::new(),
                             };
                             
-                            if let Err(e) = audit_service.log_event(audit_entry).await {
+                            if let Err(e) = audit_collector.log_event(audit_entry).await {
                                 error!("Failed to audit emergency lockdown activation: {}", e);
                             }
+                            */
                         }
                         
                         let response = json!({
@@ -3177,8 +3868,18 @@ sanitization:
                         // Log the successful deactivation
                         info!("🔓 Emergency lockdown released - Normal operations restored");
                         
-                        // Audit the lockdown release
-                        if let Some(audit_service) = &self.audit_service {
+                        // Audit the lockdown release using centralized audit system
+                        if let Some(collector) = get_audit_collector() {
+                            let audit_event = AuditEvent::new(
+                                AuditEventType::AdminAction,
+                                "emergency_lockdown".to_string(),
+                                "Emergency lockdown deactivated".to_string(),
+                            );
+                            let _ = collector.log_event(audit_event).await;
+                        }
+                        /*
+                        // Legacy audit code - now using centralized audit system
+                        if let Some(audit_collector) = get_audit_collector() {
                             let audit_entry = AuditEntry {
                                 id: AuditEntry::generate_id(),
                                 timestamp: Utc::now(),
@@ -3207,10 +3908,11 @@ sanitization:
                                 metadata: HashMap::new(),
                             };
                             
-                            if let Err(e) = audit_service.log_event(audit_entry).await {
+                            if let Err(e) = audit_collector.log_event(audit_entry).await {
                                 error!("Failed to audit emergency lockdown deactivation: {}", e);
                             }
                         }
+                        */
                         
                         let response = json!({
                             "success": true,
@@ -3322,16 +4024,16 @@ sanitization:
 
     /// Get real audit component status
     async fn get_audit_component_status(&self) -> ComponentStatus {
-        if let Some(service) = &self.audit_service {
-            let stats = service.get_statistics().await;
+        if let Some(service) = get_audit_collector() {
+            let stats = service.get_stats().await;
             ComponentStatus {
                 enabled: self.security_config.audit.as_ref().map_or(false, |c| c.enabled),
-                status: if stats.health.is_healthy { "healthy" } else { "error" }.to_string(),
+                status: if stats.healthy { "healthy" } else { "error" }.to_string(),
                 metrics: ComponentMetrics {
                     data: json!({
-                        "entriesCount": stats.total_entries,
-                        "securityEvents": stats.security_events,
-                        "violations": stats.violations_today,
+                        "entriesCount": stats.total_events,
+                        "securityEvents": stats.total_errors,
+                        "violations": stats.total_errors,
                         "lastUpdated": Utc::now()
                     }),
                 },
@@ -3404,10 +4106,10 @@ sanitization:
         }
 
         // Gather metrics from audit service
-        if let Some(service) = &self.audit_service {
-            let stats = service.get_statistics().await;
-            threats_blocked += stats.violations_today;
-            if !stats.health.is_healthy { risk_score += 15; compliance_score -= 10; }
+        if let Some(service) = get_audit_collector() {
+            let stats = service.get_stats().await;
+            threats_blocked += stats.total_events; // Use total events as threats blocked
+            if stats.total_errors > 10 { risk_score += 15; compliance_score -= 10; }
         } else if self.security_config.audit.as_ref().map_or(false, |c| c.enabled) {
             risk_score += 25;
             compliance_score -= 20;
@@ -3452,13 +4154,13 @@ sanitization:
             }
         }
 
-        if let Some(service) = &self.audit_service {
-            let stats = service.get_statistics().await;
-            if stats.violations_today > 0 {
+        if let Some(service) = get_audit_collector() {
+            let stats = service.get_stats().await;
+            if stats.total_errors > 0 {
                 alerts.push(SecurityAlert {
                     id: "security_violations".to_string(),
                     r#type: "security_violation".to_string(),
-                    message: format!("{} security violations detected today", stats.violations_today),
+                    message: format!("{} audit errors detected", stats.total_errors),
                     timestamp: Utc::now(),
                     component: "audit".to_string(),
                 });
@@ -3476,7 +4178,7 @@ sanitization:
             });
         }
 
-        if self.security_config.audit.as_ref().map_or(false, |c| c.enabled) && self.audit_service.is_none() {
+        if self.security_config.audit.as_ref().map_or(false, |c| c.enabled) && get_audit_collector().is_none() {
             alerts.push(SecurityAlert {
                 id: "audit_missing".to_string(),
                 r#type: "service_missing".to_string(),
@@ -4123,6 +4825,19 @@ sanitization:
                 })))
             }
         }
+    }
+
+    /// Parse time range string into start and end timestamps
+    fn parse_time_range(&self, time_range: &str) -> (chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>) {
+        let end_time = chrono::Utc::now();
+        let start_time = match time_range {
+            "1h" => end_time - chrono::Duration::hours(1),
+            "24h" => end_time - chrono::Duration::hours(24),
+            "7d" => end_time - chrono::Duration::days(7),
+            "30d" => end_time - chrono::Duration::days(30),
+            _ => end_time - chrono::Duration::hours(24), // Default to 24h
+        };
+        (start_time, end_time)
     }
 
     /// Detect conflicts between rules
@@ -4815,6 +5530,61 @@ sanitization:
             Ok(HttpResponse::ServiceUnavailable().json(json!({
                 "error": "Allowlist service not available"
             })))
+        }
+    }
+
+    // Helper methods for fetching real violation counts
+    async fn get_real_violation_count(&self) -> usize {
+        if let Some(audit_collector) = get_audit_collector() {
+            let audit_query = AuditQuery {
+                start_time: None,
+                end_time: None,
+                event_types: Some(vec!["security_violation".to_string()]),
+                components: None,
+                severities: None,
+                user_ids: None,
+                search_text: None,
+                limit: Some(1000), // Get all violations for counting
+                offset: None,
+                sort_by: Some("timestamp".to_string()),
+                sort_desc: true,
+                correlation_id: None,
+                metadata_filters: std::collections::HashMap::new(),
+            };
+            
+            match audit_collector.query_events(&audit_query).await {
+                Ok(events) => events.len(),
+                Err(_) => 0
+            }
+        } else {
+            0
+        }
+    }
+
+    async fn get_real_violation_count_by_severity(&self, severity: &str) -> usize {
+        if let Some(audit_collector) = get_audit_collector() {
+            let audit_query = AuditQuery {
+                start_time: None,
+                end_time: None,
+                event_types: Some(vec!["security_violation".to_string()]),
+                components: None,
+                severities: Some(vec![severity.to_string()]),
+                user_ids: None,
+                search_text: None,
+                limit: Some(1000),
+                offset: None,
+                sort_by: Some("timestamp".to_string()),
+                sort_desc: true,
+                correlation_id: None,
+                metadata_filters: std::collections::HashMap::new(),
+            };
+            
+            match audit_collector.query_events(&audit_query).await {
+                Ok(events) => events.len(),
+                Err(_) => 0
+            }
+        } else {
+            0
         }
     }
 

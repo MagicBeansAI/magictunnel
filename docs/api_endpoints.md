@@ -5,7 +5,7 @@
 MagicTunnel provides a comprehensive REST API for managing tools, resources, security, and system operations. The API is organized into logical groups with consistent HTTP methods and response formats.
 
 **Base URL**: `http://localhost:3001` (default)
-**API Version**: v0.3.19
+**API Version**: v0.3.20
 **Content Type**: `application/json`
 
 ---
@@ -208,6 +208,8 @@ All security endpoints are mounted within the dashboard API scope at `/dashboard
 - **GET** `/dashboard/api/security/status` - Overall security status
 - **GET** `/dashboard/api/security/alerts` - Security alerts
 - **GET** `/dashboard/api/security/metrics` - Security metrics
+- **GET** `/dashboard/api/security/violations` - Security violations (with search/filter support)
+- **GET** `/dashboard/api/security/violations/statistics` - Violation statistics
 
 ---
 
@@ -388,6 +390,7 @@ curl -X GET http://localhost:3001/dashboard/api/security/status
 
 ## Version History
 
+- **v0.3.20**: Security violations fixes, comprehensive implementation analysis
 - **v0.3.19**: Pattern management fixes, UI enhancements
 - **v0.3.17**: Nested security validation, OAuth 2.1 production ready
 - **v0.3.16**: Multi-mode architecture, security framework
