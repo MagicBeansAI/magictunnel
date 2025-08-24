@@ -20,6 +20,7 @@ use std::time::Instant;
 use tokio::sync::RwLock;
 use tokio::time::{interval, Duration};
 use tracing::{debug, error, info, warn};
+use chrono;
 use tokio::fs;
 use serde::{Deserialize, Serialize};
 
@@ -1704,6 +1705,101 @@ impl ExternalMcpManager {
                 
                 error!("❌ [EXECUTE] Tool '{}' request failed on server '{}': {} ({}ms)", 
                        tool_name, server_name, e, elapsed_ms);
+                
+                Err(e)
+            }
+        }
+    }
+
+    /// Execute a tool on a specific External MCP server with client ID context
+    pub async fn execute_tool_with_client_id(&self, server_name: &str, tool_name: &str, arguments: Value, client_id: &Option<String>) -> Result<Value> {
+        debug!("🔧 [EXECUTE] Executing tool '{}' on External MCP server '{}' with client_id: {:?}", tool_name, server_name, client_id);
+        let start_time = Instant::now();
+
+        // Check if process exists and is running, then execute tool with client ID
+        let processes = self.processes.read().await;
+
+        let process = match processes.get(server_name) {
+            Some(p) => p,
+            None => {
+                let error = format!("External MCP server '{}' not found", server_name);
+                self.metrics_collector.record_request_error(server_name, "server_not_found", "tools/call").await;
+                return Err(ProxyError::mcp(error));
+            }
+        };
+
+        if !process.is_running().await {
+            let error = format!("External MCP server '{}' is not running", server_name);
+            self.metrics_collector.record_request_error(server_name, "server_not_running", "tools/call").await;
+            return Err(ProxyError::connection(error));
+        }
+
+        // Include client ID in the parameters if provided
+        let mut params = json!({
+            "name": tool_name,
+            "arguments": arguments
+        });
+
+        if let Some(ref client_id) = client_id {
+            if let Some(params_obj) = params.as_object_mut() {
+                params_obj.insert("client_id".to_string(), json!(client_id));
+                
+                // Also add it at the tool arguments level for servers that expect it there
+                if let Some(args_obj) = params_obj.get_mut("arguments").and_then(|v| v.as_object_mut()) {
+                    args_obj.insert("_mcp_client_id".to_string(), json!(client_id));
+                }
+            }
+        }
+
+        match process.send_request("tools/call", Some(params)).await {
+            Ok(response) => {
+                let elapsed_ms = start_time.elapsed().as_millis() as f64;
+                
+                if let Some(error) = response.error {
+                    // Record error in metrics
+                    self.metrics_collector.record_request_error(server_name, "tool_execution_error", "tools/call").await;
+                    
+                    error!("❌ [EXECUTE] Tool '{}' execution failed on server '{}' with client_id {:?}: {} ({}ms)", 
+                           tool_name, server_name, client_id, error.message, elapsed_ms);
+                    
+                    return Err(ProxyError::tool_execution(
+                        tool_name.to_string(), 
+                        format!("Tool execution failed: {}", error.message)
+                    ));
+                }
+
+                match response.result {
+                    Some(result) => {
+                        // Record successful execution in metrics
+                        self.metrics_collector.record_request_success(server_name, elapsed_ms, "tools/call").await;
+                        
+                        info!("✅ [EXECUTE] Tool '{}' executed successfully on server '{}' with client_id {:?} ({}ms)", 
+                              tool_name, server_name, client_id, elapsed_ms);
+                        
+                        Ok(result)
+                    }
+                    None => {
+                        // Record error - no result returned
+                        self.metrics_collector.record_request_error(server_name, "no_result_returned", "tools/call").await;
+                        
+                        error!("❌ [EXECUTE] Tool '{}' returned no result on server '{}' with client_id {:?} ({}ms)", 
+                               tool_name, server_name, client_id, elapsed_ms);
+                        
+                        Err(ProxyError::tool_execution(
+                            tool_name.to_string(), 
+                            "No result returned from tool execution".to_string()
+                        ))
+                    }
+                }
+            }
+            Err(e) => {
+                let elapsed_ms = start_time.elapsed().as_millis() as f64;
+                
+                // Record request failure in metrics
+                self.metrics_collector.record_request_error(server_name, "request_failed", "tools/call").await;
+                
+                error!("❌ [EXECUTE] Tool '{}' request failed on server '{}' with client_id {:?}: {} ({}ms)", 
+                       tool_name, server_name, client_id, e, elapsed_ms);
                 
                 Err(e)
             }

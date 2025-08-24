@@ -174,7 +174,7 @@ async fn test_websocket_client_bidirectional_support() {
 
     // Test setting request forwarder
     let forwarder = Arc::new(MockWebSocketForwarder::new("test-websocket-forwarder".to_string()));
-    let result = client.set_request_forwarder(forwarder.clone()).await;
+    let result = client.set_request_forwarder(forwarder.clone(), "test-client-456".to_string()).await;
     assert!(result.is_ok());
 }
 

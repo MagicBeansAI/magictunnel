@@ -919,9 +919,9 @@ async fn list_generated_resources(content_storage: &Option<Arc<ContentStorageSer
         info!("📋 Listing content for tool: {}", tool_name);
         storage.list_tool_content(tool_name).await?
     } else {
-        // List all content (would need additional method)
-        warn!("Listing all resources not yet implemented - please specify --tool");
-        return Ok(());
+        // List all content across all tools
+        info!("📋 Listing all stored resources across all tools");
+        storage.list_all_content().await?
     };
     
     match format.to_lowercase().as_str() {

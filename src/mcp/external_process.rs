@@ -593,11 +593,9 @@ pub fn expand_env_vars(input: &str) -> String {
 #[async_trait]
 impl ExternalMcpClient for ExternalMcpProcess {
     /// Set the request forwarder for bidirectional communication
-    async fn set_request_forwarder(&mut self, forwarder: SharedRequestForwarder) -> Result<()> {
-        // Note: We need the original client ID, but we'll set a placeholder for now
-        // The actual client ID should be provided when setting up the forwarder
-        let client_id = "placeholder-client-id".to_string(); // TODO: Get from context
-        self.set_request_forwarder(forwarder, client_id);
+    async fn set_request_forwarder(&mut self, forwarder: SharedRequestForwarder, original_client_id: String) -> Result<()> {
+        // Now we receive the actual client ID from the caller
+        self.set_request_forwarder(forwarder, original_client_id);
         Ok(())
     }
 

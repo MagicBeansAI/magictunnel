@@ -100,6 +100,8 @@
       rbac: '/security/rbac', 
       audit: '/security/audit',
       sanitization: '/security/sanitization',
+      policies: '/security/policies',
+      threats: '/security/threats',
       config: '/security/config'
     };
     
@@ -386,6 +388,44 @@
               {securityStatus.components.sanitization.metrics.policiesCount} active policies
             </div>
           {/if}
+        </button>
+
+        <!-- Security Policies -->
+        <button
+          class="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
+          on:click={() => navigateToComponent('policies')}
+        >
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="font-medium text-gray-900">Security Policies</h4>
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+              📋 Active
+            </span>
+          </div>
+          <p class="text-sm text-gray-600">
+            Business rules and access control policies
+          </p>
+          <div class="mt-2 text-xs text-gray-500">
+            Policy evaluation and management
+          </div>
+        </button>
+
+        <!-- Threat Detection -->
+        <button
+          class="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
+          on:click={() => navigateToComponent('threats')}
+        >
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="font-medium text-gray-900">Threat Detection</h4>
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+              🛡️ Monitoring
+            </span>
+          </div>
+          <p class="text-sm text-gray-600">
+            Real-time threat monitoring and analysis
+          </p>
+          <div class="mt-2 text-xs text-gray-500">
+            Behavioral anomaly detection
+          </div>
         </button>
 
       </div>

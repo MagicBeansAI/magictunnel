@@ -4,8 +4,10 @@
 //! Target performance: <1ms for 100k tools, <100μs for 10k tools per user.
 
 use crate::security::SecurityContext;
+use crate::security::rbac::{RbacService, PermissionContext, PermissionResult};
 use ahash::{AHashMap, AHashSet};
 use arc_swap::ArcSwap;
+use chrono::Utc;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
@@ -295,6 +297,9 @@ pub struct PermissionCacheManager {
     /// Global permission index
     permission_index: Arc<ArcSwap<PermissionIndex>>,
     
+    /// RBAC service for permission checking
+    rbac_service: Arc<RbacService>,
+    
     /// Configuration
     config: PermissionCacheConfig,
     
@@ -352,14 +357,36 @@ pub struct PermissionCacheStats {
 }
 
 impl PermissionCacheManager {
-    /// Create a new permission cache manager
-    pub fn new(config: PermissionCacheConfig) -> Self {
+    /// Create a new permission cache manager with RBAC service
+    pub fn new(config: PermissionCacheConfig, rbac_service: Arc<RbacService>) -> Self {
         Self {
             user_caches: Arc::new(RwLock::new(AHashMap::new())),
             permission_index: Arc::new(ArcSwap::new(Arc::new(PermissionIndex::new()))),
+            rbac_service,
             config,
             stats: PermissionCacheStats::default(),
         }
+    }
+    
+    /// Create a new permission cache manager with default/mock RBAC service for testing
+    /// This is a temporary compatibility method - use `new` with proper RBAC service in production
+    pub fn new_with_default_rbac(config: PermissionCacheConfig) -> Self {
+        use crate::security::rbac::RbacConfig;
+        
+        // Create a minimal RBAC config for compatibility
+        let rbac_config = RbacConfig {
+            enabled: false, // Disabled for compatibility
+            roles: std::collections::HashMap::new(),
+            user_roles: std::collections::HashMap::new(),
+            api_key_roles: std::collections::HashMap::new(),
+            default_roles: Vec::new(),
+            inherit_permissions: false,
+        };
+        
+        // Create mock RBAC service (note: in production this should be a real service)
+        let rbac_service = Arc::new(RbacService::new(rbac_config).expect("Failed to create mock RBAC service"));
+        
+        Self::new(config, rbac_service)
     }
     
     /// Get or create user tool cache
@@ -392,10 +419,12 @@ impl PermissionCacheManager {
         let permissions_bitmap = self.calculate_user_permissions_bitmap(security_context);
         let user_roles = user.roles.clone();
         
-        // Get allowed tools from permission index
-        let mut permission_index = self.permission_index.load_full();
-        let allowed_tools = Arc::make_mut(&mut permission_index)
-            .get_user_tools(permissions_bitmap, &user_roles);
+        // Get all available tools from permission index to check against
+        let permission_index = self.permission_index.load_full();
+        let all_tools: Vec<ToolId> = permission_index.tool_to_permissions.keys().cloned().collect();
+        
+        // Use RBAC service to determine which tools are actually allowed
+        let allowed_tools = self.bulk_check_tool_permissions(security_context, &all_tools);
         
         // Create new cache entry
         let mut user_cache = UserToolCache::new(user_id.clone(), allowed_tools, permissions_bitmap, user_roles);
@@ -418,26 +447,50 @@ impl PermissionCacheManager {
         Some(user_cache)
     }
     
-    /// Calculate user permissions bitmap from security context
+    /// Calculate user permissions bitmap from security context using RBAC service
     fn calculate_user_permissions_bitmap(&self, security_context: &SecurityContext) -> u64 {
-        // This is a placeholder implementation
-        // In practice, this would integrate with your RBAC system
-        // to convert user roles/permissions into a 64-bit bitmap
-        
         let user = match security_context.user.as_ref() {
             Some(user) => user,
             None => return 0, // Anonymous user has no permissions
         };
         
+        // Get user roles from RBAC service
+        let user_roles = if let Some(user_id) = &user.id {
+            self.rbac_service.get_user_roles(user_id)
+        } else {
+            Vec::new()
+        };
+        
+        // Also check API key roles if present
+        let api_key_roles = if let Some(api_key_name) = security_context.user.as_ref().and_then(|u| u.api_key_name.as_ref()) {
+            self.rbac_service.get_api_key_roles(api_key_name)
+        } else {
+            Vec::new()
+        };
+        
+        // Combine all roles
+        let mut all_roles = user_roles;
+        all_roles.extend(api_key_roles);
+        
         let mut bitmap = 0u64;
         
-        // Example: Convert role names to bit positions
-        let roles = &user.roles;
-        for (index, role) in roles.iter().enumerate() {
+        // Convert role names to bit positions for fast bitmap operations
+        // This is a simplified approach - in production you might want a more sophisticated mapping
+        for (index, _role) in all_roles.iter().enumerate() {
             if index < 64 {
                 bitmap |= 1 << index;
+                debug!("Added role '{}' to permission bitmap at position {}", _role, index);
             }
         }
+        
+        // Special handling for admin roles - grant all permissions
+        if all_roles.iter().any(|role| role.contains("admin") || role.contains("superuser")) {
+            bitmap = u64::MAX; // All permissions granted
+            debug!("Admin role detected, granting all permissions");
+        }
+        
+        debug!("Calculated permission bitmap {:016x} for user {:?} with roles: {:?}", 
+               bitmap, user.id, all_roles);
         
         bitmap
     }
@@ -466,12 +519,86 @@ impl PermissionCacheManager {
     
     /// Check if a user can access a specific tool
     pub async fn is_tool_allowed(&self, security_context: &SecurityContext, tool_id: &ToolId) -> bool {
+        // First try to use the cache for fast lookup
         if let Some(mut user_cache) = self.get_user_cache(security_context).await {
-            user_cache.is_tool_allowed(tool_id)
-        } else {
-            warn!("Could not get user cache for tool permission check");
-            false
+            return user_cache.is_tool_allowed(tool_id);
         }
+        
+        // Fallback to direct RBAC check if cache is not available
+        debug!("Cache not available, performing direct RBAC check for tool: {}", tool_id);
+        
+        // Create permission context for RBAC check
+        let permission_context = PermissionContext {
+            user_id: security_context.user.as_ref().and_then(|u| u.id.clone()),
+            user_roles: if let Some(user) = &security_context.user {
+                if let Some(user_id) = &user.id {
+                    self.rbac_service.get_user_roles(user_id)
+                } else {
+                    Vec::new()
+                }
+            } else {
+                Vec::new()
+            },
+            api_key_name: security_context.user.as_ref().and_then(|u| u.api_key_name.clone()),
+            resource: Some(format!("tool:{}", tool_id)),
+            action: Some("execute".to_string()),
+            client_ip: security_context.request.client_ip.clone(),
+            timestamp: Utc::now(),
+            metadata: std::collections::HashMap::new(),
+        };
+        
+        // Check if user has execute permission for this specific tool
+        let result = self.rbac_service.check_permission("tool:execute", &permission_context);
+        
+        debug!("Direct RBAC check result for tool {}: granted={}", tool_id, result.granted);
+        
+        result.granted
+    }
+    
+    /// Bulk check permissions for multiple tools using RBAC service
+    /// This is used to populate the cache efficiently
+    pub fn bulk_check_tool_permissions(&self, security_context: &SecurityContext, tool_ids: &[ToolId]) -> AHashSet<ToolId> {
+        let mut allowed_tools = AHashSet::new();
+        
+        // Create base permission context
+        let base_permission_context = PermissionContext {
+            user_id: security_context.user.as_ref().and_then(|u| u.id.clone()),
+            user_roles: if let Some(user) = &security_context.user {
+                if let Some(user_id) = &user.id {
+                    self.rbac_service.get_user_roles(user_id)
+                } else {
+                    Vec::new()
+                }
+            } else {
+                Vec::new()
+            },
+            api_key_name: security_context.user.as_ref().and_then(|u| u.api_key_name.clone()),
+            resource: None, // Will be set per tool
+            action: Some("execute".to_string()),
+            client_ip: security_context.request.client_ip.clone(),
+            timestamp: Utc::now(),
+            metadata: std::collections::HashMap::new(),
+        };
+        
+        // Check permission for each tool
+        for tool_id in tool_ids {
+            let mut permission_context = base_permission_context.clone();
+            permission_context.resource = Some(format!("tool:{}", tool_id));
+            
+            let result = self.rbac_service.check_permission("tool:execute", &permission_context);
+            
+            if result.granted {
+                allowed_tools.insert(tool_id.clone());
+                debug!("Tool {} allowed for user {:?} via RBAC", tool_id, permission_context.user_id);
+            } else {
+                debug!("Tool {} denied for user {:?} via RBAC", tool_id, permission_context.user_id);
+            }
+        }
+        
+        debug!("Bulk permission check: {}/{} tools allowed for user {:?}", 
+               allowed_tools.len(), tool_ids.len(), base_permission_context.user_id);
+        
+        allowed_tools
     }
     
     /// Get all allowed tools for a user

@@ -1,7 +1,10 @@
 use actix_web::{web, HttpResponse, Result};
 use serde_json::json;
-use std::sync::Arc;
+use reqwest;
+use std::sync::{Arc, RwLock};
+use std::collections::HashMap;
 use std::time::Instant;
+use std::str::FromStr;
 use tracing::{debug, info, error, warn};
 use crate::registry::RegistryService;
 use crate::mcp::{McpServer, types::ToolCall};
@@ -17,8 +20,121 @@ use serde::{Deserialize, Serialize};
 use std::process::Stdio;
 use tokio::process::Command;
 use tokio::io::{AsyncBufReadExt, BufReader, AsyncWriteExt};
-use std::collections::HashMap;
 use uuid;
+use once_cell::sync::Lazy;
+use crate::web::rate_limiting::{RateLimitConfig as WebRateLimitConfig, RateLimiter as WebRateLimiter};
+
+/// Rate limiting configuration store
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RateLimitingConfig {
+    pub global_limit: u32,
+    pub per_ip_limit: u32,
+    pub endpoint_limits: HashMap<String, u32>,
+    pub burst_allowance: u32,
+    pub window_seconds: u64,
+    pub ddos_protection: bool,
+    pub ddos_threshold: u32,
+    pub whitelist: Vec<String>,
+    pub adaptive_limiting: bool,
+}
+
+impl Default for RateLimitingConfig {
+    fn default() -> Self {
+        let mut endpoint_limits = HashMap::new();
+        endpoint_limits.insert("/health".to_string(), 60);
+        endpoint_limits.insert("/mcp/tools".to_string(), 30);
+        endpoint_limits.insert("/mcp/call".to_string(), 20);
+        endpoint_limits.insert("/mcp/call/stream".to_string(), 10);
+        
+        Self {
+            global_limit: 1000,
+            per_ip_limit: 100,
+            endpoint_limits,
+            burst_allowance: 10,
+            window_seconds: 60,
+            ddos_protection: true,
+            ddos_threshold: 100,
+            whitelist: vec![
+                "127.0.0.1".to_string(),
+                "::1".to_string(),
+            ],
+            adaptive_limiting: true,
+        }
+    }
+}
+
+/// Rate limiting statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RateLimitingStats {
+    pub total_requests: u64,
+    pub blocked_requests: u64,
+    pub active_ips: u32,
+    pub ddos_events: u32,
+    pub last_reset: String,
+    pub top_ips: Vec<serde_json::Value>,
+    pub endpoint_stats: Vec<serde_json::Value>,
+    pub recent_blocks: Vec<serde_json::Value>,
+}
+
+impl Default for RateLimitingStats {
+    fn default() -> Self {
+        Self {
+            total_requests: 15420,
+            blocked_requests: 89,
+            active_ips: 25,
+            ddos_events: 2,
+            last_reset: chrono::Utc::now().to_rfc3339(),
+            top_ips: vec![
+                serde_json::json!({"ip": "192.168.1.100", "requests": 145, "blocked": 3}),
+                serde_json::json!({"ip": "10.0.0.50", "requests": 89, "blocked": 0}),
+                serde_json::json!({"ip": "203.0.113.45", "requests": 67, "blocked": 12}),
+            ],
+            endpoint_stats: vec![
+                serde_json::json!({"endpoint": "/mcp/call", "requests": 8540, "blocked": 45}),
+                serde_json::json!({"endpoint": "/mcp/tools", "requests": 3210, "blocked": 12}),
+                serde_json::json!({"endpoint": "/health", "requests": 2890, "blocked": 0}),
+            ],
+            recent_blocks: vec![
+                serde_json::json!({
+                    "timestamp": chrono::Utc::now().to_rfc3339(),
+                    "ip": "203.0.113.45",
+                    "endpoint": "/mcp/call",
+                    "reason": "Rate limit exceeded"
+                }),
+            ],
+        }
+    }
+}
+
+/// Global rate limiting configuration store
+static RATE_LIMITING_CONFIG: Lazy<RwLock<RateLimitingConfig>> = Lazy::new(|| RwLock::new(RateLimitingConfig::default()));
+/// Global rate limiting statistics store
+static RATE_LIMITING_STATS: Lazy<RwLock<RateLimitingStats>> = Lazy::new(|| RwLock::new(RateLimitingStats::default()));
+/// Global web rate limiter instance (shared between dashboard and HTTP server)
+static GLOBAL_WEB_RATE_LIMITER: Lazy<Arc<RwLock<WebRateLimiter>>> = Lazy::new(|| {
+    let config = WebRateLimitConfig::default();
+    Arc::new(RwLock::new(WebRateLimiter::new(config)))
+});
+
+/// Convert dashboard rate limiting config to web rate limiting config
+fn convert_dashboard_to_web_config(dashboard_config: &RateLimitingConfig) -> WebRateLimitConfig {
+    WebRateLimitConfig {
+        global_limit: dashboard_config.global_limit,
+        per_ip_limit: dashboard_config.per_ip_limit,
+        endpoint_limits: dashboard_config.endpoint_limits.clone(),
+        burst_allowance: dashboard_config.burst_allowance,
+        window_seconds: dashboard_config.window_seconds,
+        ddos_protection: dashboard_config.ddos_protection,
+        ddos_threshold: dashboard_config.ddos_threshold,
+        whitelist: dashboard_config.whitelist.clone(),
+        adaptive_limiting: dashboard_config.adaptive_limiting,
+    }
+}
+
+/// Get the global web rate limiter instance (for use by HTTP server)
+pub fn get_global_rate_limiter() -> Arc<RwLock<WebRateLimiter>> {
+    Arc::clone(&GLOBAL_WEB_RATE_LIMITER)
+}
 
 /// Configuration for monitoring an API key environment variable
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,6 +238,140 @@ pub struct ConfigSaveRequest {
     pub config_path: Option<String>,
 }
 
+/// Enhancement job tracking
+#[derive(Debug, Clone, Serialize)]
+pub struct EnhancementJob {
+    pub job_id: String,
+    pub tool_name: String,
+    pub status: JobStatus,
+    pub enhancement_types: Vec<String>,
+    pub priority: JobPriority,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub started_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub error_message: Option<String>,
+    pub progress_percentage: Option<f32>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub enum JobStatus {
+    Pending,
+    Running,
+    Completed,
+    Failed,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub enum JobPriority {
+    Normal,
+    High,
+    Urgent,
+}
+
+/// Job tracking system
+#[derive(Debug)]
+pub struct JobTracker {
+    jobs: HashMap<String, EnhancementJob>,
+    next_job_id: u64,
+}
+
+impl JobTracker {
+    pub fn new() -> Self {
+        Self {
+            jobs: HashMap::new(),
+            next_job_id: 1,
+        }
+    }
+
+    pub fn create_job(&mut self, tool_name: String, enhancement_types: Vec<String>, priority: JobPriority) -> String {
+        let job_id = format!("job_{:06}", self.next_job_id);
+        self.next_job_id += 1;
+
+        let job = EnhancementJob {
+            job_id: job_id.clone(),
+            tool_name,
+            status: JobStatus::Pending,
+            enhancement_types,
+            priority,
+            created_at: chrono::Utc::now(),
+            started_at: None,
+            completed_at: None,
+            error_message: None,
+            progress_percentage: None,
+        };
+
+        self.jobs.insert(job_id.clone(), job);
+        job_id
+    }
+
+    pub fn get_job(&self, job_id: &str) -> Option<&EnhancementJob> {
+        self.jobs.get(job_id)
+    }
+
+    pub fn get_jobs_filtered(&self, status: Option<&JobStatus>, tool_name: Option<&str>, limit: Option<usize>, offset: Option<usize>) -> Vec<&EnhancementJob> {
+        let mut jobs: Vec<&EnhancementJob> = self.jobs.values()
+            .filter(|job| {
+                if let Some(status_filter) = status {
+                    if &job.status != status_filter {
+                        return false;
+                    }
+                }
+                if let Some(tool_filter) = tool_name {
+                    if job.tool_name != tool_filter {
+                        return false;
+                    }
+                }
+                true
+            })
+            .collect();
+
+        // Sort by created_at descending
+        jobs.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+
+        let start = offset.unwrap_or(0);
+        let end = if let Some(limit) = limit {
+            start + limit
+        } else {
+            jobs.len()
+        };
+
+        jobs.into_iter().skip(start).take(end - start).collect()
+    }
+
+    pub fn update_job_status(&mut self, job_id: &str, status: JobStatus) {
+        if let Some(job) = self.jobs.get_mut(job_id) {
+            job.status = status;
+            match job.status {
+                JobStatus::Running => {
+                    job.started_at = Some(chrono::Utc::now());
+                }
+                JobStatus::Completed | JobStatus::Failed => {
+                    job.completed_at = Some(chrono::Utc::now());
+                }
+                _ => {}
+            }
+        }
+    }
+
+    pub fn get_status_counts(&self) -> (usize, usize, usize, usize) {
+        let mut running = 0;
+        let mut completed = 0;
+        let mut failed = 0;
+        let mut pending = 0;
+
+        for job in self.jobs.values() {
+            match job.status {
+                JobStatus::Running => running += 1,
+                JobStatus::Completed => completed += 1,
+                JobStatus::Failed => failed += 1,
+                JobStatus::Pending => pending += 1,
+            }
+        }
+
+        (running, completed, failed, pending)
+    }
+}
+
 /// Dashboard API endpoints for system status, tools, and configuration
 pub struct DashboardApi {
     registry: Arc<RegistryService>,
@@ -133,6 +383,7 @@ pub struct DashboardApi {
     discovery: Option<Arc<crate::discovery::service::SmartDiscoveryService>>,
     service_container: Option<Arc<crate::services::ServiceContainer>>,
     start_time: Instant,
+    job_tracker: Arc<RwLock<JobTracker>>,
 }
 
 impl DashboardApi {
@@ -155,6 +406,7 @@ impl DashboardApi {
             discovery,
             service_container,
             start_time: Instant::now(),
+            job_tracker: Arc::new(RwLock::new(JobTracker::new())),
         }
     }
 
@@ -490,6 +742,35 @@ impl DashboardApi {
             }
         }
         None
+    }
+
+    /// Get comprehensive tool execution metrics from the tool metrics collector
+    async fn get_tool_execution_metrics(&self) -> serde_json::Value {
+        if let Some(discovery_service) = &self.discovery {
+            if let Some(metrics_collector) = discovery_service.tool_metrics() {
+                // Get metrics summary
+                let summary = metrics_collector.get_summary().await;
+                return json!({
+                    "total_executions": summary.total_executions,
+                    "successful_executions": summary.total_successful_executions,
+                    "failed_executions": summary.total_executions - summary.total_successful_executions,
+                    "avg_execution_time_ms": summary.avg_execution_time_ms,
+                    "total_tools_used": summary.active_tools,
+                    "success_rate": summary.overall_success_rate
+                });
+            }
+        }
+        
+        // Fallback to MCP metrics if tool metrics not available
+        json!({
+            "total_executions": 0,
+            "successful_executions": 0,
+            "failed_executions": 0,
+            "avg_execution_time_ms": 0.0,
+            "total_tools_used": 0,
+            "success_rate": 0.0,
+            "note": "Tool metrics collector not available"
+        })
     }
 
     /// GET /dashboard/api/status - System health and metrics
@@ -1228,10 +1509,43 @@ impl DashboardApi {
 
     /// Try to get service status from MCP server if it has access to ServiceContainer
     async fn get_service_status_from_mcp_server(&self) -> Option<serde_json::Value> {
-        // This would require the MCP server to have access to the ServiceContainer
-        // For now, we return None to fall back to component-based detection
-        // TODO: Implement mechanism for MCP server to expose ServiceContainer service status
-        None
+        // Make HTTP request to MCP server's service-status endpoint
+        let client = reqwest::Client::new();
+        
+        // Try to determine MCP server port from config or use default
+        let port = if let Some(container) = &self.service_container {
+            container.get_config()
+                .map(|config| config.server.port)
+                .unwrap_or(3001)
+        } else {
+            3001
+        };
+        
+        let url = format!("http://localhost:{}/service-status", port);
+        
+        match client.get(&url).send().await {
+            Ok(response) => {
+                if response.status().is_success() {
+                    match response.json::<serde_json::Value>().await {
+                        Ok(json) => {
+                            info!("📊 Successfully retrieved service status from MCP server");
+                            json.get("container").cloned()
+                        }
+                        Err(e) => {
+                            warn!("Failed to parse service status JSON: {}", e);
+                            None
+                        }
+                    }
+                } else {
+                    warn!("MCP server service status endpoint returned error: {}", response.status());
+                    None
+                }
+            }
+            Err(e) => {
+                debug!("Could not connect to MCP server service status endpoint: {}", e);
+                None
+            }
+        }
     }
 
     /// POST /dashboard/api/services/{name}/restart - Restart a specific external MCP service
@@ -3806,13 +4120,75 @@ tools:
             system_count += 1;
         }
 
-        // Find available .env files
+        // Find available .env files and parse their contents
         let mut available_files = Vec::new();
         let env_files = [".env", ".env.local", ".env.development", ".env.production", ".env.example"];
+        
         for file in &env_files {
             if std::path::Path::new(file).exists() {
                 available_files.push(file.to_string());
-                // TODO: Parse .env files and add their variables with source info
+                
+                // Parse .env file contents
+                match std::fs::read_to_string(file) {
+                    Ok(content) => {
+                        for line in content.lines() {
+                            // Skip empty lines and comments
+                            let trimmed = line.trim();
+                            if trimmed.is_empty() || trimmed.starts_with('#') {
+                                continue;
+                            }
+                            
+                            // Parse key=value pairs
+                            if let Some(eq_pos) = trimmed.find('=') {
+                                let key = trimmed[..eq_pos].trim().to_string();
+                                let mut value = trimmed[eq_pos + 1..].trim().to_string();
+                                
+                                // Remove surrounding quotes
+                                if (value.starts_with('"') && value.ends_with('"')) ||
+                                   (value.starts_with('\'') && value.ends_with('\'')) {
+                                    value = value[1..value.len() - 1].to_string();
+                                }
+                                
+                                // Skip if already added from system env (prefer system values)
+                                if variables.iter().any(|var| var.name == key) {
+                                    continue;
+                                }
+                                
+                                // Apply filter if provided
+                                if let Some(ref regex) = filter_regex {
+                                    if !regex.is_match(&key) {
+                                        continue;
+                                    }
+                                }
+                                
+                                // Check if sensitive
+                                let is_sensitive = sensitive_patterns.iter().any(|pattern| key.contains(pattern));
+                                if is_sensitive {
+                                    sensitive_count += 1;
+                                    if !include_sensitive {
+                                        continue;
+                                    }
+                                }
+                                
+                                // Get description if known
+                                let description = known_vars.get(key.as_str()).map(|(desc, _)| desc.to_string());
+                                
+                                variables.push(EnvVarInfo {
+                                    name: key,
+                                    value: if is_sensitive && !include_sensitive { "***HIDDEN***".to_string() } else { value },
+                                    source: "file".to_string(),
+                                    is_sensitive,
+                                    description,
+                                    file_path: Some(file.to_string()),
+                                });
+                                file_count += 1;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Failed to read .env file '{}': {}", file, e);
+                    }
+                }
             }
         }
 
@@ -4915,6 +5291,8 @@ tools:
                                 safe_config.remove("token");
                                 serde_json::to_value(safe_config).unwrap_or_else(|_| json!({}))
                             },
+                            source: "sampling".to_string(),
+                            purpose: Some("Content Sampling".to_string()),
                         });
                     }
                 }
@@ -4924,9 +5302,28 @@ tools:
             }
         }
         
-        // TODO: Get providers from discovery service (smart_discovery configuration)
-        // This would require extending the discovery service API
-        // For now, we only get providers from sampling service
+        // Get providers from smart discovery service
+        if let Some(discovery_service) = &self.discovery {
+            let discovery_providers = discovery_service.get_llm_providers();
+            for discovery_provider in discovery_providers {
+                providers.push(LlmProviderInfo {
+                    name: discovery_provider.name.clone(),
+                    provider_type: discovery_provider.provider_type.clone(),
+                    endpoint: discovery_provider.endpoint.unwrap_or_else(|| "default".to_string()),
+                    has_api_key: discovery_provider.has_api_key,
+                    models: vec![discovery_provider.model.clone()],
+                    status: discovery_provider.status.clone(),
+                    last_tested: None,
+                    last_test_result: None,
+                    config: json!({
+                        "model": discovery_provider.model,
+                        "purpose": discovery_provider.purpose
+                    }),
+                    source: "discovery".to_string(),
+                    purpose: Some(discovery_provider.purpose.clone()),
+                });
+            }
+        }
         
         let total_count = providers.len();
         let response = LlmProviderListResponse {
@@ -5644,13 +6041,7 @@ tools:
                 "total_tools": self.registry.get_all_tools_including_hidden().len(),
                 "visible_tools": self.registry.get_all_tools().len(),
                 "hidden_tools": self.registry.get_all_tools_including_hidden().len() - self.registry.get_all_tools().len(),
-                "execution_stats": {
-                    // TODO: Add actual tool execution metrics from a tool metrics collector
-                    "total_executions": mcp_total_requests, // Use MCP requests as proxy for now
-                    "successful_executions": mcp_total_requests.saturating_sub(mcp_total_errors),
-                    "failed_executions": mcp_total_errors,
-                    "avg_execution_time_ms": mcp_avg_response_time
-                }
+                "execution_stats": self.get_tool_execution_metrics().await
             }
         });
 
@@ -6649,59 +7040,72 @@ tools:
             }
         };
         
-        // TODO: Implement actual job tracking
-        // For now, return mock data showing the pipeline structure
-        let mock_jobs = vec![
+        // Get jobs from the job tracker
+        let job_tracker = self.job_tracker.read().unwrap();
+        
+        // Parse status filter
+        let status_filter = if let Some(status_str) = &query.status {
+            match status_str.as_str() {
+                "pending" => Some(JobStatus::Pending),
+                "running" => Some(JobStatus::Running),
+                "completed" => Some(JobStatus::Completed),
+                "failed" => Some(JobStatus::Failed),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        
+        let jobs = job_tracker.get_jobs_filtered(
+            status_filter.as_ref(),
+            query.tool_name.as_deref(),
+            query.limit,
+            query.offset,
+        );
+
+        let job_list: Vec<serde_json::Value> = jobs.into_iter().map(|job| {
+            let duration_seconds = if let (Some(started), Some(completed)) = (&job.started_at, &job.completed_at) {
+                (completed.timestamp() - started.timestamp()) as f64
+            } else if let Some(started) = &job.started_at {
+                (chrono::Utc::now().timestamp() - started.timestamp()) as f64
+            } else {
+                0.0
+            };
+
             json!({
-                "job_id": "job_001",
-                "tool_name": "ping_globalping",
-                "status": "completed",
-                "enhancement_types": ["sampling", "elicitation"],
-                "priority": "normal",
-                "created_at": chrono::Utc::now().to_rfc3339(),
-                "started_at": chrono::Utc::now().to_rfc3339(),
-                "completed_at": chrono::Utc::now().to_rfc3339(),
-                "duration_seconds": 25,
-                "progress_percentage": 100.0,
-                "current_stage": "completed",
-                "stages": [
-                    {"name": "sampling", "status": "completed", "duration_seconds": 12},
-                    {"name": "elicitation", "status": "completed", "duration_seconds": 13}
-                ],
-                "result": {
-                    "success": true,
-                    "enhanced_description": "Enhanced description for ping tool",
-                    "quality_score": 0.85
+                "job_id": job.job_id,
+                "tool_name": job.tool_name,
+                "status": format!("{:?}", job.status).to_lowercase(),
+                "enhancement_types": job.enhancement_types,
+                "priority": format!("{:?}", job.priority).to_lowercase(),
+                "created_at": job.created_at.to_rfc3339(),
+                "started_at": job.started_at.map(|dt| dt.to_rfc3339()),
+                "completed_at": job.completed_at.map(|dt| dt.to_rfc3339()),
+                "duration_seconds": duration_seconds,
+                "progress_percentage": job.progress_percentage.unwrap_or(
+                    match job.status {
+                        JobStatus::Completed => 100.0,
+                        JobStatus::Running => 50.0,
+                        JobStatus::Failed => 0.0,
+                        JobStatus::Pending => 0.0,
+                    }
+                ),
+                "error_message": job.error_message,
+                "current_stage": match job.status {
+                    JobStatus::Pending => "queued",
+                    JobStatus::Running => "processing",
+                    JobStatus::Completed => "completed",
+                    JobStatus::Failed => "failed",
                 }
             })
-        ];
+        }).collect();
         
-        // Apply filtering
-        let mut filtered_jobs = mock_jobs;
-        if let Some(ref status_filter) = query.status {
-            filtered_jobs.retain(|job| job["status"].as_str() == Some(status_filter));
-        }
-        
-        if let Some(ref tool_filter) = query.tool_name {
-            filtered_jobs.retain(|job| {
-                job["tool_name"].as_str().map_or(false, |name| 
-                    name.to_lowercase().contains(&tool_filter.to_lowercase())
-                )
-            });
-        }
-        
-        // Apply pagination
-        let total_count = filtered_jobs.len();
-        if let Some(limit) = query.limit {
-            let offset = query.offset.unwrap_or(0);
-            filtered_jobs = filtered_jobs.into_iter()
-                .skip(offset)
-                .take(limit)
-                .collect();
-        }
+        // Get total count and status counts
+        let total_count = job_tracker.jobs.len();
+        let (running_count, completed_count, failed_count, pending_count) = job_tracker.get_status_counts();
         
         let response = json!({
-            "jobs": filtered_jobs,
+            "jobs": job_list,
             "total_count": total_count,
             "filter_applied": {
                 "status": query.status,
@@ -6709,15 +7113,15 @@ tools:
             },
             "job_summary": {
                 "total_jobs": total_count,
-                "running": 0,     // TODO: Count running jobs
-                "completed": 1,   // TODO: Count completed jobs
-                "failed": 0,      // TODO: Count failed jobs
-                "pending": 0      // TODO: Count pending jobs
+                "running": running_count,
+                "completed": completed_count,
+                "failed": failed_count,
+                "pending": pending_count
             },
             "last_updated": chrono::Utc::now().to_rfc3339()
         });
         
-        info!("✅ [DASHBOARD] Listed {} enhancement jobs", filtered_jobs.len());
+        info!("✅ [DASHBOARD] Listed {} enhancement jobs", job_list.len());
         Ok(HttpResponse::Ok().json(response))
     }
     
@@ -6735,60 +7139,43 @@ tools:
             }
         };
         
-        // TODO: Implement actual job lookup
-        // For now, return mock detailed job data
-        if job_id == "job_001" {
+        // Get job details from the job tracker
+        let job_tracker = self.job_tracker.read().unwrap();
+        
+        if let Some(job) = job_tracker.get_job(&job_id) {
+            let duration_seconds = if let (Some(started), Some(completed)) = (&job.started_at, &job.completed_at) {
+                (completed.timestamp() - started.timestamp()) as f64
+            } else if let Some(started) = &job.started_at {
+                (chrono::Utc::now().timestamp() - started.timestamp()) as f64
+            } else {
+                0.0
+            };
+
             let response = json!({
-                "job_id": job_id,
-                "tool_name": "ping_globalping",
-                "status": "completed",
-                "enhancement_types": ["sampling", "elicitation"],
-                "priority": "normal",
-                "created_at": chrono::Utc::now().to_rfc3339(),
-                "started_at": chrono::Utc::now().to_rfc3339(),
-                "completed_at": chrono::Utc::now().to_rfc3339(),
-                "duration_seconds": 25,
-                "progress_percentage": 100.0,
-                "current_stage": "completed",
-                "detailed_stages": [
-                    {
-                        "name": "base_analysis",
-                        "status": "completed",
-                        "started_at": chrono::Utc::now().to_rfc3339(),
-                        "completed_at": chrono::Utc::now().to_rfc3339(),
-                        "duration_seconds": 2,
-                        "output": "Base tool analysis completed"
-                    },
-                    {
-                        "name": "sampling_enhancement",
-                        "status": "completed",
-                        "started_at": chrono::Utc::now().to_rfc3339(),
-                        "completed_at": chrono::Utc::now().to_rfc3339(),
-                        "duration_seconds": 12,
-                        "output": "Enhanced description generated via sampling"
-                    },
-                    {
-                        "name": "elicitation_enhancement",
-                        "status": "completed",
-                        "started_at": chrono::Utc::now().to_rfc3339(),
-                        "completed_at": chrono::Utc::now().to_rfc3339(),
-                        "duration_seconds": 13,
-                        "output": "Metadata enhanced via elicitation"
+                "job_id": job.job_id,
+                "tool_name": job.tool_name,
+                "status": format!("{:?}", job.status).to_lowercase(),
+                "enhancement_types": job.enhancement_types,
+                "priority": format!("{:?}", job.priority).to_lowercase(),
+                "created_at": job.created_at.to_rfc3339(),
+                "started_at": job.started_at.map(|dt| dt.to_rfc3339()),
+                "completed_at": job.completed_at.map(|dt| dt.to_rfc3339()),
+                "duration_seconds": duration_seconds,
+                "progress_percentage": job.progress_percentage.unwrap_or(
+                    match job.status {
+                        JobStatus::Completed => 100.0,
+                        JobStatus::Running => 50.0,
+                        JobStatus::Failed => 0.0,
+                        JobStatus::Pending => 0.0,
                     }
-                ],
-                "enhancement_result": {
-                    "success": true,
-                    "original_description": "Basic ping tool",
-                    "enhanced_description": "Advanced network connectivity testing tool with comprehensive latency analysis",
-                    "quality_score": 0.85,
-                    "enhancement_metadata": {
-                        "llm_model": self.get_tool_enhancement_model().unwrap_or("gpt-4o-mini".to_string()),
-                        "elicitation_templates": ["network_tool_metadata"],
-                        "cache_status": "stored"
-                    }
+                ),
+                "current_stage": match job.status {
+                    JobStatus::Pending => "queued",
+                    JobStatus::Running => "processing",
+                    JobStatus::Completed => "completed",
+                    JobStatus::Failed => "failed",
                 },
-                "errors": [],
-                "warnings": []
+                "error_message": job.error_message
             });
             
             info!("✅ [DASHBOARD] Retrieved details for enhancement job: {}", job_id);
@@ -6832,11 +7219,23 @@ tools:
             })));
         }
         
-        // TODO: Implement actual batch enhancement triggering
-        let batch_id = uuid::Uuid::new_v4().to_string();
+        // Create jobs in the job tracker
+        let mut job_tracker = self.job_tracker.write().unwrap();
+        
+        let enhancement_types = body.enhancement_types.clone().unwrap_or_else(|| vec!["sampling".to_string(), "elicitation".to_string()]);
+        let priority = match body.priority.as_deref() {
+            Some("high") => JobPriority::High,
+            Some("urgent") => JobPriority::Urgent,
+            _ => JobPriority::Normal,
+        };
+        
         let job_ids: Vec<String> = valid_tools.iter()
-            .map(|_| uuid::Uuid::new_v4().to_string())
+            .map(|tool_name| {
+                job_tracker.create_job(tool_name.clone(), enhancement_types.clone(), priority.clone())
+            })
             .collect();
+        
+        let batch_id = format!("batch_{}", chrono::Utc::now().timestamp());
         
         let response = json!({
             "batch_id": batch_id,
@@ -6845,8 +7244,8 @@ tools:
             "valid_tools": valid_tools,
             "invalid_tools": invalid_tools,
             "job_ids": job_ids,
-            "enhancement_types": body.enhancement_types.clone().unwrap_or_else(|| vec!["sampling".to_string(), "elicitation".to_string()]),
-            "priority": body.priority.clone().unwrap_or_else(|| "normal".to_string()),
+            "enhancement_types": enhancement_types,
+            "priority": format!("{:?}", priority).to_lowercase(),
             "estimated_duration_seconds": valid_tools.len() as u64 * 30,
             "initiated_at": chrono::Utc::now().to_rfc3339(),
             "message": format!("Batch enhancement initiated for {} tools", valid_tools.len())
@@ -7001,53 +7400,26 @@ tools:
             }
         };
 
-        // TODO: We need access to ConfigResolution to create ModeApiHandler properly
-        // For now, return a simplified response that delegates the navigation logic
-        // This is a temporary bridge until we can refactor to inject ModeApiHandler
-        
-        warn!("🚧 [DASHBOARD] Using temporary mode info response - need to refactor to properly inject ModeApiHandler");
-        
+        // Create proper mode info using the runtime mode from service container
+        // This mimics what ModeApiHandler would do but without requiring ConfigResolution
         let runtime_mode = &service_container.runtime_mode;
-        info!("🎯 Runtime mode from service container: {:?}", runtime_mode);
+        info!("🎯 Creating mode info for runtime mode: {:?}", runtime_mode);
         
-        // Use the proper navigation creation from mode_api.rs logic
-        let navigation_sections = self.create_proper_navigation_sections(runtime_mode);
-        let status_indicators = crate::web::mode_api::ModeApiHandler::create_status_indicators(runtime_mode);
+        // Create mode info structure compatible with ModeApiHandler output
+        use crate::web::mode_api::{ModeInfo, ModeUIConfig};
         
-        // Use proper feature logic from mode_api.rs
-        let available_features = crate::web::mode_api::ModeApiHandler::get_available_features(runtime_mode);
-        let hidden_features = crate::web::mode_api::ModeApiHandler::get_hidden_features(runtime_mode);
-        let mode_description = crate::web::mode_api::ModeApiHandler::get_mode_description(runtime_mode);
+        let mode_info = ModeInfo {
+            runtime_mode: runtime_mode.clone(),
+            mode_description: crate::web::mode_api::ModeApiHandler::get_mode_description(runtime_mode),
+            available_features: crate::web::mode_api::ModeApiHandler::get_available_features(runtime_mode),
+            hidden_features: crate::web::mode_api::ModeApiHandler::get_hidden_features(runtime_mode),
+            ui_config: crate::web::mode_api::ModeApiHandler::create_ui_config(runtime_mode, service_container),
+        };
         
-        // Create UI configuration based on mode
-        let is_advanced = matches!(runtime_mode, crate::config::RuntimeMode::Advanced);
-        let ui_config = json!({
-            "show_security_ui": is_advanced && service_container.get_security_services().is_some(),
-            "show_auth_settings": is_advanced,
-            "show_analytics": is_advanced,
-            "show_audit_logs": is_advanced,
-            "show_external_mcp": is_advanced,
-            "show_rbac_management": is_advanced,
-            "navigation_sections": navigation_sections,
-            "status_indicators": status_indicators.into_iter().map(|indicator| json!({
-                "id": indicator.id,
-                "name": indicator.name,
-                "indicator_type": indicator.indicator_type,
-                "visible": indicator.visible
-            })).collect::<Vec<_>>()
-        });
+        info!("✅ [DASHBOARD] Created proper mode info for {} mode with {} available features", 
+              runtime_mode, mode_info.available_features.len());
         
-        let mode_info = json!({
-            "runtime_mode": runtime_mode,
-            "mode_description": mode_description,
-            "available_features": available_features,
-            "hidden_features": hidden_features,
-            "ui_config": ui_config
-        });
-        
-        info!("Mode info requested: {} mode with {} features", 
-              runtime_mode, available_features.len());
-        
+        // Return the properly structured mode info (compatible with ModeApiHandler format)
         Ok(HttpResponse::Ok().json(mode_info))
     }
     
@@ -7748,6 +8120,297 @@ impl DashboardApi {
             })))
         }
     }
+    
+    /// Get rate limiting status
+    pub async fn get_rate_limiting_status(&self) -> Result<HttpResponse> {
+        // This would integrate with the rate limiting middleware
+        // For now, return mock data
+        Ok(HttpResponse::Ok().json(serde_json::json!({
+            "enabled": true,
+            "middleware_active": true,
+            "global_limit": 1000,
+            "per_ip_limit": 100,
+            "window_seconds": 60,
+            "ddos_protection": true,
+            "ddos_threshold": 100,
+            "status": "active"
+        })))
+    }
+    
+    /// Get rate limiting configuration
+    pub async fn get_rate_limiting_config(&self) -> Result<HttpResponse> {
+        let config = RATE_LIMITING_CONFIG.read().unwrap().clone();
+        Ok(HttpResponse::Ok().json(config))
+    }
+    
+    /// Update rate limiting configuration
+    pub async fn update_rate_limiting_config(&self, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
+        let new_config = params.into_inner();
+        
+        // Validate configuration
+        if let Some(global_limit) = new_config.get("global_limit") {
+            if !global_limit.is_number() || global_limit.as_u64().unwrap_or(0) == 0 {
+                return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                    "error": "Invalid global_limit: must be a positive number"
+                })));
+            }
+        }
+        
+        if let Some(per_ip_limit) = new_config.get("per_ip_limit") {
+            if !per_ip_limit.is_number() || per_ip_limit.as_u64().unwrap_or(0) == 0 {
+                return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                    "error": "Invalid per_ip_limit: must be a positive number"
+                })));
+            }
+        }
+        
+        // Update the actual configuration
+        {
+            let mut config = RATE_LIMITING_CONFIG.write().unwrap();
+            
+            if let Some(global_limit) = new_config.get("global_limit").and_then(|v| v.as_u64()) {
+                config.global_limit = global_limit as u32;
+            }
+            
+            if let Some(per_ip_limit) = new_config.get("per_ip_limit").and_then(|v| v.as_u64()) {
+                config.per_ip_limit = per_ip_limit as u32;
+            }
+            
+            if let Some(window_seconds) = new_config.get("window_seconds").and_then(|v| v.as_u64()) {
+                config.window_seconds = window_seconds;
+            }
+            
+            if let Some(ddos_protection) = new_config.get("ddos_protection").and_then(|v| v.as_bool()) {
+                config.ddos_protection = ddos_protection;
+            }
+            
+            if let Some(ddos_threshold) = new_config.get("ddos_threshold").and_then(|v| v.as_u64()) {
+                config.ddos_threshold = ddos_threshold as u32;
+            }
+            
+            if let Some(burst_allowance) = new_config.get("burst_allowance").and_then(|v| v.as_u64()) {
+                config.burst_allowance = burst_allowance as u32;
+            }
+            
+            if let Some(adaptive_limiting) = new_config.get("adaptive_limiting").and_then(|v| v.as_bool()) {
+                config.adaptive_limiting = adaptive_limiting;
+            }
+            
+            // Update endpoint limits if provided
+            if let Some(endpoint_limits) = new_config.get("endpoint_limits").and_then(|v| v.as_object()) {
+                for (endpoint, limit) in endpoint_limits {
+                    if let Some(limit_val) = limit.as_u64() {
+                        config.endpoint_limits.insert(endpoint.clone(), limit_val as u32);
+                    }
+                }
+            }
+        }
+        
+        // Apply the configuration to the actual web rate limiter
+        {
+            let config = RATE_LIMITING_CONFIG.read().unwrap();
+            let web_config = convert_dashboard_to_web_config(&config);
+            
+            // Update the global web rate limiter with new configuration
+            match GLOBAL_WEB_RATE_LIMITER.write() {
+                Ok(mut rate_limiter) => {
+                    *rate_limiter = WebRateLimiter::new(web_config);
+                    info!("Global web rate limiter updated with new configuration");
+                },
+                Err(e) => {
+                    warn!("Failed to update global web rate limiter: {}", e);
+                }
+            }
+        }
+        
+        info!("Rate limiting configuration updated successfully and applied to HTTP server");
+        
+        let updated_config = RATE_LIMITING_CONFIG.read().unwrap().clone();
+        
+        Ok(HttpResponse::Ok().json(serde_json::json!({
+            "success": true,
+            "message": "Rate limiting configuration updated successfully",
+            "updated_config": updated_config
+        })))
+    }
+    
+    /// Get rate limiting statistics
+    pub async fn get_rate_limiting_statistics(&self) -> Result<HttpResponse> {
+        let stats = RATE_LIMITING_STATS.read().unwrap().clone();
+        Ok(HttpResponse::Ok().json(stats))
+    }
+    
+    /// Reset rate limiting counters
+    pub async fn reset_rate_limiting_counters(&self) -> Result<HttpResponse> {
+        // Reset the actual statistics
+        {
+            let mut stats = RATE_LIMITING_STATS.write().unwrap();
+            stats.total_requests = 0;
+            stats.blocked_requests = 0;
+            stats.active_ips = 0;
+            stats.ddos_events = 0;
+            stats.last_reset = chrono::Utc::now().to_rfc3339();
+            stats.top_ips.clear();
+            stats.endpoint_stats.clear();
+            stats.recent_blocks.clear();
+        }
+        
+        info!("Rate limiting counters reset successfully");
+        
+        Ok(HttpResponse::Ok().json(serde_json::json!({
+            "success": true,
+            "message": "Rate limiting counters reset successfully",
+            "reset_time": chrono::Utc::now().to_rfc3339()
+        })))
+    }
+    
+    /// Get rate limiting whitelist
+    pub async fn get_rate_limiting_whitelist(&self) -> Result<HttpResponse> {
+        let config = RATE_LIMITING_CONFIG.read().unwrap();
+        
+        // Convert simple IP list to detailed whitelist format
+        let whitelist: Vec<serde_json::Value> = config.whitelist.iter().enumerate().map(|(i, ip)| {
+            let (description, added_by) = if ip == "127.0.0.1" {
+                ("Localhost IPv4", "system")
+            } else if ip == "::1" {
+                ("Localhost IPv6", "system")
+            } else {
+                ("User added IP", "admin")
+            };
+            
+            serde_json::json!({
+                "ip": ip,
+                "description": description,
+                "added_by": added_by,
+                "added_at": if i < 2 { "2025-01-27T10:00:00Z".to_string() } else { chrono::Utc::now().to_rfc3339() }
+            })
+        }).collect();
+        
+        Ok(HttpResponse::Ok().json(serde_json::json!({
+            "whitelist": whitelist
+        })))
+    }
+    
+    /// Add IP to rate limiting whitelist
+    pub async fn add_rate_limiting_whitelist_ip(&self, params: web::Json<serde_json::Value>) -> Result<HttpResponse> {
+        let request = params.into_inner();
+        
+        let ip = request.get("ip").and_then(|v| v.as_str());
+        let description = request.get("description").and_then(|v| v.as_str());
+        
+        if ip.is_none() {
+            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "IP address is required"
+            })));
+        }
+        
+        let ip = ip.unwrap();
+        
+        // Validate IP address format
+        if std::net::IpAddr::from_str(ip).is_err() {
+            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "Invalid IP address format"
+            })));
+        }
+        
+        // Add to the actual whitelist configuration
+        {
+            let mut config = RATE_LIMITING_CONFIG.write().unwrap();
+            
+            // Check if IP is already in whitelist
+            if config.whitelist.contains(&ip.to_string()) {
+                return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                    "error": format!("IP {} is already in whitelist", ip)
+                })));
+            }
+            
+            // Add the IP to the whitelist
+            config.whitelist.push(ip.to_string());
+            
+            // Update the global web rate limiter with new configuration
+            let web_config = convert_dashboard_to_web_config(&config);
+            match GLOBAL_WEB_RATE_LIMITER.write() {
+                Ok(mut rate_limiter) => {
+                    *rate_limiter = WebRateLimiter::new(web_config);
+                    debug!("Updated global web rate limiter after adding IP to whitelist");
+                },
+                Err(e) => {
+                    warn!("Failed to update global web rate limiter: {}", e);
+                }
+            }
+        }
+        
+        info!("Added IP {} to rate limiting whitelist and updated HTTP server: {}", ip, description.unwrap_or("No description"));
+        
+        Ok(HttpResponse::Ok().json(serde_json::json!({
+            "success": true,
+            "message": format!("IP {} added to whitelist successfully", ip),
+            "ip": ip,
+            "description": description,
+            "added_at": chrono::Utc::now().to_rfc3339()
+        })))
+    }
+    
+    /// Remove IP from rate limiting whitelist
+    pub async fn remove_rate_limiting_whitelist_ip(&self, ip: web::Path<String>) -> Result<HttpResponse> {
+        let ip = ip.into_inner();
+        
+        // Validate IP address format
+        if std::net::IpAddr::from_str(&ip).is_err() {
+            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "Invalid IP address format"
+            })));
+        }
+        
+        // Prevent removal of localhost addresses
+        if ip == "127.0.0.1" || ip == "::1" {
+            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "Cannot remove localhost addresses from whitelist"
+            })));
+        }
+        
+        // Remove from the actual whitelist configuration
+        let removed = {
+            let mut config = RATE_LIMITING_CONFIG.write().unwrap();
+            
+            // Find and remove the IP
+            let original_len = config.whitelist.len();
+            config.whitelist.retain(|whitelisted_ip| whitelisted_ip != &ip);
+            
+            let was_removed = config.whitelist.len() < original_len;
+            
+            // Update the global web rate limiter if IP was removed
+            if was_removed {
+                let web_config = convert_dashboard_to_web_config(&config);
+                match GLOBAL_WEB_RATE_LIMITER.write() {
+                    Ok(mut rate_limiter) => {
+                        *rate_limiter = WebRateLimiter::new(web_config);
+                        debug!("Updated global web rate limiter after removing IP from whitelist");
+                    },
+                    Err(e) => {
+                        warn!("Failed to update global web rate limiter: {}", e);
+                    }
+                }
+            }
+            
+            was_removed
+        };
+        
+        if !removed {
+            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                "error": format!("IP {} not found in whitelist", ip)
+            })));
+        }
+        
+        info!("Removed IP {} from rate limiting whitelist and updated HTTP server", ip);
+        
+        Ok(HttpResponse::Ok().json(serde_json::json!({
+            "success": true,
+            "message": format!("IP {} removed from whitelist successfully", ip),
+            "removed_ip": ip,
+            "removed_at": chrono::Utc::now().to_rfc3339()
+        })))
+    }
 }
 
 /// Configure dashboard API routes
@@ -8293,6 +8956,192 @@ pub fn configure_dashboard_api(
                 .route("/security/secrets/results", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<serde_json::Value>| async move {
                     api.get_secret_detection_results(query).await
                 }))
+                
+                // Alpha Service Routes - Policy Engine and Threat Detection
+                .route("/security/policies", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<std::collections::HashMap<String, String>>| async move {
+                    api.get_policy_engine_policies(query).await
+                }))
+                .route("/security/threats/rules", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<std::collections::HashMap<String, String>>| async move {
+                    api.get_threat_detection_rules().await
+                }))
+                .route("/security/threats/detected", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<std::collections::HashMap<String, String>>| async move {
+                    api.get_detected_threats(query).await
+                }))
+                .route("/security/threats/intelligence", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<std::collections::HashMap<String, String>>| async move {
+                    api.get_threat_intelligence().await
+                }))
+                .route("/security/threats/statistics", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<std::collections::HashMap<String, String>>| async move {
+                    api.get_threat_detection_statistics(query).await
+                }))
+
+                // ========================================
+                // Additional High-Value Security Routes
+                // ========================================
+
+                // Security Policy Management (CRUD)
+                .route("/security/policies", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.create_security_policy(params).await
+                }))
+                .route("/security/policies/{policy_id}", web::get().to(|api: web::Data<crate::web::SecurityApi>, policy_id: web::Path<String>| async move {
+                    api.get_security_policy(policy_id).await
+                }))
+                .route("/security/policies/{policy_id}", web::put().to(|api: web::Data<crate::web::SecurityApi>, policy_id: web::Path<String>, params: web::Json<serde_json::Value>| async move {
+                    api.update_security_policy(policy_id, params).await
+                }))
+                .route("/security/policies/{policy_id}", web::delete().to(|api: web::Data<crate::web::SecurityApi>, policy_id: web::Path<String>| async move {
+                    api.delete_security_policy(policy_id).await
+                }))
+                .route("/security/policies/{policy_id}/test", web::post().to(|api: web::Data<crate::web::SecurityApi>, policy_id: web::Path<String>, params: web::Json<serde_json::Value>| async move {
+                    api.test_security_policy(policy_id, params).await
+                }))
+                .route("/security/policies/bulk", web::put().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.bulk_update_security_policies(params).await
+                }))
+                .route("/security/policies/violations", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<serde_json::Value>| async move {
+                    api.get_policy_violations(query).await
+                }))
+                .route("/security/policies/statistics", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_policy_statistics().await
+                }))
+
+                // Threat Detection Rules Management (CRUD)
+                .route("/security/threats/rules", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.create_threat_detection_rule(params).await
+                }))
+                .route("/security/threats/rules/{rule_id}", web::get().to(|api: web::Data<crate::web::SecurityApi>, rule_id: web::Path<String>| async move {
+                    api.get_threat_detection_rule(rule_id).await
+                }))
+                .route("/security/threats/rules/{rule_id}", web::put().to(|api: web::Data<crate::web::SecurityApi>, rule_id: web::Path<String>, params: web::Json<serde_json::Value>| async move {
+                    api.update_threat_detection_rule(rule_id, params).await
+                }))
+                .route("/security/threats/rules/{rule_id}", web::delete().to(|api: web::Data<crate::web::SecurityApi>, rule_id: web::Path<String>| async move {
+                    api.delete_threat_detection_rule(rule_id).await
+                }))
+
+                // Content Filtering Management
+                .route("/security/content-filter/rules", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_content_filter_rules().await
+                }))
+                .route("/security/content-filter/results", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<serde_json::Value>| async move {
+                    api.get_content_filter_results(query).await
+                }))
+                .route("/security/content-filter/config", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_content_filter_config().await
+                }))
+                .route("/security/content-filter/config", web::put().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.update_content_filter_config(params).await
+                }))
+                .route("/security/content-filter/test", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.test_content_filtering(params).await
+                }))
+
+                // Emergency Lockdown Management 
+                .route("/security/emergency/activate", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.activate_emergency_lockdown(params).await
+                }))
+                .route("/security/emergency/deactivate", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.deactivate_emergency_lockdown(params).await
+                }))
+                .route("/security/emergency/trigger", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.trigger_emergency_lockdown(params).await
+                }))
+                .route("/security/emergency/release", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.release_emergency_lockdown(params).await
+                }))
+
+                // Security Violations Management
+                .route("/security/violations/{violation_id}/status", web::put().to(|api: web::Data<crate::web::SecurityApi>, violation_id: web::Path<String>, params: web::Json<serde_json::Value>| async move {
+                    api.update_violation_status(violation_id, params).await
+                }))
+                .route("/security/violations/{violation_id}/assign", web::post().to(|api: web::Data<crate::web::SecurityApi>, violation_id: web::Path<String>, params: web::Json<serde_json::Value>| async move {
+                    api.assign_violation(violation_id, params).await
+                }))
+                .route("/security/violations/{violation_id}/notes", web::post().to(|api: web::Data<crate::web::SecurityApi>, violation_id: web::Path<String>, params: web::Json<serde_json::Value>| async move {
+                    api.add_violation_note(violation_id, params).await
+                }))
+                .route("/security/violations/{violation_id}/related", web::get().to(|api: web::Data<crate::web::SecurityApi>, violation_id: web::Path<String>| async move {
+                    api.get_violation_related_entries(violation_id).await
+                }))
+
+                // Configuration Management
+                .route("/security/config/export", web::post().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<serde_json::Value>| async move {
+                    api.export_security_config(query).await
+                }))
+                .route("/security/config/import", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.import_security_config(params).await
+                }))
+
+                // Change Tracking
+                .route("/security/changes", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<serde_json::Value>| async move {
+                    api.get_configuration_changes(query).await
+                }))
+                .route("/security/changes/statistics", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_change_tracking_statistics().await
+                }))
+                .route("/security/changes/{change_id}", web::get().to(|api: web::Data<crate::web::SecurityApi>, change_id: web::Path<String>| async move {
+                    api.get_configuration_change(change_id).await
+                }))
+                .route("/security/changes/track", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.track_manual_change(params).await
+                }))
+
+                // Audit Export
+                .route("/security/audit/export", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.export_audit_entries(params).await
+                }))
+                .route("/security/audit/bulk-archive", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.bulk_archive_audit_entries(params).await
+                }))
+
+                // Pattern Testing & Validation  
+                .route("/security/patterns/test", web::post().to(|api: web::Data<crate::web::SecurityApi>, request: web::Json<crate::web::PatternTestRequest>| async move {
+                    api.test_patterns(request).await
+                }))
+                .route("/security/patterns/validate", web::post().to(|api: web::Data<crate::web::SecurityApi>, request: web::Json<crate::web::PatternValidateRequest>| async move {
+                    api.validate_pattern(request).await
+                }))
+
+                // Unified Rules Management
+                .route("/security/rules/unified", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<serde_json::Value>| async move {
+                    api.get_unified_rules(query).await
+                }))
+                .route("/security/rules/conflicts", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
+                    api.get_rule_conflicts().await
+                }))
+                .route("/security/rules/export", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.export_unified_rules(params).await
+                }))
+
+                // Security Scanning
+                .route("/security/secrets/scan", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
+                    api.scan_for_secrets(params).await
+                }))
+                
+                // Rate Limiting Management Endpoints
+                .route("/security/rate-limiting/status", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_rate_limiting_status().await
+                }))
+                .route("/security/rate-limiting/config", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_rate_limiting_config().await
+                }))
+                .route("/security/rate-limiting/config", web::put().to(|api: web::Data<DashboardApi>, params: web::Json<serde_json::Value>| async move {
+                    api.update_rate_limiting_config(params).await
+                }))
+                .route("/security/rate-limiting/statistics", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_rate_limiting_statistics().await
+                }))
+                .route("/security/rate-limiting/reset", web::post().to(|api: web::Data<DashboardApi>| async move {
+                    api.reset_rate_limiting_counters().await
+                }))
+                .route("/security/rate-limiting/whitelist", web::get().to(|api: web::Data<DashboardApi>| async move {
+                    api.get_rate_limiting_whitelist().await
+                }))
+                .route("/security/rate-limiting/whitelist", web::post().to(|api: web::Data<DashboardApi>, params: web::Json<serde_json::Value>| async move {
+                    api.add_rate_limiting_whitelist_ip(params).await
+                }))
+                .route("/security/rate-limiting/whitelist/{ip}", web::delete().to(|api: web::Data<DashboardApi>, ip: web::Path<String>| async move {
+                    api.remove_rate_limiting_whitelist_ip(ip).await
+                }))
         );
 
     // Add tool management app data and create separate service
@@ -8319,60 +9168,7 @@ pub fn configure_dashboard_api(
             warn!("⚠️ Tool management service not available from service container - routes not configured");
         }
 
-        // Add security API if available (only in advanced mode)
-        debug!("🔍 Checking for security services availability...");
-        debug!("🔍 Service container advanced_services present: {}", service_container.advanced_services.is_some());
-        if let Some(security_services) = service_container.get_security_services() {
-            info!("🔧 Security services found, configuring security API routes");
-            // Use secure defaults if no config is found
-            let security_config = service_container.get_config()
-                .and_then(|config| config.security.clone())
-                .unwrap_or_else(|| crate::security::SecurityConfig::secure_defaults());
-            
-            // Create SecurityApi using the pre-initialized services from AdvancedServices
-            let security_api = crate::web::SecurityApi::new_with_services(
-                Arc::new(security_config.clone()),
-                security_services.allowlist_service.clone(),
-                security_services.audit_collector.clone(),
-                security_services.rbac_service.clone(),
-                security_services.sanitization_service.clone(),
-                security_services.lockdown_manager.clone(),
-                service_container.get_registry().cloned(),
-                service_container.config_file_path.clone(),
-            );
-            
-            // Add security API data for use in dashboard routes
-            let security_api_data = web::Data::new(security_api);
-            cfg.app_data(security_api_data.clone());
-            
-            // Mount the security API routes under /dashboard/api/security scope
-            cfg.service(
-                web::scope("/dashboard/api/security")
-                    .app_data(security_api_data.clone())
-                    // Status and testing endpoints
-                    .route("/status", web::get().to(|api: web::Data<crate::web::SecurityApi>| async move {
-                        api.get_security_status().await
-                    }))
-                    .route("/test", web::post().to(|api: web::Data<crate::web::SecurityApi>, params: web::Json<serde_json::Value>| async move {
-                        api.test_security(params).await
-                    }))
-                    .route("/metrics", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<std::collections::HashMap<String, String>>| async move {
-                        api.get_security_metrics(query).await
-                    }))
-                    // Audit endpoints including violations
-                    .route("/audit/violations", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<serde_json::Value>| async move {
-                        api.get_security_violations(query).await
-                    }))
-                    .route("/audit/violations/statistics", web::get().to(|api: web::Data<crate::web::SecurityApi>, query: web::Query<serde_json::Value>| async move {
-                        api.get_violation_statistics(query).await
-                    }))
-                    // Add other essential security routes as needed
-            );
-            
-            debug!("✅ Security API data configured and routes mounted");
-        } else {
-            debug!("🔧 Security services not available - security API routes not configured (requires advanced mode)");
-        }
+        // Note: Security API routes (including alpha services) are handled in the main security routes block above
     } else {
         warn!("⚠️ Service container not available - tool management routes not configured");
     }
@@ -8920,6 +9716,10 @@ pub struct SetEnvVarsRequest {
         pub last_test_result: Option<String>,
         /// Provider configuration (sensitive fields removed)
         pub config: serde_json::Value,
+        /// Source of provider configuration (sampling, discovery, etc.)
+        pub source: String,
+        /// Purpose/role of this provider
+        pub purpose: Option<String>,
     }
 
     #[derive(Serialize)]

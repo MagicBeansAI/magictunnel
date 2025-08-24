@@ -111,6 +111,8 @@ pub struct OAuthValidationResult {
     pub resources: Option<Vec<String>>,
     /// Token issuer (iss claim)
     pub issuer: Option<String>,
+    /// Original access token (for use in AuthContext)
+    pub access_token: Option<String>,
 }
 
 /// OAuth 2.1 authentication validator with Resource Indicators support
@@ -357,6 +359,7 @@ impl OAuthValidator {
             audience: Some(self.resource_indicators.default_audience.clone()),
             resources: Some(self.resource_indicators.default_resources.clone()),
             issuer: Some(self.get_issuer_for_provider(&oauth_config.provider)),
+            access_token: Some(access_token.to_string()),
         }))
     }
 

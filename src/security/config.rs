@@ -3,7 +3,7 @@
 //! Unified configuration structure for all security components
 
 use serde::{Deserialize, Serialize};
-use super::{AllowlistConfig, SanitizationConfig, RbacConfig, AuditConfig, EmergencyLockdownConfig};
+use super::{AllowlistConfig, SanitizationConfig, RbacConfig, AuditConfig, EmergencyLockdownConfig, PolicyEngineConfig, ThreatDetectionConfig};
 
 /// Comprehensive security configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,6 +20,10 @@ pub struct SecurityConfig {
     pub audit: Option<AuditConfig>,
     /// Emergency lockdown configuration
     pub emergency_lockdown: Option<EmergencyLockdownConfig>,
+    /// Policy Engine configuration
+    pub policy_engine: Option<PolicyEngineConfig>,
+    /// Threat Detection Engine configuration
+    pub threat_detection: Option<ThreatDetectionConfig>,
 }
 
 impl Default for SecurityConfig {
@@ -31,6 +35,8 @@ impl Default for SecurityConfig {
             rbac: None,                        // Enterprise RBAC opt-in
             audit: None,                       // Enterprise audit system opt-in
             emergency_lockdown: None,          // Enterprise emergency lockdown opt-in
+            policy_engine: None,               // Production service - opt-in only
+            threat_detection: None,            // Production service - opt-in only
         }
     }
 }
@@ -62,6 +68,15 @@ impl SecurityConfig {
                 enabled: true,
                 ..Default::default()
             }),
+            // Alpha services - disabled in secure defaults until tested
+            policy_engine: Some(PolicyEngineConfig {
+                enabled: false,    // Disabled for production
+                ..Default::default()
+            }),
+            threat_detection: Some(ThreatDetectionConfig {
+                enabled: false,    // Disabled for production
+                ..Default::default()
+            }),
         }
     }
     
@@ -75,7 +90,32 @@ impl SecurityConfig {
         self.sanitization.as_ref().map_or(false, |c| c.enabled) ||
         self.rbac.as_ref().map_or(false, |c| c.enabled) ||
         self.audit.as_ref().map_or(false, |c| c.enabled) ||
-        self.emergency_lockdown.as_ref().map_or(false, |c| c.enabled)
+        self.emergency_lockdown.as_ref().map_or(false, |c| c.enabled) ||
+        self.policy_engine.as_ref().map_or(false, |c| c.enabled) ||
+        self.threat_detection.as_ref().map_or(false, |c| c.enabled)
+    }
+    
+    /// Get production security services status
+    pub fn get_production_security_services(&self) -> Vec<(String, bool, String)> {
+        let mut services = Vec::new();
+        
+        if let Some(policy_engine) = &self.policy_engine {
+            services.push((
+                "Policy Engine".to_string(),
+                policy_engine.enabled,
+                policy_engine.get_status_description(),
+            ));
+        }
+        
+        if let Some(threat_detection) = &self.threat_detection {
+            services.push((
+                "Threat Detection".to_string(),
+                threat_detection.enabled,
+                threat_detection.get_status_description(),
+            ));
+        }
+        
+        services
     }
 }
 

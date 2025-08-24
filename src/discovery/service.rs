@@ -79,6 +79,31 @@ impl Default for LlmToolSelectionConfig {
     }
 }
 
+/// LLM Provider information for Smart Discovery Service
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SmartDiscoveryLlmProvider {
+    /// Provider name/identifier
+    pub name: String,
+    
+    /// Provider type (openai, anthropic, ollama, etc.)
+    pub provider_type: String,
+    
+    /// Model name
+    pub model: String,
+    
+    /// API endpoint (if custom)
+    pub endpoint: Option<String>,
+    
+    /// Whether API key is configured
+    pub has_api_key: bool,
+    
+    /// Purpose/role of this provider
+    pub purpose: String,
+    
+    /// Configuration status
+    pub status: String,
+}
+
 /// Configuration for the Smart Discovery Service
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SmartDiscoveryConfig {
@@ -318,6 +343,42 @@ impl SmartDiscoveryService {
     /// Get the tool metrics collector (if enabled)
     pub fn tool_metrics(&self) -> Option<Arc<ToolMetricsCollector>> {
         self.tool_metrics.clone()
+    }
+    
+    /// Get LLM providers configured for smart discovery
+    pub fn get_llm_providers(&self) -> Vec<SmartDiscoveryLlmProvider> {
+        let mut providers = Vec::new();
+        
+        // Add LLM tool selection provider
+        if self.config.llm_tool_selection.enabled {
+            providers.push(SmartDiscoveryLlmProvider {
+                name: format!("smart_discovery_{}", self.config.llm_tool_selection.provider),
+                provider_type: self.config.llm_tool_selection.provider.clone(),
+                model: self.config.llm_tool_selection.model.clone(),
+                endpoint: self.config.llm_tool_selection.base_url.clone(),
+                has_api_key: self.config.llm_tool_selection.api_key.is_some() || self.config.llm_tool_selection.api_key_env.is_some(),
+                purpose: "Tool Selection".to_string(),
+                status: "configured".to_string(),
+            });
+        }
+        
+        // Add LLM mapper provider if different
+        let mapper_config = &self.config.llm_mapper;
+        if mapper_config.enabled && 
+           (mapper_config.provider != self.config.llm_tool_selection.provider || 
+            mapper_config.model != self.config.llm_tool_selection.model) {
+            providers.push(SmartDiscoveryLlmProvider {
+                name: format!("smart_discovery_mapper_{}", mapper_config.provider),
+                provider_type: mapper_config.provider.clone(),
+                model: mapper_config.model.clone(),
+                endpoint: mapper_config.base_url.clone(),
+                has_api_key: mapper_config.api_key.is_some() || mapper_config.api_key_env.is_some(),
+                purpose: "Parameter Mapping".to_string(),
+                status: "configured".to_string(),
+            });
+        }
+        
+        providers
     }
     
     /// Get enhanced tools for discovery (uses enhancement pipeline if available, otherwise base tools)

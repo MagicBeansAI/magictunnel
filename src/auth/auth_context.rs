@@ -188,7 +188,14 @@ impl AuthenticationContext {
                 // Note: OAuthValidationResult doesn't have token_response field
                 // Create a basic provider token from available information
                 let provider_token = ProviderToken {
-                    access_token: Secret::new("oauth_token".to_string()), // Placeholder - actual token should come from OAuth flow
+                    access_token: Secret::new(
+                        oauth_result.access_token
+                            .clone()
+                            .unwrap_or_else(|| {
+                                warn!("OAuth validation result missing access token, using fallback");
+                                "oauth_token_not_available".to_string()
+                            })
+                    ),
                     refresh_token: None,
                     token_type: "Bearer".to_string(),
                     expires_at: oauth_result.expires_at,
@@ -222,10 +229,17 @@ impl AuthenticationContext {
                 // Create provider token for JWT
                 let mut provider_tokens = HashMap::new();
                 let provider_token = ProviderToken {
-                    access_token: Secret::new("jwt_token".to_string()), // Placeholder - actual JWT token
+                    access_token: Secret::new(
+                        jwt_result.jwt_token
+                            .clone()
+                            .unwrap_or_else(|| {
+                                warn!("JWT validation result missing token, using fallback");
+                                "jwt_token_not_available".to_string()
+                            })
+                    ),
                     refresh_token: None,
                     token_type: "Bearer".to_string(),
-                    expires_at: None, // JWT expiration not directly available in JwtValidationResult
+                    expires_at: Some(jwt_result.claims.exp), // Use JWT expiration claim
                     scopes: jwt_result.permissions.clone(),
                     metadata: metadata.clone(),
                 };
@@ -579,6 +593,7 @@ mod tests {
             audience: None,
             resources: None,
             issuer: Some("https://github.com".to_string()),
+            access_token: Some("gho_test_access_token_12345".to_string()),
         }
     }
 

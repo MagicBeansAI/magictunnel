@@ -350,6 +350,7 @@ mod jwt_middleware_tests {
             },
             user_info,
             permissions: vec!["read".to_string(), "write".to_string()],
+            jwt_token: Some("test_jwt_token".to_string()),
         };
 
         let auth_result = AuthenticationResult::Jwt(jwt_result);

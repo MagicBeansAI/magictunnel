@@ -5,7 +5,6 @@ pub mod headers;
 pub mod validation;
 pub mod auto_detection;
 pub mod security_headers;
-pub mod rate_limiting;
 pub mod security_audit;
 pub mod cert_monitoring;
 
@@ -16,6 +15,5 @@ pub use headers::{ProxyHeaders, ForwardedHeaders};
 pub use validation::{ProxyValidator, ProxyRequestInfo, ProxyValidationUtils};
 pub use auto_detection::{TlsAutoDetector, AutoDetectionConfig, DetectionStats, AutoDetectionUtils};
 pub use security_headers::{SecurityHeadersMiddleware, SecurityHeadersConfig, SecurityHeadersUtils};
-pub use rate_limiting::{RateLimitMiddleware, RateLimitConfig, RateLimiter, RateLimitStats};
 pub use security_audit::{SecurityAuditLogger, SecurityAuditConfig, SecurityEvent, SecurityEventType, SecuritySeverity};
 pub use cert_monitoring::{CertificateMonitor, CertMonitoringConfig, CertificateInfo, CertificateStatus};

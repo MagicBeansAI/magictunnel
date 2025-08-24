@@ -16,6 +16,7 @@ pub mod registry;
 pub mod routing;
 pub mod security;
 pub mod services;
+pub mod startup;
 pub mod supervisor;
 pub mod tls;
 pub mod utils;

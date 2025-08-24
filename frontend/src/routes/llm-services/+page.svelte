@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, type LLMServiceStatus, type SamplingToolsResponse, type ElicitationToolsResponse, type EnhancementToolsResponse } from '$lib/api';
+  import { api, type LLMServiceStatus, type SamplingToolsResponse, type ElicitationToolsResponse, type EnhancementToolsResponse, type LlmProviderListResponse } from '$lib/api';
   import LLMServiceCard from '$lib/components/LLMServiceCard.svelte';
   import ToolEnhancementPanel from '$lib/components/ToolEnhancementPanel.svelte';
 
@@ -12,10 +12,13 @@
   // Tools data
   let enhancementTools: EnhancementToolsResponse | null = null;
 
+  // Providers data
+  let providersData: LlmProviderListResponse | null = null;
+
   // UI state
   let loading = true;
   let error = '';
-  let activeTab = 'overview'; // overview, enhancement
+  let activeTab = 'overview'; // overview, enhancement, providers
   let refreshInterval: ReturnType<typeof setTimeout> | null = null;
 
   async function loadLLMServicesData() {
@@ -36,6 +39,9 @@
 
       // Load tools data for enhancement pipeline
       enhancementTools = await api.getEnhancementTools().catch(() => null);
+
+      // Load LLM providers data
+      providersData = await api.getLlmProviders().catch(() => null);
 
     } catch (err) {
       error = `Failed to load LLM services data: ${err}`;
@@ -128,6 +134,12 @@
           on:click={() => switchTab('enhancement')}
         >
           ⚡ Enhancement Details
+        </button>
+        <button 
+          class="py-2 px-1 border-b-2 font-medium text-sm {activeTab === 'providers' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+          on:click={() => switchTab('providers')}
+        >
+          🔧 LLM Providers
         </button>
       </nav>
     </div>
@@ -258,6 +270,110 @@
           toolsData={enhancementTools}
           onRefresh={loadLLMServicesData}
         />
+
+      {:else if activeTab === 'providers'}
+        <!-- Providers Tab -->
+        <div class="space-y-6">
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold text-gray-900">Configured LLM Providers</h3>
+              <div class="text-sm text-gray-500">
+                Total: {providersData?.providers?.length || 0}
+              </div>
+            </div>
+
+            {#if providersData?.providers && providersData.providers.length > 0}
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {#each providersData.providers as provider}
+                  <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="flex items-start justify-between mb-3">
+                      <div>
+                        <h4 class="font-medium text-gray-900">{provider.name}</h4>
+                        <p class="text-sm text-gray-600">
+                          {provider.provider_type} • {provider.models.join(', ')}
+                        </p>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <!-- Source Badge -->
+                        <span class="px-2 py-1 text-xs rounded-full {provider.source === 'sampling' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}">
+                          {provider.source}
+                        </span>
+                        <!-- Status Indicator -->
+                        <div class="w-3 h-3 rounded-full {provider.status === 'configured' ? 'bg-green-500' : provider.status === 'unknown' ? 'bg-gray-400' : 'bg-red-500'}"></div>
+                      </div>
+                    </div>
+
+                    <div class="space-y-2">
+                      {#if provider.purpose}
+                        <div class="text-sm">
+                          <span class="font-medium text-gray-700">Purpose:</span>
+                          <span class="text-gray-600">{provider.purpose}</span>
+                        </div>
+                      {/if}
+
+                      <div class="text-sm">
+                        <span class="font-medium text-gray-700">Endpoint:</span>
+                        <span class="text-gray-600">{provider.endpoint || 'default'}</span>
+                      </div>
+
+                      <div class="text-sm">
+                        <span class="font-medium text-gray-700">API Key:</span>
+                        <span class="text-gray-600">{provider.has_api_key ? '✅ Configured' : '❌ Missing'}</span>
+                      </div>
+
+                      {#if provider.last_tested}
+                        <div class="text-sm">
+                          <span class="font-medium text-gray-700">Last Tested:</span>
+                          <span class="text-gray-600">{new Date(provider.last_tested).toLocaleString()}</span>
+                          {#if provider.last_test_result}
+                            <span class="ml-2 px-2 py-0.5 text-xs rounded {provider.last_test_result.includes('success') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                              {provider.last_test_result}
+                            </span>
+                          {/if}
+                        </div>
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <div class="text-center py-8">
+                <div class="text-gray-500 mb-2">🔧</div>
+                <p class="text-gray-600">No LLM providers configured</p>
+              </div>
+            {/if}
+          </div>
+
+          <!-- Provider Summary Stats -->
+          {#if providersData?.providers}
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div class="bg-white rounded-lg shadow p-4 text-center">
+                <div class="text-2xl font-bold text-blue-600">
+                  {providersData.providers.filter(p => p.source === 'sampling').length}
+                </div>
+                <div class="text-sm text-gray-600">Sampling Providers</div>
+              </div>
+              <div class="bg-white rounded-lg shadow p-4 text-center">
+                <div class="text-2xl font-bold text-purple-600">
+                  {providersData.providers.filter(p => p.source === 'discovery').length}
+                </div>
+                <div class="text-sm text-gray-600">Discovery Providers</div>
+              </div>
+              <div class="bg-white rounded-lg shadow p-4 text-center">
+                <div class="text-2xl font-bold text-green-600">
+                  {providersData.providers.filter(p => p.has_api_key).length}
+                </div>
+                <div class="text-sm text-gray-600">With API Keys</div>
+              </div>
+              <div class="bg-white rounded-lg shadow p-4 text-center">
+                <div class="text-2xl font-bold text-gray-600">
+                  {[...new Set(providersData.providers.map(p => p.provider_type))].length}
+                </div>
+                <div class="text-sm text-gray-600">Unique Types</div>
+              </div>
+            </div>
+          {/if}
+        </div>
       {/if}
     {/if}
   </div>

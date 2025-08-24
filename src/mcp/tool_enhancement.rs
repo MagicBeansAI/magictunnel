@@ -224,6 +224,7 @@ impl ToolEnhancementService {
                         name: "ollama".to_string(),
                         provider_type: LLMProviderType::Ollama,
                         endpoint: llm_config.api_base_url.clone()
+                            .or_else(|| std::env::var("OLLAMA_BASE_URL").ok())
                             .unwrap_or_else(|| "http://localhost:11434".to_string()),
                         api_key: None, // Ollama doesn't require API key
                         models: vec![llm_config.model.clone()],

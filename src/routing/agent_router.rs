@@ -5,8 +5,9 @@ use std::sync::Arc;
 use crate::error::{Result, ProxyError};
 use crate::mcp::ToolCall;
 use crate::registry::{RoutingConfig, ToolDefinition};
-use crate::routing::types::{AgentResult, AgentType};
+use crate::routing::types::{AgentResult, AgentType, RequestContext};
 use crate::discovery::SmartDiscoveryRequest;
+use crate::auth::auth_context::AuthMethod;
 use async_trait::async_trait;
 use base64::Engine;
 use serde_json::json;
@@ -21,6 +22,9 @@ pub trait AgentRouter: Send + Sync {
     /// Execute tool call with the specified agent
     async fn execute_with_agent(&self, tool_call: &ToolCall, agent: &AgentType) -> Result<AgentResult>;
     
+    /// Execute tool call with the specified agent and request context
+    async fn execute_with_agent_and_context(&self, tool_call: &ToolCall, agent: &AgentType, context: &RequestContext) -> Result<AgentResult>;
+    
     /// Route a tool call to the appropriate agent (convenience method)
     async fn route(&self, tool_call: &ToolCall, tool_def: &ToolDefinition) -> Result<AgentResult> {
         debug!("Routing tool call: {}", tool_call.name);
@@ -30,6 +34,17 @@ pub trait AgentRouter: Send + Sync {
         
         // Execute the tool call with the selected agent
         self.execute_with_agent(tool_call, &agent).await
+    }
+
+    /// Route a tool call to the appropriate agent with request context
+    async fn route_with_context(&self, tool_call: &ToolCall, tool_def: &ToolDefinition, context: &RequestContext) -> Result<AgentResult> {
+        debug!("Routing tool call with context: {}", tool_call.name);
+        
+        // Parse routing configuration into agent type
+        let agent = self.parse_routing_config(&tool_def.routing)?;
+        
+        // Execute the tool call with the selected agent and context
+        self.execute_with_agent_and_context(tool_call, &agent, context).await
     }
 
     /// Support for downcasting to concrete types
@@ -166,6 +181,8 @@ impl AgentRouter for DefaultAgentRouter {
                         .map(|obj| obj.iter()
                             .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
                             .collect()),
+                    timeout: config.get("timeout")
+                        .and_then(|v| v.as_u64()),
                 })
             }
             "database" => {
@@ -364,8 +381,8 @@ impl AgentRouter for DefaultAgentRouter {
             AgentType::Llm { provider, model, api_key, base_url, timeout } => {
                 self.execute_llm_agent(tool_call, provider, model, api_key, base_url, *timeout).await
             }
-            AgentType::WebSocket { url, headers } => {
-                self.execute_websocket_agent(tool_call, url, headers).await
+            AgentType::WebSocket { url, headers, timeout } => {
+                self.execute_websocket_agent(tool_call, url, headers, *timeout).await
             }
             AgentType::Database { db_type, connection_string, query, timeout } => {
                 self.execute_database_agent(tool_call, db_type, connection_string, query, *timeout).await
@@ -391,6 +408,73 @@ impl AgentRouter for DefaultAgentRouter {
                 self.execute_smart_discovery_agent(tool_call, *enabled).await
             }
         }
+    }
+
+    async fn execute_with_agent_and_context(&self, tool_call: &ToolCall, agent: &AgentType, context: &RequestContext) -> Result<AgentResult> {
+        // Handle external MCP tools with client ID context
+        if let AgentType::ExternalMcp { server_name, tool_name, .. } = agent {
+            let server_name = server_name.clone();
+            let tool_name = tool_name.clone();
+
+            // Use the external MCP integration to execute the tool with client ID
+            if let Some(external_mcp) = &self.external_mcp {
+                debug!("External MCP integration is available, executing tool: {} on server: {} with client_id: {:?}", 
+                       tool_name, server_name, context.client_id);
+                let integration = external_mcp.read().await;
+                
+                // Call the enhanced method with client ID
+                match integration.execute_tool_with_client_id(&server_name, &tool_name, tool_call.arguments.clone(), &context.client_id).await {
+                    Ok(result) => {
+                        return Ok(AgentResult {
+                            success: true,
+                            data: Some(result),
+                            error: None,
+                            metadata: Some(json!({
+                                "routing_type": "external_mcp",
+                                "server_name": server_name,
+                                "tool_name": tool_name,
+                                "client_id": context.client_id,
+                                "executed_via": "external_mcp_integration_with_context"
+                            })),
+                        });
+                    }
+                    Err(e) => {
+                        return Ok(AgentResult {
+                            success: false,
+                            data: None,
+                            error: Some(e.to_string()),
+                            metadata: Some(json!({
+                                "routing_type": "external_mcp",
+                                "server_name": server_name,
+                                "tool_name": tool_name,
+                                "client_id": context.client_id,
+                                "error_category": "external_mcp_execution_failed"
+                            })),
+                        });
+                    }
+                }
+            } else {
+                // Fallback if external MCP integration is not available
+                warn!("External MCP integration not available for tool: {} on server: {}", tool_name, server_name);
+                debug!("self.external_mcp is None - router was not initialized with external MCP support");
+                return Ok(AgentResult {
+                    success: false,
+                    data: None,
+                    error: Some("External MCP integration not available".to_string()),
+                    metadata: Some(json!({
+                        "routing_type": "external_mcp",
+                        "server_name": server_name,
+                        "tool_name": tool_name,
+                        "client_id": context.client_id,
+                        "error_category": "external_mcp_not_available"
+                    })),
+                });
+            }
+        }
+
+        // For non-external MCP agents, fall back to regular execution
+        // (Smart discovery and other agents can use context if needed in the future)
+        self.execute_with_agent(tool_call, agent).await
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -630,6 +714,203 @@ impl DefaultAgentRouter {
                     "execution_type": "http",
                     "method": method,
                     "url": substituted_url
+                })),
+            }),
+        }
+    }
+
+    /// Execute HTTP agent with authentication context
+    async fn execute_http_agent_with_auth(
+        &self,
+        tool_call: &ToolCall,
+        method: &str,
+        url: &str,
+        headers: &Option<std::collections::HashMap<String, String>>,
+        timeout: Option<u64>,
+        auth_context: Option<&crate::auth::AuthenticationContext>,
+    ) -> Result<AgentResult> {
+        use crate::routing::substitution::{substitute_parameter_string, substitute_headers};
+        use reqwest::Client;
+        use serde_json::json;
+        use tokio::time::{timeout as tokio_timeout, Duration};
+
+        debug!("Executing HTTP agent with auth: {} {} (auth: {})", method, url, auth_context.is_some());
+
+        // Substitute parameters in URL
+        let substituted_url = substitute_parameter_string(url, &tool_call.arguments)?;
+
+        // Substitute parameters in headers
+        let mut substituted_headers = substitute_headers(headers, &tool_call.arguments)?;
+
+        // Inject authentication context if available
+        if let Some(auth_ctx) = auth_context {
+            // Initialize headers map if it doesn't exist
+            if substituted_headers.is_none() {
+                substituted_headers = Some(std::collections::HashMap::new());
+            }
+            
+            let headers_map = substituted_headers.as_mut().unwrap();
+            
+            // Inject tokens from provider_tokens based on auth_method
+            match &auth_ctx.auth_method {
+                AuthMethod::OAuth { provider, .. } => {
+                    if let Some(provider_token) = auth_ctx.provider_tokens.get(provider) {
+                        use secrecy::ExposeSecret;
+                        let access_token = provider_token.access_token.expose_secret();
+                        headers_map.insert("Authorization".to_string(), format!("Bearer {}", access_token));
+                        debug!("Injected OAuth Bearer token for provider: {}", provider);
+                    }
+                }
+                AuthMethod::ApiKey { key_ref } => {
+                    if let Some(provider_token) = auth_ctx.provider_tokens.get(key_ref) {
+                        use secrecy::ExposeSecret;
+                        let api_key = provider_token.access_token.expose_secret();
+                        headers_map.insert("X-API-Key".to_string(), api_key.clone());
+                        headers_map.insert("Authorization".to_string(), format!("Bearer {}", api_key));
+                        debug!("Injected API key for key_ref: {}", key_ref);
+                    }
+                }
+                AuthMethod::DeviceCode { provider, .. } => {
+                    if let Some(provider_token) = auth_ctx.provider_tokens.get(provider) {
+                        use secrecy::ExposeSecret;
+                        let access_token = provider_token.access_token.expose_secret();
+                        headers_map.insert("Authorization".to_string(), format!("Bearer {}", access_token));
+                        debug!("Injected Device Code token for provider: {}", provider);
+                    }
+                }
+                AuthMethod::ServiceAccount { account_ref } => {
+                    if let Some(provider_token) = auth_ctx.provider_tokens.get(account_ref) {
+                        use secrecy::ExposeSecret;
+                        let access_token = provider_token.access_token.expose_secret();
+                        headers_map.insert("Authorization".to_string(), format!("Bearer {}", access_token));
+                        debug!("Injected Service Account token for account: {}", account_ref);
+                    }
+                }
+                AuthMethod::None => {
+                    debug!("No authentication method specified");
+                }
+                AuthMethod::Jwt { .. } => {
+                    debug!("JWT authentication not yet supported for HTTP agent");
+                }
+            }
+        }
+
+        // Create HTTP client with timeout
+        let timeout_duration = Duration::from_secs(timeout.unwrap_or(30));
+        let client = Client::builder()
+            .timeout(timeout_duration)
+            .use_rustls_tls()
+            .tls_built_in_root_certs(true)
+            .build()
+            .map_err(|e| crate::error::ProxyError::routing(format!("Failed to create HTTP client: {}", e)))?;
+
+        // Build request
+        let mut request_builder = match method.to_uppercase().as_str() {
+            "GET" => client.get(&substituted_url),
+            "POST" => client.post(&substituted_url),
+            "PUT" => client.put(&substituted_url),
+            "DELETE" => client.delete(&substituted_url),
+            "PATCH" => client.patch(&substituted_url),
+            "HEAD" => client.head(&substituted_url),
+            _ => return Ok(AgentResult {
+                success: false,
+                data: None,
+                error: Some(format!("Unsupported HTTP method: {}", method)),
+                metadata: Some(json!({
+                    "tool_name": tool_call.name,
+                    "execution_type": "http",
+                    "method": method,
+                    "url": substituted_url,
+                    "auth_injected": auth_context.is_some()
+                })),
+            }),
+        };
+
+        // Add headers (including auth headers)
+        if let Some(header_map) = &substituted_headers {
+            for (key, value) in header_map {
+                request_builder = request_builder.header(key, value);
+            }
+        }
+
+        // Add JSON body for POST/PUT/PATCH requests
+        if matches!(method.to_uppercase().as_str(), "POST" | "PUT" | "PATCH") {
+            request_builder = request_builder.json(&tool_call.arguments);
+        }
+
+        // Execute request with timeout
+        let result = tokio_timeout(timeout_duration, request_builder.send()).await;
+
+        match result {
+            Ok(Ok(response)) => {
+                let status = response.status();
+                let headers_map: std::collections::HashMap<String, String> = response
+                    .headers()
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
+                    .collect();
+
+                match response.text().await {
+                    Ok(body) => {
+                        let success = status.is_success();
+                        Ok(AgentResult {
+                            success,
+                            data: Some(json!({
+                                "status": status.as_u16(),
+                                "headers": headers_map,
+                                "body": body
+                            })),
+                            error: if success { None } else { Some(format!("HTTP request failed with status: {}", status)) },
+                            metadata: Some(json!({
+                                "tool_name": tool_call.name,
+                                "execution_type": "http",
+                                "method": method,
+                                "url": substituted_url,
+                                "status_code": status.as_u16(),
+                                "auth_injected": auth_context.is_some()
+                            })),
+                        })
+                    }
+                    Err(e) => Ok(AgentResult {
+                        success: false,
+                        data: Some(json!({
+                            "status": status.as_u16(),
+                            "headers": headers_map
+                        })),
+                        error: Some(format!("Failed to read response body: {}", e)),
+                        metadata: Some(json!({
+                            "tool_name": tool_call.name,
+                            "execution_type": "http",
+                            "method": method,
+                            "url": substituted_url,
+                            "status_code": status.as_u16(),
+                            "auth_injected": auth_context.is_some()
+                        })),
+                    })
+                }
+            }
+            Ok(Err(e)) => Ok(AgentResult {
+                success: false,
+                data: None,
+                error: Some(format!("HTTP request failed: {}", e)),
+                metadata: Some(json!({
+                    "tool_name": tool_call.name,
+                    "execution_type": "http",
+                    "method": method,
+                    "url": substituted_url,
+                    "auth_injected": auth_context.is_some()
+                })),
+            }),
+            Err(_) => Ok(AgentResult {
+                success: false,
+                data: None,
+                error: Some(format!("HTTP request timed out after {} seconds", timeout.unwrap_or(30))),
+                metadata: Some(json!({
+                    "tool_name": tool_call.name,
+                    "execution_type": "http",
+                    "method": method,
+                    "url": substituted_url,
+                    "auth_injected": auth_context.is_some()
                 })),
             }),
         }
@@ -885,12 +1166,408 @@ impl DefaultAgentRouter {
         }
     }
 
+    /// Execute LLM agent with authentication context
+    async fn execute_llm_agent_with_auth(
+        &self,
+        tool_call: &ToolCall,
+        provider: &str,
+        model: &str,
+        api_key: &Option<String>,
+        base_url: &Option<String>,
+        timeout: Option<u64>,
+        auth_context: Option<&crate::auth::AuthenticationContext>,
+    ) -> Result<AgentResult> {
+        use serde_json::json;
+
+        debug!("Executing LLM agent with auth: {} {} (auth: {})", provider, model, auth_context.is_some());
+
+        // Determine API key - priority: auth_context > config > environment
+        let effective_api_key = if let Some(auth_ctx) = auth_context {
+            // Extract token based on auth_method and provider
+            match (&auth_ctx.auth_method, provider.to_lowercase().as_str()) {
+                (AuthMethod::OAuth { provider: auth_provider, .. }, _) => {
+                    if let Some(provider_token) = auth_ctx.provider_tokens.get(auth_provider) {
+                        use secrecy::ExposeSecret;
+                        Some(provider_token.access_token.expose_secret().clone())
+                    } else {
+                        api_key.clone()
+                    }
+                }
+                (AuthMethod::ApiKey { key_ref }, _) => {
+                    if let Some(provider_token) = auth_ctx.provider_tokens.get(key_ref) {
+                        use secrecy::ExposeSecret;
+                        Some(provider_token.access_token.expose_secret().clone())
+                    } else {
+                        api_key.clone()
+                    }
+                }
+                (_, "openai") => {
+                    // Try to find OpenAI-specific token
+                    if let Some(provider_token) = auth_ctx.provider_tokens.get("openai") {
+                        use secrecy::ExposeSecret;
+                        Some(provider_token.access_token.expose_secret().clone())
+                    } else {
+                        api_key.clone()
+                    }
+                }
+                (_, "anthropic") => {
+                    // Try to find Anthropic-specific token
+                    if let Some(provider_token) = auth_ctx.provider_tokens.get("anthropic") {
+                        use secrecy::ExposeSecret;
+                        Some(provider_token.access_token.expose_secret().clone())
+                    } else {
+                        api_key.clone()
+                    }
+                }
+                _ => api_key.clone()
+            }
+        } else {
+            api_key.clone()
+        };
+
+        // Fallback to environment variables if no API key available
+        let final_api_key = effective_api_key.or_else(|| {
+            match provider.to_lowercase().as_str() {
+                "openai" => std::env::var("OPENAI_API_KEY").ok(),
+                "anthropic" => std::env::var("ANTHROPIC_API_KEY").ok(),
+                "google" | "gemini" => std::env::var("GOOGLE_API_KEY").ok(),
+                _ => None,
+            }
+        });
+
+        // Execute LLM request based on provider
+        match provider.to_lowercase().as_str() {
+            "openai" => {
+                let api_key = final_api_key.ok_or_else(|| 
+                    crate::error::ProxyError::routing("OpenAI API key not found in auth context or environment".to_string())
+                )?;
+                
+                self.execute_openai_request(tool_call, model, &api_key, base_url, timeout).await
+            }
+            "anthropic" => {
+                let api_key = final_api_key.ok_or_else(|| 
+                    crate::error::ProxyError::routing("Anthropic API key not found in auth context or environment".to_string())
+                )?;
+                
+                self.execute_anthropic_request(tool_call, model, &api_key, base_url, timeout).await
+            }
+            "ollama" => {
+                // Ollama typically doesn't require API keys
+                self.execute_ollama_request(tool_call, model, base_url, timeout).await
+            }
+            _ => Ok(AgentResult {
+                success: false,
+                data: None,
+                error: Some(format!("Unsupported LLM provider: {}", provider)),
+                metadata: Some(json!({
+                    "tool_name": tool_call.name,
+                    "execution_type": "llm",
+                    "provider": provider,
+                    "model": model,
+                    "auth_injected": auth_context.is_some()
+                })),
+            }),
+        }
+    }
+
+    /// Execute OpenAI request with authentication
+    async fn execute_openai_request(
+        &self,
+        tool_call: &ToolCall,
+        model: &str,
+        api_key: &str,
+        base_url: &Option<String>,
+        timeout: Option<u64>,
+    ) -> Result<AgentResult> {
+        use reqwest::Client;
+        use serde_json::json;
+        use tokio::time::{timeout as tokio_timeout, Duration};
+
+        let url = base_url.as_deref().unwrap_or("https://api.openai.com/v1/chat/completions");
+        let timeout_duration = Duration::from_secs(timeout.unwrap_or(60));
+        
+        let client = Client::builder()
+            .timeout(timeout_duration)
+            .build()
+            .map_err(|e| crate::error::ProxyError::routing(format!("Failed to create HTTP client: {}", e)))?;
+
+        let request_body = json!({
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": serde_json::to_string(&tool_call.arguments).unwrap_or_else(|_| "Process the given arguments".to_string())
+                }
+            ],
+            "max_tokens": 1000
+        });
+
+        let result = tokio_timeout(
+            timeout_duration,
+            client
+                .post(url)
+                .header("Authorization", format!("Bearer {}", api_key))
+                .header("Content-Type", "application/json")
+                .json(&request_body)
+                .send()
+        ).await;
+
+        match result {
+            Ok(Ok(response)) => {
+                let status = response.status();
+                match response.json::<serde_json::Value>().await {
+                    Ok(body) => Ok(AgentResult {
+                        success: status.is_success(),
+                        data: Some(body),
+                        error: if status.is_success() { None } else { Some(format!("OpenAI API error: {}", status)) },
+                        metadata: Some(json!({
+                            "tool_name": tool_call.name,
+                            "execution_type": "llm",
+                            "provider": "openai",
+                            "model": model,
+                            "auth_injected": true
+                        })),
+                    }),
+                    Err(e) => Ok(AgentResult {
+                        success: false,
+                        data: None,
+                        error: Some(format!("Failed to parse OpenAI response: {}", e)),
+                        metadata: Some(json!({
+                            "tool_name": tool_call.name,
+                            "execution_type": "llm",
+                            "provider": "openai",
+                            "model": model,
+                            "auth_injected": true
+                        })),
+                    }),
+                }
+            }
+            Ok(Err(e)) => Ok(AgentResult {
+                success: false,
+                data: None,
+                error: Some(format!("OpenAI request failed: {}", e)),
+                metadata: Some(json!({
+                    "tool_name": tool_call.name,
+                    "execution_type": "llm",
+                    "provider": "openai",
+                    "model": model,
+                    "auth_injected": true
+                })),
+            }),
+            Err(_) => Ok(AgentResult {
+                success: false,
+                data: None,
+                error: Some(format!("OpenAI request timed out after {} seconds", timeout.unwrap_or(60))),
+                metadata: Some(json!({
+                    "tool_name": tool_call.name,
+                    "execution_type": "llm",
+                    "provider": "openai",
+                    "model": model,
+                    "auth_injected": true
+                })),
+            }),
+        }
+    }
+
+    /// Execute Anthropic request with authentication
+    async fn execute_anthropic_request(
+        &self,
+        tool_call: &ToolCall,
+        model: &str,
+        api_key: &str,
+        base_url: &Option<String>,
+        timeout: Option<u64>,
+    ) -> Result<AgentResult> {
+        use reqwest::Client;
+        use serde_json::json;
+        use tokio::time::{timeout as tokio_timeout, Duration};
+
+        let url = base_url.as_deref().unwrap_or("https://api.anthropic.com/v1/messages");
+        let timeout_duration = Duration::from_secs(timeout.unwrap_or(60));
+        
+        let client = Client::builder()
+            .timeout(timeout_duration)
+            .build()
+            .map_err(|e| crate::error::ProxyError::routing(format!("Failed to create HTTP client: {}", e)))?;
+
+        let request_body = json!({
+            "model": model,
+            "max_tokens": 1000,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": serde_json::to_string(&tool_call.arguments).unwrap_or_else(|_| "Process the given arguments".to_string())
+                }
+            ]
+        });
+
+        let result = tokio_timeout(
+            timeout_duration,
+            client
+                .post(url)
+                .header("x-api-key", api_key)
+                .header("anthropic-version", "2023-06-01")
+                .header("Content-Type", "application/json")
+                .json(&request_body)
+                .send()
+        ).await;
+
+        match result {
+            Ok(Ok(response)) => {
+                let status = response.status();
+                match response.json::<serde_json::Value>().await {
+                    Ok(body) => Ok(AgentResult {
+                        success: status.is_success(),
+                        data: Some(body),
+                        error: if status.is_success() { None } else { Some(format!("Anthropic API error: {}", status)) },
+                        metadata: Some(json!({
+                            "tool_name": tool_call.name,
+                            "execution_type": "llm",
+                            "provider": "anthropic",
+                            "model": model,
+                            "auth_injected": true
+                        })),
+                    }),
+                    Err(e) => Ok(AgentResult {
+                        success: false,
+                        data: None,
+                        error: Some(format!("Failed to parse Anthropic response: {}", e)),
+                        metadata: Some(json!({
+                            "tool_name": tool_call.name,
+                            "execution_type": "llm",
+                            "provider": "anthropic",
+                            "model": model,
+                            "auth_injected": true
+                        })),
+                    }),
+                }
+            }
+            Ok(Err(e)) => Ok(AgentResult {
+                success: false,
+                data: None,
+                error: Some(format!("Anthropic request failed: {}", e)),
+                metadata: Some(json!({
+                    "tool_name": tool_call.name,
+                    "execution_type": "llm",
+                    "provider": "anthropic",
+                    "model": model,
+                    "auth_injected": true
+                })),
+            }),
+            Err(_) => Ok(AgentResult {
+                success: false,
+                data: None,
+                error: Some(format!("Anthropic request timed out after {} seconds", timeout.unwrap_or(60))),
+                metadata: Some(json!({
+                    "tool_name": tool_call.name,
+                    "execution_type": "llm",
+                    "provider": "anthropic",
+                    "model": model,
+                    "auth_injected": true
+                })),
+            }),
+        }
+    }
+
+    /// Execute Ollama request (no auth required)
+    async fn execute_ollama_request(
+        &self,
+        tool_call: &ToolCall,
+        model: &str,
+        base_url: &Option<String>,
+        timeout: Option<u64>,
+    ) -> Result<AgentResult> {
+        use reqwest::Client;
+        use serde_json::json;
+        use tokio::time::{timeout as tokio_timeout, Duration};
+
+        let url = format!("{}/api/generate", base_url.as_deref().unwrap_or("http://localhost:11434"));
+        let timeout_duration = Duration::from_secs(timeout.unwrap_or(60));
+        
+        let client = Client::builder()
+            .timeout(timeout_duration)
+            .build()
+            .map_err(|e| crate::error::ProxyError::routing(format!("Failed to create HTTP client: {}", e)))?;
+
+        let request_body = json!({
+            "model": model,
+            "prompt": serde_json::to_string(&tool_call.arguments).unwrap_or_else(|_| "Process the given arguments".to_string()),
+            "stream": false
+        });
+
+        let result = tokio_timeout(
+            timeout_duration,
+            client
+                .post(&url)
+                .header("Content-Type", "application/json")
+                .json(&request_body)
+                .send()
+        ).await;
+
+        match result {
+            Ok(Ok(response)) => {
+                let status = response.status();
+                match response.json::<serde_json::Value>().await {
+                    Ok(body) => Ok(AgentResult {
+                        success: status.is_success(),
+                        data: Some(body),
+                        error: if status.is_success() { None } else { Some(format!("Ollama API error: {}", status)) },
+                        metadata: Some(json!({
+                            "tool_name": tool_call.name,
+                            "execution_type": "llm",
+                            "provider": "ollama",
+                            "model": model,
+                            "auth_injected": false
+                        })),
+                    }),
+                    Err(e) => Ok(AgentResult {
+                        success: false,
+                        data: None,
+                        error: Some(format!("Failed to parse Ollama response: {}", e)),
+                        metadata: Some(json!({
+                            "tool_name": tool_call.name,
+                            "execution_type": "llm",
+                            "provider": "ollama",
+                            "model": model,
+                            "auth_injected": false
+                        })),
+                    }),
+                }
+            }
+            Ok(Err(e)) => Ok(AgentResult {
+                success: false,
+                data: None,
+                error: Some(format!("Ollama request failed: {}", e)),
+                metadata: Some(json!({
+                    "tool_name": tool_call.name,
+                    "execution_type": "llm",
+                    "provider": "ollama",
+                    "model": model,
+                    "auth_injected": false
+                })),
+            }),
+            Err(_) => Ok(AgentResult {
+                success: false,
+                data: None,
+                error: Some(format!("Ollama request timed out after {} seconds", timeout.unwrap_or(60))),
+                metadata: Some(json!({
+                    "tool_name": tool_call.name,
+                    "execution_type": "llm",
+                    "provider": "ollama",
+                    "model": model,
+                    "auth_injected": false
+                })),
+            }),
+        }
+    }
+
     /// Execute WebSocket agent
     async fn execute_websocket_agent(
         &self,
         tool_call: &ToolCall,
         url: &str,
-        _headers: &Option<std::collections::HashMap<String, String>>
+        _headers: &Option<std::collections::HashMap<String, String>>,
+        timeout: Option<u64>
     ) -> Result<AgentResult> {
         use crate::routing::substitution::substitute_parameter_string;
         use serde_json::json;
@@ -903,8 +1580,8 @@ impl DefaultAgentRouter {
         // Substitute parameters in URL
         let substituted_url = substitute_parameter_string(url, &tool_call.arguments)?;
 
-        // For now, implement a simple WebSocket message send/receive
-        let timeout_duration = Duration::from_secs(30);
+        // Use configurable timeout, fallback to 30 seconds
+        let timeout_duration = Duration::from_secs(timeout.unwrap_or(30));
 
         let result = tokio_timeout(timeout_duration, async {
             // Connect to WebSocket
@@ -2171,16 +2848,46 @@ impl DefaultAgentRouter {
         agent: &AgentType,
         auth_context: Option<&crate::auth::AuthenticationContext>,
     ) -> Result<AgentResult> {
-        // For now, we'll handle authentication context only for external MCP calls
-        // Other agent types (subprocess, HTTP, LLM, etc.) will be enhanced later
+        debug!("Executing tool call with auth context for agent type: {:?} (auth: {})", agent, auth_context.is_some());
+        
         match agent {
             AgentType::ExternalMcp { server_name, tool_name, .. } => {
                 self.execute_external_mcp_with_auth(tool_call, server_name, tool_name, auth_context).await
             }
-            _ => {
-                // For other agent types, fall back to standard execution for now
-                debug!("Authentication context not yet supported for agent type: {:?}", agent);
-                self.execute_with_agent(tool_call, agent).await
+            AgentType::Http { method, url, headers, timeout } => {
+                self.execute_http_agent_with_auth(tool_call, method, url, headers, *timeout, auth_context).await
+            }
+            AgentType::Llm { provider, model, api_key, base_url, timeout } => {
+                self.execute_llm_agent_with_auth(tool_call, provider, model, api_key, base_url, *timeout, auth_context).await
+            }
+            // For these agent types, authentication context injection will be added in future iterations
+            AgentType::Subprocess { command, args, timeout, env } => {
+                debug!("Authentication context passed to subprocess agent (environment variable injection could be added here)");
+                self.execute_subprocess_agent(tool_call, command, args, *timeout, env).await
+            }
+            AgentType::WebSocket { url, headers, timeout } => {
+                debug!("Authentication context passed to WebSocket agent (header injection could be added here)");
+                self.execute_websocket_agent(tool_call, url, headers, *timeout).await
+            }
+            AgentType::Database { db_type, connection_string, query, timeout } => {
+                debug!("Authentication context passed to database agent (connection string auth could be added here)");
+                self.execute_database_agent(tool_call, db_type, connection_string, query, *timeout).await
+            }
+            AgentType::Grpc { endpoint, service, method, headers, timeout, request_body } => {
+                debug!("Authentication context passed to gRPC agent (metadata auth could be added here)");
+                self.execute_grpc_agent(tool_call, endpoint, service, method, headers, *timeout, request_body).await
+            }
+            AgentType::Sse { url, headers, timeout, max_events, event_filter } => {
+                debug!("Authentication context passed to SSE agent (header injection could be added here)");
+                self.execute_sse_agent(tool_call, url, headers, *timeout, *max_events, event_filter).await
+            }
+            AgentType::GraphQL { endpoint, query, variables, headers, timeout, operation_name } => {
+                debug!("Authentication context passed to GraphQL agent (header injection could be added here)");
+                self.execute_graphql_agent(tool_call, endpoint, query, variables, headers, *timeout, operation_name).await
+            }
+            AgentType::SmartDiscovery { enabled } => {
+                debug!("Authentication context passed to smart discovery agent");
+                self.execute_smart_discovery_agent(tool_call, *enabled).await
             }
         }
     }

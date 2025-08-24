@@ -11,12 +11,9 @@ use magictunnel::auth::{
 };
 use magictunnel::config::ApiKeyEntry;
 use magictunnel::error::Result;
-use magictunnel::mcp::{ToolCall, ToolResult, McpServer};
-use magictunnel::registry::{RegistryService, ToolDefinition, RoutingConfig};
-use magictunnel::routing::{Router, types::AgentResult};
-use serde_json::{json, Value};
+use magictunnel::mcp::ToolCall;
+use serde_json::json;
 use std::collections::HashMap;
-use std::sync::Arc;
 use secrecy::Secret;
 use uuid::Uuid;
 
@@ -29,7 +26,7 @@ fn create_oauth_auth_result() -> AuthenticationResult {
         login: Some("oauth_user_123".to_string()),
     };
 
-    let token_response = OAuthTokenResponse {
+    let _token_response = OAuthTokenResponse {
         access_token: Secret::new("oauth_access_token_test".to_string()),
         token_type: "Bearer".to_string(),
         expires_in: Some(3600),
@@ -46,6 +43,7 @@ fn create_oauth_auth_result() -> AuthenticationResult {
         audience: None,
         resources: None,
         issuer: Some("https://github.com".to_string()),
+        access_token: Some("oauth_access_token_test".to_string()),
     };
 
     AuthenticationResult::OAuth(oauth_result)

@@ -286,6 +286,51 @@ impl SseMcpClient {
         }
     }
 
+    /// Call a tool on the external MCP service with client ID context
+    pub async fn call_tool_with_client_id(&self, tool_name: &str, arguments: Value, client_id: Option<String>) -> Result<Value> {
+        // Ensure we're connected
+        self.ensure_connected().await?;
+
+        debug!("SSE Client: Calling tool '{}' with client_id: {:?}", tool_name, client_id);
+
+        // Create request with client ID included in the params
+        let mut params = json!({
+            "name": tool_name,
+            "arguments": arguments
+        });
+
+        // Add client ID to params if provided
+        if let Some(ref client_id) = client_id {
+            if let Some(params_obj) = params.as_object_mut() {
+                params_obj.insert("client_id".to_string(), json!(client_id));
+                
+                // Also add it at the tool arguments level for servers that expect it there
+                if let Some(args_obj) = params_obj.get_mut("arguments").and_then(|v| v.as_object_mut()) {
+                    args_obj.insert("_mcp_client_id".to_string(), json!(client_id));
+                }
+            }
+        }
+
+        let request = McpRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(json!(Uuid::new_v4().to_string())),
+            method: "tools/call".to_string(),
+            params: Some(params),
+        };
+
+        let response = self.send_request(request).await?;
+
+        if let Some(result) = response.result {
+            info!("SSE Client: Tool '{}' executed successfully with client_id: {:?}", tool_name, client_id);
+            Ok(result)
+        } else if let Some(error) = response.error {
+            error!("SSE Client: Tool '{}' failed with client_id {:?}: {}", tool_name, client_id, error.message);
+            Err(ProxyError::mcp(format!("MCP error from service: {}", error.message)))
+        } else {
+            Err(ProxyError::mcp("Empty response from call_tool_with_client_id"))
+        }
+    }
+
     /// Send a request to the SSE service
     async fn send_request(&self, request: McpRequest) -> Result<McpResponse> {
         let request_timeout = Duration::from_secs(self.config.request_timeout);

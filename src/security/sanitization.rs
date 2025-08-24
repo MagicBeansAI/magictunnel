@@ -234,12 +234,45 @@ struct SanitizationStats {
     total_processing_time_ms: u64,
 }
 
+/// Custom secret detection rule 
+#[derive(Debug, Clone)]
+pub struct CustomSecretRule {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub pattern: String,
+    pub compiled_regex: regex::Regex,
+    pub severity: String,
+    pub secret_type: String,
+    pub enabled: bool,
+    pub confidence_threshold: f32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Secret detection scan result
+#[derive(Debug, Clone)]
+pub struct SecretScanResult {
+    pub id: String,
+    pub timestamp: DateTime<Utc>,
+    pub rule_id: String,
+    pub rule_name: String,
+    pub location: String,
+    pub severity: String,
+    pub status: String,
+    pub content_hash: String,
+    pub context: String,
+    pub action_taken: String,
+}
+
 /// Request sanitization service
 pub struct SanitizationService {
     config: SanitizationConfig,
     secret_patterns: HashMap<SecretType, Regex>,
     policy_patterns: HashMap<String, Vec<Regex>>,
     stats: Arc<Mutex<SanitizationStats>>,
+    custom_rules: Arc<Mutex<Vec<CustomSecretRule>>>,
+    scan_results: Arc<Mutex<Vec<SecretScanResult>>>,
 }
 
 impl Default for SanitizationConfig {
@@ -362,6 +395,8 @@ impl SanitizationService {
             secret_patterns,
             policy_patterns,
             stats: Arc::new(Mutex::new(stats)),
+            custom_rules: Arc::new(Mutex::new(Vec::new())),
+            scan_results: Arc::new(Mutex::new(Vec::new())),
         })
     }
     
@@ -834,6 +869,344 @@ impl SanitizationService {
         }
         
         json!(alerts)
+    }
+
+    /// Create a new secret detection rule
+    pub fn create_secret_detection_rule(&self, rule_data: serde_json::Value) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        use serde_json::json;
+        
+        let name = rule_data.get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unnamed Secret Rule");
+            
+        let pattern_str = rule_data.get("pattern")
+            .and_then(|v| v.as_str())
+            .ok_or("Pattern is required")?;
+            
+        let description = rule_data.get("description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+            
+        let severity = rule_data.get("severity")
+            .and_then(|v| v.as_str())
+            .unwrap_or("medium");
+            
+        let secret_type = rule_data.get("secretType")
+            .and_then(|v| v.as_str())
+            .unwrap_or("custom");
+        
+        // Validate the pattern by trying to compile it
+        let _regex = regex::Regex::new(pattern_str)
+            .map_err(|e| format!("Invalid regex pattern: {}", e))?;
+        
+        // Create a new sanitization policy with this rule
+        let new_policy = SanitizationPolicy {
+            name: name.to_string(),
+            enabled: rule_data.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
+            priority: rule_data.get("priority").and_then(|v| v.as_i64()).unwrap_or(50) as i32,
+            triggers: vec![
+                SanitizationTrigger::SecretDetection {
+                    secret_types: vec![], // We'll use custom patterns instead
+                    custom_patterns: Some(vec![pattern_str.to_string()]),
+                }
+            ],
+            action: rule_data.get("action")
+                .and_then(|v| v.as_str())
+                .and_then(|s| match s {
+                    "block" => Some(SanitizationAction::Block { 
+                        message: Some("Secret detected".to_string()) 
+                    }),
+                    "sanitize" => Some(SanitizationAction::Sanitize { 
+                        method: SanitizationMethod::Mask { 
+                            mask_char: '*', 
+                            preserve_structure: true 
+                        }
+                    }),
+                    _ => Some(SanitizationAction::LogAndAllow { level: LogLevel::Warn })
+                })
+                .unwrap_or(SanitizationAction::LogAndAllow { level: LogLevel::Warn }),
+        };
+        
+        // Store the rule in our custom rules collection
+        let mut custom_rules = self.custom_rules.lock()
+            .map_err(|_| "Failed to acquire custom rules lock")?;
+            
+        let rule_id = format!("custom_{}", custom_rules.len() + 1);
+        
+        let compiled_regex = regex::Regex::new(pattern_str)
+            .map_err(|e| format!("Invalid regex pattern: {}", e))?;
+        
+        let custom_rule = CustomSecretRule {
+            id: rule_id.clone(),
+            name: name.to_string(),
+            description: description.to_string(),
+            pattern: pattern_str.to_string(),
+            compiled_regex,
+            severity: severity.to_string(),
+            secret_type: secret_type.to_string(),
+            enabled: rule_data.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
+            confidence_threshold: rule_data.get("confidence_threshold")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.8) as f32,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+        
+        custom_rules.push(custom_rule);
+        
+        Ok(json!({
+            "id": rule_id,
+            "name": name,
+            "description": description,
+            "pattern": pattern_str,
+            "severity": severity,
+            "secretType": secret_type,
+            "enabled": rule_data.get("enabled").unwrap_or(&json!(true)),
+            "confidence_threshold": rule_data.get("confidence_threshold").unwrap_or(&json!(0.8)),
+            "created_at": chrono::Utc::now().to_rfc3339(),
+            "updated_at": chrono::Utc::now().to_rfc3339()
+        }))
+    }
+
+    /// Update an existing secret detection rule
+    pub fn update_secret_detection_rule(&self, rule_id: &str, rule_data: serde_json::Value) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        use serde_json::json;
+        
+        // Find and update the custom rule
+        
+        let name = rule_data.get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Updated Secret Rule");
+            
+        let pattern_str = rule_data.get("pattern")
+            .and_then(|v| v.as_str())
+            .ok_or("Pattern is required")?;
+            
+        // Validate the pattern
+        let _regex = regex::Regex::new(pattern_str)
+            .map_err(|e| format!("Invalid regex pattern: {}", e))?;
+        
+        // Update the custom rule in our storage
+        let mut custom_rules = self.custom_rules.lock()
+            .map_err(|_| "Failed to acquire custom rules lock")?;
+        
+        // Find the rule to update
+        if let Some(rule) = custom_rules.iter_mut().find(|r| r.id == rule_id) {
+            // Validate and compile the new pattern
+            let compiled_regex = regex::Regex::new(pattern_str)
+                .map_err(|e| format!("Invalid regex pattern: {}", e))?;
+            
+            // Update the rule
+            rule.name = name.to_string();
+            if let Some(desc) = rule_data.get("description").and_then(|v| v.as_str()) {
+                rule.description = desc.to_string();
+            }
+            rule.pattern = pattern_str.to_string();
+            rule.compiled_regex = compiled_regex;
+            if let Some(severity) = rule_data.get("severity").and_then(|v| v.as_str()) {
+                rule.severity = severity.to_string();
+            }
+            if let Some(enabled) = rule_data.get("enabled").and_then(|v| v.as_bool()) {
+                rule.enabled = enabled;
+            }
+            if let Some(threshold) = rule_data.get("confidence_threshold").and_then(|v| v.as_f64()) {
+                rule.confidence_threshold = threshold as f32;
+            }
+            rule.updated_at = chrono::Utc::now();
+            
+            Ok(json!({
+                "id": rule.id,
+                "name": rule.name,
+                "description": rule.description,
+                "pattern": rule.pattern,
+                "severity": rule.severity,
+                "secretType": rule.secret_type,
+                "enabled": rule.enabled,
+                "confidence_threshold": rule.confidence_threshold,
+                "created_at": rule.created_at.to_rfc3339(),
+                "updated_at": rule.updated_at.to_rfc3339()
+            }))
+        } else {
+            Err(format!("Secret detection rule with ID '{}' not found", rule_id).into())
+        }
+    }
+
+    /// Delete a secret detection rule
+    pub fn delete_secret_detection_rule(&self, rule_id: &str) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        use serde_json::json;
+        
+        // Handle deletion of custom rules
+        if rule_id.starts_with("custom_") {
+            let mut custom_rules = self.custom_rules.lock()
+                .map_err(|_| "Failed to acquire custom rules lock")?;
+            
+            if let Some(pos) = custom_rules.iter().position(|r| r.id == rule_id) {
+                let deleted_rule = custom_rules.remove(pos);
+                return Ok(json!({
+                    "success": true,
+                    "message": format!("Secret detection rule '{}' deleted successfully", rule_id),
+                    "deleted_rule": {
+                        "id": deleted_rule.id,
+                        "name": deleted_rule.name
+                    }
+                }));
+            } else {
+                return Err(format!("Custom rule '{}' not found", rule_id).into());
+            }
+        }
+        
+        // Handle built-in rules (disable them instead of removing)
+        if let Ok(builtin_id) = rule_id.parse::<usize>() {
+            if builtin_id > 0 && builtin_id <= self.secret_patterns.len() {
+                return Ok(json!({
+                    "success": true,
+                    "message": format!("Built-in secret detection rule {} cannot be deleted, but you can disable it", rule_id),
+                    "note": "Built-in rules are managed by the system configuration"
+                }));
+            }
+        }
+        
+        Err(format!("Secret detection rule with ID '{}' not found", rule_id).into())
+    }
+
+    /// Scan content for secrets using configured patterns
+    pub fn scan_for_secrets(&self, content: &str) -> serde_json::Value {
+        use serde_json::json;
+        
+        let mut findings = Vec::new();
+        let mut secrets_found = 0;
+        
+        // Scan with built-in patterns
+        for (secret_type, pattern) in &self.secret_patterns {
+            let matches: Vec<_> = pattern.find_iter(content).collect();
+            if !matches.is_empty() {
+                for (line_num, line) in content.lines().enumerate() {
+                    if pattern.is_match(line) {
+                        findings.push(json!({
+                            "type": format!("{:?}", secret_type).to_lowercase(),
+                            "location": format!("line {}", line_num + 1),
+                            "severity": "high",
+                            "confidence": 0.9,
+                            "message": format!("{:?} pattern detected", secret_type),
+                            "recommendation": "Replace with environment variable or secure configuration",
+                            "pattern_matched": pattern.as_str(),
+                            "context": if line.len() > 50 {
+                                format!("{}...", &line[..47])
+                            } else {
+                                line.to_string()
+                            }
+                        }));
+                        secrets_found += 1;
+                    }
+                }
+            }
+        }
+        
+        // Scan with custom patterns from policies
+        for (policy_idx, policy) in self.config.policies.iter().enumerate() {
+            if !policy.enabled {
+                continue;
+            }
+            
+            for trigger in &policy.triggers {
+                if let SanitizationTrigger::SecretDetection { custom_patterns: Some(patterns), .. } = trigger {
+                    for pattern_str in patterns {
+                        if let Ok(regex) = regex::Regex::new(pattern_str) {
+                            for (line_num, line) in content.lines().enumerate() {
+                                if regex.is_match(line) {
+                                    findings.push(json!({
+                                        "type": "custom_secret",
+                                        "location": format!("line {}", line_num + 1),
+                                        "severity": "medium",
+                                        "confidence": 0.8,
+                                        "message": format!("Custom pattern '{}' detected", policy.name),
+                                        "recommendation": "Review detected content for sensitive information",
+                                        "policy_id": format!("custom_{}", policy_idx + 1),
+                                        "policy_name": &policy.name,
+                                        "pattern_matched": pattern_str,
+                                        "context": if line.len() > 50 {
+                                            format!("{}...", &line[..47])
+                                        } else {
+                                            line.to_string()
+                                        }
+                                    }));
+                                    secrets_found += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Update statistics
+        if let Ok(mut stats) = self.stats.lock() {
+            stats.secrets_detected += secrets_found;
+            stats.total_requests += 1;
+        }
+        
+        json!({
+            "scan_id": format!("secret_scan_{}", chrono::Utc::now().timestamp()),
+            "status": "completed",
+            "secrets_found": secrets_found,
+            "total_lines": content.lines().count(),
+            "scan_timestamp": chrono::Utc::now().to_rfc3339(),
+            "findings": findings,
+            "summary": {
+                "high_severity": findings.iter().filter(|f| f["severity"] == "high").count(),
+                "medium_severity": findings.iter().filter(|f| f["severity"] == "medium").count(),
+                "low_severity": findings.iter().filter(|f| f["severity"] == "low").count(),
+                "total_findings": findings.len()
+            }
+        })
+    }
+
+    /// Get secret detection results/history
+    pub fn get_secret_detection_results(&self, query_params: serde_json::Value) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        use serde_json::json;
+        
+        // Get real scan results from storage
+        let scan_results = self.scan_results.lock()
+            .map_err(|_| "Failed to acquire scan results lock")?;
+        
+        let stats = self.stats.lock()
+            .map_err(|_| "Failed to acquire stats lock")?;
+        
+        let mut results = Vec::new();
+        
+        // Convert stored scan results to JSON format
+        for result in scan_results.iter() {
+            results.push(json!({
+                "id": result.id,
+                "timestamp": result.timestamp.to_rfc3339(),
+                "rule_id": result.rule_id,
+                "rule_name": result.rule_name,
+                "location": result.location,
+                "severity": result.severity,
+                "status": result.status,
+                "content_hash": result.content_hash,
+                "context": result.context,
+                "action_taken": result.action_taken
+            }));
+        }
+        
+        // Apply filters from query
+        let limit = query_params.get("limit")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(20) as usize;
+            
+        results.truncate(limit);
+        
+        Ok(json!({
+            "results": results,
+            "total": results.len(),
+            "summary": {
+                "secrets_detected": stats.secrets_detected,
+                "total_scans": stats.total_requests,
+                "blocked_requests": stats.blocked_requests,
+                "last_scan": chrono::Utc::now().to_rfc3339()
+            }
+        }))
     }
 }
 

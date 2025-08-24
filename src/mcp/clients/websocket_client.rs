@@ -670,11 +670,10 @@ impl WebSocketMcpClient {
 #[async_trait]
 impl ExternalMcpClient for WebSocketMcpClient {
     /// Set the request forwarder for bidirectional communication
-    async fn set_request_forwarder(&mut self, forwarder: SharedRequestForwarder) -> Result<()> {
-        let client_id = "websocket-client".to_string(); // TODO: Get from context
+    async fn set_request_forwarder(&mut self, forwarder: SharedRequestForwarder, original_client_id: String) -> Result<()> {
         self.request_forwarder = Some(forwarder);
-        self.original_client_id = Some(client_id);
-        info!("Set request forwarder for WebSocket client '{}'", self.server_name);
+        self.original_client_id = Some(original_client_id.clone());
+        info!("Set request forwarder for WebSocket client '{}' with original client ID '{}'", self.server_name, original_client_id);
         Ok(())
     }
 

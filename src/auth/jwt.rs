@@ -50,6 +50,8 @@ pub struct JwtValidationResult {
     pub user_info: JwtUserInfo,
     /// User permissions
     pub permissions: Vec<String>,
+    /// Original JWT token (for use in AuthContext)
+    pub jwt_token: Option<String>,
 }
 
 impl JwtValidationResult {
@@ -251,6 +253,7 @@ impl JwtValidator {
             claims,
             user_info,
             permissions,
+            jwt_token: Some(token.to_string()),
         }))
     }
 

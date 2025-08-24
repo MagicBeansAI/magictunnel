@@ -254,6 +254,8 @@ impl ModeApiHandler {
                     "Enhanced Web Dashboard".to_string(),
                     "RBAC Management".to_string(),
                     "Analytics & Monitoring".to_string(),
+                    "Security Policy Engine (Alpha)".to_string(),
+                    "Threat Detection Engine (Alpha)".to_string(),
                 ]);
             }
         }
@@ -271,6 +273,8 @@ impl ModeApiHandler {
                 "RBAC Configuration".to_string(),
                 "Advanced Analytics".to_string(),
                 "External MCP Management".to_string(),
+                "Security Policy Engine (Alpha)".to_string(),
+                "Threat Detection Engine (Alpha)".to_string(),
             ],
             RuntimeMode::Advanced => vec![
                 // All features available in advanced mode
@@ -279,7 +283,7 @@ impl ModeApiHandler {
     }
 
     /// Create UI configuration for runtime mode
-    fn create_ui_config(mode: &RuntimeMode, service_container: &ServiceContainer) -> ModeUIConfig {
+    pub fn create_ui_config(mode: &RuntimeMode, service_container: &ServiceContainer) -> ModeUIConfig {
         let is_advanced = matches!(mode, RuntimeMode::Advanced);
         
         ModeUIConfig {
@@ -556,6 +560,24 @@ impl ModeApiHandler {
                                     children: None,
                                 },
                             ]),
+                        },
+                        NavigationItem {
+                            id: "security-policies".to_string(),
+                            name: "Security Policies (α)".to_string(),
+                            path: "/security/policies".to_string(),
+                            icon: "document".to_string(),
+                            visible: true,
+                            requires_advanced: true,
+                            children: None,
+                        },
+                        NavigationItem {
+                            id: "threat-detection".to_string(),
+                            name: "Threat Detection (α)".to_string(),
+                            path: "/security/threats".to_string(),
+                            icon: "warning".to_string(),
+                            visible: true,
+                            requires_advanced: true,
+                            children: None,
                         },
                         NavigationItem {
                             id: "security-config".to_string(),

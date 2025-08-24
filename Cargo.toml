@@ -1,6 +1,6 @@
 [package]
 name = "magictunnel"
-version = "0.3.20"
+version = "0.3.21"
 edition = "2021"
 authors = ["gouravd"]
 description = "MagicTunnel - Fastest way to make LLMs talk to your internal systems and external ones"
@@ -125,6 +125,7 @@ zeroize = { version = "1.7", features = ["derive"] }
 keyring = "2.3"  # Multi-platform secure storage
 aes-gcm = "0.10"  # AES-256-GCM encryption for filesystem storage
 rand = "0.8"  # Random number generation for encryption
+hex = "0.4"  # Hex encoding/decoding for token generation
 
 # Database support
 tokio-postgres = "0.7"

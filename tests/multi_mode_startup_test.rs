@@ -16,39 +16,33 @@ use magictunnel::config::{
     Config, DeploymentConfig, RuntimeMode, ConfigResolution, EnvironmentOverrides,
     ConfigSource, ValidationResult
 };
-// Startup logger module doesn't exist - these tests are for future implementation
-// use magictunnel::startup::logger::{StartupLogger, StartupAdditionalInfo, display_startup_banner};
-// use magictunnel::error::Result;
+use magictunnel::startup::logger::{StartupLogger, StartupAdditionalInfo, display_startup_banner};
 
-/// Test startup banner display (placeholder)
+/// Test startup banner display
 #[test]
 fn test_startup_banner_display() {
-    // Startup banner display is not yet implemented
-    // display_startup_banner("0.3.10");
-    println!("Startup banner display test - implementation pending");
+    display_startup_banner("0.3.21");
+    // Test passes if no panic occurs
+    assert!(true);
 }
 
-/// Test startup logger with proxy mode configuration (placeholder)
+/// Test startup logger with proxy mode configuration
 #[test]
 fn test_startup_logger_proxy_mode() {
     let resolution = create_test_resolution(RuntimeMode::Proxy, None);
     
-    // StartupLogger is not yet implemented
-    // StartupLogger::display_startup_info(&resolution, "0.3.10", None);
-    println!("Startup logger proxy mode test - implementation pending");
+    StartupLogger::display_startup_info(&resolution, "0.3.21", None);
     
     // Verify resolution is created correctly
     assert_eq!(resolution.validation_result.mode, RuntimeMode::Proxy);
 }
 
-/// Test startup logger with advanced mode configuration (placeholder)
+/// Test startup logger with advanced mode configuration
 #[test]
 fn test_startup_logger_advanced_mode() {
     let resolution = create_test_resolution(RuntimeMode::Advanced, None);
     
-    // StartupLogger is not yet implemented
-    // StartupLogger::display_startup_info(&resolution, "0.3.10", None);
-    println!("Startup logger advanced mode test - implementation pending");
+    StartupLogger::display_startup_info(&resolution, "0.3.21", None);
     
     // Verify resolution is created correctly
     assert_eq!(resolution.validation_result.mode, RuntimeMode::Advanced);
@@ -58,7 +52,7 @@ fn test_startup_logger_advanced_mode() {
 #[test]
 fn test_startup_logger_with_environment_overrides() {
     // Create resolution with environment overrides
-    let mut env_overrides = EnvironmentOverrides {
+    let env_overrides = EnvironmentOverrides {
         runtime_mode: Some(RuntimeMode::Advanced),
         smart_discovery: Some(true),
         config_path: None,
@@ -147,13 +141,19 @@ fn test_startup_logger_with_perfect_config() {
     println!("Startup logger with additional info test - implementation pending");
 }
 
-/// Test StartupAdditionalInfo builder pattern (placeholder)
+/// Test StartupAdditionalInfo builder pattern
 #[test]
 fn test_startup_additional_info_builder() {
-    // StartupAdditionalInfo is not yet implemented
-    // let info = StartupAdditionalInfo::new("192.168.1.100".to_string(), 9000);
+    let info = StartupAdditionalInfo::new("192.168.1.100".to_string(), 9000)
+        .with_dashboard_url("http://192.168.1.100:9000".to_string())
+        .with_tools_loaded(50)
+        .with_llm_providers(vec!["openai".to_string(), "anthropic".to_string()]);
     
-    println!("StartupAdditionalInfo builder pattern test - implementation pending");
+    assert_eq!(info.host, "192.168.1.100");
+    assert_eq!(info.port, 9000);
+    assert_eq!(info.dashboard_url, Some("http://192.168.1.100:9000".to_string()));
+    assert_eq!(info.tools_loaded, 50);
+    assert_eq!(info.llm_providers, vec!["openai", "anthropic"]);
 }
 
 /// Test startup logging with different config sources

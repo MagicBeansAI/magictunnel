@@ -106,7 +106,7 @@ impl FilteredSmartDiscoveryService {
         inner: Arc<SmartDiscoveryService>,
         config: FilteredDiscoveryConfig,
     ) -> Self {
-        let permission_cache = Arc::new(PermissionCacheManager::new(config.cache_config.clone()));
+        let permission_cache = Arc::new(PermissionCacheManager::new_with_default_rbac(config.cache_config.clone()));
         let permission_evaluator = Arc::new(tokio::sync::RwLock::new(
             FastPermissionEvaluator::new(RuleAction::Deny) // Default deny
         ));

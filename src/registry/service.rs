@@ -519,8 +519,19 @@ impl RegistryService {
                 ));
             }
             
-            // TODO: Also handle enhanced tools if present (MCP 2025-06-18 format)
-            // For now, we focus on regular tools since enhanced tools need proper conversion method
+            // Handle enhanced tools if present (MCP 2025-06-18 format)
+            if let Some(enhanced_tools) = capability_file.get_enhanced_tools() {
+                for enhanced_tool in enhanced_tools {
+                    // Convert enhanced tool to regular tool definition for compatibility
+                    let regular_tool: crate::registry::types::ToolDefinition = enhanced_tool.into();
+                    tools_with_context.push((
+                        regular_tool.name.clone(),
+                        regular_tool,
+                        server.clone(),
+                        capability_name.clone(),
+                    ));
+                }
+            }
         }
         
         tools_with_context

@@ -490,7 +490,7 @@ mod tests {
     #[tokio::test]
     async fn test_cache_invalidation_manager_creation() {
         let cache_config = PermissionCacheConfig::default();
-        let cache_manager = Arc::new(PermissionCacheManager::new(cache_config));
+        let cache_manager = Arc::new(PermissionCacheManager::new_with_default_rbac(cache_config));
         
         let invalidation_config = CacheInvalidationConfig::default();
         let manager = CacheInvalidationManager::new(cache_manager, invalidation_config);
@@ -502,7 +502,7 @@ mod tests {
     #[tokio::test]
     async fn test_user_permission_invalidation() {
         let cache_config = PermissionCacheConfig::default();
-        let cache_manager = Arc::new(PermissionCacheManager::new(cache_config));
+        let cache_manager = Arc::new(PermissionCacheManager::new_with_default_rbac(cache_config));
         
         let invalidation_config = CacheInvalidationConfig::default();
         let manager = CacheInvalidationManager::new(cache_manager, invalidation_config);
@@ -526,7 +526,7 @@ mod tests {
     #[tokio::test]
     async fn test_emergency_cache_clear() {
         let cache_config = PermissionCacheConfig::default();
-        let cache_manager = Arc::new(PermissionCacheManager::new(cache_config));
+        let cache_manager = Arc::new(PermissionCacheManager::new_with_default_rbac(cache_config));
         
         let invalidation_config = CacheInvalidationConfig::default();
         let manager = CacheInvalidationManager::new(cache_manager, invalidation_config);

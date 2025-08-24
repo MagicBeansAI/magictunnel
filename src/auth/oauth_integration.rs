@@ -238,6 +238,7 @@ impl UnifiedOAuthSystem {
             audience: None, // TODO: Extract from resource indicators
             resources: None, // TODO: Extract from resource indicators
             issuer: Some(session.provider_id.clone()),
+            access_token: Some(session.access_token.clone()), // Use the session access token
         }
     }
     

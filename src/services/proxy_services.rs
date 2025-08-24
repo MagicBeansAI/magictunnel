@@ -368,8 +368,11 @@ mod tests {
     async fn test_proxy_services_initialization() {
         let config = Config {
             server: ServerConfig {
-                host: "127.0.0.1".to_string(),
-                port: 3001,
+                host: std::env::var("MAGICTUNNEL_HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
+                port: std::env::var("MAGICTUNNEL_PORT")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(3001),
                 ..Default::default()
             },
             registry: RegistryConfig {
@@ -397,8 +400,11 @@ mod tests {
     async fn test_proxy_services_with_smart_discovery() {
         let config = Config {
             server: ServerConfig {
-                host: "127.0.0.1".to_string(),
-                port: 3001,
+                host: std::env::var("MAGICTUNNEL_HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
+                port: std::env::var("MAGICTUNNEL_PORT")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(3001),
                 ..Default::default()
             },
             registry: RegistryConfig {

@@ -83,7 +83,11 @@ pub trait ExternalMcpClient: Send + Sync {
     /// This should be called after creating the external MCP client to enable
     /// bidirectional communication. The forwarder will be used to send incoming
     /// requests from the external server back to MagicTunnel.
-    async fn set_request_forwarder(&mut self, forwarder: SharedRequestForwarder) -> Result<()>;
+    /// 
+    /// # Arguments
+    /// * `forwarder` - The request forwarder to use for bidirectional communication
+    /// * `original_client_id` - The ID of the original client (e.g., "claude-desktop-abc123")
+    async fn set_request_forwarder(&mut self, forwarder: SharedRequestForwarder, original_client_id: String) -> Result<()>;
 
     /// Get the server name/ID for this external client
     fn server_name(&self) -> &str;

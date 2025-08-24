@@ -5,7 +5,7 @@
 //! by properly identifying and isolating remote clients connecting to MagicTunnel instances.
 
 use crate::{auth::{
-    AuthenticationResult, ClientIdentityExtractor, ExtendedMcpInitRequest, IsolatedSession, IsolatedSessionManager, RemoteUserContext, SessionIsolationConfig, TokenStorage, UserContext
+    AuthenticationResult, ClientIdentityExtractor, ExtendedMcpInitRequest, IsolatedSession, IsolatedSessionManager, IsolationSessionState, RemoteUserContext, SessionIsolationConfig, TokenStorage, UserContext
 }};
 use crate::error::ProxyError;
 use actix_web::{
@@ -13,8 +13,8 @@ use actix_web::{
     Error as ActixError, HttpMessage, HttpRequest, HttpResponse,
 };
 use futures_util::future::{ok, Ready, LocalBoxFuture};
-use std::{collections::HashMap, rc::Rc, sync::Arc};
-use tracing::{debug, error, info, trace};
+use std::{collections::HashMap, rc::Rc, sync::Arc, time::SystemTime};
+use tracing::{debug, error, info, trace, warn};
 use crate::error::Result;
 
 /// Remote session authentication middleware
@@ -239,14 +239,111 @@ impl RemoteSessionMiddleware {
             .and_then(|h| h.to_str().ok());
 
         if let Some(token) = recovery_token {
-            // TODO: Implement session recovery logic
-            // This would involve checking a persistent store for session data
-            // based on the recovery token
             trace!("Session recovery token found: {}", token);
+            
+            // For basic session recovery, we'll treat the recovery token as a session ID
+            // In a more sophisticated implementation, this would involve:
+            // 1. Looking up the session ID from a recovery token mapping
+            // 2. Validating the recovery token hasn't expired
+            // 3. Checking if the requesting client matches the session owner
+            
+            // Try to find the session by the recovery token (treating it as session ID)
+            if let Some(session) = self.session_manager.get_session(token) {
+                // Validate that the session is still valid and matches the client
+                if self.validate_session_for_recovery(&session, req)? {
+                    info!("Successfully recovered session: {} using recovery token", session.session_id);
+                    
+                    // Update last activity to mark session as recovered
+                    if let Err(e) = self.session_manager.update_activity(&session.session_id) {
+                        warn!("Failed to update activity for recovered session {}: {}", session.session_id, e);
+                    }
+                    
+                    return Ok(Some((session.session_id.clone(), session)));
+                } else {
+                    warn!("Session recovery validation failed for token: {}", token);
+                }
+            } else {
+                debug!("No session found for recovery token: {}", token);
+            }
         }
 
-        // For now, return None to indicate no recovery possible
+        // Also try to extract from session cookie as fallback
+        if let Some(cookie_header) = req.headers().get("cookie") {
+            if let Ok(cookie_str) = cookie_header.to_str() {
+                // Parse cookies and look for session ID
+                for cookie_part in cookie_str.split(';') {
+                    let cookie_part = cookie_part.trim();
+                    if cookie_part.starts_with("magictunnel_session=") {
+                        let session_id = cookie_part.strip_prefix("magictunnel_session=").unwrap_or("");
+                        if !session_id.is_empty() {
+                            if let Some(session) = self.session_manager.get_session(session_id) {
+                                if self.validate_session_for_recovery(&session, req)? {
+                                    info!("Successfully recovered session: {} using cookie", session.session_id);
+                                    
+                                    // Update last activity
+                                    if let Err(e) = self.session_manager.update_activity(&session.session_id) {
+                                        warn!("Failed to update activity for recovered session {}: {}", session.session_id, e);
+                                    }
+                                    
+                                    return Ok(Some((session.session_id.clone(), session)));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        debug!("No valid session recovery possible");
         Ok(None)
+    }
+
+    /// Validate that a session can be recovered for the current request
+    fn validate_session_for_recovery(&self, session: &IsolatedSession, req: &HttpRequest) -> Result<bool> {
+        // Check if session has expired
+        if let Some(expires_at) = session.metadata.expires_at {
+            if SystemTime::now() > expires_at {
+                debug!("Session {} has expired, cannot recover", session.session_id);
+                return Ok(false);
+            }
+        }
+
+        // Check if session is in a valid state for recovery
+        match session.state {
+            IsolationSessionState::Initializing |
+            IsolationSessionState::Active |
+            IsolationSessionState::Suspended |
+            IsolationSessionState::Authenticated |
+            IsolationSessionState::Recovering => {
+                // These states allow recovery
+            }
+            IsolationSessionState::Terminated |
+            IsolationSessionState::Expired => {
+                debug!("Session {} is in terminal state {:?}, cannot recover", session.session_id, session.state);
+                return Ok(false);
+            }
+        }
+
+        // Basic client IP validation (if available)
+        let connection_info = req.connection_info();
+        if let Some(current_ip) = connection_info.peer_addr() {
+            let session_ip = &session.metadata.connection_metadata.client_ip;
+            // Allow recovery from same IP or if IP validation is disabled
+            if current_ip != session_ip {
+                debug!("Session {} recovery from different IP: session={}, current={}", 
+                       session.session_id, session_ip, current_ip);
+                // For now, allow recovery from different IPs but log it
+                // In production, you might want stricter validation
+            }
+        }
+
+        // Additional validation could include:
+        // - User agent consistency
+        // - Client certificate validation
+        // - Rate limiting for recovery attempts
+        
+        debug!("Session {} validated for recovery", session.session_id);
+        Ok(true)
     }
 
     /// Validate request against session context
@@ -359,13 +456,76 @@ impl RemoteSessionMiddleware {
     }
 
     /// Extract MCP initialization data from request
-    async fn extract_mcp_init_data(&self, _req: &HttpRequest) -> Result<ExtendedMcpInitRequest> {
-        // TODO: Extract MCP init data from request body or headers
-        // For now, return a minimal init structure
+    async fn extract_mcp_init_data(&self, req: &HttpRequest) -> Result<ExtendedMcpInitRequest> {
+        use std::collections::HashMap;
+        use serde_json::Value;
+        use crate::auth::client_identity_extractor::{McpClientIdentity, McpSecurityContext};
+        
+        let mut standard_init = HashMap::new();
+        let mut client_identity = None;
+        let mut security_context = None;
+        
+        // Extract MCP protocol version from headers
+        if let Some(protocol_version) = req.headers().get("mcp-protocol-version") {
+            if let Ok(version_str) = protocol_version.to_str() {
+                standard_init.insert("protocolVersion".to_string(), Value::String(version_str.to_string()));
+            }
+        }
+        
+        // Extract MCP client info from headers
+        if let Some(client_info) = req.headers().get("mcp-client-info") {
+            if let Ok(client_str) = client_info.to_str() {
+                if let Ok(client_data) = serde_json::from_str::<Value>(client_str) {
+                    standard_init.insert("clientInfo".to_string(), client_data);
+                }
+            }
+        }
+        
+        // Extract MCP capabilities from headers
+        if let Some(capabilities) = req.headers().get("mcp-capabilities") {
+            if let Ok(cap_str) = capabilities.to_str() {
+                if let Ok(cap_data) = serde_json::from_str::<Value>(cap_str) {
+                    standard_init.insert("capabilities".to_string(), cap_data);
+                }
+            }
+        }
+        
+        // Extract client identity from custom headers
+        if let Some(client_id_header) = req.headers().get("x-mcp-client-identity") {
+            if let Ok(identity_str) = client_id_header.to_str() {
+                if let Ok(identity) = serde_json::from_str::<McpClientIdentity>(identity_str) {
+                    client_identity = Some(identity);
+                }
+            }
+        }
+        
+        // Extract security context from custom headers
+        if let Some(security_header) = req.headers().get("x-mcp-security-context") {
+            if let Ok(security_str) = security_header.to_str() {
+                if let Ok(context) = serde_json::from_str::<McpSecurityContext>(security_str) {
+                    security_context = Some(context);
+                }
+            }
+        }
+        
+        // Extract session ID if present
+        if let Some(session_id) = req.headers().get("x-mcp-session-id") {
+            if let Ok(session_str) = session_id.to_str() {
+                standard_init.insert("sessionId".to_string(), Value::String(session_str.to_string()));
+            }
+        }
+        
+        // Extract authentication token if present
+        if let Some(auth_header) = req.headers().get("authorization") {
+            if let Ok(auth_str) = auth_header.to_str() {
+                standard_init.insert("authorization".to_string(), Value::String(auth_str.to_string()));
+            }
+        }
+        
         Ok(ExtendedMcpInitRequest {
-            standard_init: HashMap::new(),
-            client_identity: None,
-            security_context: None,
+            standard_init,
+            client_identity,
+            security_context,
         })
     }
 

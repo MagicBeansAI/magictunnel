@@ -857,6 +857,121 @@ impl OAuthExternalMcpManager {
         Ok(result)
     }
 
+    /// Execute tool on OAuth-enabled MCP server with client ID context
+    pub async fn execute_oauth_tool_with_client_id(
+        &self,
+        server_name: &str,
+        tool_name: &str,
+        arguments: Value,
+        client_id: &Option<String>
+    ) -> Result<Value> {
+        info!("🔧 Executing OAuth tool with client ID: {} on server: {} (client_id: {:?})", 
+              tool_name, server_name, client_id);
+
+        // Get authenticated connection
+        let connection = {
+            let connections = self.oauth_connections.read().await;
+            connections.get(server_name).cloned()
+                .ok_or_else(|| ProxyError::connection(format!("OAuth connection not found: {}", server_name)))?
+        };
+
+        // Log tool execution for audit
+        self.audit_logger.log_mcp_tool_execution(server_name, tool_name, true, true).await;
+        self.audit_logger.log_oauth_token_usage(server_name, "POST", "/mcp/tools/call").await;
+
+        // Execute tool using authenticated client with client ID
+        let result = match connection.transport_type.as_str() {
+            "sse" => {
+                match connection.create_sse_client() {
+                    Ok(mut client) => {
+                        // Use the call_tool_with_client_id method if available, otherwise fallback
+                        match client.call_tool_with_client_id(tool_name, arguments.clone(), client_id.clone()).await {
+                            Ok(response) => {
+                                info!("✅ OAuth tool executed successfully with client ID: {} on server: {}", tool_name, server_name);
+                                response
+                            },
+                            Err(e) => {
+                                error!("Failed to execute OAuth tool {} with client ID on {}: {}", tool_name, server_name, e);
+                                json!({
+                                    "content": [{
+                                        "type": "text",
+                                        "text": format!("Error executing tool with client ID: {}", e)
+                                    }],
+                                    "isError": true
+                                })
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        error!("Failed to create SSE client for tool execution on {}: {}", server_name, e);
+                        json!({
+                            "content": [{
+                                "type": "text", 
+                                "text": format!("Client creation failed: {}", e)
+                            }],
+                            "isError": true
+                        })
+                    }
+                }
+            },
+            "http" => {
+                match connection.create_http_client() {
+                    Ok(client) => {
+                        // Use the call_tool_with_client_id method which handles authentication and client ID
+                        match client.call_tool_with_client_id(tool_name, arguments.clone(), client_id.clone()).await {
+                            Ok(response) => {
+                                info!("✅ OAuth tool executed successfully with client ID: {} on server: {}", tool_name, server_name);
+                                response
+                            },
+                            Err(e) => {
+                                error!("Failed to execute OAuth tool {} with client ID on {}: {}", tool_name, server_name, e);
+                                json!({
+                                    "content": [{
+                                        "type": "text",
+                                        "text": format!("Tool execution failed with client ID: {}", e)
+                                    }],
+                                    "isError": true
+                                })
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        error!("Failed to create HTTP client for tool execution on {}: {}", server_name, e);
+                        json!({
+                            "content": [{
+                                "type": "text",
+                                "text": format!("HTTP client creation failed: {}", e)
+                            }],
+                            "isError": true
+                        })
+                    }
+                }
+            },
+            "websocket" => {
+                warn!("WebSocket transport not yet fully implemented for OAuth tool execution with client ID");
+                json!({
+                    "content": [{
+                        "type": "text",
+                        "text": "WebSocket transport not yet supported for OAuth tool execution with client ID"
+                    }],
+                    "isError": true
+                })
+            },
+            _ => {
+                error!("Unknown transport type for OAuth tool execution: {}", connection.transport_type);
+                json!({
+                    "content": [{
+                        "type": "text",
+                        "text": format!("Unknown transport type: {}", connection.transport_type)
+                    }],
+                    "isError": true
+                })
+            }
+        };
+
+        Ok(result)
+    }
+
     /// Execute tool (unified interface for both traditional and OAuth servers)
     pub async fn execute_tool(
         &self,
@@ -878,6 +993,31 @@ impl OAuthExternalMcpManager {
         // Fall back to traditional MCP server
         debug!("🔄 Routing to traditional server: {}", server_name);
         self.traditional_manager.execute_tool(server_name, tool_name, arguments).await
+    }
+
+    /// Execute tool with client ID context (unified interface for both traditional and OAuth servers)
+    pub async fn execute_tool_with_client_id(
+        &self,
+        server_name: &str,
+        tool_name: &str,
+        arguments: Value,
+        client_id: &Option<String>
+    ) -> Result<Value> {
+        debug!("🎯 Routing tool execution with client ID: {} on server: {} (client_id: {:?})", 
+               tool_name, server_name, client_id);
+
+        // Check if it's an OAuth-enabled server
+        {
+            let oauth_connections = self.oauth_connections.read().await;
+            if oauth_connections.contains_key(server_name) {
+                debug!("📡 Routing to OAuth server with client ID: {}", server_name);
+                return self.execute_oauth_tool_with_client_id(server_name, tool_name, arguments, client_id).await;
+            }
+        }
+
+        // Fall back to traditional MCP server with client ID
+        debug!("🔄 Routing to traditional server with client ID: {}", server_name);
+        self.traditional_manager.execute_tool_with_client_id(server_name, tool_name, arguments, client_id).await
     }
 
     /// Get all tools from both traditional and OAuth servers

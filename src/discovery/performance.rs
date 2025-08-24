@@ -160,13 +160,16 @@ impl<T: Clone> RequestDeduplicator<T> {
                 // Store the result
                 {
                     let mut result_lock = pending_req.result.lock().await;
-                    *result_lock = Some(result.clone().unwrap_or_else(|e| {
-                        // For error cases, we'll need to handle this differently
-                        // For now, return a default or log the error
-                        warn!("Request execution failed: {}", e);
-                        // This is a placeholder - in real implementation you'd handle errors properly
-                        unreachable!()
-                    }));
+                    match result.clone() {
+                        Ok(value) => {
+                            *result_lock = Some(value);
+                        }
+                        Err(e) => {
+                            warn!("Request execution failed: {}", e);
+                            // For error cases, we don't store a result - let the error propagate
+                            // This allows waiters to get the error from the main execution path
+                        }
+                    }
                 }
             }
             

@@ -538,7 +538,7 @@ mod tests {
     #[tokio::test]
     async fn test_filtered_tool_listing_service_creation() {
         let cache_config = PermissionCacheConfig::default();
-        let permission_cache = Arc::new(PermissionCacheManager::new(cache_config));
+        let permission_cache = Arc::new(PermissionCacheManager::new_with_default_rbac(cache_config));
         
         let listing_config = FilteredListingConfig::default();
         let service = FilteredToolListingService::new(permission_cache, listing_config);
@@ -550,7 +550,7 @@ mod tests {
     #[tokio::test]
     async fn test_tool_filtering_with_permissions() {
         let cache_config = PermissionCacheConfig::default();
-        let permission_cache = Arc::new(PermissionCacheManager::new(cache_config));
+        let permission_cache = Arc::new(PermissionCacheManager::new_with_default_rbac(cache_config));
         
         let mut listing_config = FilteredListingConfig::default();
         listing_config.enable_permission_filtering = true;
@@ -575,7 +575,7 @@ mod tests {
     #[tokio::test]
     async fn test_tool_filtering_disabled() {
         let cache_config = PermissionCacheConfig::default();
-        let permission_cache = Arc::new(PermissionCacheManager::new(cache_config));
+        let permission_cache = Arc::new(PermissionCacheManager::new_with_default_rbac(cache_config));
         
         let mut listing_config = FilteredListingConfig::default();
         listing_config.enable_permission_filtering = false;

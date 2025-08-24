@@ -540,6 +540,8 @@ async fn init_security_config(output: &PathBuf, level: &str) -> Result<()> {
                 ..Default::default()
             }),
             emergency_lockdown: Some(magictunnel::security::emergency::EmergencyLockdownConfig::default()),
+            policy_engine: None,        // Alpha service - not included in basic config
+            threat_detection: None,     // Alpha service - not included in basic config
         },
         "strict" => SecurityConfig::secure_defaults(),
         _ => SecurityConfig {
@@ -559,6 +561,8 @@ async fn init_security_config(output: &PathBuf, level: &str) -> Result<()> {
                 ..Default::default()
             }),
             emergency_lockdown: Some(magictunnel::security::emergency::EmergencyLockdownConfig::default()),
+            policy_engine: None,        // Alpha service - not included in default config
+            threat_detection: None,     // Alpha service - not included in default config
         },
     };
     

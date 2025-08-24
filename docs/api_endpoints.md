@@ -5,7 +5,7 @@
 MagicTunnel provides a comprehensive REST API for managing tools, resources, security, and system operations. The API is organized into logical groups with consistent HTTP methods and response formats.
 
 **Base URL**: `http://localhost:3001` (default)
-**API Version**: v0.3.20
+**API Version**: v0.3.21
 **Content Type**: `application/json`
 
 ---
@@ -187,15 +187,28 @@ All security endpoints are mounted within the dashboard API scope at `/dashboard
 - **PUT** `/dashboard/api/security/sanitization/rules/{rule_id}` - Update sanitization rule
 - **DELETE** `/dashboard/api/security/sanitization/rules/{rule_id}` - Delete sanitization rule
 
-### Policy Management
+### Policy Management (SecurityPolicyEngine)
 - **GET** `/dashboard/api/security/policies/status` - Policy service status
 - **GET** `/dashboard/api/security/policies` - List security policies
 - **POST** `/dashboard/api/security/policies` - Create security policy
 - **GET** `/dashboard/api/security/policies/{policy_id}` - Get policy details
 - **PUT** `/dashboard/api/security/policies/{policy_id}` - Update policy
 - **DELETE** `/dashboard/api/security/policies/{policy_id}` - Delete policy
-- **POST** `/dashboard/api/security/policies/{policy_id}/activate` - Activate policy
-- **POST** `/dashboard/api/security/policies/{policy_id}/deactivate` - Deactivate policy
+- **POST** `/dashboard/api/security/policies/{policy_id}/test` - Test policy against sample request
+- **POST** `/dashboard/api/security/policies/bulk` - Bulk update security policies
+- **GET** `/dashboard/api/security/policies/violations` - Get policy violations
+- **GET** `/dashboard/api/security/policies/statistics` - Get policy statistics
+
+### Threat Detection Management (ThreatDetectionEngine) 🆕
+- **GET** `/dashboard/api/security/threat-detection/rules` - List threat detection rules
+- **POST** `/dashboard/api/security/threat-detection/rules` - Create threat detection rule
+- **GET** `/dashboard/api/security/threat-detection/rules/{rule_id}` - Get threat detection rule details
+- **PUT** `/dashboard/api/security/threat-detection/rules/{rule_id}` - Update threat detection rule
+- **DELETE** `/dashboard/api/security/threat-detection/rules/{rule_id}` - Delete threat detection rule
+- **GET** `/dashboard/api/security/threat-detection/intelligence` - Get threat intelligence data
+- **PUT** `/dashboard/api/security/threat-detection/intelligence` - Update threat intelligence feeds
+- **GET** `/dashboard/api/security/threat-detection/threats` - Get detected threats
+- **GET** `/dashboard/api/security/threat-detection/statistics` - Get threat detection statistics
 
 ### Configuration Change Tracking
 - **GET** `/dashboard/api/security/changes/status` - Change tracker status
@@ -386,10 +399,34 @@ curl -X GET http://localhost:3001/dashboard/api/status
 curl -X GET http://localhost:3001/dashboard/api/security/status
 ```
 
+### Get Security Policies
+```bash
+curl -X GET http://localhost:3001/dashboard/api/security/policies
+```
+
+### Create Threat Detection Rule
+```bash
+curl -X POST http://localhost:3001/dashboard/api/security/threat-detection/rules \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Suspicious IP Detection",
+    "indicators": [
+      {
+        "indicator_type": "ip",
+        "value": "192.168.1.100",
+        "confidence": 0.8
+      }
+    ],
+    "severity": "high",
+    "enabled": true
+  }'
+```
+
 ---
 
 ## Version History
 
+- **v0.3.21**: SecurityPolicyEngine and ThreatDetectionEngine API endpoints - 17 new endpoints for comprehensive security management
 - **v0.3.20**: Security violations fixes, comprehensive implementation analysis
 - **v0.3.19**: Pattern management fixes, UI enhancements
 - **v0.3.17**: Nested security validation, OAuth 2.1 production ready

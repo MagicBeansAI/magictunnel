@@ -10,13 +10,19 @@ use tokio::test;
 use std::collections::HashMap;
 
 use magictunnel::discovery::permission_cache::{
-    PermissionCacheManager, PermissionCacheConfig, PermissionIndex, UserToolCache
+    PermissionCacheManager, PermissionCacheConfig
 };
 use magictunnel::discovery::fast_evaluator::{
-    FastPermissionEvaluator, FastUserContext, RuleAction, EvaluationResult
+    FastPermissionEvaluator, FastUserContext, RuleAction
 };
-use magictunnel::security::{SecurityContext, SecurityUser, SecurityRequest};
+use magictunnel::security::{SecurityContext, SecurityUser, SecurityRequest, RbacService, RbacConfig};
 use ahash::{AHashMap, AHashSet};
+
+/// Helper to create a test RBAC service
+fn create_test_rbac_service() -> Arc<RbacService> {
+    let config = RbacConfig::default();
+    Arc::new(RbacService::new(config).expect("Failed to create test RBAC service"))
+}
 
 /// Create large-scale test data for performance testing
 fn create_large_test_data(num_tools: usize, num_roles: usize) -> (AHashMap<String, Vec<String>>, Vec<String>) {
@@ -174,7 +180,8 @@ async fn bench_permission_cache_performance() {
         enable_stats: true,
     };
     
-    let cache_manager = Arc::new(PermissionCacheManager::new(cache_config));
+    let rbac_service = create_test_rbac_service();
+    let cache_manager = Arc::new(PermissionCacheManager::new(cache_config, rbac_service));
     
     // Test cache performance with different numbers of users and tools
     let test_scenarios = vec![
@@ -300,7 +307,8 @@ async fn stress_test_high_concurrency() {
         enable_stats: true,
     };
     
-    let cache_manager = Arc::new(PermissionCacheManager::new(cache_config));
+    let rbac_service = create_test_rbac_service();
+    let cache_manager = Arc::new(PermissionCacheManager::new(cache_config, rbac_service));
     let mut evaluator = FastPermissionEvaluator::new(RuleAction::Allow);
     
     let test_tools: Vec<String> = (0..1000).map(|i| format!("stress_tool_{}", i)).collect();
@@ -380,7 +388,8 @@ async fn test_memory_usage_scalability() {
         enable_stats: true,
     };
     
-    let cache_manager = Arc::new(PermissionCacheManager::new(cache_config));
+    let rbac_service = create_test_rbac_service();
+    let cache_manager = Arc::new(PermissionCacheManager::new(cache_config, rbac_service));
     
     // Test different user counts to observe memory scaling
     let user_counts = vec![100, 1000, 10_000];
@@ -457,7 +466,8 @@ async fn test_real_world_scenario_simulation() {
         enable_stats: true,
     };
     
-    let cache_manager = Arc::new(PermissionCacheManager::new(cache_config));
+    let rbac_service = create_test_rbac_service();
+    let cache_manager = Arc::new(PermissionCacheManager::new(cache_config, rbac_service));
     let mut evaluator = FastPermissionEvaluator::new(RuleAction::Deny);
     
     // Create realistic user distribution

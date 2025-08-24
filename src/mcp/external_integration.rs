@@ -199,6 +199,24 @@ impl ExternalMcpIntegration {
         }
     }
 
+    /// Execute a tool on an External MCP server with client ID context
+    pub async fn execute_tool_with_client_id(
+        &self, 
+        server_name: &str, 
+        tool_name: &str, 
+        arguments: Value,
+        client_id: &Option<String>
+    ) -> Result<Value> {
+        match &self.manager {
+            Some(manager) => {
+                manager.execute_tool_with_client_id(server_name, tool_name, arguments, client_id).await
+            }
+            None => {
+                Err(ProxyError::connection("External MCP Manager is not running".to_string()))
+            }
+        }
+    }
+
     /// Execute a tool on an External MCP server with authentication headers
     pub async fn execute_tool_with_auth(
         &self, 

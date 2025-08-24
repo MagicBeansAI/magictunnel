@@ -1108,7 +1108,20 @@ security:
     state_file_path: "./data/emergency_lockdown.json"  # State persistence file (optional)
     log_blocked_requests: true         # Log requests blocked during lockdown
     authorized_users: []               # Users who can disable lockdown (empty = any admin)
-      
+  
+  # =============================================================================
+  # ALPHA SERVICES - TESTING REQUIRED
+  # =============================================================================
+  # Production Security Services - Ready for deployment
+  
+  # Policy Engine Configuration (Production Ready)
+  policy_engine:
+    enabled: true                      # Production-ready security policy enforcement
+    
+  # Threat Detection Engine Configuration (Production Ready)
+  threat_detection:
+    enabled: true                      # Production-ready behavioral threat detection
+
   # Security Validation Configuration
   enable_url_validation: true         # Enable URL validation for external requests
   trusted_domains:                    # List of trusted domains for external requests

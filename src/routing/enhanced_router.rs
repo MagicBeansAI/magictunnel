@@ -7,7 +7,7 @@ use crate::routing::{AgentRouter, DefaultAgentRouter};
 use crate::routing::middleware::{MiddlewareChain, MiddlewareContext};
 use crate::routing::retry::{RetryExecutor, RetryConfig};
 use crate::routing::timeout::TimeoutConfig;
-use crate::routing::types::{AgentResult, AgentType};
+use crate::routing::types::{AgentResult, AgentType, RequestContext};
 use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, error};
@@ -178,12 +178,17 @@ impl EnhancedAgentRouter {
                 }
             }
 
-            AgentType::WebSocket { url, headers } => {
-                // WebSocket doesn't have timeout field in the enum, but we could add it
-                // For now, keep as-is since WebSocket uses hardcoded timeouts
+            AgentType::WebSocket { url, headers, timeout } => {
+                let final_timeout = if timeout.is_some() {
+                    *timeout // Keep existing timeout (tool override)
+                } else {
+                    Some(self.timeout_config.get_timeout_secs("websocket", None))
+                };
+
                 AgentType::WebSocket {
                     url: url.clone(),
                     headers: headers.clone(),
+                    timeout: final_timeout,
                 }
             }
 
@@ -362,6 +367,87 @@ impl AgentRouter for EnhancedAgentRouter {
                     error = %e,
                     duration_ms = context.elapsed().as_millis(),
                     "Enhanced router: Execution failed after retry attempts"
+                );
+
+                Err(e)
+            }
+        }
+    }
+
+    async fn execute_with_agent_and_context(&self, tool_call: &ToolCall, agent: &AgentType, context: &RequestContext) -> Result<AgentResult> {
+        // Create middleware context
+        let middleware_context = MiddlewareContext::new(tool_call.clone(), agent.clone());
+
+        debug!(
+            execution_id = %middleware_context.execution_id,
+            tool_name = %tool_call.name,
+            agent_type = %middleware_context.agent_type_name(),
+            middleware_count = self.middleware.len(),
+            session_id = ?context.session_id,
+            client_id = ?context.client_id,
+            "Enhanced router: Starting execution with context, middleware and retry logic"
+        );
+
+        // Execute before_execution middleware
+        if let Err(e) = self.middleware.before_execution(&middleware_context).await {
+            error!(
+                execution_id = %middleware_context.execution_id,
+                error = %e,
+                "Middleware before_execution failed"
+            );
+            // Continue execution even if middleware fails
+        }
+
+        // Apply centralized timeout configuration to the agent
+        let agent_with_timeout = self.apply_timeout_config(agent);
+
+        // Execute the actual agent with retry logic, centralized timeout, and context
+        let result = self.retry_executor.execute_with_retry(
+            &agent_with_timeout,
+            &format!("tool_call_{}", tool_call.name),
+            || async {
+                self.inner.execute_with_agent_and_context(tool_call, &agent_with_timeout, context).await
+            }
+        ).await;
+
+        match result {
+            Ok(agent_result) => {
+                // Execute after_execution middleware
+                if let Err(e) = self.middleware.after_execution(&middleware_context, &agent_result).await {
+                    error!(
+                        execution_id = %middleware_context.execution_id,
+                        error = %e,
+                        "Middleware after_execution failed"
+                    );
+                    // Continue and return the result even if middleware fails
+                }
+
+                debug!(
+                    execution_id = %middleware_context.execution_id,
+                    success = agent_result.success,
+                    duration_ms = middleware_context.elapsed().as_millis(),
+                    "Enhanced router: Execution completed successfully with context"
+                );
+
+                Ok(agent_result)
+            }
+            Err(e) => {
+                // Execute on_error middleware
+                if let Err(middleware_error) = self.middleware.on_error(&middleware_context, &e).await {
+                    error!(
+                        execution_id = %middleware_context.execution_id,
+                        middleware_error = %middleware_error,
+                        original_error = %e,
+                        "Middleware on_error failed"
+                    );
+                    // Continue and return the original error
+                }
+
+                error!(
+                    execution_id = %middleware_context.execution_id,
+                    error = %e,
+                    duration_ms = middleware_context.elapsed().as_millis(),
+                    "Enhanced router: Execution failed after retry attempts with context"
                 );
 
                 Err(e)

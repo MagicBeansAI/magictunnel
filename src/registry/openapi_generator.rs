@@ -517,13 +517,16 @@ impl OpenAPICapabilityGenerator {
             ),
         };
 
+        // Extract default value from parameter schema
+        let default_value = self.extract_parameter_default(parameter);
+        
         Ok(OpenAPIParameter {
             name,
             location,
             description,
             required,
             schema,
-            default: None, // TODO: Extract default values
+            default: default_value,
         })
     }
 
@@ -610,6 +613,113 @@ impl OpenAPICapabilityGenerator {
             "type": "string",
             "description": parameter_data.description.clone().unwrap_or_else(|| "Parameter".to_string())
         }))
+    }
+
+    /// Extract default value from parameter
+    fn extract_parameter_default(&self, parameter: &Parameter) -> Option<Value> {
+        let parameter_data = parameter.parameter_data_ref();
+        
+        // Try to extract default from parameter schema
+        match &parameter_data.format {
+            openapiv3::ParameterSchemaOrContent::Schema(schema_ref) => {
+                match schema_ref {
+                    openapiv3::ReferenceOr::Item(schema) => {
+                        // Extract default from inline schema
+                        self.extract_schema_default(schema)
+                    },
+                    openapiv3::ReferenceOr::Reference { .. } => {
+                        // Cannot easily resolve defaults from references
+                        None
+                    }
+                }
+            },
+            openapiv3::ParameterSchemaOrContent::Content(_) => {
+                // Content-based parameters don't have simple defaults
+                None
+            }
+        }
+    }
+    
+    /// Extract default value from schema
+    fn extract_schema_default(&self, schema: &openapiv3::Schema) -> Option<Value> {
+        match &schema.schema_data.default {
+            Some(default_val) => Some(default_val.clone()),
+            None => {
+                // Check schema kind for defaults
+                match &schema.schema_kind {
+                    openapiv3::SchemaKind::Type(type_schema) => match type_schema {
+                        openapiv3::Type::String(string_schema) => {
+                            string_schema.enumeration.first().map(|s| json!(s)).or_else(|| {
+                                // No direct default field available in openapiv3 StringType
+                                None
+                            })
+                        },
+                        openapiv3::Type::Number(number_schema) => {
+                            // No direct default field available in openapiv3 NumberType
+                            None
+                        },
+                        openapiv3::Type::Integer(integer_schema) => {
+                            // No direct default field available in openapiv3 IntegerType
+                            None
+                        },
+                        openapiv3::Type::Boolean(boolean_schema) => {
+                            // No direct default field available in openapiv3 BooleanType
+                            None
+                        },
+                        _ => None,
+                    },
+                    _ => None,
+                }
+            }
+        }
+    }
+    
+    /// Extract annotations from OpenAPI operation
+    fn extract_operation_annotations(&self, operation: &OpenAPIOperation) -> Option<HashMap<String, String>> {
+        let mut annotations = HashMap::new();
+        
+        // Add HTTP method
+        annotations.insert("http_method".to_string(), operation.method.clone());
+        
+        // Add path
+        annotations.insert("http_path".to_string(), operation.path.clone());
+        
+        // Add operation ID if available
+        if let Some(operation_id) = &operation.operation_id {
+            annotations.insert("openapi_operation_id".to_string(), operation_id.clone());
+        }
+        
+        // Add summary if available
+        if let Some(summary) = &operation.summary {
+            annotations.insert("openapi_summary".to_string(), summary.clone());
+        }
+        
+        // Add tags if available
+        if !operation.tags.is_empty() {
+            annotations.insert("openapi_tags".to_string(), operation.tags.join(","));
+        }
+        
+        // Add deprecation status
+        if operation.deprecated {
+            annotations.insert("deprecated".to_string(), "true".to_string());
+        }
+        
+        // Add parameter count
+        annotations.insert("parameter_count".to_string(), operation.parameters.len().to_string());
+        
+        // Add response count
+        annotations.insert("response_count".to_string(), operation.responses.len().to_string());
+        
+        // Add request body info
+        if operation.request_body.is_some() {
+            annotations.insert("has_request_body".to_string(), "true".to_string());
+        }
+        
+        // Add source information
+        annotations.insert("source".to_string(), "openapi".to_string());
+        annotations.insert("generated_by".to_string(), "openapi_generator".to_string());
+        
+        Some(annotations)
     }
 
     /// Resolve schema reference (handles $ref and components)
@@ -1612,12 +1722,15 @@ impl OpenAPICapabilityGenerator {
         let input_schema = self.generate_input_schema(&operation)?;
         let routing = self.create_routing_config(&operation)?;
 
+        // Extract annotations from OpenAPI operation metadata
+        let annotations = self.extract_operation_annotations(&operation);
+        
         Ok(ToolDefinition {
             name: tool_name,
             description,
             input_schema,
             routing,
-            annotations: None, // TODO: Add annotations support
+            annotations,
             hidden: true, // OpenAPI tools are hidden by default (consistent with other tools)
             enabled: true, // OpenAPI tools are enabled by default
             prompt_refs: Vec::new(),

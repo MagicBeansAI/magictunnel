@@ -155,14 +155,14 @@ security:
     audit_decisions: true
     # Legacy fields removed - now using data_file structure
   sanitization:
-    enabled: false
+    enabled: true
     policies: []
     default_action:
       type: LogAndAllow
       level: warn
     log_actions: true
   rbac:
-    enabled: false
+    enabled: true
     roles: {}
     user_roles: {}
     api_key_roles: {}
@@ -209,6 +209,14 @@ security:
     state_file_path: /Users/gouravd/Development/magicbeanbs100x/magictunnel/data/emergency_lockdown.json
     log_blocked_requests: true
     authorized_users: []
+  
+  # Production Security Services
+  policy_engine:
+    enabled: true              # Production-ready security policy engine
+  
+  threat_detection:
+    enabled: true              # Production-ready threat detection engine
+
 streamable_http: null
 sampling:
   enabled: true

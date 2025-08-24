@@ -3,6 +3,17 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Request context that carries information through the routing pipeline
+#[derive(Debug, Clone)]
+pub struct RequestContext {
+    /// Client ID from the session manager
+    pub client_id: Option<String>,
+    /// Session ID for tracking
+    pub session_id: Option<String>,
+    /// Authentication context if available
+    pub auth_context: Option<crate::auth::AuthenticationContext>,
+}
+
 /// Agent types supported by the router
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -40,6 +51,7 @@ pub enum AgentType {
     WebSocket {
         url: String,
         headers: Option<std::collections::HashMap<String, String>>,
+        timeout: Option<u64>,
     },
 
     /// Database agent (SQL queries)
@@ -122,4 +134,39 @@ pub struct AgentResult {
     pub error: Option<String>,
     /// Execution metadata (timing, etc.)
     pub metadata: Option<Value>,
+}
+
+impl RequestContext {
+    /// Create a new request context
+    pub fn new() -> Self {
+        Self {
+            client_id: None,
+            session_id: None,
+            auth_context: None,
+        }
+    }
+
+    /// Create a request context with client ID
+    pub fn with_client_id(client_id: String) -> Self {
+        Self {
+            client_id: Some(client_id),
+            session_id: None,
+            auth_context: None,
+        }
+    }
+
+    /// Create a request context with session ID and client ID
+    pub fn with_session(session_id: String, client_id: Option<String>) -> Self {
+        Self {
+            client_id,
+            session_id: Some(session_id),
+            auth_context: None,
+        }
+    }
+
+    /// Add authentication context
+    pub fn with_auth_context(mut self, auth_context: crate::auth::AuthenticationContext) -> Self {
+        self.auth_context = Some(auth_context);
+        self
+    }
 }

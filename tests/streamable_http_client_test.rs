@@ -163,7 +163,7 @@ async fn test_streamable_http_client_bidirectional_support() {
 
     // Test setting request forwarder
     let forwarder = Arc::new(MockStreamableForwarder::new("test-streamable-forwarder".to_string()));
-    let result = client.set_request_forwarder(forwarder.clone()).await;
+    let result = client.set_request_forwarder(forwarder.clone(), "test-client-123".to_string()).await;
     assert!(result.is_ok());
 }
 

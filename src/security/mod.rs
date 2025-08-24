@@ -16,9 +16,11 @@ pub mod change_tracker;
 pub mod config;
 pub mod emergency;
 pub mod middleware;
+pub mod policy_engine;
 pub mod rbac;
 pub mod sanitization;
 pub mod statistics;
+pub mod threat_detection;
 
 // Re-export specific types to avoid conflicts
 pub use allowlist_types::{AllowlistConfig, AllowlistContext, AllowlistAction, AllowlistRule, AllowlistPattern};
@@ -60,3 +62,5 @@ pub use statistics::{SecurityServiceStatistics, HealthMonitor, ServiceHealth, He
 pub use emergency::{EmergencyLockdownManager, EmergencyLockdownConfig, EmergencyLockdownState, EmergencyLockdownResult, EmergencyLockdownStatistics};
 pub use change_tracker::{ConfigurationChangeTracker, ChangeTrackerConfig, ConfigurationChange, ChangeType, ChangeOperation, ChangeUser, ChangeTarget, ChangeDiff, ChangeImpact, ChangeValidation, ChangeListener, ChangeTrackingStatistics};
 pub use change_integration::{ChangeTrackingIntegration, AllowlistChangeListener, ConfigFileWatcher};
+pub use policy_engine::{PolicyEngineConfig, PolicyAction, PolicyEngineStatistics};
+pub use threat_detection::{ThreatDetectionConfig, ThreatAction, ThreatSeverity, ThreatDetectionStatistics};

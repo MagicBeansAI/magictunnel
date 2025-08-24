@@ -307,6 +307,60 @@ impl ContentStorageService {
         Ok((prompts, resources))
     }
 
+    /// List all stored content across all tools
+    pub async fn list_all_content(&self) -> Result<(Vec<PromptReference>, Vec<ResourceReference>)> {
+        let mut prompts = Vec::new();
+        let mut resources = Vec::new();
+
+        // Search prompt directory
+        let prompts_dir = self.storage_dir.join("prompts");
+        if prompts_dir.exists() {
+            if let Ok(entries) = tokio::fs::read_dir(&prompts_dir).await {
+                let mut entries = entries;
+                while let Ok(Some(entry)) = entries.next_entry().await {
+                    if let Ok(file_type) = entry.file_type().await {
+                        if file_type.is_file() {
+                            if let Some(file_name) = entry.file_name().to_str() {
+                                if file_name.ends_with(".json") {
+                                    if let Ok(content) = tokio::fs::read_to_string(entry.path()).await {
+                                        if let Ok(prompt_ref) = serde_json::from_str::<PromptReference>(&content) {
+                                            prompts.push(prompt_ref);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Search resource directory  
+        let resources_dir = self.storage_dir.join("resources");
+        if resources_dir.exists() {
+            if let Ok(entries) = tokio::fs::read_dir(&resources_dir).await {
+                let mut entries = entries;
+                while let Ok(Some(entry)) = entries.next_entry().await {
+                    if let Ok(file_type) = entry.file_type().await {
+                        if file_type.is_file() {
+                            if let Some(file_name) = entry.file_name().to_str() {
+                                if file_name.ends_with(".json") {
+                                    if let Ok(content) = tokio::fs::read_to_string(entry.path()).await {
+                                        if let Ok(resource_ref) = serde_json::from_str::<ResourceReference>(&content) {
+                                            resources.push(resource_ref);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok((prompts, resources))
+    }
+
     /// Cleanup old content based on policy
     pub async fn cleanup_old_content(&self) -> Result<()> {
         let cutoff_date = chrono::Utc::now() - chrono::Duration::days(self.config.cleanup_policy.max_age_days as i64);

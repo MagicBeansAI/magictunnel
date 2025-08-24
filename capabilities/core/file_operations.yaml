@@ -56,7 +56,7 @@ tools:
     type: enhanced_subprocess
     config: {}
   annotations: null
-  hidden: true
+  hidden: false
   enabled: true
   sampling_strategy: null
   elicitation_strategy: null

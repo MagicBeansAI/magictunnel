@@ -6,7 +6,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
+use std::path::PathBuf;
+use std::fs;
 use chrono::{DateTime, Utc, Timelike};
+use tracing::{info, warn, error, debug};
 use super::statistics::{SecurityServiceStatistics, HealthMonitor, ServiceHealth, HealthStatus, RbacStatistics, RoleUsage, PerformanceMetrics};
 
 /// RBAC configuration
@@ -162,6 +165,36 @@ pub struct RbacService {
     compiled_conditions: HashMap<String, CompiledCondition>,
     /// Statistics tracking
     stats: Arc<Mutex<RbacStats>>,
+    /// File storage path for RBAC data
+    storage_path: Option<PathBuf>,
+    /// Permissions registry
+    permissions_registry: Arc<Mutex<PermissionsRegistry>>,
+    /// Mutable config for CRUD operations
+    mutable_config: Arc<Mutex<RbacConfig>>,
+}
+
+/// Registry for managing dynamic permissions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PermissionsRegistry {
+    /// Available permissions
+    pub permissions: HashMap<String, Permission>,
+    /// Permission categories
+    pub categories: HashMap<String, PermissionCategory>,
+    /// Last modified timestamp
+    pub last_modified: DateTime<Utc>,
+}
+
+/// Permission category for organization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PermissionCategory {
+    /// Category ID
+    pub id: String,
+    /// Display name
+    pub name: String,
+    /// Description
+    pub description: String,
+    /// Associated permissions
+    pub permission_ids: Vec<String>,
 }
 
 /// Compiled condition for faster evaluation
@@ -253,9 +286,140 @@ impl Default for RbacConfig {
     }
 }
 
+impl Default for PermissionsRegistry {
+    fn default() -> Self {
+        let mut permissions = HashMap::new();
+        let mut categories = HashMap::new();
+        
+        // Basic permissions
+        permissions.insert("read".to_string(), Permission {
+            name: "read".to_string(),
+            description: Some("Read access to resources".to_string()),
+            resource_types: vec!["*".to_string()],
+            actions: vec!["read".to_string()],
+            conditions: None,
+        });
+        
+        permissions.insert("write".to_string(), Permission {
+            name: "write".to_string(),
+            description: Some("Write access to resources".to_string()),
+            resource_types: vec!["*".to_string()],
+            actions: vec!["write", "create", "update"].iter().map(|s| s.to_string()).collect(),
+            conditions: None,
+        });
+        
+        permissions.insert("admin".to_string(), Permission {
+            name: "admin".to_string(),
+            description: Some("Administrative access".to_string()),
+            resource_types: vec!["*".to_string()],
+            actions: vec!["*".to_string()],
+            conditions: None,
+        });
+        
+        // Tool permissions
+        permissions.insert("tool:read".to_string(), Permission {
+            name: "tool:read".to_string(),
+            description: Some("Read tool information and metadata".to_string()),
+            resource_types: vec!["tool".to_string()],
+            actions: vec!["read".to_string()],
+            conditions: None,
+        });
+        
+        permissions.insert("tool:execute".to_string(), Permission {
+            name: "tool:execute".to_string(),
+            description: Some("Execute tools".to_string()),
+            resource_types: vec!["tool".to_string()],
+            actions: vec!["execute".to_string()],
+            conditions: None,
+        });
+        
+        permissions.insert("tool:*".to_string(), Permission {
+            name: "tool:*".to_string(),
+            description: Some("Full access to all tools".to_string()),
+            resource_types: vec!["tool".to_string()],
+            actions: vec!["*".to_string()],
+            conditions: None,
+        });
+        
+        // Resource permissions  
+        permissions.insert("resource:read".to_string(), Permission {
+            name: "resource:read".to_string(),
+            description: Some("Read resource content".to_string()),
+            resource_types: vec!["resource".to_string()],
+            actions: vec!["read".to_string()],
+            conditions: None,
+        });
+        
+        permissions.insert("resource:*".to_string(), Permission {
+            name: "resource:*".to_string(),
+            description: Some("Full access to all resources".to_string()),
+            resource_types: vec!["resource".to_string()],
+            actions: vec!["*".to_string()],
+            conditions: None,
+        });
+        
+        // Prompt permissions
+        permissions.insert("prompt:read".to_string(), Permission {
+            name: "prompt:read".to_string(),
+            description: Some("Read prompt templates".to_string()),
+            resource_types: vec!["prompt".to_string()],
+            actions: vec!["read".to_string()],
+            conditions: None,
+        });
+        
+        permissions.insert("prompt:*".to_string(), Permission {
+            name: "prompt:*".to_string(),
+            description: Some("Full access to all prompts".to_string()),
+            resource_types: vec!["prompt".to_string()],
+            actions: vec!["*".to_string()],
+            conditions: None,
+        });
+        
+        // Categories
+        categories.insert("basic".to_string(), PermissionCategory {
+            id: "basic".to_string(),
+            name: "Basic Permissions".to_string(),
+            description: "Fundamental read/write permissions".to_string(),
+            permission_ids: vec!["read".to_string(), "write".to_string(), "admin".to_string()],
+        });
+        
+        categories.insert("tools".to_string(), PermissionCategory {
+            id: "tools".to_string(),
+            name: "Tool Permissions".to_string(),
+            description: "Permissions for tool access and execution".to_string(),
+            permission_ids: vec!["tool:read".to_string(), "tool:execute".to_string(), "tool:*".to_string()],
+        });
+        
+        categories.insert("resources".to_string(), PermissionCategory {
+            id: "resources".to_string(),
+            name: "Resource Permissions".to_string(),
+            description: "Permissions for accessing resources and files".to_string(),
+            permission_ids: vec!["resource:read".to_string(), "resource:*".to_string()],
+        });
+        
+        categories.insert("prompts".to_string(), PermissionCategory {
+            id: "prompts".to_string(),
+            name: "Prompt Permissions".to_string(),
+            description: "Permissions for prompt template access".to_string(),
+            permission_ids: vec!["prompt:read".to_string(), "prompt:*".to_string()],
+        });
+        
+        Self {
+            permissions,
+            categories,
+            last_modified: Utc::now(),
+        }
+    }
+}
+
 impl RbacService {
     /// Create a new RBAC service
     pub fn new(config: RbacConfig) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::with_storage(config, None)
+    }
+    
+    /// Create a new RBAC service with file storage
+    pub fn with_storage(config: RbacConfig, storage_path: Option<PathBuf>) -> Result<Self, Box<dyn std::error::Error>> {
         let mut compiled_conditions = HashMap::new();
         
         // Pre-compile conditions for performance
@@ -276,11 +440,114 @@ impl RbacService {
             total_processing_time_ms: 0,
         };
 
+        // Load or create permissions registry
+        let permissions_registry = if let Some(ref path) = storage_path {
+            Self::load_permissions_registry(path)
+                .unwrap_or_else(|_| {
+                    warn!("Failed to load permissions registry, using defaults");
+                    PermissionsRegistry::default()
+                })
+        } else {
+            PermissionsRegistry::default()
+        };
+        
+        // Load existing config from file if storage path is provided
+        let config = if let Some(ref path) = storage_path {
+            Self::load_config_from_file(path, config.clone())
+                .unwrap_or_else(|e| {
+                    warn!("Failed to load RBAC config from file: {}, using provided config", e);
+                    config
+                })
+        } else {
+            config
+        };
+
         Ok(Self {
-            config,
+            config: config.clone(),
             compiled_conditions,
             stats: Arc::new(Mutex::new(stats)),
+            storage_path,
+            permissions_registry: Arc::new(Mutex::new(permissions_registry)),
+            mutable_config: Arc::new(Mutex::new(config)),
         })
+    }
+    
+    /// Load RBAC configuration from file
+    fn load_config_from_file(storage_path: &PathBuf, default_config: RbacConfig) -> Result<RbacConfig, Box<dyn std::error::Error>> {
+        let config_path = storage_path.join("rbac_config.json");
+        
+        if config_path.exists() {
+            let content = fs::read_to_string(&config_path)?;
+            let config: RbacConfig = serde_json::from_str(&content)?;
+            info!("Loaded RBAC configuration from {:?}", config_path);
+            Ok(config)
+        } else {
+            // Save default config to file
+            Self::save_config_to_file(storage_path, &default_config)?;
+            Ok(default_config)
+        }
+    }
+    
+    /// Save RBAC configuration to file
+    fn save_config_to_file(storage_path: &PathBuf, config: &RbacConfig) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(parent) = storage_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::create_dir_all(storage_path)?;
+        
+        let config_path = storage_path.join("rbac_config.json");
+        let content = serde_json::to_string_pretty(config)?;
+        fs::write(&config_path, content)?;
+        
+        info!("Saved RBAC configuration to {:?}", config_path);
+        Ok(())
+    }
+    
+    /// Load permissions registry from file
+    fn load_permissions_registry(storage_path: &PathBuf) -> Result<PermissionsRegistry, Box<dyn std::error::Error>> {
+        let registry_path = storage_path.join("permissions_registry.json");
+        
+        if registry_path.exists() {
+            let content = fs::read_to_string(&registry_path)?;
+            let registry: PermissionsRegistry = serde_json::from_str(&content)?;
+            info!("Loaded permissions registry from {:?}", registry_path);
+            Ok(registry)
+        } else {
+            let default_registry = PermissionsRegistry::default();
+            Self::save_permissions_registry(storage_path, &default_registry)?;
+            Ok(default_registry)
+        }
+    }
+    
+    /// Save permissions registry to file
+    fn save_permissions_registry(storage_path: &PathBuf, registry: &PermissionsRegistry) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(parent) = storage_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::create_dir_all(storage_path)?;
+        
+        let registry_path = storage_path.join("permissions_registry.json");
+        let content = serde_json::to_string_pretty(registry)?;
+        fs::write(&registry_path, content)?;
+        
+        info!("Saved permissions registry to {:?}", registry_path);
+        Ok(())
+    }
+    
+    /// Save current state to files
+    pub fn save_to_storage(&self) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(ref path) = self.storage_path {
+            // Save config
+            if let Ok(config) = self.mutable_config.lock() {
+                Self::save_config_to_file(path, &config)?;
+            }
+            
+            // Save permissions registry
+            if let Ok(registry) = self.permissions_registry.lock() {
+                Self::save_permissions_registry(path, &registry)?;
+            }
+        }
+        Ok(())
     }
     
     /// Check if user has permission
@@ -480,6 +747,12 @@ impl RbacService {
         }
         
         self.config.roles.insert(role.name.clone(), role);
+        
+        // Auto-save to file storage if available
+        if let Err(e) = self.save_to_storage() {
+            warn!("Failed to save RBAC changes to storage: {}", e);
+        }
+        
         Ok(())
     }
     
@@ -497,6 +770,12 @@ impl RbacService {
         }
         
         self.config.roles.insert(role.name.clone(), role);
+        
+        // Auto-save to file storage if available
+        if let Err(e) = self.save_to_storage() {
+            warn!("Failed to save RBAC changes to storage: {}", e);
+        }
+        
         Ok(())
     }
     
@@ -612,14 +891,32 @@ impl RbacService {
         use serde_json::json;
         
         let users: Vec<serde_json::Value> = self.config.user_roles.iter().enumerate().map(|(index, (user_id, roles))| {
+            // Get effective permissions for this user
+            let context = PermissionContext {
+                user_id: Some(user_id.clone()),
+                user_roles: roles.clone(),
+                api_key_name: None,
+                resource: None,
+                action: None,
+                client_ip: None,
+                timestamp: Utc::now(),
+                metadata: HashMap::new(),
+            };
+            
+            let effective_roles = self.get_effective_roles(&context);
+            let permission_count: usize = effective_roles.iter()
+                .map(|role_name| self.get_role_permissions(role_name).len())
+                .sum();
+            
             json!({
-                "id": format!("user{}", index + 1),
+                "id": format!("user_{}", index + 1),
                 "username": user_id,
-                "email": format!("{}@example.com", user_id),
-                "roles": roles,
+                "assigned_roles": roles,
+                "effective_roles": effective_roles,
+                "permission_count": permission_count,
                 "status": "active",
-                "last_login": Utc::now(),
-                "created_at": Utc::now()
+                "role_count": roles.len(),
+                "last_activity": Utc::now() - chrono::Duration::hours(24)
             })
         }).collect();
         
@@ -644,80 +941,61 @@ impl RbacService {
     /// Get all permissions from all roles
     pub fn get_all_permissions(&self) -> serde_json::Value {
         use serde_json::json;
-        use std::collections::HashSet;
         
-        let mut all_permissions: HashSet<String> = HashSet::new();
-        
-        // Collect all unique permissions from all roles
-        for role in self.config.roles.values() {
-            for permission in &role.permissions {
-                all_permissions.insert(permission.clone());
-            }
-        }
-        
-        // Convert to structured permission list
-        let permissions: Vec<serde_json::Value> = all_permissions.iter().map(|perm| {
-            let (category, description) = if perm.starts_with("tool:") {
-                ("tools", "Tool-related permissions")
-            } else if perm.starts_with("resource:") {
-                ("resources", "Resource access permissions")
-            } else if perm.starts_with("prompt:") {
-                ("prompts", "Prompt management permissions")
-            } else if perm == "admin" {
-                ("administrative", "Administrative permissions")
-            } else {
-                ("basic", "Basic permissions")
-            };
+        if let Ok(registry) = self.permissions_registry.lock() {
+            let permissions: Vec<serde_json::Value> = registry.permissions.values().map(|permission| {
+                json!({
+                    "id": permission.name,
+                    "name": Self::to_title_case(&permission.name.replace(':', " ").replace('_', " ")),
+                    "description": permission.description.as_ref().unwrap_or(&"No description available".to_string()),
+                    "resource_types": permission.resource_types,
+                    "actions": permission.actions,
+                    "category": self.get_permission_category(&permission.name)
+                })
+            }).collect();
             
-            json!({
-                "id": perm,
-                "name": Self::to_title_case(&perm.replace(':', " ").replace('_', " ")),
-                "description": description,
-                "category": category
-            })
-        }).collect();
-        
-        json!(permissions)
+            json!(permissions)
+        } else {
+            warn!("Failed to acquire permissions registry lock, returning empty permissions");
+            json!([])
+        }
+    }
+    
+    /// Get category for a permission
+    fn get_permission_category(&self, permission_name: &str) -> String {
+        if permission_name.starts_with("tool:") {
+            "tools".to_string()
+        } else if permission_name.starts_with("resource:") {
+            "resources".to_string()
+        } else if permission_name.starts_with("prompt:") {
+            "prompts".to_string()
+        } else if permission_name == "admin" {
+            "basic".to_string()
+        } else {
+            "basic".to_string()
+        }
     }
     
     /// Get permission categories
     pub fn get_permission_categories(&self) -> serde_json::Value {
         use serde_json::json;
         
-        let categories = json!([
-            {
-                "id": "basic",
-                "name": "Basic Permissions",
-                "description": "Basic read/write permissions",
-                "permission_count": self.count_permissions_in_category("basic")
-            },
-            {
-                "id": "tools",
-                "name": "Tool Permissions",
-                "description": "Permissions related to tool access and execution",
-                "permission_count": self.count_permissions_in_category("tools")
-            },
-            {
-                "id": "resources",
-                "name": "Resource Permissions",
-                "description": "Permissions for accessing resources and files",
-                "permission_count": self.count_permissions_in_category("resources")
-            },
-            {
-                "id": "prompts",
-                "name": "Prompt Permissions",
-                "description": "Permissions for prompt management",
-                "permission_count": self.count_permissions_in_category("prompts")
-            },
-            {
-                "id": "administrative",
-                "name": "Administrative",
-                "description": "Administrative and management permissions",
-                "permission_count": self.count_permissions_in_category("administrative")
-            }
-        ]);
-        
-        categories
+        if let Ok(registry) = self.permissions_registry.lock() {
+            let categories: Vec<serde_json::Value> = registry.categories.values().map(|category| {
+                json!({
+                    "id": category.id,
+                    "name": category.name,
+                    "description": category.description,
+                    "permission_count": category.permission_ids.len(),
+                    "permissions": category.permission_ids
+                })
+            }).collect();
+            
+            json!(categories)
+        } else {
+            warn!("Failed to acquire permissions registry lock, returning empty categories");
+            json!([])
+        }
     }
     
     /// Count permissions in a specific category
@@ -757,6 +1035,340 @@ impl RbacService {
             })
             .collect::<Vec<_>>()
             .join(" ")
+    }
+
+    // ============================================================================
+    // Thread-safe CRUD operations for SecurityApi
+    // ============================================================================
+    
+    /// Create a new role (thread-safe)
+    pub fn create_role_safe(&self, role_data: serde_json::Value) -> Result<serde_json::Value, String> {
+        use serde_json::json;
+        
+        let name = role_data.get("name")
+            .and_then(|v| v.as_str())
+            .ok_or("Role name is required")?;
+            
+        let description = role_data.get("description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("New role");
+            
+        let permissions = role_data.get("permissions")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+            .unwrap_or_else(|| vec!["read".to_string()]);
+        
+        if let Ok(mut config) = self.mutable_config.lock() {
+            // Check if role already exists
+            if config.roles.contains_key(name) {
+                return Err(format!("Role '{}' already exists", name));
+            }
+            
+            let role = Role {
+                name: name.to_string(),
+                description: Some(description.to_string()),
+                permissions,
+                parent_roles: vec![],
+                active: true,
+                metadata: HashMap::new(),
+                created_at: Some(Utc::now()),
+                modified_at: Some(Utc::now()),
+            };
+            
+            config.roles.insert(name.to_string(), role.clone());
+            drop(config); // Release lock before saving
+            
+            // Auto-save to file storage
+            if let Err(e) = self.save_to_storage() {
+                warn!("Failed to save RBAC changes to storage: {}", e);
+            }
+            
+            Ok(json!({
+                "id": role.name,
+                "name": role.name,
+                "description": role.description,
+                "permissions": role.permissions,
+                "active": role.active,
+                "created_at": role.created_at,
+                "modified_at": role.modified_at
+            }))
+        } else {
+            Err("Failed to acquire config lock".to_string())
+        }
+    }
+    
+    /// Update an existing role (thread-safe)
+    pub fn update_role_safe(&self, role_name: &str, role_data: serde_json::Value) -> Result<serde_json::Value, String> {
+        use serde_json::json;
+        
+        if let Ok(mut config) = self.mutable_config.lock() {
+            if !config.roles.contains_key(role_name) {
+                return Err(format!("Role '{}' does not exist", role_name));
+            }
+            
+            let mut role = config.roles.get(role_name).unwrap().clone();
+            
+            // Update fields if provided
+            if let Some(description) = role_data.get("description").and_then(|v| v.as_str()) {
+                role.description = Some(description.to_string());
+            }
+            
+            if let Some(permissions_array) = role_data.get("permissions").and_then(|v| v.as_array()) {
+                role.permissions = permissions_array.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect();
+            }
+            
+            if let Some(parent_roles_array) = role_data.get("parent_roles").and_then(|v| v.as_array()) {
+                let parent_roles: Vec<String> = parent_roles_array.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect();
+                    
+                // Validate parent roles exist
+                for parent in &parent_roles {
+                    if !config.roles.contains_key(parent) {
+                        return Err(format!("Parent role '{}' does not exist", parent));
+                    }
+                }
+                role.parent_roles = parent_roles;
+            }
+            
+            if let Some(active) = role_data.get("active").and_then(|v| v.as_bool()) {
+                role.active = active;
+            }
+            
+            role.modified_at = Some(Utc::now());
+            
+            config.roles.insert(role_name.to_string(), role.clone());
+            drop(config); // Release lock before saving
+            
+            // Auto-save to file storage
+            if let Err(e) = self.save_to_storage() {
+                warn!("Failed to save RBAC changes to storage: {}", e);
+            }
+            
+            Ok(json!({
+                "id": role.name,
+                "name": role.name,
+                "description": role.description,
+                "permissions": role.permissions,
+                "parent_roles": role.parent_roles,
+                "active": role.active,
+                "created_at": role.created_at,
+                "modified_at": role.modified_at
+            }))
+        } else {
+            Err("Failed to acquire config lock".to_string())
+        }
+    }
+
+    /// Delete a role (thread-safe)
+    pub fn delete_role_safe(&self, role_name: &str) -> Result<serde_json::Value, String> {
+        use serde_json::json;
+        
+        if let Ok(mut config) = self.mutable_config.lock() {
+            if !config.roles.contains_key(role_name) {
+                return Err(format!("Role '{}' does not exist", role_name));
+            }
+            
+            let deleted_role = config.roles.remove(role_name).unwrap();
+            
+            // Remove from default roles if present
+            config.default_roles.retain(|r| r != role_name);
+            
+            drop(config); // Release lock before saving
+            
+            // Auto-save to file storage
+            if let Err(e) = self.save_to_storage() {
+                warn!("Failed to save RBAC changes to storage: {}", e);
+            }
+            
+            Ok(json!({
+                "success": true,
+                "message": format!("Role '{}' deleted successfully", role_name),
+                "deleted_role": {
+                    "name": deleted_role.name,
+                    "description": deleted_role.description
+                }
+            }))
+        } else {
+            Err("Failed to acquire config lock".to_string())
+        }
+    }
+    
+    /// Get role statistics (thread-safe)
+    pub fn get_role_statistics_safe(&self) -> serde_json::Value {
+        use serde_json::json;
+        
+        if let (Ok(config), Ok(stats)) = (self.mutable_config.lock(), self.stats.lock()) {
+            let active_roles = config.roles.values().filter(|role| role.active).count();
+            let total_permissions: usize = config.roles.values()
+                .map(|role| role.permissions.len())
+                .sum();
+            let users_with_roles = config.user_roles.len();
+            
+            json!({
+                "totalRoles": config.roles.len(),
+                "activeRoles": active_roles,
+                "totalPermissions": total_permissions,
+                "usersWithRoles": users_with_roles,
+                "totalAuthAttempts": stats.total_auth_attempts,
+                "successfulAuth": stats.successful_auth
+            })
+        } else {
+            json!({
+                "totalRoles": 0,
+                "activeRoles": 0,
+                "error": "Failed to acquire statistics"
+            })
+        }
+    }
+
+    // ============================================================================
+    // User Role Assignment Methods (Thread-safe)
+    // ============================================================================
+    
+    /// Assign role to user (thread-safe)
+    pub fn assign_user_role_safe(&self, user_id: &str, role_name: &str) -> Result<serde_json::Value, String> {
+        use serde_json::json;
+        
+        if let Ok(mut config) = self.mutable_config.lock() {
+            if !config.roles.contains_key(role_name) {
+                return Err(format!("Role '{}' does not exist", role_name));
+            }
+            
+            let user_roles = config.user_roles.entry(user_id.to_string()).or_default();
+            
+            if !user_roles.contains(&role_name.to_string()) {
+                user_roles.push(role_name.to_string());
+                drop(config); // Release lock before saving
+                
+                // Auto-save to file storage
+                if let Err(e) = self.save_to_storage() {
+                    warn!("Failed to save RBAC changes to storage: {}", e);
+                }
+                
+                Ok(json!({
+                    "success": true,
+                    "message": format!("Role '{}' assigned to user '{}' successfully", role_name, user_id),
+                    "user_id": user_id,
+                    "role": role_name
+                }))
+            } else {
+                Ok(json!({
+                    "success": true,
+                    "message": format!("User '{}' already has role '{}'", user_id, role_name),
+                    "user_id": user_id,
+                    "role": role_name
+                }))
+            }
+        } else {
+            Err("Failed to acquire config lock".to_string())
+        }
+    }
+    
+    /// Remove role from user (thread-safe)
+    pub fn remove_user_role_safe(&self, user_id: &str, role_name: &str) -> Result<serde_json::Value, String> {
+        use serde_json::json;
+        
+        if let Ok(mut config) = self.mutable_config.lock() {
+            if let Some(user_roles) = config.user_roles.get_mut(user_id) {
+                user_roles.retain(|r| r != role_name);
+                
+                // Remove user entry if no roles left
+                if user_roles.is_empty() {
+                    config.user_roles.remove(user_id);
+                }
+                
+                drop(config); // Release lock before saving
+                
+                // Auto-save to file storage
+                if let Err(e) = self.save_to_storage() {
+                    warn!("Failed to save RBAC changes to storage: {}", e);
+                }
+                
+                Ok(json!({
+                    "success": true,
+                    "message": format!("Role '{}' removed from user '{}' successfully", role_name, user_id),
+                    "user_id": user_id,
+                    "role": role_name
+                }))
+            } else {
+                Ok(json!({
+                    "success": true,
+                    "message": format!("User '{}' does not have any roles", user_id),
+                    "user_id": user_id
+                }))
+            }
+        } else {
+            Err("Failed to acquire config lock".to_string())
+        }
+    }
+    
+    /// Update user roles (replace all roles for a user)
+    pub fn update_user_roles_safe(&self, user_id: &str, new_roles: Vec<String>) -> Result<serde_json::Value, String> {
+        use serde_json::json;
+        
+        if let Ok(mut config) = self.mutable_config.lock() {
+            // Validate all roles exist
+            for role_name in &new_roles {
+                if !config.roles.contains_key(role_name) {
+                    return Err(format!("Role '{}' does not exist", role_name));
+                }
+            }
+            
+            if new_roles.is_empty() {
+                // Remove user if no roles
+                config.user_roles.remove(user_id);
+            } else {
+                // Set new roles
+                config.user_roles.insert(user_id.to_string(), new_roles.clone());
+            }
+            
+            drop(config); // Release lock before saving
+            
+            // Auto-save to file storage
+            if let Err(e) = self.save_to_storage() {
+                warn!("Failed to save RBAC changes to storage: {}", e);
+            }
+            
+            Ok(json!({
+                "success": true,
+                "message": format!("User '{}' roles updated successfully", user_id),
+                "user_id": user_id,
+                "roles": new_roles
+            }))
+        } else {
+            Err("Failed to acquire config lock".to_string())
+        }
+    }
+    
+    /// Delete user (remove all role assignments)
+    pub fn delete_user_safe(&self, user_id: &str) -> Result<serde_json::Value, String> {
+        use serde_json::json;
+        
+        if let Ok(mut config) = self.mutable_config.lock() {
+            let had_roles = config.user_roles.remove(user_id).is_some();
+            drop(config); // Release lock before saving
+            
+            // Auto-save to file storage
+            if let Err(e) = self.save_to_storage() {
+                warn!("Failed to save RBAC changes to storage: {}", e);
+            }
+            
+            Ok(json!({
+                "success": true,
+                "message": if had_roles {
+                    format!("User '{}' and all role assignments deleted successfully", user_id)
+                } else {
+                    format!("User '{}' had no role assignments to delete", user_id)
+                },
+                "user_id": user_id,
+                "had_roles": had_roles
+            }))
+        } else {
+            Err("Failed to acquire config lock".to_string())
+        }
     }
 }
 

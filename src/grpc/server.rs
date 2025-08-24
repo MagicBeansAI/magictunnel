@@ -9,6 +9,7 @@ use async_stream;
 
 use crate::registry::RegistryService;
 use crate::mcp::types::{ToolCall, ToolResult as McpToolResult, Tool as McpTool};
+use crate::routing::{Router, types::RequestContext};
 
 // Include the generated protobuf code
 tonic::include_proto!("mcp");
@@ -16,12 +17,19 @@ tonic::include_proto!("mcp");
 /// gRPC server implementation for MCP protocol
 pub struct McpGrpcServer {
     registry: Arc<RegistryService>,
+    router: Arc<Router>,
 }
 
 impl McpGrpcServer {
     /// Create a new gRPC server with registry
     pub fn new(registry: Arc<RegistryService>) -> Self {
-        Self { registry }
+        let router = Arc::new(Router::new_enhanced());
+        Self { registry, router }
+    }
+    
+    /// Create a new gRPC server with registry and router
+    pub fn with_router(registry: Arc<RegistryService>, router: Arc<Router>) -> Self {
+        Self { registry, router }
     }
 }
 
@@ -29,11 +37,22 @@ impl McpGrpcServer {
 impl McpGrpcServer {
     /// Convert MCP Tool to protobuf Tool
     fn mcp_tool_to_proto(mcp_tool: &McpTool) -> Tool {
+        // Convert annotations from MCP Tool if available
+        let annotations = mcp_tool.annotations.as_ref().map(|tool_annotations| {
+            ToolAnnotations {
+                title: tool_annotations.title.clone(),
+                read_only: tool_annotations.read_only_hint,
+                destructive: tool_annotations.destructive_hint,
+                idempotent: tool_annotations.idempotent_hint,
+                open_world: tool_annotations.open_world_hint,
+            }
+        });
+        
         Tool {
             name: mcp_tool.name.clone(),
             description: mcp_tool.description.clone().unwrap_or_else(|| format!("Tool: {}", mcp_tool.name)),
             input_schema: serde_json::to_string(&mcp_tool.input_schema).unwrap_or_else(|_| "{}".to_string()),
-            annotations: None, // TODO: Add annotations conversion if needed
+            annotations,
         }
     }
 
@@ -104,6 +123,7 @@ impl mcp_service_server::McpService for McpGrpcServer {
         };
 
         let registry = self.registry.clone();
+        let router = self.router.clone();
 
         let stream = async_stream::stream! {
             // Get tool definition from registry
@@ -128,14 +148,46 @@ impl mcp_service_server::McpService for McpGrpcServer {
                     }
                 };
 
-                // TODO: Execute tool call - for now return placeholder
-                let result = McpToolResult::error_with_metadata(
-                    "Tool execution not implemented in gRPC handler yet".to_string(),
-                    serde_json::json!({
-                        "tool_name": tool_call.name,
-                        "method": "grpc"
-                    })
+                // Execute tool call using the router
+                let context = RequestContext::with_session(
+                    format!("grpc-session-{}", chrono::Utc::now().timestamp_millis()),
+                    Some(format!("grpc-client-{}", chrono::Utc::now().timestamp_millis()))
                 );
+
+                let result = match router.route_with_context(&tool_call, &tool_def, &context).await {
+                    Ok(agent_result) => {
+                        debug!("gRPC tool execution successful for '{}': success={}", tool_call.name, agent_result.success);
+                        
+                        if agent_result.success {
+                            let data = agent_result.data.unwrap_or(serde_json::json!({}));
+                            let metadata = serde_json::json!({
+                                "tool_name": tool_call.name,
+                                "method": "grpc",
+                                "routing_info": agent_result.metadata
+                            });
+                            McpToolResult::success_with_metadata(data, metadata)
+                        } else {
+                            let error_msg = agent_result.error.unwrap_or_else(|| "Tool execution failed".to_string());
+                            let metadata = serde_json::json!({
+                                "tool_name": tool_call.name,
+                                "method": "grpc",
+                                "routing_info": agent_result.metadata
+                            });
+                            McpToolResult::error_with_metadata(error_msg, metadata)
+                        }
+                    }
+                    Err(e) => {
+                        error!("gRPC tool execution failed for '{}': {}", tool_call.name, e);
+                        McpToolResult::error_with_metadata(
+                            format!("Tool execution failed: {}", e),
+                            serde_json::json!({
+                                "tool_name": tool_call.name,
+                                "method": "grpc",
+                                "error_type": "routing_error"
+                            })
+                        )
+                    }
+                };
 
                 let proto_result = Self::mcp_result_to_proto(&result);
                 let response = CallToolResponse {

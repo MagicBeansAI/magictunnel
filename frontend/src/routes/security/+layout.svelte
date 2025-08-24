@@ -20,6 +20,9 @@
       '/security/sanitization/filtering': 'Content Filtering',
       '/security/sanitization/secrets': 'Secret Detection',
       '/security/sanitization/testing': 'Sanitization Testing',
+      '/security/policies': 'Security Policies (Alpha)',
+      '/security/policies/violations': 'Policy Violations (Alpha)',
+      '/security/threats': 'Threat Detection (Alpha)',
       '/security/config': 'Configuration',
     };
     
@@ -70,5 +73,21 @@
   
   :global(.security-status-disabled) {
     @apply bg-gray-100 text-gray-600;
+  }
+  
+  :global(.alpha-indicator) {
+    @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 ml-2;
+  }
+  
+  :global(.alpha-badge) {
+    @apply inline-block px-1.5 py-0.5 text-xs font-medium bg-orange-100 text-orange-700 rounded-md;
+  }
+  
+  :global(.alpha-warning) {
+    @apply bg-orange-50 border-l-4 border-orange-400 p-4 mb-4;
+  }
+  
+  :global(.alpha-warning-text) {
+    @apply text-orange-700 text-sm;
   }
 </style>

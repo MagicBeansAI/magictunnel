@@ -595,12 +595,15 @@ impl IsolatedSessionManager {
             None
         };
 
-        // TODO: Extract TLS information if available
-        let tls_info = None;
+        // Extract TLS information if available
+        let tls_info = extract_tls_info(req);
+        
+        // Detect actual connection type based on request properties
+        let connection_type = detect_connection_type(req);
 
         Ok(ConnectionMetadata {
             client_ip,
-            connection_type: "http".to_string(), // TODO: Detect actual connection type
+            connection_type,
             user_agent,
             connected_at: SystemTime::now(),
             tls_info,
@@ -678,6 +681,98 @@ pub struct SessionStats {
 impl SessionStats {
     pub fn unique_client_count(&self) -> usize {
         self.unique_clients.len()
+    }
+}
+
+/// Extract TLS information from HTTP request if available
+fn extract_tls_info(req: &HttpRequest) -> Option<TlsConnectionInfo> {
+    // Check for TLS termination at reverse proxy level
+    let is_secure = req.connection_info().scheme() == "https" ||
+                   req.headers().get("x-forwarded-proto").map(|v| v.to_str().unwrap_or("")) == Some("https") ||
+                   req.headers().get("x-forwarded-ssl").map(|v| v.to_str().unwrap_or("")) == Some("on");
+    
+    if !is_secure {
+        return None;
+    }
+    
+    let mut tls_info = TlsConnectionInfo {
+        version: "unknown".to_string(),
+        cipher_suite: None,
+        client_cert_fingerprint: None,
+    };
+    
+    // Extract TLS version from headers if provided by reverse proxy
+    if let Some(tls_version) = req.headers().get("x-forwarded-tls-version") {
+        if let Ok(version_str) = tls_version.to_str() {
+            tls_info.version = version_str.to_string();
+        }
+    } else if let Some(ssl_protocol) = req.headers().get("x-forwarded-ssl-protocol") {
+        if let Ok(protocol_str) = ssl_protocol.to_str() {
+            tls_info.version = protocol_str.to_string();
+        }
+    }
+    
+    // Extract cipher suite if available
+    if let Some(cipher) = req.headers().get("x-forwarded-tls-cipher") {
+        if let Ok(cipher_str) = cipher.to_str() {
+            tls_info.cipher_suite = Some(cipher_str.to_string());
+        }
+    } else if let Some(ssl_cipher) = req.headers().get("x-forwarded-ssl-cipher") {
+        if let Ok(cipher_str) = ssl_cipher.to_str() {
+            tls_info.cipher_suite = Some(cipher_str.to_string());
+        }
+    }
+    
+    // Extract client certificate fingerprint if available
+    if let Some(cert_fingerprint) = req.headers().get("x-forwarded-tls-client-cert-fingerprint") {
+        if let Ok(fingerprint_str) = cert_fingerprint.to_str() {
+            tls_info.client_cert_fingerprint = Some(fingerprint_str.to_string());
+        }
+    } else if let Some(ssl_client_cert) = req.headers().get("x-ssl-client-fingerprint") {
+        if let Ok(fingerprint_str) = ssl_client_cert.to_str() {
+            tls_info.client_cert_fingerprint = Some(fingerprint_str.to_string());
+        }
+    }
+    
+    Some(tls_info)
+}
+
+/// Detect actual connection type from HTTP request
+fn detect_connection_type(req: &HttpRequest) -> String {
+    // Check if this is a WebSocket upgrade request
+    if let Some(upgrade) = req.headers().get("upgrade") {
+        if let Ok(upgrade_str) = upgrade.to_str() {
+            if upgrade_str.to_lowercase() == "websocket" {
+                return "websocket".to_string();
+            }
+        }
+    }
+    
+    // Check for Server-Sent Events
+    if let Some(accept) = req.headers().get("accept") {
+        if let Ok(accept_str) = accept.to_str() {
+            if accept_str.contains("text/event-stream") {
+                return "sse".to_string();
+            }
+        }
+    }
+    
+    // Check for HTTP/2 or HTTP/3
+    let version = req.head().version;
+    match version {
+        actix_web::http::Version::HTTP_2 => return "http2".to_string(),
+        actix_web::http::Version::HTTP_3 => return "http3".to_string(),
+        _ => {}
+    }
+    
+    // Check if connection is secure (HTTPS)
+    let is_secure = req.connection_info().scheme() == "https" ||
+                   req.headers().get("x-forwarded-proto").map(|v| v.to_str().unwrap_or("")) == Some("https");
+    
+    if is_secure {
+        "https".to_string()
+    } else {
+        "http".to_string()
     }
 }
 

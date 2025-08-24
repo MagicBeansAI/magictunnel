@@ -4,7 +4,7 @@ use crate::error::Result;
 use crate::mcp::ToolCall;
 use crate::registry::ToolDefinition;
 use crate::routing::{AgentRouter, DefaultAgentRouter, EnhancedRouterBuilder};
-use crate::routing::types::AgentResult;
+use crate::routing::types::{AgentResult, RequestContext};
 use std::sync::Arc;
 use tracing::debug;
 
@@ -107,6 +107,20 @@ impl Router {
             debug!("Router doesn't support auth context, falling back to standard routing");
             self.agent_router.route(tool_call, tool_def).await
         }
+    }
+
+    /// Route a tool call with request context
+    pub async fn route_with_context(
+        &self,
+        tool_call: &ToolCall,
+        tool_def: &ToolDefinition,
+        context: &RequestContext,
+    ) -> Result<AgentResult> {
+        debug!("Routing tool call with context: {} (session_id: {:?}, client_id: {:?})", 
+               tool_call.name, context.session_id, context.client_id);
+        
+        // Check if the underlying agent router supports context
+        self.agent_router.route_with_context(tool_call, tool_def, context).await
     }
 
     /// Create a new router with enhanced features (logging and metrics middleware)

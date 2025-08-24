@@ -25,13 +25,19 @@ use magictunnel::discovery::filtered_tool_listing::{
     FilteredListingConfig, FilteredToolListingService,
 };
 use magictunnel::discovery::permission_cache::{
-    PermissionCacheConfig, PermissionCacheManager, PermissionIndex, UserToolCache,
+    PermissionCacheConfig, PermissionCacheManager,
 };
 use magictunnel::discovery::service::SmartDiscoveryService;
 use magictunnel::discovery::*;
 use magictunnel::registry::service::RegistryService;
 use magictunnel::registry::types::ToolDefinition;
-use magictunnel::security::{SecurityContext, SecurityRequest, SecurityUser};
+use magictunnel::security::{SecurityContext, SecurityRequest, SecurityUser, RbacService, RbacConfig};
+
+/// Helper to create a test RBAC service
+fn create_test_rbac_service() -> Arc<RbacService> {
+    let config = RbacConfig::default();
+    Arc::new(RbacService::new(config).expect("Failed to create test RBAC service"))
+}
 
 /// Helper function to create test security context
 fn create_security_context(user_id: &str, roles: Vec<String>) -> SecurityContext {
@@ -173,7 +179,8 @@ fn create_test_tools() -> AHashMap<String, ToolDefinition> {
 #[test]
 async fn test_permission_cache_basic_functionality() {
     let config = PermissionCacheConfig::default();
-    let cache_manager = Arc::new(PermissionCacheManager::new(config));
+    let rbac_service = create_test_rbac_service();
+    let cache_manager = Arc::new(PermissionCacheManager::new(config, rbac_service));
 
     // Test admin user context
     let admin_context = create_security_context("admin_user", vec!["admin".to_string()]);
@@ -239,7 +246,8 @@ async fn test_fast_permission_evaluator() {
 #[test]
 async fn test_filtered_tool_listing_service() {
     let cache_config = PermissionCacheConfig::default();
-    let permission_cache = Arc::new(PermissionCacheManager::new(cache_config));
+    let rbac_service = create_test_rbac_service();
+    let permission_cache = Arc::new(PermissionCacheManager::new(cache_config, rbac_service));
 
     let listing_config = FilteredListingConfig {
         enable_permission_filtering: true,
@@ -309,7 +317,8 @@ async fn test_filtered_tool_listing_service() {
 #[test]
 async fn test_cache_invalidation_system() {
     let cache_config = PermissionCacheConfig::default();
-    let cache_manager = Arc::new(PermissionCacheManager::new(cache_config));
+    let rbac_service = create_test_rbac_service();
+    let cache_manager = Arc::new(PermissionCacheManager::new(cache_config, rbac_service));
 
     let invalidation_config = CacheInvalidationConfig {
         default_user_cache_ttl: Duration::from_secs(5), // Short TTL for testing
@@ -370,7 +379,8 @@ async fn test_cache_invalidation_system() {
 #[test]
 async fn test_performance_with_large_tool_set() {
     let cache_config = PermissionCacheConfig::default();
-    let permission_cache = Arc::new(PermissionCacheManager::new(cache_config));
+    let rbac_service = create_test_rbac_service();
+    let permission_cache = Arc::new(PermissionCacheManager::new(cache_config, rbac_service));
 
     let listing_config = FilteredListingConfig {
         enable_permission_filtering: true,
@@ -448,7 +458,8 @@ async fn test_performance_with_large_tool_set() {
 #[test]
 async fn test_edge_cases_and_error_handling() {
     let cache_config = PermissionCacheConfig::default();
-    let permission_cache = Arc::new(PermissionCacheManager::new(cache_config));
+    let rbac_service = create_test_rbac_service();
+    let permission_cache = Arc::new(PermissionCacheManager::new(cache_config, rbac_service));
 
     let listing_config = FilteredListingConfig::default();
     let listing_service = FilteredToolListingService::new(permission_cache, listing_config);
@@ -513,7 +524,8 @@ async fn test_edge_cases_and_error_handling() {
 #[test]
 async fn test_concurrent_access() {
     let cache_config = PermissionCacheConfig::default();
-    let permission_cache = Arc::new(PermissionCacheManager::new(cache_config));
+    let rbac_service = create_test_rbac_service();
+    let permission_cache = Arc::new(PermissionCacheManager::new(cache_config, rbac_service));
 
     let listing_config = FilteredListingConfig {
         enable_permission_filtering: true,
@@ -579,7 +591,8 @@ async fn test_filtered_smart_discovery_integration() {
     // For now, we'll test the configuration and basic initialization
 
     let cache_config = PermissionCacheConfig::default();
-    let permission_cache = Arc::new(PermissionCacheManager::new(cache_config));
+    let rbac_service = create_test_rbac_service();
+    let permission_cache = Arc::new(PermissionCacheManager::new(cache_config, rbac_service));
 
     let discovery_config = FilteredDiscoveryConfig {
         enable_permission_filtering: true,
@@ -602,7 +615,8 @@ async fn test_filtered_smart_discovery_integration() {
 #[test]
 async fn test_audit_trail_generation() {
     let cache_config = PermissionCacheConfig::default();
-    let permission_cache = Arc::new(PermissionCacheManager::new(cache_config));
+    let rbac_service = create_test_rbac_service();
+    let permission_cache = Arc::new(PermissionCacheManager::new(cache_config, rbac_service));
 
     let listing_config = FilteredListingConfig {
         enable_permission_filtering: true,
@@ -675,7 +689,8 @@ async fn test_full_integration() {
         enable_stats: true,
     };
 
-    let permission_cache = Arc::new(PermissionCacheManager::new(cache_config.clone()));
+    let rbac_service = create_test_rbac_service();
+    let permission_cache = Arc::new(PermissionCacheManager::new(cache_config.clone(), rbac_service));
 
     let invalidation_config = CacheInvalidationConfig::default();
     let invalidation_manager =
@@ -783,7 +798,8 @@ async fn test_performance_benchmark() {
     println!("Starting performance benchmark...");
 
     let cache_config = PermissionCacheConfig::default();
-    let permission_cache = Arc::new(PermissionCacheManager::new(cache_config));
+    let rbac_service = create_test_rbac_service();
+    let permission_cache = Arc::new(PermissionCacheManager::new(cache_config, rbac_service));
 
     let listing_config = FilteredListingConfig {
         enable_permission_filtering: true,

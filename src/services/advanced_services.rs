@@ -35,6 +35,10 @@ pub struct SecurityServices {
     pub rbac_service: Option<Arc<crate::security::RbacService>>,
     pub sanitization_service: Option<Arc<crate::security::SanitizationService>>,
     pub lockdown_manager: Option<Arc<crate::security::EmergencyLockdownManager>>,
+    /// Policy Engine service (Alpha)
+    pub policy_engine: Option<Arc<crate::auth::security_validator::SecurityPolicyEngine>>,
+    /// Threat Detection Engine service (Alpha)
+    pub threat_detection: Option<Arc<crate::auth::security_validator::ThreatDetectionEngine>>,
 }
 
 impl std::fmt::Debug for SecurityServices {
@@ -45,6 +49,8 @@ impl std::fmt::Debug for SecurityServices {
             .field("rbac_service", &self.rbac_service.is_some())
             .field("sanitization_service", &self.sanitization_service.is_some())
             .field("lockdown_manager", &self.lockdown_manager.is_some())
+            .field("policy_engine", &self.policy_engine.is_some())
+            .field("threat_detection", &self.threat_detection.is_some())
             .finish()
     }
 }
@@ -274,12 +280,53 @@ impl AdvancedServices {
                 None
             };
             
+            // Initialize production security services based on configuration
+            info!("🔍 DEBUG: Checking security services config - security config present: {}", config.security.is_some());
+            
+            let policy_engine = if let Some(sec_config) = &config.security {
+                if let Some(pe_config) = &sec_config.policy_engine {
+                    if pe_config.enabled {
+                        info!("✅ Initializing Policy Engine (enabled in config)");
+                        Some(Arc::new(crate::auth::security_validator::SecurityPolicyEngine::new()))
+                    } else {
+                        info!("⏭️ Policy Engine disabled in configuration");
+                        None
+                    }
+                } else {
+                    info!("⏭️ Policy Engine not configured");
+                    None
+                }
+            } else {
+                info!("⏭️ No security configuration found, Policy Engine disabled");
+                None
+            };
+            
+            let threat_detection = if let Some(sec_config) = &config.security {
+                if let Some(td_config) = &sec_config.threat_detection {
+                    if td_config.enabled {
+                        info!("✅ Initializing Threat Detection Engine (enabled in config)");
+                        Some(Arc::new(crate::auth::security_validator::ThreatDetectionEngine::new()))
+                    } else {
+                        info!("⏭️ Threat Detection Engine disabled in configuration");
+                        None
+                    }
+                } else {
+                    info!("⏭️ Threat Detection Engine not configured");
+                    None
+                }
+            } else {
+                info!("⏭️ No security configuration found, Threat Detection Engine disabled");
+                None
+            };
+
             Some(SecurityServices {
                 allowlist_service,
                 audit_collector,
                 rbac_service,
                 sanitization_service,
                 lockdown_manager,
+                policy_engine,
+                threat_detection,
             })
         } else {
             None

@@ -20,14 +20,16 @@ use crate::mcp::cancellation::{CancellationManager, CancellationConfig};
 use crate::mcp::progress::{ProgressTracker, ProgressConfig};
 use crate::mcp::tool_validation::{RuntimeToolValidator, ValidationConfig as ToolValidationConfig};
 use crate::registry::service::{RegistryService, EnhancementCallback};
-use crate::routing::{Router, types::AgentResult};
-use crate::web::{configure_dashboard_api};
+use crate::routing::{Router, types::{AgentResult, RequestContext}};
+use crate::web::{configure_dashboard_api, SharedRateLimitMiddleware};
 use actix_web::{web, App, HttpServer, HttpResponse, middleware::Logger, HttpRequest};
 use actix_ws::Message;
 use futures_util::{StreamExt, stream};
 use secrecy::ExposeSecret;
 use tracing::{debug, info, warn, error};
 use uuid;
+use tokio::sync::oneshot;
+use std::collections::HashMap;
 use chrono;
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -82,6 +84,10 @@ pub struct McpServer {
     roots_service: Option<Arc<crate::mcp::roots::RootsService>>,
     /// Channel sender for forwarding requests to the original MCP client
     client_sender: Option<tokio::sync::mpsc::UnboundedSender<String>>,
+    /// Pending requests waiting for responses from the client
+    pending_requests: Arc<tokio::sync::Mutex<HashMap<String, oneshot::Sender<serde_json::Value>>>>,
+    /// Service container for exposing service status ✅ **NEW**
+    service_container: Option<Arc<crate::services::ServiceContainer>>,
 }
 
 impl McpServer {
@@ -286,6 +292,8 @@ impl McpServer {
             elicitation_service: None, // No elicitation service by default
             roots_service: None, // No roots service by default
             client_sender: None, // No client sender by default
+            pending_requests: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            service_container: None, // No service container by default
         })
     }
 
@@ -324,7 +332,9 @@ impl McpServer {
             enhancement_service: None, // No enhancement pipeline service by default
             elicitation_service: None, // No elicitation service by default
             roots_service: None, // No roots service by default
-            client_sender: None, // No client sender by default
+            client_sender: None,
+            pending_requests: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            service_container: None, // No service container by default
         }
     }
 
@@ -632,7 +642,9 @@ impl McpServer {
             cancellation_manager: Arc::new(CancellationManager::new(CancellationConfig::default())),
             progress_tracker: Arc::new(ProgressTracker::new(ProgressConfig::default())),
             tool_validator: Arc::new(RuntimeToolValidator::new(ToolValidationConfig::default())?),
-            client_sender: None, // Will be set when stdio mode connects
+            client_sender: None,
+            pending_requests: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            service_container: None, // No service container by default
         };
 
         // Configure authentication if present
@@ -770,6 +782,8 @@ impl McpServer {
             elicitation_service: None,
             roots_service: None,
             client_sender: None,
+            pending_requests: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            service_container: None, // No service container by default
         };
 
         // Configure authentication if present
@@ -846,7 +860,9 @@ impl McpServer {
             enhancement_service: None, // No enhancement pipeline service by default
             elicitation_service: None, // No elicitation service by default
             roots_service: None, // No roots service by default
-            client_sender: None, // No client sender by default
+            client_sender: None,
+            pending_requests: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            service_container: None, // No service container by default
         }
     }
 
@@ -1259,14 +1275,25 @@ impl McpServer {
         // Note: Security API is now initialized within dashboard configuration
         // to avoid conflicts with service container security services
 
-        let server_data = web::Data::new(Arc::clone(&self.registry));
-        let mcp_server_data = web::Data::new(Arc::new(self));
+        // Update self with service container if provided
+        let mut updated_self = self;
+        if let Some(container) = service_container.clone() {
+            info!("🔗 Setting service container for MCP server status reporting");
+            updated_self.service_container = Some(container);
+        }
+
+        let server_data = web::Data::new(Arc::clone(&updated_self.registry));
+        let mcp_server_data = web::Data::new(Arc::new(updated_self));
 
         let server = HttpServer::new(move || {
+            // Create shared rate limiting middleware (uses global configuration)
+            let shared_rate_limit_middleware = SharedRateLimitMiddleware::new();
+
             let mut app = App::new()
                 .app_data(server_data.clone())
                 .app_data(mcp_server_data.clone())
-                .wrap(Logger::default());
+                .wrap(Logger::default())
+                .wrap(shared_rate_limit_middleware); // Apply rate limiting to ALL routes
 
             // Add TLS config to app data if available
             if let Some(tls_cfg) = tls_config.clone() {
@@ -1276,6 +1303,8 @@ impl McpServer {
             app
                 // Health check
                 .route("/health", web::get().to(health_check))
+                // Service status with container information
+                .route("/service-status", web::get().to(service_status))
 
                 // MCP JSON-RPC 2.0 endpoint (unified protocol)
                 .route("/mcp/jsonrpc", web::post().to(mcp_jsonrpc_handler))
@@ -1923,6 +1952,23 @@ impl McpServer {
         // Session ID extraction logic could be enhanced based on transport
         // For now, return None (which means we'll use fallback capability advertisement)
         None
+    }
+
+    /// Extract session ID from tool call metadata
+    fn extract_session_id_from_tool_call(&self, tool_call: &ToolCall) -> Option<String> {
+        // Look for session ID in tool call arguments (if passed by client)
+        if let Some(session_id) = tool_call.arguments.get("_session_id").and_then(|v| v.as_str()) {
+            return Some(session_id.to_string());
+        }
+        
+        // Could also check tool call metadata if available
+        None
+    }
+
+    /// Get the first active session ID as fallback
+    fn get_first_active_session_id(&self) -> Option<String> {
+        let sessions = self.session_manager.get_all_sessions();
+        sessions.first().map(|session| session.id.clone())
     }
     
     /// Update external MCP integration with client capabilities context
@@ -2721,6 +2767,33 @@ impl McpServer {
         self.session_manager.get_active_connection_count()
     }
 
+    /// Set service container for status reporting
+    pub fn with_service_container(mut self, service_container: Arc<crate::services::ServiceContainer>) -> Self {
+        self.service_container = Some(service_container);
+        self
+    }
+
+    /// Get service container reference
+    pub fn get_service_container(&self) -> Option<&Arc<crate::services::ServiceContainer>> {
+        self.service_container.as_ref()
+    }
+
+    /// Get service status from container
+    pub fn get_service_status(&self) -> Option<serde_json::Value> {
+        if let Some(container) = &self.service_container {
+            Some(serde_json::json!({
+                "runtime_mode": format!("{:?}", container.runtime_mode),
+                "service_count": container.service_count,
+                "proxy_services_healthy": container.proxy_services.as_ref().map(|s| s.is_healthy()).unwrap_or(false),
+                "advanced_services_healthy": container.advanced_services.as_ref().map(|s| s.is_healthy()).unwrap_or(true),
+                "overall_healthy": container.is_healthy(),
+                "config_file_path": container.config_file_path.as_ref().map(|p| p.to_string_lossy().to_string())
+            }))
+        } else {
+            None
+        }
+    }
+
     /// Create progress session
     pub async fn create_progress_session(
         &self,
@@ -2966,30 +3039,52 @@ impl McpServer {
                 "id": format!("sampling-{}", uuid::Uuid::new_v4())
             });
             
+            // Create a response channel
+            let (response_tx, response_rx) = oneshot::channel();
+            let request_id = client_request["id"].as_str().unwrap().to_string();
+            
+            // Store the response channel for this request
+            {
+                let mut pending = self.pending_requests.lock().await;
+                pending.insert(request_id.clone(), response_tx);
+            }
+            
             // Send the request to the client via the channel
             if let Err(e) = tx.send(client_request.to_string()) {
+                // Remove the pending request if sending failed
+                let mut pending = self.pending_requests.lock().await;
+                pending.remove(&request_id);
+                
                 warn!("Failed to forward sampling request to client: {}", e);
                 return Err(crate::error::ProxyError::routing(
                     format!("Failed to forward sampling request to client: {}", e)
                 ));
             }
             
-            // For now, return a placeholder response indicating forwarding occurred
-            // In a full implementation, we would wait for the client's response
-            Ok(crate::mcp::types::SamplingResponse {
-                message: crate::mcp::types::SamplingMessage {
-                    role: crate::mcp::types::SamplingMessageRole::Assistant,
-                    content: crate::mcp::types::SamplingContent::Text(
-                        "Request forwarded to original client for processing".to_string()
-                    ),
-                    name: None,
-                    metadata: None,
+            // Wait for the client's response with a timeout
+            match tokio::time::timeout(
+                tokio::time::Duration::from_secs(30), // 30 second timeout
+                response_rx
+            ).await {
+                Ok(Ok(client_response)) => {
+                    // Parse the client response into a SamplingResponse
+                    self.parse_sampling_response(client_response).await
                 },
-                model: "client-handled".to_string(),
-                stop_reason: crate::mcp::types::SamplingStopReason::EndTurn,
-                usage: None,
-                metadata: None,
-            })
+                Ok(Err(_)) => {
+                    // Channel was closed
+                    Err(crate::error::ProxyError::mcp(
+                        "Client response channel was closed unexpectedly"
+                    ))
+                },
+                Err(_) => {
+                    // Timeout occurred
+                    let mut pending = self.pending_requests.lock().await;
+                    pending.remove(&request_id);
+                    Err(crate::error::ProxyError::mcp(
+                        "Timeout waiting for client response to sampling request"
+                    ))
+                }
+            }
         } else {
             warn!("No client sender available for forwarding sampling request");
             Err(crate::error::ProxyError::routing(
@@ -3032,32 +3127,108 @@ impl McpServer {
                 "id": format!("elicitation-{}", uuid::Uuid::new_v4())
             });
             
+            // Create a response channel
+            let (response_tx, response_rx) = oneshot::channel();
+            let request_id = client_request["id"].as_str().unwrap().to_string();
+            
+            // Store the response channel for this request
+            {
+                let mut pending = self.pending_requests.lock().await;
+                pending.insert(request_id.clone(), response_tx);
+            }
+            
             // Send the request to the client via the channel
             if let Err(e) = tx.send(client_request.to_string()) {
+                // Remove the pending request if sending failed
+                let mut pending = self.pending_requests.lock().await;
+                pending.remove(&request_id);
+                
                 warn!("Failed to forward elicitation request to client: {}", e);
                 return Err(crate::error::ProxyError::routing(
                     format!("Failed to forward elicitation request to client: {}", e)
                 ));
             }
             
-            // For now, return a placeholder response indicating forwarding occurred
-            // In a full implementation, we would wait for the client's response
-            Ok(crate::mcp::types::ElicitationResponse {
-                action: crate::mcp::types::ElicitationAction::Accept,
-                data: Some(serde_json::json!({
-                    "status": "forwarded_to_client",
-                    "message": "Request forwarded to original client for processing"
-                })),
-                reason: Some("Forwarded to original client".to_string()),
-                metadata: None,
-                timestamp: Some(chrono::Utc::now()),
-            })
+            // Wait for the client's response with a timeout
+            match tokio::time::timeout(
+                tokio::time::Duration::from_secs(30), // 30 second timeout
+                response_rx
+            ).await {
+                Ok(Ok(client_response)) => {
+                    // Parse the client response into an ElicitationResponse
+                    self.parse_elicitation_response(client_response).await
+                },
+                Ok(Err(_)) => {
+                    // Channel was closed
+                    Err(crate::error::ProxyError::mcp(
+                        "Client response channel was closed unexpectedly"
+                    ))
+                },
+                Err(_) => {
+                    // Timeout occurred
+                    let mut pending = self.pending_requests.lock().await;
+                    pending.remove(&request_id);
+                    Err(crate::error::ProxyError::mcp(
+                        "Timeout waiting for client response to elicitation request"
+                    ))
+                }
+            }
         } else {
             warn!("No client sender available for forwarding elicitation request");
             Err(crate::error::ProxyError::routing(
                 "No client connection available for forwarding - falling back to MagicTunnel handling"
             ))
         }
+    }
+    
+    /// Parse a JSON-RPC response from the client into a SamplingResponse
+    async fn parse_sampling_response(&self, client_response: serde_json::Value) -> Result<crate::mcp::types::SamplingResponse> {
+        if let Some(result) = client_response.get("result") {
+            // Try to parse as SamplingResponse
+            serde_json::from_value(result.clone())
+                .map_err(|e| crate::error::ProxyError::mcp(&format!("Failed to parse client sampling response: {}", e)))
+        } else if let Some(error) = client_response.get("error") {
+            // Client returned an error
+            Err(crate::error::ProxyError::mcp(&format!("Client error in sampling response: {}", error)))
+        } else {
+            Err(crate::error::ProxyError::mcp("Invalid client response format - missing result or error"))
+        }
+    }
+    
+    /// Parse a JSON-RPC response from the client into an ElicitationResponse
+    async fn parse_elicitation_response(&self, client_response: serde_json::Value) -> Result<crate::mcp::types::ElicitationResponse> {
+        if let Some(result) = client_response.get("result") {
+            // Try to parse as ElicitationResponse
+            serde_json::from_value(result.clone())
+                .map_err(|e| crate::error::ProxyError::mcp(&format!("Failed to parse client elicitation response: {}", e)))
+        } else if let Some(error) = client_response.get("error") {
+            // Client returned an error
+            Err(crate::error::ProxyError::mcp(&format!("Client error in elicitation response: {}", error)))
+        } else {
+            Err(crate::error::ProxyError::mcp("Invalid client response format - missing result or error"))
+        }
+    }
+    
+    /// Handle incoming responses from the client and route them to waiting requests
+    pub async fn handle_client_response(&self, response_json: &str) -> Result<()> {
+        let response: serde_json::Value = serde_json::from_str(response_json)
+            .map_err(|e| crate::error::ProxyError::mcp(&format!("Failed to parse client response JSON: {}", e)))?;
+        
+        if let Some(id) = response.get("id").and_then(|id| id.as_str()) {
+            // Remove the pending request and send the response
+            let mut pending = self.pending_requests.lock().await;
+            if let Some(sender) = pending.remove(id) {
+                if let Err(_) = sender.send(response) {
+                    warn!("Failed to send response to waiting request: receiver dropped");
+                }
+            } else {
+                warn!("Received response for unknown request ID: {}", id);
+            }
+        } else {
+            warn!("Received client response without ID field");
+        }
+        
+        Ok(())
     }
     
     /// Get sampling strategy for a specific external MCP server
@@ -3468,6 +3639,26 @@ pub async fn health_check() -> HttpResponse {
         "status": "healthy",
         "service": env!("CARGO_PKG_NAME")
     }))
+}
+
+/// Service status endpoint with ServiceContainer information
+pub async fn service_status(mcp_server: web::Data<Arc<McpServer>>) -> HttpResponse {
+    if let Some(service_status) = mcp_server.get_service_status() {
+        HttpResponse::Ok().json(serde_json::json!({
+            "status": "ok",
+            "service": env!("CARGO_PKG_NAME"),
+            "container": service_status
+        }))
+    } else {
+        HttpResponse::Ok().json(serde_json::json!({
+            "status": "ok", 
+            "service": env!("CARGO_PKG_NAME"),
+            "container": {
+                "message": "No service container available",
+                "available": false
+            }
+        }))
+    }
 }
 
 /// MCP JSON-RPC 2.0 endpoint (unified protocol handler)
@@ -4426,7 +4617,31 @@ impl McpServer {
         info!("🎯 Routing tool call to agent...");
         let start_time = std::time::Instant::now();
         
-        match self.router.route(tool_call, &tool_def).await {
+        // Try to extract session ID from tool call metadata or use first active session
+        // In a production system, this would be properly tracked through the request pipeline
+        let session_id = self.extract_session_id_from_tool_call(tool_call)
+            .or_else(|| self.get_first_active_session_id());
+        
+        // Get client ID from session if available
+        let client_id = session_id.as_ref()
+            .and_then(|sid| {
+                if let Some(session) = self.session_manager.get_session(sid) {
+                    session.client_info.and_then(|info| Some(info.name))
+                } else {
+                    None
+                }
+            });
+        
+        // Create request context
+        let request_context = RequestContext::with_session(
+            session_id.unwrap_or_else(|| "default".to_string()),
+            client_id
+        );
+        
+        info!("🔍 Request context: session_id={:?}, client_id={:?}", 
+              request_context.session_id, request_context.client_id);
+        
+        match self.router.route_with_context(tool_call, &tool_def, &request_context).await {
             Ok(agent_result) => {
                 let duration = start_time.elapsed();
                 info!("✅ TOOL CALL SUCCESS - Tool: '{}' completed in {:?}", tool_call.name, duration);
