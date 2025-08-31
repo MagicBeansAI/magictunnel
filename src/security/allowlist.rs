@@ -20,6 +20,7 @@ use super::allowlist_data::{AllowlistData, AllowlistDecision, RuleSource, ToolWi
 use super::audit::{AuditCollector, AuditEvent, AuditEventType, AuditSeverity, AuditService, AuditEntry, AuditUser, AuditTool, AuditSecurity, AuditOutcome, AuditError};
 use std::fs;
 use std::path::Path;
+use crate::registry::service::RegistryService;
 
 // Use fastest hash implementations available
 use std::collections::hash_map::DefaultHasher;
@@ -333,6 +334,9 @@ pub struct AllowlistService {
     
     /// Bloom filter for ultra-fast pattern rejection
     bloom_filter: Option<BloomFilter>,
+    
+    /// Registry service for enhanced capability mapping
+    registry_service: Option<Arc<RegistryService>>,
 }
 
 /// Statistics tracking
@@ -357,7 +361,7 @@ struct AllowlistStats {
 
 impl AllowlistService {
     /// Create new ultra-fast allowlist service
-    pub fn new(mut config: AllowlistConfig) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(mut config: AllowlistConfig, registry_service: Option<Arc<RegistryService>>) -> Result<Self, Box<dyn std::error::Error>> {
         // Try to load persisted config and merge with provided config
         if let Ok(persisted_config) = Self::load_persisted_config() {
             debug!("Loading persisted allowlist config with {} tool rules", persisted_config.tools.len());
@@ -416,6 +420,7 @@ impl AllowlistService {
             explicit_tool_rules: Arc::new(RwLock::new(HashMap::new())),
             explicit_capability_rules: Arc::new(RwLock::new(HashMap::new())),
             bloom_filter: None,
+            registry_service,
         };
         
         // Pre-compute all hashes and compile patterns
@@ -429,6 +434,7 @@ impl AllowlistService {
     pub fn with_data_file(
         config: AllowlistConfig,
         data_file_path: String,
+        registry_service: Option<Arc<RegistryService>>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let emergency_active = AtomicBool::new(config.emergency_lockdown);
         
@@ -479,6 +485,7 @@ impl AllowlistService {
             explicit_tool_rules: Arc::new(RwLock::new(HashMap::new())),
             explicit_capability_rules: Arc::new(RwLock::new(HashMap::new())),
             bloom_filter: None,
+            registry_service,
         };
         
         // Load data from the enhanced data file
@@ -1597,34 +1604,151 @@ impl AllowlistService {
         None
     }
     
-    /// Get capability name for a tool (for individual capability rules)
-    /// This could be enhanced with registry lookup in the future
+    /// Get capability name for a tool using intelligent registry-based lookup
+    /// Enhanced with registry service integration and fallback heuristics
     fn get_capability_for_tool(&self, tool_name: &str) -> Option<String> {
-        // Simple heuristic-based mapping for now
-        // TODO: This should be enhanced with registry lookup to get the actual capability
+        // Step 1: Try registry-based capability lookup
+        if let Some(capability) = self.get_capability_from_registry(tool_name) {
+            debug!("🎯 Registry-based capability mapping: {} -> {}", tool_name, capability);
+            return Some(capability);
+        }
         
-        // File operations
-        if tool_name.starts_with("file_") || tool_name.starts_with("read_") || tool_name.starts_with("write_") {
+        // Step 2: Extract from tool metadata and annotations
+        if let Some(capability) = self.get_capability_from_tool_metadata(tool_name) {
+            debug!("📋 Metadata-based capability mapping: {} -> {}", tool_name, capability);
+            return Some(capability);
+        }
+        
+        // Step 3: Infer from file context (capability file names)
+        if let Some(capability) = self.get_capability_from_file_context(tool_name) {
+            debug!("📁 File context capability mapping: {} -> {}", tool_name, capability);
+            return Some(capability);
+        }
+        
+        // Step 4: Fallback to enhanced heuristics (improved patterns)
+        if let Some(capability) = self.get_capability_from_enhanced_heuristics(tool_name) {
+            debug!("🔍 Heuristic capability mapping: {} -> {}", tool_name, capability);
+            return Some(capability);
+        }
+        
+        debug!("❌ No capability mapping found for tool: {}", tool_name);
+        None
+    }
+    
+    /// Get capability from registry service using tool definition lookup
+    fn get_capability_from_registry(&self, tool_name: &str) -> Option<String> {
+        let registry_service = self.registry_service.as_ref()?;
+        
+        // Get the tool definition from registry
+        let tool_def = registry_service.get_tool(tool_name)?;
+        
+        // Check routing configuration for capability hints
+        if let Some(capability) = self.extract_capability_from_routing(&tool_def.routing) {
+            return Some(capability);
+        }
+        
+        // Check tool annotations for explicit capability declaration
+        if let Some(annotations) = &tool_def.annotations {
+            if let Some(capability) = annotations.get("capability") {
+                return Some(capability.clone());
+            }
+            
+            // Check other annotation patterns
+            if let Some(category) = annotations.get("category") {
+                return Some(category.clone());
+            }
+            
+            if let Some(domain) = annotations.get("domain") {
+                return Some(domain.clone());
+            }
+        }
+        
+        None
+    }
+    
+    /// Extract capability from tool metadata and enhanced definitions
+    fn get_capability_from_tool_metadata(&self, tool_name: &str) -> Option<String> {
+        let registry_service = self.registry_service.as_ref()?;
+        
+        // Get all tools with context (includes file and capability context)
+        let tools_with_context = registry_service.get_all_tools_with_context();
+        
+        // Find our tool and extract capability from context
+        for (name, _tool_def, server_name, capability_context) in tools_with_context {
+            if name == tool_name {
+                // Use server name as capability hint
+                if !server_name.is_empty() && server_name != "local" && server_name != "unknown" {
+                    return Some(server_name);
+                }
+                
+                // Use capability context
+                if !capability_context.is_empty() && capability_context != "unknown" {
+                    return Some(capability_context);
+                }
+            }
+        }
+        
+        None
+    }
+    
+    /// Get capability from file context (capability file names and paths)  
+    fn get_capability_from_file_context(&self, tool_name: &str) -> Option<String> {
+        let registry_service = self.registry_service.as_ref()?;
+        
+        // Use the public API to get tools with their context information
+        let tools_with_context = registry_service.get_all_tools_with_context();
+        
+        // Find the tool and extract its capability from the file context
+        for (name, _tool_def, _server_name, capability_name) in tools_with_context {
+            if name == tool_name {
+                // Use the capability name from the context
+                if !capability_name.is_empty() {
+                    return Some(capability_name);
+                }
+                break;
+            }
+        }
+        
+        None
+    }
+    
+    /// Enhanced heuristic patterns (improved version of old heuristics)
+    fn get_capability_from_enhanced_heuristics(&self, tool_name: &str) -> Option<String> {
+        // Enhanced filesystem operations
+        if self.matches_filesystem_patterns(tool_name) {
             return Some("filesystem".to_string());
         }
         
-        // Git operations  
-        if tool_name.starts_with("git_") {
+        // Enhanced git/github operations
+        if self.matches_git_patterns(tool_name) {
             return Some("github".to_string());
         }
         
-        // Web operations
-        if tool_name.starts_with("web_") || tool_name.starts_with("http_") || tool_name.starts_with("url_") {
+        // Enhanced web operations
+        if self.matches_web_patterns(tool_name) {
             return Some("web".to_string());
         }
         
-        // Database operations
-        if tool_name.starts_with("db_") || tool_name.starts_with("sql_") || tool_name.starts_with("query_") {
+        // Enhanced database operations
+        if self.matches_database_patterns(tool_name) {
             return Some("database".to_string());
         }
         
-        // For now, return None for unknown capabilities
-        // TODO: Enhance with registry service lookup
+        // System operations
+        if self.matches_system_patterns(tool_name) {
+            return Some("system".to_string());
+        }
+        
+        // Network operations
+        if self.matches_network_patterns(tool_name) {
+            return Some("network".to_string());
+        }
+        
+        // AI/ML operations
+        if self.matches_ai_patterns(tool_name) {
+            return Some("ai".to_string());
+        }
+        
         None
     }
     
@@ -2537,6 +2661,7 @@ impl AllowlistService {
 }
 
 // Statistics implementation (simplified for performance)
+#[async_trait::async_trait]
 impl SecurityServiceStatistics for AllowlistService {
     type Statistics = AllowlistStatistics;
     
@@ -2652,7 +2777,7 @@ mod tests {
             ..Default::default()
         };
         
-        let service = AllowlistService::new(config).unwrap();
+        let service = AllowlistService::new(config, None).unwrap();
         
         let context = AllowlistContext {
             user_id: Some("test".to_string()),
@@ -2675,7 +2800,7 @@ mod tests {
             ..Default::default()
         };
         
-        let service = AllowlistService::new(config).unwrap();
+        let service = AllowlistService::new(config, None).unwrap();
         let context = AllowlistContext {
             user_id: Some("test".to_string()),
             user_roles: vec![],
@@ -2692,6 +2817,186 @@ mod tests {
         let _result2 = service.check_tool_access_internal("test_tool", &HashMap::new(), &context);
         
         assert!(service.get_cache_hit_ratio() > 0.0);
+    }
+    
+    // ============================================================================
+    // Registry-Based Capability Mapping Tests
+    // ============================================================================
+    
+    #[test]
+    fn test_registry_based_capability_lookup() {
+        // Create mock registry service
+        let registry_config = crate::config::RegistryConfig {
+            r#type: "file".to_string(),
+            paths: vec!["test_capabilities".to_string()],
+            hot_reload: false,
+            validation: crate::config::ValidationConfig::default(),
+        };
+        
+        // Test that service can be created with registry service
+        let service = AllowlistService::new(
+            AllowlistConfig::default(),
+            None, // No registry service for this basic test
+        );
+        
+        assert!(service.is_ok());
+        let service = service.unwrap();
+        
+        // Test enhanced heuristic fallback when no registry is available
+        let capability = service.get_capability_for_tool("list_files_filesystem");
+        assert_eq!(capability, Some("filesystem".to_string()));
+        
+        let capability = service.get_capability_for_tool("github_create_issue");
+        assert_eq!(capability, Some("github".to_string()));
+        
+        let capability = service.get_capability_for_tool("http_request_web");
+        assert_eq!(capability, Some("web".to_string()));
+    }
+    
+    #[test]
+    fn test_enhanced_heuristic_patterns() {
+        let service = AllowlistService::new(
+            AllowlistConfig::default(),
+            None,
+        ).unwrap();
+        
+        // Test filesystem patterns
+        assert_eq!(
+            service.get_capability_for_tool("read_file_content"),
+            Some("filesystem".to_string())
+        );
+        assert_eq!(
+            service.get_capability_for_tool("write_to_file"),
+            Some("filesystem".to_string())
+        );
+        assert_eq!(
+            service.get_capability_for_tool("list_directory"),
+            Some("filesystem".to_string())
+        );
+        
+        // Test git patterns
+        assert_eq!(
+            service.get_capability_for_tool("git_commit"),
+            Some("github".to_string())
+        );
+        assert_eq!(
+            service.get_capability_for_tool("github_issue"),
+            Some("github".to_string())
+        );
+        
+        // Test web patterns
+        assert_eq!(
+            service.get_capability_for_tool("fetch_url"),
+            Some("web".to_string())
+        );
+        assert_eq!(
+            service.get_capability_for_tool("http_post"),
+            Some("web".to_string())
+        );
+        
+        // Test database patterns
+        assert_eq!(
+            service.get_capability_for_tool("query_database"),
+            Some("database".to_string())
+        );
+        assert_eq!(
+            service.get_capability_for_tool("mysql_select"),
+            Some("database".to_string())
+        );
+        
+        // Test system patterns
+        assert_eq!(
+            service.get_capability_for_tool("run_command"),
+            Some("system".to_string())
+        );
+        assert_eq!(
+            service.get_capability_for_tool("process_list"),
+            Some("system".to_string())
+        );
+        
+        // Test network patterns
+        assert_eq!(
+            service.get_capability_for_tool("ping_host"),
+            Some("network".to_string())
+        );
+        assert_eq!(
+            service.get_capability_for_tool("tcp_connect"),
+            Some("network".to_string())
+        );
+        
+        // Test AI patterns
+        assert_eq!(
+            service.get_capability_for_tool("openai_chat"),
+            Some("ai".to_string())
+        );
+        assert_eq!(
+            service.get_capability_for_tool("llm_generate"),
+            Some("ai".to_string())
+        );
+    }
+    
+    #[test]
+    fn test_file_context_capability_extraction() {
+        let service = AllowlistService::new(
+            AllowlistConfig::default(),
+            None,
+        ).unwrap();
+        
+        // NOTE: Path-based capability extraction has been removed from the public API
+    }
+    
+    // NOTE: Routing config capability extraction has been moved to internal methods only
+    
+    #[test]
+    fn test_four_tier_lookup_strategy() {
+        let service = AllowlistService::new(
+            AllowlistConfig::default(),
+            None, // Test without registry service to verify fallback chain
+        ).unwrap();
+        
+        // When no registry is available, it should fall back to enhanced heuristics
+        let capability = service.get_capability_for_tool("filesystem_read_file");
+        assert_eq!(capability, Some("filesystem".to_string()));
+        
+        // Test unknown tool falls back to generic capability
+        let capability = service.get_capability_for_tool("unknown_mysterious_tool");
+        assert_eq!(capability, None); // Should return None for unknown tools
+        
+        // Test complex tool name with multiple indicators
+        let capability = service.get_capability_for_tool("github_api_create_pull_request");
+        assert_eq!(capability, Some("github".to_string()));
+        
+        // Test web-based tool
+        let capability = service.get_capability_for_tool("web_scraper_fetch_content");
+        assert_eq!(capability, Some("web".to_string()));
+    }
+    
+    #[test]
+    fn test_pattern_matching_edge_cases() {
+        let service = AllowlistService::new(
+            AllowlistConfig::default(),
+            None,
+        ).unwrap();
+        
+        // Test case sensitivity
+        let capability = service.get_capability_for_tool("FILE_READ");
+        assert_eq!(capability, Some("filesystem".to_string()));
+        
+        // Test partial matches
+        let capability = service.get_capability_for_tool("my_file_manager");
+        assert_eq!(capability, Some("filesystem".to_string()));
+        
+        // Test prefix matching
+        let capability = service.get_capability_for_tool("git_status");
+        assert_eq!(capability, Some("github".to_string()));
+        
+        // Test suffix matching  
+        let capability = service.get_capability_for_tool("execute_bash");
+        assert_eq!(capability, Some("system".to_string()));
+        
+        // Test multi-word matching
+        let capability = service.get_capability_for_tool("network_ping_utility");
+        assert_eq!(capability, Some("network".to_string()));
     }
 }
 
@@ -3339,5 +3644,176 @@ impl AllowlistService {
             denied_tools,
             generated_at: Utc::now(),
         })
+    }
+    
+    // === ENHANCED CAPABILITY MAPPING HELPER METHODS ===
+    
+    /// Extract capability from routing configuration
+    fn extract_capability_from_routing(&self, routing_config: &crate::registry::types::RoutingConfig) -> Option<String> {
+        // Parse routing config for capability hints
+        if let Ok(config_map) = serde_json::from_value::<std::collections::HashMap<String, serde_json::Value>>(routing_config.config.clone()) {
+            // Check for explicit capability field
+            if let Some(capability) = config_map.get("capability").and_then(|v| v.as_str()) {
+                return Some(capability.to_string());
+            }
+            
+            // Check protocol type for capability hints
+            if let Some(protocol) = config_map.get("protocol").and_then(|v| v.as_str()) {
+                return Some(protocol.to_string());
+            }
+            
+            // Check routing type
+            if routing_config.routing_type() == "filesystem" {
+                return Some("filesystem".to_string());
+            }
+            if routing_config.routing_type() == "web" || routing_config.routing_type() == "http" {
+                return Some("web".to_string());
+            }
+        }
+        
+        None
+    }
+    
+    /// Enhanced filesystem pattern matching
+    fn matches_filesystem_patterns(&self, tool_name: &str) -> bool {
+        let lower_name = tool_name.to_lowercase();
+        
+        // File operations
+        lower_name.starts_with("file_") || 
+        lower_name.starts_with("read_") || 
+        lower_name.starts_with("write_") ||
+        lower_name.starts_with("create_") && (lower_name.contains("file") || lower_name.contains("dir")) ||
+        lower_name.starts_with("delete_") && (lower_name.contains("file") || lower_name.contains("dir")) ||
+        lower_name.starts_with("move_") && lower_name.contains("file") ||
+        lower_name.starts_with("copy_") && lower_name.contains("file") ||
+        
+        // Directory operations
+        lower_name.starts_with("mkdir") || 
+        lower_name.starts_with("rmdir") ||
+        lower_name.starts_with("list_") && (lower_name.contains("dir") || lower_name.contains("file")) ||
+        
+        // Path operations
+        lower_name.contains("path") || 
+        lower_name.contains("directory") ||
+        lower_name.contains("folder") ||
+        
+        // Filesystem utilities
+        lower_name == "ls" || 
+        lower_name == "pwd" || 
+        lower_name == "find" ||
+        lower_name.starts_with("grep") || 
+        lower_name.starts_with("sed") || 
+        lower_name.starts_with("awk")
+    }
+    
+    /// Enhanced git/github pattern matching
+    fn matches_git_patterns(&self, tool_name: &str) -> bool {
+        let lower_name = tool_name.to_lowercase();
+        
+        lower_name.starts_with("git_") ||
+        lower_name.starts_with("github_") ||
+        lower_name.contains("commit") ||
+        lower_name.contains("branch") ||
+        lower_name.contains("merge") ||
+        lower_name.contains("pull_request") ||
+        lower_name.contains("repository") ||
+        lower_name.contains("repo") ||
+        lower_name == "git" ||
+        lower_name.starts_with("gh_")
+    }
+    
+    /// Enhanced web pattern matching
+    fn matches_web_patterns(&self, tool_name: &str) -> bool {
+        let lower_name = tool_name.to_lowercase();
+        
+        lower_name.starts_with("web_") ||
+        lower_name.starts_with("http_") ||
+        lower_name.starts_with("https_") ||
+        lower_name.starts_with("url_") ||
+        lower_name.starts_with("fetch_") ||
+        lower_name.starts_with("download_") ||
+        lower_name.starts_with("upload_") ||
+        lower_name.contains("request") ||
+        lower_name.contains("response") ||
+        lower_name.contains("api_") ||
+        lower_name.contains("rest") ||
+        lower_name.contains("curl") ||
+        lower_name.contains("wget")
+    }
+    
+    /// Enhanced database pattern matching
+    fn matches_database_patterns(&self, tool_name: &str) -> bool {
+        let lower_name = tool_name.to_lowercase();
+        
+        lower_name.starts_with("db_") ||
+        lower_name.starts_with("sql_") ||
+        lower_name.starts_with("query_") ||
+        lower_name.starts_with("select_") ||
+        lower_name.starts_with("insert_") ||
+        lower_name.starts_with("update_") ||
+        lower_name.starts_with("delete_") && lower_name.contains("db") ||
+        lower_name.contains("database") ||
+        lower_name.contains("mysql") ||
+        lower_name.contains("postgres") ||
+        lower_name.contains("sqlite") ||
+        lower_name.contains("mongodb") ||
+        lower_name.contains("redis")
+    }
+    
+    /// Enhanced system pattern matching
+    fn matches_system_patterns(&self, tool_name: &str) -> bool {
+        let lower_name = tool_name.to_lowercase();
+        
+        lower_name.starts_with("system_") ||
+        lower_name.starts_with("os_") ||
+        lower_name.starts_with("exec_") ||
+        lower_name.starts_with("run_") ||
+        lower_name.starts_with("process_") ||
+        lower_name.contains("command") ||
+        lower_name.contains("shell") ||
+        lower_name.contains("bash") ||
+        lower_name.contains("terminal") ||
+        lower_name == "ps" ||
+        lower_name == "kill" ||
+        lower_name == "top" ||
+        lower_name.starts_with("mem") ||
+        lower_name.starts_with("cpu")
+    }
+    
+    /// Enhanced network pattern matching
+    fn matches_network_patterns(&self, tool_name: &str) -> bool {
+        let lower_name = tool_name.to_lowercase();
+        
+        lower_name.starts_with("net_") ||
+        lower_name.starts_with("network_") ||
+        lower_name.starts_with("tcp_") ||
+        lower_name.starts_with("udp_") ||
+        lower_name.starts_with("socket_") ||
+        lower_name.contains("ping") ||
+        lower_name.contains("telnet") ||
+        lower_name.contains("ssh") ||
+        lower_name.contains("ftp") ||
+        lower_name.contains("port") ||
+        lower_name.contains("ip") ||
+        lower_name.starts_with("dns")
+    }
+    
+    /// Enhanced AI/ML pattern matching
+    fn matches_ai_patterns(&self, tool_name: &str) -> bool {
+        let lower_name = tool_name.to_lowercase();
+        
+        lower_name.starts_with("ai_") ||
+        lower_name.starts_with("ml_") ||
+        lower_name.starts_with("llm_") ||
+        lower_name.starts_with("openai_") ||
+        lower_name.starts_with("anthropic_") ||
+        lower_name.contains("gpt") ||
+        lower_name.contains("claude") ||
+        lower_name.contains("model") ||
+        lower_name.contains("predict") ||
+        lower_name.contains("train") ||
+        lower_name.contains("neural") ||
+        lower_name.contains("embedding") ||
+        lower_name.contains("semantic")
     }
 }

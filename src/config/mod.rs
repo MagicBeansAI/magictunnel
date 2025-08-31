@@ -7,6 +7,7 @@ mod environment;
 mod resolver;
 mod validator;
 pub mod oauth_discovery;
+pub mod hierarchical;
 
 // Re-export the main configuration types
 pub use config::{
@@ -20,6 +21,8 @@ pub use config::{
     TlsConfig, TlsMode,
     // MCP Client types
     McpClientConfig,
+    // Streamable HTTP transport type  
+    StreamableHttpTransportConfig,
     // External MCP types (unified local/remote)
     ExternalMcpConfig, ContainerConfig, McpServerConfig, ExternalMcpServersConfig,
     // Network MCP service types
@@ -42,6 +45,13 @@ pub use resolver::{ConfigResolver, ConfigResolution, ConfigSource, ConfigStartup
 
 // Re-export validator types
 pub use validator::{ConfigValidator, ValidationResult, ConfigUpdateSummary, ConfigFixSuggestions, QuickFix};
+
+// Re-export hierarchical configuration types  
+pub use hierarchical::{
+    HierarchicalConfig, GlobalConfig, McpConfig, DiscoveryConfig, ToolConfig,
+    DefaultSettings, ContentServicesConfig, ToolRoutingConfig, ToolAuthConfig,
+    ConfigResolver as HierarchicalResolver
+};
 
 // Re-export secret_string module
 pub use config::secret_string;

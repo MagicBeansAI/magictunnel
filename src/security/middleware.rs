@@ -176,11 +176,12 @@ impl SecurityMiddleware {
                         info!("🔄 Creating fallback allowlist service with data file: {}", allowlist_config.data_file);
                         AllowlistService::with_data_file(
                             allowlist_config.clone(),
-                            allowlist_config.data_file.clone()
+                            allowlist_config.data_file.clone(),
+                            None // Registry service not available in middleware
                         ).map_err(|e| ProxyError::config(format!("Failed to initialize allowlist service with data file '{}': {}", allowlist_config.data_file, e)))?
                     } else {
                         info!("🔄 Creating fallback allowlist service without data file (config-only)");
-                        AllowlistService::new(allowlist_config.clone())
+                        AllowlistService::new(allowlist_config.clone(), None)
                             .map_err(|e| ProxyError::config(format!("Failed to initialize allowlist service: {}", e)))?
                     };
                     let arc_service = Arc::new(service);

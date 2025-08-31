@@ -279,6 +279,16 @@ impl DiscoveryAuditTrail {
             potential_match_score: None,
         });
     }
+
+    /// Add a fully-detailed excluded tool entry for allowlist-related exclusions
+    pub fn add_allowlist_excluded_tool(&mut self, excluded: ExcludedTool) {
+        self.tools_excluded_by_allowlist.push(excluded);
+    }
+
+    /// Add a fully-detailed excluded tool entry for RBAC-related exclusions
+    pub fn add_rbac_excluded_tool(&mut self, excluded: ExcludedTool) {
+        self.tools_excluded_by_rbac.push(excluded);
+    }
     
     /// Add a tool that was considered and scored
     pub fn add_considered_tool(&mut self, scored_tool: ScoredTool) {

@@ -177,7 +177,8 @@ impl AdvancedServices {
                     
                 match crate::security::AllowlistService::with_data_file(
                     allowlist_config.clone(),
-                    data_file_path.clone()
+                    data_file_path.clone(),
+                    proxy_services.get_registry().map(Arc::clone) // Pass registry service to allowlist
                 ) {
                     Ok(service) => {
                         let arc_service = Arc::new(service);

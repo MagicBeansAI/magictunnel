@@ -6,6 +6,7 @@
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
+use async_trait::async_trait;
 
 // ============================================================================
 // Common Health and Status Types
@@ -290,6 +291,7 @@ pub struct PolicyTrigger {
 // ============================================================================
 
 /// Trait that all security services must implement for statistics
+#[async_trait]
 pub trait SecurityServiceStatistics {
     /// The specific statistics type for this service
     type Statistics;

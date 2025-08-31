@@ -97,7 +97,7 @@ pub struct GeoInfo {
 }
 
 /// Security audit configuration
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SecurityAuditConfig {
     /// Enable audit logging
     pub enabled: bool,
@@ -119,6 +119,27 @@ pub struct SecurityAuditConfig {
     pub enable_alerting: bool,
     /// Alert thresholds
     pub alert_thresholds: AlertThresholds,
+    /// Optional alert handler callback (invoked when thresholds exceed)
+    pub alert_handler: Option<Arc<dyn Fn(&SecurityEvent, &str, u32) + Send + Sync>>,
+}
+
+impl std::fmt::Debug for SecurityAuditConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let has_handler = self.alert_handler.is_some();
+        f.debug_struct("SecurityAuditConfig")
+            .field("enabled", &self.enabled)
+            .field("log_auth_events", &self.log_auth_events)
+            .field("log_rate_limit_events", &self.log_rate_limit_events)
+            .field("log_ddos_events", &self.log_ddos_events)
+            .field("log_tls_events", &self.log_tls_events)
+            .field("log_suspicious_activity", &self.log_suspicious_activity)
+            .field("max_events_in_memory", &self.max_events_in_memory)
+            .field("retention_days", &self.retention_days)
+            .field("enable_alerting", &self.enable_alerting)
+            .field("alert_thresholds", &self.alert_thresholds)
+            .field("alert_handler", &has_handler)
+            .finish()
+    }
 }
 
 /// Alert thresholds for security events
@@ -147,6 +168,7 @@ impl Default for SecurityAuditConfig {
             retention_days: 90,
             enable_alerting: true,
             alert_thresholds: AlertThresholds::default(),
+            alert_handler: None,
         }
     }
 }
@@ -235,7 +257,13 @@ impl SecurityAuditLogger {
     }
     
     /// Log authentication attempt
-    pub fn log_auth_attempt(&self, req: &HttpRequest, success: bool, user_id: Option<&str>) -> Result<()> {
+    pub fn log_auth_attempt(
+        &self,
+        req: &HttpRequest,
+        success: bool,
+        user_id: Option<&str>,
+        auth_method: &str,
+    ) -> Result<()> {
         if !self.config.log_auth_events {
             return Ok(());
         }
@@ -260,7 +288,7 @@ impl SecurityAuditLogger {
             json!({
                 "success": success,
                 "user_id": user_id,
-                "auth_method": "api_key" // TODO: Make this configurable
+                "auth_method": auth_method
             }),
         )?;
         
@@ -385,6 +413,19 @@ impl SecurityAuditLogger {
             }
         }
         
+        // Populate GeoIP info if available (feature-gated)
+        let geo_info = {
+            #[cfg(feature = "geoip")]
+            {
+                Self::extract_geo_from_headers(req)
+                    .or_else(|| client_ip.as_ref().and_then(Self::lookup_geo_by_ip))
+            }
+            #[cfg(not(feature = "geoip"))]
+            {
+                None
+            }
+        };
+
         Ok(SecurityEvent {
             id: Uuid::new_v4().to_string(),
             event_type,
@@ -397,7 +438,7 @@ impl SecurityAuditLogger {
             message: message.to_string(),
             data,
             headers: filtered_headers,
-            geo_info: None, // TODO: Implement GeoIP lookup
+            geo_info,
         })
     }
     
@@ -423,26 +464,96 @@ impl SecurityAuditLogger {
     
     /// Check alert thresholds
     fn check_alert_thresholds(&self, event: &SecurityEvent) -> Result<()> {
-        // TODO: Implement threshold checking logic
-        // This would typically involve:
-        // 1. Counting recent events of specific types
-        // 2. Comparing against thresholds
-        // 3. Triggering alerts if thresholds are exceeded
-        
+        // Sliding window threshold checks with basic alert hooks
+        let now = Utc::now();
+        let read = self
+            .events
+            .read()
+            .map_err(|e| ProxyError::config(format!("Failed to acquire events lock: {}", e)))?;
+
+        let count_in_window = |etype: SecurityEventType, window: chrono::Duration| -> usize {
+            let start = now - window;
+            read.iter()
+                .filter(|e| e.event_type == etype && e.timestamp >= start)
+                .count()
+        };
+
+        let mut maybe_alert: Option<(&'static str, usize)> = None;
+
         match event.event_type {
             SecurityEventType::AuthenticationFailure => {
-                // Check failed auth threshold
+                let count = count_in_window(SecurityEventType::AuthenticationFailure, chrono::Duration::minutes(1));
+                if count as u32 > self.config.alert_thresholds.failed_auth_per_minute {
+                    maybe_alert = Some(("failed_auth_per_minute", count));
+                }
             }
             SecurityEventType::RateLimitExceeded => {
-                // Check rate limit violation threshold
+                let count = count_in_window(SecurityEventType::RateLimitExceeded, chrono::Duration::minutes(1));
+                if count as u32 > self.config.alert_thresholds.rate_limit_violations_per_minute {
+                    maybe_alert = Some(("rate_limit_violations_per_minute", count));
+                }
             }
             SecurityEventType::DdosDetected => {
-                // Check DDoS event threshold
+                let count = count_in_window(SecurityEventType::DdosDetected, chrono::Duration::hours(1));
+                if count as u32 > self.config.alert_thresholds.ddos_events_per_hour {
+                    maybe_alert = Some(("ddos_events_per_hour", count));
+                }
+            }
+            SecurityEventType::SuspiciousActivity => {
+                let count = count_in_window(SecurityEventType::SuspiciousActivity, chrono::Duration::hours(1));
+                if count as u32 > self.config.alert_thresholds.suspicious_activities_per_hour {
+                    maybe_alert = Some(("suspicious_activities_per_hour", count));
+                }
             }
             _ => {}
         }
-        
+
+        if let Some((kind, count)) = maybe_alert {
+            warn!("Security alert threshold exceeded: kind={}, count={}", kind, count);
+            if let Some(handler) = &self.config.alert_handler {
+                handler(event, kind, count as u32);
+            }
+        }
+
         Ok(())
+    }
+
+    #[cfg(feature = "geoip")]
+    fn extract_geo_from_headers(req: &HttpRequest) -> Option<GeoInfo> {
+        let headers = req.headers();
+        let country = headers
+            .get("cf-ipcountry")
+            .or_else(|| headers.get("x-vercel-ip-country"))
+            .or_else(|| headers.get("x-geo-country"))
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+        let city = headers
+            .get("x-geo-city")
+            .or_else(|| headers.get("x-vercel-ip-city"))
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+        let organization = headers
+            .get("x-geo-org")
+            .or_else(|| headers.get("x-geo-organization"))
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+
+        if country.is_some() || city.is_some() || organization.is_some() {
+            Some(GeoInfo {
+                country,
+                city,
+                organization,
+            })
+        } else {
+            None
+        }
+    }
+
+    #[cfg(feature = "geoip")]
+    fn lookup_geo_by_ip(_ip: &IpAddr) -> Option<GeoInfo> {
+        // Placeholder for IP-based GeoIP lookup (e.g., MaxMind)
+        // In absence of a DB, return None. Users can supply headers via CDN/proxy.
+        None
     }
     
     /// Get recent events
@@ -526,7 +637,9 @@ mod tests {
         let req = TestRequest::default().to_http_request();
         
         // Test authentication logging
-        assert!(logger.log_auth_attempt(&req, false, Some("test_user")).is_ok());
+        assert!(logger
+            .log_auth_attempt(&req, false, Some("test_user"), "api_key")
+            .is_ok());
         
         // Test rate limit logging
         assert!(logger.log_rate_limit_exceeded(&req, "per_ip").is_ok());

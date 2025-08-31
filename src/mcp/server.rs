@@ -22,6 +22,7 @@ use crate::mcp::tool_validation::{RuntimeToolValidator, ValidationConfig as Tool
 use crate::registry::service::{RegistryService, EnhancementCallback};
 use crate::routing::{Router, types::{AgentResult, RequestContext}};
 use crate::web::{configure_dashboard_api, SharedRateLimitMiddleware};
+use crate::tls::{SecurityHeadersMiddleware, SecurityHeadersConfig};
 use actix_web::{web, App, HttpServer, HttpResponse, middleware::Logger, HttpRequest};
 use actix_ws::Message;
 use futures_util::{StreamExt, stream};
@@ -680,14 +681,31 @@ impl McpServer {
             server = server.with_enhancement_service(&config).await?;
         }
 
-        // Configure roots service if smart discovery is enabled
-        if config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false) {
+        // Configure roots service based on MCP services (not Smart Discovery dependency)
+        if config.sampling.is_some() || config.elicitation.is_some() || config.tool_enhancement.is_some() {
             server = server.with_roots_service(&config)?;
         }
 
         Ok(server)
     }
     
+    /// Create MCP server with hierarchical configuration (preferred)
+    /// Uses isolated MCP configuration without Smart Discovery dependencies
+    pub async fn with_hierarchical_config(
+        hierarchical_config: &crate::config::hierarchical::HierarchicalConfig,
+        smart_discovery_service: Option<Arc<crate::discovery::SmartDiscoveryService>>,
+        enhancement_storage: Option<Arc<crate::discovery::EnhancementStorageService>>,
+    ) -> Result<Self> {
+        info!("Initializing MCP server with hierarchical configuration");
+        
+        // Convert hierarchical config back to flat config for compatibility
+        // TODO: This should be removed once all services support hierarchical config directly
+        let flat_config = hierarchical_config.to_flat_config();
+        
+        // Use the existing method but with proper service injection
+        Self::with_config_and_services(&flat_config, enhancement_storage, smart_discovery_service).await
+    }
+
     /// Create MCP server with full configuration but skip smart discovery creation
     /// Used when an existing smart discovery service will be provided externally
     async fn with_config_skip_smart_discovery(config: &crate::config::Config) -> Result<Self> {
@@ -794,28 +812,34 @@ impl McpServer {
             server = server.with_security(security_config.clone()).await?;
         }
 
-        // Configure sampling service if smart discovery is enabled
-        if config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false) {
+        // Configure MCP services based on their own configuration (not Smart Discovery dependency)
+        // This enforces proper separation of concerns between MCP and Discovery tiers
+        
+        // Configure sampling service if explicitly configured
+        if config.sampling.is_some() {
             server = server.with_sampling_service(&config)?;
         }
 
-        // Configure tool enhancement service if smart discovery is enabled
-        if config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false) {
+        // Configure tool enhancement service if explicitly configured  
+        if config.tool_enhancement.is_some() {
             server = server.with_tool_enhancement_service(&config)?;
         }
 
-        // Configure elicitation service if smart discovery is enabled
-        if config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false) {
+        // Configure elicitation service if explicitly configured
+        if config.elicitation.is_some() {
             server = server.with_elicitation_service(&config)?;
         }
 
-        // Configure enhancement pipeline service if smart discovery and services are enabled
-        if config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false) {
+        // Configure enhancement pipeline service if sampling or elicitation is enabled
+        let sampling_enabled = config.sampling.as_ref().map(|s| s.enabled).unwrap_or(false);
+        let elicitation_enabled = config.elicitation.as_ref().map(|e| e.enabled).unwrap_or(false);
+        if sampling_enabled || elicitation_enabled {
             server = server.with_enhancement_service(&config).await?;
         }
 
-        // Configure roots service if smart discovery is enabled
-        if config.smart_discovery.as_ref().map(|sd| sd.enabled).unwrap_or(false) {
+        // Configure roots service (this should probably be moved to global or discovery config)
+        // For now, enable it if we have any MCP services configured
+        if config.sampling.is_some() || config.elicitation.is_some() || config.tool_enhancement.is_some() {
             server = server.with_roots_service(&config)?;
         }
 
@@ -996,8 +1020,23 @@ impl McpServer {
             return Err(e);
         }
 
-        // TODO: In future versions, implement tool-specific permission checks
-        // For now, we accept any valid authentication context
+        // Permission check via authentication scopes/permissions (fast, non-async)
+        // For API keys: scopes carry configured permissions. For OAuth: provider scopes.
+        // We accept either specific or generic tool execution permissions.
+        let required_specific = format!("tool:execute:{}", tool_name);
+        let has_permission = auth_context.scopes.iter().any(|s| {
+            s == &required_specific || s == "tool:execute" || s == "tool:*" || s == "*"
+        });
+        if !has_permission {
+            // If scopes don’t carry permissions, rely on the downstream middleware evaluation path.
+            // To fail fast when scopes are present but insufficient, enforce denial here.
+            if !auth_context.scopes.is_empty() {
+                return Err(ProxyError::security(format!(
+                    "Insufficient permission in auth scopes to execute tool '{}'",
+                    tool_name
+                )));
+            }
+        }
 
         debug!(
             "Authentication validated for tool '{}': user={}, method={}",
@@ -1288,11 +1327,20 @@ impl McpServer {
         let server = HttpServer::new(move || {
             // Create shared rate limiting middleware (uses global configuration)
             let shared_rate_limit_middleware = SharedRateLimitMiddleware::new();
+            
+            // Create security headers middleware
+            let security_headers_config = if let Some(tls_cfg) = &tls_config {
+                SecurityHeadersConfig::from(tls_cfg)
+            } else {
+                SecurityHeadersConfig::default()
+            };
+            let security_headers_middleware = SecurityHeadersMiddleware::new(security_headers_config);
 
             let mut app = App::new()
                 .app_data(server_data.clone())
                 .app_data(mcp_server_data.clone())
                 .wrap(Logger::default())
+                .wrap(security_headers_middleware) // Apply security headers to ALL routes
                 .wrap(shared_rate_limit_middleware); // Apply rate limiting to ALL routes
 
             // Add TLS config to app data if available
@@ -3371,19 +3419,11 @@ impl McpServer {
                 }
             }
             
-            // Check if server has smart discovery with LLM configuration
-            if let Some(smart_discovery) = &config.smart_discovery {
-                if smart_discovery.llm_tool_selection.api_key.is_some() || smart_discovery.llm_tool_selection.api_key_env.is_some() {
-                    debug!("Using server smart discovery LLM configuration");
-                    return Ok(crate::config::LlmConfig {
-                        provider: smart_discovery.llm_tool_selection.provider.clone(),
-                        model: smart_discovery.llm_tool_selection.model.clone(),
-                        api_key_env: smart_discovery.llm_tool_selection.api_key_env.clone(),
-                        api_base_url: smart_discovery.llm_tool_selection.base_url.clone(),
-                        max_tokens: None, // LlmToolSelectionConfig doesn't have max_tokens
-                        temperature: None, // LlmToolSelectionConfig doesn't have temperature
-                        additional_params: None,
-                    });
+            // Check if server has tool enhancement configuration with LLM config
+            if let Some(tool_enhancement_config) = &config.tool_enhancement {
+                if let Some(llm_config) = &tool_enhancement_config.llm_config {
+                    debug!("Using server tool enhancement LLM configuration");
+                    return Ok(llm_config.clone());
                 }
             }
         }

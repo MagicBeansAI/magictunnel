@@ -224,7 +224,7 @@ pub struct StorageHealth {
 }
 
 /// Storage statistics
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StorageStats {
     pub total_events: u64,
     pub events_per_second: f64,
@@ -351,6 +351,7 @@ impl AuditStorage for MemoryStorage {
     }
     
     async fn get_stats(&self) -> AuditResult<StorageStats> {
+        // Memory storage doesn't track files; return current counters
         let stats = self.stats.read().await;
         Ok((*stats).clone())
     }

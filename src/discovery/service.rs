@@ -218,6 +218,38 @@ impl SmartDiscoveryService {
     pub async fn new_with_router(registry: Arc<RegistryService>, config: SmartDiscoveryConfig, router: Option<Arc<Router>>) -> Result<Self> {
         Self::new_with_all_services(registry, config, router, None, None, None).await
     }
+
+    /// Create a new Smart Discovery Service from hierarchical configuration
+    pub async fn from_hierarchical_config(
+        registry: Arc<RegistryService>, 
+        discovery_config: &crate::config::hierarchical::DiscoveryConfig,
+        router: Option<Arc<Router>>
+    ) -> Result<Self> {
+        // Extract SmartDiscoveryConfig from hierarchical DiscoveryConfig
+        let smart_discovery_config = discovery_config.smart_discovery.clone();
+        Self::new_with_router(registry, smart_discovery_config, router).await
+    }
+    
+    /// Create a new Smart Discovery Service from hierarchical configuration with all services
+    pub async fn from_hierarchical_config_with_all_services(
+        registry: Arc<RegistryService>,
+        discovery_config: &crate::config::hierarchical::DiscoveryConfig,
+        router: Option<Arc<Router>>,
+        tool_enhancement_service: Option<Arc<crate::mcp::tool_enhancement::ToolEnhancementService>>,
+        elicitation_service: Option<Arc<crate::mcp::elicitation::ElicitationService>>,
+        allowlist_service: Option<Arc<crate::security::allowlist::AllowlistService>>,
+    ) -> Result<Self> {
+        // Extract SmartDiscoveryConfig from hierarchical DiscoveryConfig
+        let smart_discovery_config = discovery_config.smart_discovery.clone();
+        Self::new_with_all_services(
+            registry,
+            smart_discovery_config, 
+            router,
+            tool_enhancement_service,
+            elicitation_service,
+            allowlist_service,
+        ).await
+    }
     
     /// Create a new Smart Discovery Service with all optional services
     pub async fn new_with_all_services(

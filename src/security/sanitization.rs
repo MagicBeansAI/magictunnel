@@ -1244,6 +1244,7 @@ mod tests {
 }
 
 // Implementation of SecurityServiceStatistics trait for SanitizationService
+#[async_trait::async_trait]
 impl SecurityServiceStatistics for SanitizationService {
     type Statistics = SanitizationStatistics;
     

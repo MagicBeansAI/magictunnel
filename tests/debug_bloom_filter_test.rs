@@ -33,9 +33,9 @@ fn debug_bloom_filter_behavior() {
         data_file: data_file.to_string_lossy().to_string(),
     };
     
-    let service = match AllowlistService::with_data_file(config.clone(), data_file.to_string_lossy().to_string()) {
+    let service = match AllowlistService::with_data_file(config.clone(), data_file.to_string_lossy().to_string(), None) {
         Ok(s) => s,
-        Err(_) => AllowlistService::new(config).unwrap()
+        Err(_) => AllowlistService::new(config, None).unwrap()
     };
     
     let context = AllowlistContext {

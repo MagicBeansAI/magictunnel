@@ -10,15 +10,18 @@
 
 use super::{
     AuditEvent, AuditResult, AuditError, AuditConfig,
-    storage::{AuditStorage, StorageBackend},
+    storage::{AuditStorage, StorageBackend, AuditQuery, StorageStats},
     streaming::{AuditStreamer, StreamingConfig},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock, Semaphore};
 use tokio::time::{interval, Duration, Instant};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, Duration as ChronoDuration};
+use std::collections::HashMap;
 use tracing::{info, warn, error, debug};
+use crate::security::{SecurityServiceStatistics, ServiceHealth, HealthStatus, AuditStatistics};
+use crate::security::statistics::PerformanceMetrics;
 
 /// Main audit collector that coordinates all audit components
 pub struct AuditCollector {
@@ -110,6 +113,19 @@ impl Default for CollectorStats {
     }
 }
 
+// Aggregated statistics for a specific time range (for API consumption)
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct AuditRangeStatistics {
+    pub total_events: u64,
+    pub violations: u64,
+    pub critical_violations: u64,
+    pub auth_events: u64,
+    pub failed_auth: u64,
+    pub unique_users: u64,
+    pub avg_entries_per_day: f64,
+    pub event_types: Vec<crate::security::statistics::EventTypeCount>,
+}
+
 impl AuditCollector {
     /// Create new audit collector
     pub async fn new(config: AuditConfig) -> AuditResult<Self> {
@@ -172,6 +188,18 @@ impl AuditCollector {
         info!("🎉 Audit collector initialized successfully");
         Ok(collector)
     }
+
+    /// Convenience: get most recent events up to a limit
+    pub async fn get_recent_events(&self, limit: usize) -> AuditResult<Vec<super::AuditEvent>> {
+        let now = Utc::now();
+        let query = AuditQuery {
+            start_time: Some(now - ChronoDuration::hours(24)),
+            end_time: Some(now),
+            limit: Some(limit),
+            ..AuditQuery::default()
+        };
+        self.storage.query_events(&query).await
+    }
     
     /// Log an audit event (non-blocking)
     pub async fn log_event(&self, event: AuditEvent) -> AuditResult<()> {
@@ -187,7 +215,9 @@ impl AuditCollector {
                 // Update queue statistics
                 {
                     let mut stats = self.stats.write().await;
-                    stats.queue_depth = self.event_queue.capacity() - self.event_queue.max_capacity();
+                    // For mpsc::Sender, we can't easily track queue depth
+                    // For now, increment a counter when we successfully send
+                    stats.queue_depth = 0; // TODO: Track this properly with receiver feedback
                 }
                 
                 Ok(())
@@ -872,6 +902,455 @@ impl AuditCollector {
     }
 }
 
+// ---------------------------------------------------------------------------
+// SecurityServiceStatistics-style helpers (used by APIs)
+// ---------------------------------------------------------------------------
+
+impl AuditCollector {
+    pub async fn get_statistics_snapshot(&self) -> AuditStatistics {
+        // Base stats from collector and storage
+        let collector_stats = self.get_stats().await;
+        let storage_stats = match self.storage.get_stats().await {
+            Ok(s) => s,
+            Err(_) => super::storage::StorageStats {
+                total_events: 0,
+                events_per_second: 0.0,
+                storage_size_bytes: 0,
+                oldest_event: None,
+                newest_event: None,
+                error_count: 0,
+            },
+        };
+
+        // Time windows
+        let now = Utc::now();
+        let last_24h = ChronoDuration::hours(24);
+
+        // Counts
+        let entries_today = self.storage.count_events(&AuditQuery {
+            start_time: Some(now - last_24h),
+            end_time: Some(now),
+            ..AuditQuery::default()
+        }).await.unwrap_or(0);
+
+        let security_events = self.storage.count_events(&AuditQuery {
+            event_types: Some(vec!["security_violation".to_string()]),
+            ..AuditQuery::default()
+        }).await.unwrap_or(0);
+
+        let violations_today = self.storage.count_events(&AuditQuery {
+            event_types: Some(vec!["security_violation".to_string()]),
+            start_time: Some(now - last_24h),
+            end_time: Some(now),
+            ..AuditQuery::default()
+        }).await.unwrap_or(0);
+
+        // Heuristic critical violations: severity high within 24h
+        let critical_violations = self.storage.count_events(&AuditQuery {
+            event_types: Some(vec!["security_violation".to_string()]),
+            severities: Some(vec!["high".to_string()]),
+            start_time: Some(now - last_24h),
+            end_time: Some(now),
+            ..AuditQuery::default()
+        }).await.unwrap_or(0);
+
+        // Avg entries/day over available window
+        let avg_entries_per_day = match (storage_stats.oldest_event, storage_stats.newest_event) {
+            (Some(oldest), Some(newest)) if newest > oldest => {
+                let days = (newest - oldest).num_days().max(1) as f64;
+                storage_stats.total_events as f64 / days
+            }
+            _ => storage_stats.total_events as f64,
+        };
+
+        // Build health
+        let health = self.get_health().await;
+        
+        // Compute top event types over last 24h
+        let recent_events = self.storage.query_events(&AuditQuery {
+            start_time: Some(now - last_24h),
+            end_time: Some(now),
+            limit: Some(5000),
+            ..AuditQuery::default()
+        }).await.unwrap_or_default();
+
+        let mut type_counts: HashMap<String, u64> = HashMap::new();
+        let mut unique_users: HashMap<String, ()> = HashMap::new();
+        let mut auth_total = 0u64;
+        let mut auth_failed = 0u64;
+        for ev in &recent_events {
+            let type_str = serde_json::to_string(&ev.event_type).unwrap_or_else(|_| "unknown".to_string()).trim_matches('"').to_string();
+            *type_counts.entry(type_str).or_insert(0) += 1;
+
+            if let Some(uid) = &ev.metadata.user_id {
+                unique_users.entry(uid.clone()).or_insert(());
+            }
+
+            // Authentication stats approximation
+            if matches!(ev.event_type, super::events::AuditEventType::Authentication | super::events::AuditEventType::Authorization) {
+                auth_total += 1;
+                if matches!(ev.severity, super::events::AuditSeverity::Error | super::events::AuditSeverity::Critical) {
+                    auth_failed += 1;
+                }
+            }
+        }
+
+        let total_recent = recent_events.len() as f64;
+        let mut top_event_types: Vec<crate::security::statistics::EventTypeCount> = type_counts
+            .into_iter()
+            .map(|(event_type, count)| crate::security::statistics::EventTypeCount {
+                event_type,
+                count,
+                percentage: if total_recent > 0.0 { (count as f64 / total_recent) * 100.0 } else { 0.0 },
+            })
+            .collect();
+        top_event_types.sort_by(|a, b| b.count.cmp(&a.count));
+        top_event_types.truncate(10);
+
+        AuditStatistics {
+            health,
+            total_entries: storage_stats.total_events,
+            entries_today,
+            security_events,
+            violations_today,
+            critical_violations: critical_violations as u64,
+            storage_size_bytes: storage_stats.storage_size_bytes,
+            avg_entries_per_day,
+            top_event_types,
+            auth_events: auth_total,
+            failed_auth: auth_failed,
+            unique_users: unique_users.len() as u64,
+        }
+    }
+
+    pub async fn get_health(&self) -> ServiceHealth {
+        // Collector perspective
+        let stats = self.get_stats().await;
+        let storage_health = self.storage.health_check().await;
+
+        let (status, is_healthy, error_message) = match storage_health {
+            Ok(h) => {
+                if h.healthy && stats.healthy {
+                    (HealthStatus::Healthy, true, None)
+                } else {
+                    (HealthStatus::Warning, false, Some(h.message))
+                }
+            }
+            Err(e) => (HealthStatus::Error, false, Some(format!("Storage health error: {}", e))),
+        };
+
+        ServiceHealth {
+            status,
+            is_healthy,
+            last_checked: Utc::now(),
+            error_message,
+            uptime_seconds: stats.uptime.as_secs(),
+            performance: PerformanceMetrics {
+                avg_response_time_ms: stats.avg_processing_time_ms,
+                requests_per_second: stats.events_per_second,
+                error_rate: if stats.total_events > 0 { stats.total_errors as f64 / stats.total_events as f64 } else { 0.0 },
+                memory_usage_bytes: 0,
+            },
+        }
+    }
+
+    pub async fn reset_statistics_counters(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let mut s = self.stats.write().await;
+        *s = CollectorStats { started_at: Utc::now(), ..CollectorStats::default() };
+        Ok(())
+    }
+
+    /// Get storage statistics from the backend (size, totals, etc.)
+    pub async fn get_storage_stats(&self) -> AuditResult<StorageStats> {
+        self.storage.get_stats().await
+    }
+
+    // ---------------------------------------------------------------------
+    // Time-range statistics (centralized for API consumption)
+    // ---------------------------------------------------------------------
+
+    /// Compute grouped audit statistics for a given time range.
+    pub async fn get_statistics_for_range(
+        &self,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        limit: Option<usize>,
+    ) -> AuditResult<AuditRangeStatistics> {
+        let events = self.storage.query_events(&AuditQuery {
+            start_time: Some(start_time),
+            end_time: Some(end_time),
+            limit,
+            sort_by: Some("timestamp".to_string()),
+            sort_desc: true,
+            ..AuditQuery::default()
+        }).await?;
+
+        let total_events = events.len() as u64;
+        let mut type_counts: HashMap<String, u64> = HashMap::new();
+        let mut unique_users: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut auth_events = 0u64;
+        let mut failed_auth = 0u64;
+        let mut violations = 0u64;
+        let mut critical_violations = 0u64;
+
+        for ev in &events {
+            // Event type counts
+            let type_str = serde_json::to_string(&ev.event_type)
+                .unwrap_or_else(|_| "unknown".to_string())
+                .trim_matches('"')
+                .to_string();
+            *type_counts.entry(type_str).or_insert(0) += 1;
+
+            // Unique users
+            if let Some(uid) = &ev.metadata.user_id {
+                unique_users.insert(uid.clone());
+            }
+
+            // Authentication stats
+            if matches!(ev.event_type, super::events::AuditEventType::Authentication | super::events::AuditEventType::Authorization) {
+                auth_events += 1;
+                if matches!(ev.severity, super::events::AuditSeverity::Error | super::events::AuditSeverity::Critical) {
+                    failed_auth += 1;
+                }
+            }
+
+            // Violations
+            if matches!(ev.event_type, super::events::AuditEventType::SecurityViolation) {
+                violations += 1;
+                if matches!(ev.severity, super::events::AuditSeverity::Critical) {
+                    critical_violations += 1;
+                }
+            }
+        }
+
+        // Convert to vector with percentages
+        let total_f = total_events as f64;
+        let mut event_types: Vec<crate::security::statistics::EventTypeCount> = type_counts
+            .into_iter()
+            .map(|(event_type, count)| crate::security::statistics::EventTypeCount {
+                event_type,
+                count,
+                percentage: if total_f > 0.0 { (count as f64 / total_f) * 100.0 } else { 0.0 },
+            })
+            .collect();
+        event_types.sort_by(|a, b| b.count.cmp(&a.count));
+        event_types.truncate(50);
+
+        // Compute average per day across the range
+        let hours = (end_time - start_time).num_hours().max(1) as f64;
+        let avg_entries_per_day = (total_f / hours) * 24.0;
+
+        Ok(AuditRangeStatistics {
+            total_events,
+            violations,
+            critical_violations,
+            auth_events,
+            failed_auth,
+            unique_users: unique_users.len() as u64,
+            avg_entries_per_day,
+            event_types,
+        })
+    }
+}
+
+// ============================================================================
+// SecurityServiceStatistics Implementation
+// ============================================================================
+
+#[async_trait::async_trait]
+impl crate::security::statistics::SecurityServiceStatistics for AuditCollector {
+    type Statistics = crate::security::statistics::AuditStatistics;
+    
+    async fn get_statistics(&self) -> Self::Statistics {
+        use crate::security::statistics::{AuditStatistics, ServiceHealth, HealthStatus, PerformanceMetrics, EventTypeCount};
+        use chrono::{Duration, Utc};
+        use std::collections::HashMap;
+        
+        // Get basic collector statistics
+        let collector_stats = self.get_stats().await;
+        let storage_stats = self.storage.get_stats().await.unwrap_or_default();
+        
+        // Calculate today's entries (last 24 hours)
+        let today_start = Utc::now() - Duration::hours(24);
+        let entries_today = self.storage.query_events(&super::storage::AuditQuery {
+            start_time: Some(today_start),
+            end_time: Some(Utc::now()),
+            event_types: None,
+            components: None,
+            severities: None,
+            user_ids: None,
+            search_text: None,
+            limit: None,
+            offset: None,
+            sort_by: None,
+            sort_desc: false,
+            correlation_id: None,
+            metadata_filters: HashMap::new(),
+        }).await.map(|events| events.len() as u64).unwrap_or(0);
+        
+        // Get security events count
+        let security_events = self.storage.query_events(&super::storage::AuditQuery {
+            start_time: Some(today_start),
+            end_time: Some(Utc::now()),
+            event_types: Some(vec!["security_violation".to_string()]),
+            components: None,
+            severities: None,
+            user_ids: None,
+            search_text: None,
+            limit: None,
+            offset: None,
+            sort_by: None,
+            sort_desc: false,
+            correlation_id: None,
+            metadata_filters: HashMap::new(),
+        }).await.map(|events| events.len() as u64).unwrap_or(0);
+        
+        // Get authentication events
+        let auth_events = self.storage.query_events(&super::storage::AuditQuery {
+            start_time: Some(today_start),
+            end_time: Some(Utc::now()),
+            event_types: Some(vec!["authentication".to_string()]),
+            components: None,
+            severities: None,
+            user_ids: None,
+            search_text: None,
+            limit: None,
+            offset: None,
+            sort_by: None,
+            sort_desc: false,
+            correlation_id: None,
+            metadata_filters: HashMap::new(),
+        }).await.map(|events| events.len() as u64).unwrap_or(0);
+        
+        // Get critical violations (high severity security events)
+        let critical_violations = self.storage.query_events(&super::storage::AuditQuery {
+            start_time: Some(today_start),
+            end_time: Some(Utc::now()),
+            event_types: Some(vec!["security_violation".to_string()]),
+            components: None,
+            severities: Some(vec!["critical".to_string(), "high".to_string()]),
+            user_ids: None,
+            search_text: None,
+            limit: None,
+            offset: None,
+            sort_by: None,
+            sort_desc: false,
+            correlation_id: None,
+            metadata_filters: HashMap::new(),
+        }).await.map(|events| events.len() as u64).unwrap_or(0);
+        
+        // Calculate average entries per day (last 30 days)
+        let thirty_days_ago = Utc::now() - Duration::days(30);
+        let total_entries_30d = self.storage.query_events(&super::storage::AuditQuery {
+            start_time: Some(thirty_days_ago),
+            end_time: Some(Utc::now()),
+            event_types: None,
+            components: None,
+            severities: None,
+            user_ids: None,
+            search_text: None,
+            limit: None,
+            offset: None,
+            sort_by: None,
+            sort_desc: false,
+            correlation_id: None,
+            metadata_filters: HashMap::new(),
+        }).await.map(|events| events.len() as f64).unwrap_or(0.0);
+        
+        let avg_entries_per_day = total_entries_30d / 30.0;
+        
+        // Create service health
+        let health_status = if collector_stats.healthy {
+            HealthStatus::Healthy
+        } else {
+            HealthStatus::Error
+        };
+        
+        let service_health = ServiceHealth {
+            status: health_status,
+            is_healthy: collector_stats.healthy,
+            last_checked: Utc::now(),
+            error_message: if collector_stats.healthy { None } else { Some("Audit service errors detected".to_string()) },
+            uptime_seconds: collector_stats.uptime.as_secs(),
+            performance: PerformanceMetrics {
+                avg_response_time_ms: collector_stats.avg_processing_time_ms,
+                requests_per_second: collector_stats.events_per_second,
+                error_rate: if collector_stats.total_events > 0 {
+                    collector_stats.total_errors as f64 / collector_stats.total_events as f64
+                } else {
+                    0.0
+                },
+                memory_usage_bytes: storage_stats.storage_size_bytes,
+            },
+        };
+        
+        // Create top event types (simplified for now)
+        let total_events_f64 = collector_stats.total_events as f64;
+        let top_event_types = vec![
+            EventTypeCount {
+                event_type: "authentication".to_string(),
+                count: auth_events,
+                percentage: if total_events_f64 > 0.0 { auth_events as f64 / total_events_f64 * 100.0 } else { 0.0 },
+            },
+            EventTypeCount {
+                event_type: "security_violation".to_string(),
+                count: security_events,
+                percentage: if total_events_f64 > 0.0 { security_events as f64 / total_events_f64 * 100.0 } else { 0.0 },
+            },
+        ];
+        
+        AuditStatistics {
+            health: service_health,
+            total_entries: collector_stats.total_events,
+            entries_today,
+            security_events,
+            violations_today: security_events, // Using security_events as violations
+            critical_violations,
+            storage_size_bytes: storage_stats.storage_size_bytes,
+            avg_entries_per_day,
+            top_event_types,
+            auth_events,
+            failed_auth: 0, // Would need additional tracking
+            unique_users: 0, // Would need additional tracking
+        }
+    }
+    
+    async fn get_health(&self) -> crate::security::statistics::ServiceHealth {
+        let stats = self.get_statistics().await;
+        stats.health
+    }
+    
+    async fn reset_statistics(&self) -> Result<(), Box<dyn std::error::Error>> {
+        // Reset collector-level statistics
+        let mut stats = self.stats.write().await;
+        *stats = CollectorStats {
+            total_events: 0,
+            events_per_second: 0.0,
+            queue_depth: 0,
+            batch_size: 0,
+            storage_healthy: true,
+            storage_errors: 0,
+            streaming_clients: 0,
+            streaming_subscriptions: 0,
+            avg_processing_time_ms: 0.0,
+            max_processing_time_ms: 0.0,
+            healthy: true,
+            uptime: Duration::from_secs(0),
+            started_at: Utc::now(),
+            total_errors: 0,
+            queue_full_errors: 0,
+            storage_errors_count: 0,
+            streaming_errors: 0,
+        };
+        
+        // Note: Storage statistics would need to be reset separately if supported
+        Ok(())
+    }
+}
+
+// HealthMonitor trait is optional; AuditCollector exposes detailed health
+// via SecurityServiceStatistics::get_health implementation above.
+
 /// Overall collector health information
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CollectorHealth {
@@ -928,5 +1407,91 @@ mod tests {
         let health = collector.health_check().await.unwrap();
         assert!(health.healthy);
         assert!(health.storage_health.healthy);
+    }
+    
+    #[tokio::test]
+    async fn test_security_service_statistics() {
+        use crate::security::statistics::{SecurityServiceStatistics, HealthStatus};
+        
+        let config = AuditConfig::default();
+        let collector = AuditCollector::new(config).await.unwrap();
+        
+        // Test get_statistics method
+        let stats = collector.get_statistics().await;
+        assert_eq!(stats.total_entries, 0);
+        assert_eq!(stats.entries_today, 0);
+        assert_eq!(stats.security_events, 0);
+        assert_eq!(stats.violations_today, 0);
+        assert_eq!(stats.critical_violations, 0);
+        assert_eq!(stats.auth_events, 0);
+        assert_eq!(stats.failed_auth, 0);
+        assert_eq!(stats.unique_users, 0);
+        assert!(stats.avg_entries_per_day >= 0.0);
+        assert!(stats.top_event_types.len() >= 0);
+        
+        // Test service health
+        assert_eq!(stats.health.status, HealthStatus::Healthy);
+        assert!(stats.health.is_healthy);
+        assert!(stats.health.error_message.is_none());
+        assert!(stats.health.uptime_seconds >= 0);
+        assert!(stats.health.performance.avg_response_time_ms >= 0.0);
+        assert!(stats.health.performance.requests_per_second >= 0.0);
+        assert!(stats.health.performance.error_rate >= 0.0);
+        assert!(stats.health.performance.memory_usage_bytes >= 0);
+        
+        // Test get_health method
+        let health = collector.get_health().await;
+        assert_eq!(health.status, HealthStatus::Healthy);
+        assert!(health.is_healthy);
+        
+        // Test reset_statistics method
+        let result = collector.reset_statistics().await;
+        assert!(result.is_ok());
+        
+        let stats_after_reset = collector.get_statistics().await;
+        assert_eq!(stats_after_reset.total_entries, 0);
+    }
+    
+    #[tokio::test]
+    async fn test_audit_statistics_after_events() {
+        use crate::security::statistics::SecurityServiceStatistics;
+        use crate::security::audit::events::{AuditEventType, AuditSeverity};
+        
+        let config = AuditConfig::default();
+        let collector = AuditCollector::new(config).await.unwrap();
+        
+        // Add some test events
+        let auth_event = AuditEvent::new(
+            AuditEventType::Authentication,
+            "test".to_string(),
+            "Test auth event".to_string(),
+        );
+        
+        let security_event = AuditEvent::new(
+            AuditEventType::SecurityViolation,
+            "test".to_string(),
+            "Test security violation".to_string(),
+        );
+        
+        // Log events
+        let _ = collector.log_event(auth_event).await;
+        let _ = collector.log_event(security_event).await;
+        
+        // Give some time for async processing
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        
+        // Get statistics and verify event counting
+        let stats = collector.get_statistics().await;
+        
+        // Basic collector stats should show events
+        let collector_stats = collector.get_stats().await;
+        assert!(collector_stats.total_events > 0, "Should have processed some events");
+        
+        // Verify health metrics are updated
+        assert!(stats.health.performance.requests_per_second >= 0.0);
+        assert!(stats.health.uptime_seconds > 0);
+        
+        println!("Statistics after events: total_entries={}, health_status={:?}", 
+                 stats.total_entries, stats.health.status);
     }
 }

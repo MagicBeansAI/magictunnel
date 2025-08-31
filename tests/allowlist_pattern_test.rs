@@ -30,7 +30,7 @@ fn test_enhanced_data_file_loading() {
     };
     
     // Test loading with enhanced data file approach
-    match AllowlistService::with_data_file(config, data_file.to_string_lossy().to_string()) {
+    match AllowlistService::with_data_file(config, data_file.to_string_lossy().to_string(), None) {
         Ok(service) => {
             let loaded_config = service.get_config();
             println!("✅ Service created successfully with enhanced data file approach");
@@ -83,9 +83,9 @@ fn test_pattern_service_integration() {
         ..config
     };
     
-    let service = match AllowlistService::with_data_file(config_with_data_file.clone(), data_file.to_string_lossy().to_string()) {
+    let service = match AllowlistService::with_data_file(config_with_data_file.clone(), data_file.to_string_lossy().to_string(), None) {
         Ok(s) => s,
-        Err(_) => AllowlistService::new(config_with_data_file).unwrap()
+        Err(_) => AllowlistService::new(config_with_data_file, None).unwrap()
     };
     
     // Verify patterns were loaded
@@ -129,9 +129,9 @@ fn test_pattern_matching_functionality() {
         ..config
     };
     
-    let service = match AllowlistService::with_data_file(config_with_data_file.clone(), data_file.to_string_lossy().to_string()) {
+    let service = match AllowlistService::with_data_file(config_with_data_file.clone(), data_file.to_string_lossy().to_string(), None) {
         Ok(s) => s,
-        Err(_) => AllowlistService::new(config_with_data_file).unwrap()
+        Err(_) => AllowlistService::new(config_with_data_file, None).unwrap()
     };
     
     let context = AllowlistContext {
@@ -207,9 +207,9 @@ fn test_pattern_testing_framework() {
         ..config
     };
     
-    let service = match AllowlistService::with_data_file(config_with_data_file.clone(), data_file.to_string_lossy().to_string()) {
+    let service = match AllowlistService::with_data_file(config_with_data_file.clone(), data_file.to_string_lossy().to_string(), None) {
         Ok(s) => s,
-        Err(_) => AllowlistService::new(config_with_data_file).unwrap()
+        Err(_) => AllowlistService::new(config_with_data_file, None).unwrap()
     };
     
     // Note: Pattern testing framework has been replaced with real-time pattern testing
@@ -277,9 +277,9 @@ fn test_pattern_priority_ordering() {
         ..config
     };
     
-    let service = match AllowlistService::with_data_file(config_with_data_file.clone(), data_file.to_string_lossy().to_string()) {
+    let service = match AllowlistService::with_data_file(config_with_data_file.clone(), data_file.to_string_lossy().to_string(), None) {
         Ok(s) => s,
-        Err(_) => AllowlistService::new(config_with_data_file).unwrap()
+        Err(_) => AllowlistService::new(config_with_data_file, None).unwrap()
     };
     
     let context = AllowlistContext {
@@ -329,9 +329,9 @@ fn test_hot_reload_patterns() {
         ..config
     };
     
-    let service = match AllowlistService::with_data_file(config_with_data_file.clone(), data_file.to_string_lossy().to_string()) {
+    let service = match AllowlistService::with_data_file(config_with_data_file.clone(), data_file.to_string_lossy().to_string(), None) {
         Ok(s) => s,
-        Err(_) => AllowlistService::new(config_with_data_file.clone()).unwrap()
+        Err(_) => AllowlistService::new(config_with_data_file.clone(), None).unwrap()
     };
     
     let original_config = service.get_config();
@@ -346,9 +346,9 @@ fn test_hot_reload_patterns() {
     println!("ℹ️  Hot reload functionality has been replaced with enhanced data file approach");
     
     // Simulate a reload by recreating the service
-    let reloaded_service = match AllowlistService::with_data_file(config_with_data_file.clone(), data_file.to_string_lossy().to_string()) {
+    let reloaded_service = match AllowlistService::with_data_file(config_with_data_file.clone(), data_file.to_string_lossy().to_string(), None) {
         Ok(s) => s,
-        Err(_) => AllowlistService::new(config_with_data_file.clone()).unwrap()
+        Err(_) => AllowlistService::new(config_with_data_file.clone(), None).unwrap()
     };
     
     let reloaded_config = reloaded_service.get_config();

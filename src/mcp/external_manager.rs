@@ -6,14 +6,14 @@
 use crate::config::{ExternalMcpConfig, ExternalMcpServersConfig, ContainerConfig, McpClientConfig};
 use crate::error::{ProxyError, Result};
 use crate::mcp::external_process::ExternalMcpProcess;
-use crate::mcp::types::{Tool, McpRequest, McpResponse, McpNotification};
+use crate::mcp::types::{Tool, McpResponse};
 use crate::mcp::metrics::{McpMetricsCollector, McpHealthThresholds, HealthStatus};
 use crate::mcp::health_checker::{McpHealthChecker, HealthCheckConfig};
-use crate::mcp::notifications::McpNotificationManager;
+// use crate::mcp::notifications::McpNotificationManager; // Unused currently
 use crate::registry::types::{CapabilityFile, ToolDefinition, RoutingConfig};
 use crate::utils::{sanitize_capability_name, sanitize_tool_name, ensure_unique_capability_name};
 use serde_json::{json, Value};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;

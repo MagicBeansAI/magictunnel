@@ -13,8 +13,11 @@ MagicTunnel is an intelligent bridge between MCP (Model Context Protocol) client
 # Build the project
 make build-release-ollama && make pregenerate-embeddings-ollama
 
-# Check for errors
+# Check for compilation errors (ALWAYS use this for error checking)
 cargo check
+
+# Only for extreme cases requiring actual build
+# make build-release-ollama && make pregenerate-embeddings-ollama
 
 # Run (Advanced Mode with dashboard)
 ./magictunnel-supervisor
@@ -32,9 +35,11 @@ curl -X POST http://localhost:3001/mcp/call \
 
 ### Development Commands
 ```bash
-# Test, check, debug, cleanup
-cargo test
+# ALWAYS use cargo check for error checking (fast)
 cargo check
+
+# Test, debug, cleanup
+cargo test
 RUST_LOG=debug ./magictunnel-supervisor
 pkill -f magictunnel
 
@@ -77,6 +82,7 @@ cargo run --bin magictunnel-visibility -- -c config.yaml status
 
 #### **Advanced Services** (Enterprise only):
 - **Enterprise Security Suite**: Tool allowlisting with nested call security, RBAC, request sanitization, audit logging, emergency lockdown
+- **Security Headers Middleware**: Comprehensive HTTP security headers (CSP, HSTS, X-Frame-Options, etc.) applied to all routes
 - **Nested Tool Security**: Comprehensive security validation for all tool calls including smart discovery internal calls
 - **Future**: MagicTunnel Authentication (separate from MCP protocol auth)
 
@@ -118,6 +124,7 @@ cargo run --bin magictunnel-visibility -- -c config.yaml status
 - `src/mcp/external_*.rs` - External MCP management
 - `src/registry/service.rs` - Registry with visibility
 - `src/bin/magictunnel-visibility.rs` - Visibility CLI
+- `src/tls/security_headers.rs` - **Security Headers Middleware** ✅
 - `src/main.rs` - Entry point
 
 ### Documentation
@@ -186,6 +193,40 @@ curl -X POST http://localhost:3001/mcp/call \
 - Modes: `hybrid`, `rule_based`, `semantic`, `llm_based`
 - Providers: OpenAI, Anthropic, Ollama
 - Visibility with `default_hidden`
+
+## Security
+
+### Security Headers Middleware ✅
+
+**Comprehensive HTTP security headers** automatically applied to all routes:
+
+- **Content Security Policy (CSP)**: Prevents XSS and injection attacks
+- **HTTP Strict Transport Security (HSTS)**: Enforces HTTPS connections
+- **X-Frame-Options**: Prevents clickjacking attacks
+- **X-Content-Type-Options**: Prevents MIME-type confusion attacks
+- **X-XSS-Protection**: Browser-level XSS protection
+- **Referrer-Policy**: Controls referrer information leakage
+- **Permissions-Policy**: Restricts browser feature access
+
+**Configuration**:
+```rust
+// Automatically configured from TLS settings
+let security_config = SecurityHeadersConfig::from(&tls_config);
+
+// Custom configuration
+let security_config = SecurityHeadersConfig {
+    csp: Some("default-src 'self'; script-src 'self' 'unsafe-inline';".to_string()),
+    hsts_enabled: true,
+    hsts_config: HstsConfig {
+        max_age: 31536000, // 1 year
+        include_subdomains: true,
+        preload: false,
+    },
+    // ... other headers
+};
+```
+
+**Integration**: Middleware is automatically applied in `src/mcp/server.rs` to all HTTP routes.
 
 ### Environment Variables
 ```bash

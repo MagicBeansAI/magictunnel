@@ -11,6 +11,7 @@ use crate::error::{ProxyError, Result};
 use crate::registry::types::*;
 use crate::registry::loader::RegistryLoader;
 use crate::mcp::notifications::McpNotificationManager;
+use crate::config::hierarchical::{ConfigResolver as HierarchicalResolver, ResolvedToolConfig};
 use arc_swap::ArcSwap;
 use dashmap::DashMap;
 use futures_util::future;
@@ -64,6 +65,9 @@ pub struct RegistryService {
     
     /// Optional enhancement callback for tool changes
     enhancement_callback: RwLock<Option<Arc<dyn EnhancementCallback>>>,
+    
+    /// Optional hierarchical configuration resolver for tool-level precedence
+    hierarchical_resolver: RwLock<Option<Arc<HierarchicalResolver>>>,
 }
 
 /// Complete capability registry with metadata
@@ -148,6 +152,7 @@ impl RegistryService {
             event_rx: None,
             notification_manager: RwLock::new(None),
             enhancement_callback: RwLock::new(None),
+            hierarchical_resolver: RwLock::new(None),
         };
         
         // Perform initial load (without enhancement notifications to avoid overriding cached enhancements)
@@ -352,7 +357,9 @@ impl RegistryService {
     pub fn list_tools(&self) -> Vec<String> {
         let registry = self.registry.load();
         registry.tools.iter()
-            .filter(|(_, tool_def)| !tool_def.is_hidden() && tool_def.is_enabled())
+            .filter(|(name, tool_def)| {
+                !self.is_tool_hidden_hierarchical(name, tool_def) && self.is_tool_enabled_hierarchical(name, tool_def)
+            })
             .map(|(name, _)| name.clone())
             .collect()
     }
@@ -417,7 +424,9 @@ impl RegistryService {
     pub fn get_all_tools(&self) -> Vec<(String, ToolDefinition)> {
         let registry = self.registry.load();
         registry.tools.iter()
-            .filter(|(_, tool_def)| !tool_def.is_hidden() && tool_def.is_enabled())
+            .filter(|(name, tool_def)| {
+                !self.is_tool_hidden_hierarchical(name, tool_def) && self.is_tool_enabled_hierarchical(name, tool_def)
+            })
             .map(|(name, tool_def)| (name.clone(), (**tool_def).clone()))
             .collect()
     }
@@ -439,7 +448,7 @@ impl RegistryService {
     pub fn get_hidden_tools(&self) -> Vec<(String, ToolDefinition)> {
         let registry = self.registry.load();
         registry.tools.iter()
-            .filter(|(_, tool_def)| tool_def.is_hidden())
+            .filter(|(name, tool_def)| self.is_tool_hidden_hierarchical(name, tool_def))
             .map(|(name, tool_def)| (name.clone(), (**tool_def).clone()))
             .collect()
     }
@@ -448,7 +457,7 @@ impl RegistryService {
     pub fn get_enabled_tools(&self) -> Vec<(String, ToolDefinition)> {
         let registry = self.registry.load();
         registry.tools.iter()
-            .filter(|(_, tool_def)| tool_def.is_enabled())
+            .filter(|(name, tool_def)| self.is_tool_enabled_hierarchical(name, tool_def))
             .map(|(name, tool_def)| (name.clone(), (**tool_def).clone()))
             .collect()
     }
@@ -457,7 +466,7 @@ impl RegistryService {
     pub fn get_disabled_tools(&self) -> Vec<(String, ToolDefinition)> {
         let registry = self.registry.load();
         registry.tools.iter()
-            .filter(|(_, tool_def)| !tool_def.is_enabled())
+            .filter(|(name, tool_def)| !self.is_tool_enabled_hierarchical(name, tool_def))
             .map(|(name, tool_def)| (name.clone(), (**tool_def).clone()))
             .collect()
     }
@@ -466,7 +475,9 @@ impl RegistryService {
     pub fn get_discoverable_tools(&self) -> Vec<(String, ToolDefinition)> {
         let registry = self.registry.load();
         registry.tools.iter()
-            .filter(|(_, tool_def)| tool_def.is_hidden() && tool_def.is_enabled())
+            .filter(|(name, tool_def)| {
+                self.is_tool_hidden_hierarchical(name, tool_def) && self.is_tool_enabled_hierarchical(name, tool_def)
+            })
             .map(|(name, tool_def)| (name.clone(), (**tool_def).clone()))
             .collect()
     }
@@ -786,22 +797,22 @@ impl RegistryService {
         let parsing_duration = parsing_start.elapsed();
         debug!("Phase 3 (Parsing): Parsed {} files in {:?}", parsed_files.len(), parsing_duration);
 
-        // Phase 4: Validation - Validate capability files in parallel
+        // Phase 4: Validation - Validate capability files in parallel while preserving paths
         let validation_start = Instant::now();
-        let validated_files: Vec<CapabilityFile> = parsed_files
+        let validated_files: Vec<(PathBuf, CapabilityFile)> = parsed_files
             .par_iter()
             .map(|(path, capability_file)| {
                 capability_file.validate()
                     .map_err(|e| ProxyError::registry(format!("Validation failed for {}: {}", path.display(), e)))?;
-                Ok(capability_file.clone())
+                Ok((path.clone(), capability_file.clone()))
             })
             .collect::<Result<Vec<_>>>()?;
         let validation_duration = validation_start.elapsed();
         debug!("Phase 4 (Validation): Validated {} files in {:?}", validated_files.len(), validation_duration);
 
-        // Phase 5: Update - Build registry
+        // Phase 5: Update - Build registry with actual file paths
         let update_start = Instant::now();
-        let registry = self.build_registry(validated_files, pipeline_start.elapsed())?;
+        let registry = self.build_registry_with_paths(validated_files, pipeline_start.elapsed())?;
         let update_duration = update_start.elapsed();
         debug!("Phase 5 (Update): Built registry in {:?}", update_duration);
 
@@ -943,13 +954,12 @@ impl RegistryService {
         Ok(capability_file)
     }
 
-    /// Build a new registry from capability files
-    fn build_registry(&self, capability_files: Vec<CapabilityFile>, load_duration: Duration) -> Result<CapabilityRegistry> {
+    /// Build a new registry from capability files with their actual paths
+    fn build_registry_with_paths(&self, capability_files: Vec<(PathBuf, CapabilityFile)>, load_duration: Duration) -> Result<CapabilityRegistry> {
         let mut files = HashMap::new();
         let mut tools = HashMap::new();
 
-        for (index, file) in capability_files.into_iter().enumerate() {
-            let file_path = PathBuf::from(format!("file_{}", index)); // TODO: Use actual paths
+        for (file_path, file) in capability_files.into_iter() {
             let arc_file = Arc::new(file);
 
             // Index tools from this file
@@ -972,6 +982,18 @@ impl RegistryService {
             tools,
             metadata,
         })
+    }
+
+    /// Build a new registry from capability files (legacy method for backward compatibility)
+    fn build_registry(&self, capability_files: Vec<CapabilityFile>, load_duration: Duration) -> Result<CapabilityRegistry> {
+        // Convert to path-file pairs using incremental naming for backward compatibility
+        let capability_files_with_paths: Vec<(PathBuf, CapabilityFile)> = capability_files
+            .into_iter()
+            .enumerate()
+            .map(|(index, file)| (PathBuf::from(format!("legacy_file_{}", index)), file))
+            .collect();
+        
+        self.build_registry_with_paths(capability_files_with_paths, load_duration)
     }
 
     /// Update the concurrent cache for fast lookups
@@ -1131,6 +1153,56 @@ impl RegistryService {
             info!("Enhancement callback registered for tool change notifications");
         }
     }
+    
+    /// Set hierarchical configuration resolver for tool-level configuration precedence
+    pub fn set_hierarchical_resolver(&self, resolver: Arc<HierarchicalResolver>) {
+        if let Ok(mut hr) = self.hierarchical_resolver.write() {
+            *hr = Some(resolver);
+            info!("Hierarchical configuration resolver registered for tool-level precedence");
+        }
+    }
+    
+    /// Check if a tool should be hidden based on hierarchical configuration
+    /// Falls back to tool's built-in hidden property if no hierarchical resolver is set
+    pub fn is_tool_hidden_hierarchical(&self, tool_name: &str, tool_def: &ToolDefinition) -> bool {
+        if let Ok(resolver_lock) = self.hierarchical_resolver.read() {
+            if let Some(resolver) = resolver_lock.as_ref() {
+                return resolver.resolve_hidden(Some(tool_name));
+            }
+        }
+        tool_def.is_hidden()
+    }
+    
+    /// Check if a tool should be enabled based on hierarchical configuration
+    /// Falls back to tool's built-in enabled property if no hierarchical resolver is set
+    pub fn is_tool_enabled_hierarchical(&self, tool_name: &str, tool_def: &ToolDefinition) -> bool {
+        if let Ok(resolver_lock) = self.hierarchical_resolver.read() {
+            if let Some(resolver) = resolver_lock.as_ref() {
+                return resolver.resolve_enabled(Some(tool_name));
+            }
+        }
+        tool_def.is_enabled()
+    }
+    
+    /// Get resolved tool configuration based on hierarchical configuration
+    /// Falls back to tool's built-in properties if no hierarchical resolver is set
+    pub fn get_resolved_tool_config(&self, tool_name: &str, tool_def: &ToolDefinition) -> ResolvedToolConfig {
+        if let Ok(resolver_lock) = self.hierarchical_resolver.read() {
+            if let Some(resolver) = resolver_lock.as_ref() {
+                return resolver.resolve_tool_config(tool_name);
+            }
+        }
+        
+        // Create a resolved config from the tool definition's built-in properties
+        ResolvedToolConfig {
+            name: tool_name.to_string(),
+            timeout: 30,    // Default timeout (tool def doesn't have this field)
+            max_retries: 3, // Default max retries (tool def doesn't have this)
+            priority: 5,    // Default priority (tool def doesn't have this)
+            enabled: tool_def.is_enabled(),
+            hidden: tool_def.is_hidden(),
+        }
+    }
 
     /// Notify enhancement service of tool changes
     async fn notify_tools_changed(&self, changed_tools: Vec<(String, ToolDefinition)>) {
@@ -1155,5 +1227,288 @@ impl RegistryService {
         } else {
             debug!("No enhancement callback registered, skipping tool change notification");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::hierarchical::{HierarchicalConfig, ConfigResolver, GlobalConfig, McpConfig, DiscoveryConfig, ToolConfig, DefaultSettings};
+    use std::collections::HashMap;
+    use tempfile::TempDir;
+    use std::fs;
+
+    /// Create a mock registry service with test tool definitions
+    async fn create_test_registry_service() -> Result<RegistryService> {
+        let temp_dir = TempDir::new().unwrap();
+        let capabilities_dir = temp_dir.path().join("capabilities");
+        fs::create_dir_all(&capabilities_dir).unwrap();
+        
+        // Create a test capability file with multiple tools
+        let test_capability = r#"
+name: test_tools
+description: Test tools for hierarchical configuration
+tools:
+  - name: "test_tool_1" 
+    description: "Test tool 1"
+    inputSchema:
+      type: "object"
+      properties:
+        input:
+          type: "string"
+    routing:
+      type: "command"
+      config:
+        command: "echo"
+        args: []
+    hidden: false
+    enabled: true
+  - name: "test_tool_2"
+    description: "Test tool 2"
+    inputSchema:
+      type: "object"
+      properties:
+        input:
+          type: "string"
+    routing:
+      type: "command"
+      config:
+        command: "echo"
+        args: []
+    hidden: true
+    enabled: true
+  - name: "test_tool_3"
+    description: "Test tool 3"
+    inputSchema:
+      type: "object"
+      properties:
+        input:
+          type: "string"
+    routing:
+      type: "command"
+      config:
+        command: "echo"
+        args: []
+    hidden: false
+    enabled: false
+"#;
+        
+        let capability_file = capabilities_dir.join("test_tools.yaml");
+        fs::write(capability_file, test_capability).unwrap();
+        
+        let config = RegistryConfig {
+            r#type: "file".to_string(),
+            paths: vec![capabilities_dir.to_string_lossy().to_string()],
+            hot_reload: false,
+            validation: crate::config::ValidationConfig {
+                strict: false,
+                allow_unknown_fields: true,
+            },
+        };
+        
+        RegistryService::new(config).await
+    }
+
+    /// Create a test hierarchical configuration with tool-level overrides
+    fn create_test_hierarchical_config() -> HierarchicalConfig {
+        let mut tools = HashMap::new();
+        
+        // Override test_tool_1: make it hidden (overriding its default visible state)
+        tools.insert("test_tool_1".to_string(), ToolConfig {
+            overrides: Some(DefaultSettings {
+                timeout: 15,
+                retry_attempts: 1,
+                retry_delay_ms: 500,
+            }),
+            routing: None,
+            parameters: None,
+            auth: None,
+            timeout: Some(15),
+            max_retries: Some(1), 
+            priority: Some(8),
+            enabled: Some(true),  // Keep enabled
+            hidden: Some(true),   // Override to hidden
+        });
+        
+        // Override test_tool_2: make it visible (overriding its default hidden state)
+        tools.insert("test_tool_2".to_string(), ToolConfig {
+            overrides: None,
+            routing: None,
+            parameters: None,
+            auth: None,
+            timeout: Some(25),
+            max_retries: Some(4),
+            priority: Some(2),
+            enabled: Some(true),  // Keep enabled
+            hidden: Some(false),  // Override to visible
+        });
+        
+        // Override test_tool_3: enable it (overriding its default disabled state)  
+        tools.insert("test_tool_3".to_string(), ToolConfig {
+            overrides: None,
+            routing: None,
+            parameters: None,
+            auth: None,
+            timeout: Some(35),
+            max_retries: Some(6),
+            priority: Some(9),
+            enabled: Some(true),  // Override to enabled
+            hidden: Some(false),  // Keep visible
+        });
+
+        HierarchicalConfig {
+            global: GlobalConfig {
+                timeout: Some(30),    // Global timeout
+                max_retries: Some(3), // Global max retries
+                priority: Some(5),    // Global priority
+                enabled: Some(true),  // Global enabled
+                hidden: Some(true),   // Global hidden (default)
+                ..Default::default()
+            },
+            mcp: McpConfig {
+                timeout: Some(20),    // MCP timeout
+                max_retries: Some(2), // MCP max retries  
+                priority: Some(4),    // MCP priority
+                enabled: Some(true),  // MCP enabled
+                hidden: Some(false),  // MCP hidden
+                ..Default::default()
+            },
+            discovery: DiscoveryConfig {
+                smart_discovery: crate::discovery::SmartDiscoveryConfig::default(),
+                tool_enhancement: crate::config::ToolEnhancementConfig::default(),
+                enhancement_storage: crate::discovery::EnhancementStorageConfig::default(),
+                visibility: crate::config::VisibilityConfig::default(),
+                conflict_resolution: crate::routing::ConflictResolutionConfig::default(),
+            },
+            tools,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_hierarchical_tool_filtering_precedence() {
+        let mut registry = create_test_registry_service().await.unwrap();
+        let hierarchical_config = create_test_hierarchical_config();
+        let resolver = Arc::new(ConfigResolver::new(hierarchical_config));
+        
+        // Set the hierarchical resolver
+        registry.set_hierarchical_resolver(resolver);
+        
+        // Test basic tool filtering with hierarchical config
+        let visible_tools = registry.get_all_tools(); // Should get visible and enabled tools
+        let hidden_tools = registry.get_hidden_tools();
+        let enabled_tools = registry.get_enabled_tools();
+        let discoverable_tools = registry.get_discoverable_tools(); // Hidden but enabled
+        
+        // Verify hierarchical precedence effects:
+        // test_tool_1: originally visible, overridden to hidden (should be in hidden/discoverable)  
+        // test_tool_2: originally hidden, overridden to visible (should be in visible)
+        // test_tool_3: originally disabled, overridden to enabled and visible (should be in visible)
+        
+        // Check visible tools (enabled + not hidden)
+        let visible_names: Vec<String> = visible_tools.iter().map(|(name, _)| name.clone()).collect();
+        assert!(visible_names.contains(&"test_tool_2".to_string()), "test_tool_2 should be visible (overridden from hidden)");
+        assert!(visible_names.contains(&"test_tool_3".to_string()), "test_tool_3 should be visible (overridden to enabled)");
+        assert!(!visible_names.contains(&"test_tool_1".to_string()), "test_tool_1 should be hidden (overridden to hidden)");
+        
+        // Check hidden tools
+        let hidden_names: Vec<String> = hidden_tools.iter().map(|(name, _)| name.clone()).collect();
+        assert!(hidden_names.contains(&"test_tool_1".to_string()), "test_tool_1 should be hidden (overridden)");
+        assert!(!hidden_names.contains(&"test_tool_2".to_string()), "test_tool_2 should not be hidden (overridden to visible)");
+        assert!(!hidden_names.contains(&"test_tool_3".to_string()), "test_tool_3 should not be hidden (overridden to visible)");
+        
+        // Check enabled tools (regardless of visibility)
+        let enabled_names: Vec<String> = enabled_tools.iter().map(|(name, _)| name.clone()).collect();
+        assert!(enabled_names.contains(&"test_tool_1".to_string()), "test_tool_1 should be enabled");
+        assert!(enabled_names.contains(&"test_tool_2".to_string()), "test_tool_2 should be enabled");
+        assert!(enabled_names.contains(&"test_tool_3".to_string()), "test_tool_3 should be enabled (overridden)");
+        
+        // Check discoverable tools (hidden + enabled)  
+        let discoverable_names: Vec<String> = discoverable_tools.iter().map(|(name, _)| name.clone()).collect();
+        assert!(discoverable_names.contains(&"test_tool_1".to_string()), "test_tool_1 should be discoverable (hidden but enabled)");
+        assert!(!discoverable_names.contains(&"test_tool_2".to_string()), "test_tool_2 should not be discoverable (visible)");
+        assert!(!discoverable_names.contains(&"test_tool_3".to_string()), "test_tool_3 should not be discoverable (visible)");
+        
+        println!("✅ Hierarchical tool filtering precedence test passed");
+    }
+
+    #[tokio::test]
+    async fn test_resolved_tool_configuration() {
+        let mut registry = create_test_registry_service().await.unwrap();
+        let hierarchical_config = create_test_hierarchical_config();
+        let resolver = Arc::new(ConfigResolver::new(hierarchical_config));
+        
+        registry.set_hierarchical_resolver(resolver);
+        
+        // Get tool definitions to test resolved configs
+        let all_tools = registry.get_all_tools_including_hidden();
+        let tool_1 = all_tools.iter().find(|(name, _)| name == "test_tool_1").unwrap();
+        let tool_2 = all_tools.iter().find(|(name, _)| name == "test_tool_2").unwrap();
+        let tool_3 = all_tools.iter().find(|(name, _)| name == "test_tool_3").unwrap();
+        
+        // Test resolved configurations
+        let config_1 = registry.get_resolved_tool_config("test_tool_1", &tool_1.1);
+        assert_eq!(config_1.timeout, 15, "test_tool_1 should have tool-level timeout override");
+        assert_eq!(config_1.max_retries, 1, "test_tool_1 should have tool-level max_retries override");
+        assert_eq!(config_1.priority, 8, "test_tool_1 should have tool-level priority override");
+        assert_eq!(config_1.hidden, true, "test_tool_1 should be hidden via tool-level override");
+        assert_eq!(config_1.enabled, true, "test_tool_1 should be enabled");
+        
+        let config_2 = registry.get_resolved_tool_config("test_tool_2", &tool_2.1);
+        assert_eq!(config_2.timeout, 25, "test_tool_2 should have tool-level timeout override");
+        assert_eq!(config_2.max_retries, 4, "test_tool_2 should have tool-level max_retries override");
+        assert_eq!(config_2.priority, 2, "test_tool_2 should have tool-level priority override");
+        assert_eq!(config_2.hidden, false, "test_tool_2 should be visible via tool-level override");
+        assert_eq!(config_2.enabled, true, "test_tool_2 should be enabled");
+        
+        let config_3 = registry.get_resolved_tool_config("test_tool_3", &tool_3.1);
+        assert_eq!(config_3.timeout, 35, "test_tool_3 should have tool-level timeout override");
+        assert_eq!(config_3.max_retries, 6, "test_tool_3 should have tool-level max_retries override"); 
+        assert_eq!(config_3.priority, 9, "test_tool_3 should have tool-level priority override");
+        assert_eq!(config_3.hidden, false, "test_tool_3 should be visible via tool-level override");
+        assert_eq!(config_3.enabled, true, "test_tool_3 should be enabled via tool-level override");
+        
+        println!("✅ Resolved tool configuration test passed");
+    }
+
+    #[tokio::test]
+    async fn test_hierarchical_fallback_to_built_in_properties() {
+        let mut registry = create_test_registry_service().await.unwrap();
+        
+        // Test without hierarchical resolver - should fall back to tool's built-in properties
+        let all_tools = registry.get_all_tools_including_hidden();
+        let tool_1 = all_tools.iter().find(|(name, _)| name == "test_tool_1").unwrap();
+        
+        // Should use built-in properties when no hierarchical resolver
+        let config_fallback = registry.get_resolved_tool_config("test_tool_1", &tool_1.1);
+        assert_eq!(config_fallback.timeout, 30, "Should use default timeout when no hierarchical resolver");
+        assert_eq!(config_fallback.max_retries, 3, "Should use default max_retries when no hierarchical resolver");
+        assert_eq!(config_fallback.priority, 5, "Should use default priority when no hierarchical resolver");
+        assert_eq!(config_fallback.hidden, false, "Should use tool's built-in hidden property (false)");
+        assert_eq!(config_fallback.enabled, true, "Should use tool's built-in enabled property (true)");
+        
+        println!("✅ Hierarchical fallback test passed");
+    }
+
+    #[tokio::test]
+    async fn test_tool_configuration_isolation() {
+        let mut registry = create_test_registry_service().await.unwrap();
+        let hierarchical_config = create_test_hierarchical_config();
+        let resolver = Arc::new(ConfigResolver::new(hierarchical_config));
+        
+        registry.set_hierarchical_resolver(resolver);
+        
+        // Test that tool-specific configurations don't affect other tools
+        let all_tools = registry.get_all_tools_including_hidden();
+        let tool_1 = all_tools.iter().find(|(name, _)| name == "test_tool_1").unwrap();
+        
+        // test_tool_1 has specific overrides
+        assert_eq!(registry.is_tool_hidden_hierarchical("test_tool_1", &tool_1.1), true);
+        assert_eq!(registry.is_tool_enabled_hierarchical("test_tool_1", &tool_1.1), true);
+        
+        // Create a tool with no overrides - should fall back to MCP/Global levels
+        assert_eq!(registry.is_tool_hidden_hierarchical("nonexistent_tool", &tool_1.1), false); // MCP level: hidden = false
+        assert_eq!(registry.is_tool_enabled_hierarchical("nonexistent_tool", &tool_1.1), true);  // MCP level: enabled = true
+        
+        println!("✅ Tool configuration isolation test passed");
     }
 }

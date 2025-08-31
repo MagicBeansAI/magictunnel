@@ -247,7 +247,7 @@ async fn test_security(
     if let Some(allowlist_config) = &security_config.allowlist {
         if allowlist_config.enabled {
             println!("🔍 Testing Tool Allowlist:");
-            let allowlist_service = AllowlistService::new(allowlist_config.clone())
+            let allowlist_service = AllowlistService::new(allowlist_config.clone(), None)
                 .map_err(|e| anyhow::anyhow!("Failed to create allowlist service: {}", e))?;
             
             let tool_params: HashMap<String, serde_json::Value> = if let Some(params) = parameters {

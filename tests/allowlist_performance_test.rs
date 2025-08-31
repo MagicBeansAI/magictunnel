@@ -41,7 +41,7 @@ fn test_allowlist_performance_benchmark() {
         data_file: "./security/allowlist-data.yaml".to_string(),
     };
     
-    let service = AllowlistService::new(config).unwrap();
+    let service = AllowlistService::new(config, None).unwrap();
     let context = AllowlistContext {
         user_id: Some("bench_user".to_string()),
         user_roles: vec!["user".to_string()],
@@ -149,7 +149,7 @@ fn test_allowlist_cache_performance() {
         data_file: "./security/allowlist-data.yaml".to_string(),
     };
     
-    let service = AllowlistService::new(config).unwrap();
+    let service = AllowlistService::new(config, None).unwrap();
     let context = AllowlistContext {
         user_id: Some("cache_user".to_string()),
         user_roles: vec!["user".to_string()],

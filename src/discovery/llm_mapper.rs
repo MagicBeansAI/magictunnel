@@ -800,7 +800,7 @@ JSON Response:"#,
                     "error".to_string(),
                     "*.log".to_string(),
                     "function main".to_string(),
-                    "TODO".to_string(),
+                    "async fn".to_string(),  // More practical code search example
                 ]
             )
         } else if name_lower.contains("method") && desc_lower.contains("http") {

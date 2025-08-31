@@ -368,10 +368,18 @@ impl PermissionCacheManager {
         }
     }
     
-    /// Create a new permission cache manager with default/mock RBAC service for testing
-    /// This is a temporary compatibility method - use `new` with proper RBAC service in production
+    /// Create a new permission cache manager with default/mock RBAC service for testing ONLY
+    /// 
+    /// ⚠️  WARNING: This method is for testing/development only. In production environments,
+    /// always use `new()` with a properly configured RbacService.
+    /// 
+    /// This method will panic in release builds to prevent accidental production usage.
+    #[cfg(debug_assertions)]
     pub fn new_with_default_rbac(config: PermissionCacheConfig) -> Self {
         use crate::security::rbac::RbacConfig;
+        use tracing::warn;
+        
+        warn!("⚠️  Creating PermissionCacheManager with mock RBAC service - FOR TESTING ONLY");
         
         // Create a minimal RBAC config for compatibility
         let rbac_config = RbacConfig {
@@ -387,6 +395,30 @@ impl PermissionCacheManager {
         let rbac_service = Arc::new(RbacService::new(rbac_config).expect("Failed to create mock RBAC service"));
         
         Self::new(config, rbac_service)
+    }
+    
+    /// Production-safe constructor that requires a proper RBAC service
+    /// This is the recommended constructor for all production deployments
+    pub fn new_production(config: PermissionCacheConfig, rbac_service: Arc<RbacService>) -> Result<Self, String> {
+        // Validate that the RBAC service is properly configured
+        // Check if service has meaningful configuration
+        let all_permissions = rbac_service.get_all_permissions();
+        if let serde_json::Value::Object(permissions) = all_permissions {
+            if permissions.is_empty() {
+                tracing::warn!("RBAC service has no permissions configured - access control may not work as expected");
+            }
+        } else {
+            return Err("RBAC service returned invalid permissions data structure".to_string());
+        }
+        
+        // Check if there are any roles configured
+        let all_roles = rbac_service.get_roles();
+        if all_roles.is_empty() {
+            tracing::warn!("RBAC service has no roles configured - users may not have any permissions");
+        }
+        
+        tracing::info!("Successfully validated RBAC service for production use");
+        Ok(Self::new(config, rbac_service))
     }
     
     /// Get or create user tool cache
@@ -553,6 +585,22 @@ impl PermissionCacheManager {
         debug!("Direct RBAC check result for tool {}: granted={}", tool_id, result.granted);
         
         result.granted
+    }
+
+    /// Get the list of required roles for a tool from the current permission index
+    pub fn get_tool_required_roles(&self, tool_id: &ToolId) -> Vec<RoleId> {
+        let index = self.permission_index.load();
+        index
+            .tool_to_roles
+            .get(tool_id)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Get the required permissions bitmap for a tool from the current permission index
+    pub fn get_tool_required_permissions_bitmap(&self, tool_id: &ToolId) -> Option<u64> {
+        let index = self.permission_index.load();
+        index.tool_to_permissions.get(tool_id).cloned()
     }
     
     /// Bulk check permissions for multiple tools using RBAC service

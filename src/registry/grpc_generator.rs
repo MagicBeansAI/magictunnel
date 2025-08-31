@@ -32,6 +32,36 @@ pub enum StreamingStrategy {
     AgentLevel,
 }
 
+/// Naming strategy for gRPC tool generation
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GrpcNamingStrategy {
+    /// Standard service_method format
+    ServiceMethod,
+    /// Domain-action format (e.g., user_get, order_create)
+    DomainAction,
+    /// Hierarchical path including package (e.g., api_user_service_get)
+    HierarchicalPath,
+    /// Streaming-aware naming with type suffix
+    StreamingAware,
+}
+
+/// Protobuf field information extracted from message definition
+#[derive(Debug, Clone)]
+struct ProtobufFieldInfo {
+    name: String,
+    pb_type: String,
+    repeated: bool,
+    required: bool,
+    description: Option<String>,
+}
+
+/// JSON Schema type information
+#[derive(Debug, Clone)]
+struct JsonSchemaType {
+    type_name: &'static str,
+    format: Option<&'static str>,
+}
+
 /// Configuration for gRPC capability generator
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GrpcGeneratorConfig {
@@ -949,53 +979,315 @@ impl GrpcCapabilityGenerator {
         Ok((input_schema, routing_config))
     }
 
-    /// Generate tool name for gRPC method
+    /// Generate tool name for gRPC method using intelligent naming policy
     pub fn generate_tool_name(&self, service: &GrpcService, method: &GrpcMethod) -> String {
-        // This is a placeholder implementation that will be filled in with actual code
-        // For now, it returns a simple concatenation of service and method names
-        let base_name = format!("{}_{}", service.name.to_lowercase(), method.name.to_lowercase());
+        // Apply sophisticated naming strategy based on service and method characteristics
+        let naming_strategy = self.determine_naming_strategy(service, method);
         
+        let base_name = match naming_strategy {
+            GrpcNamingStrategy::ServiceMethod => {
+                // Standard service.method format
+                format!("{}_{}", 
+                    self.normalize_service_name(&service.name), 
+                    self.normalize_method_name(&method.name)
+                )
+            },
+            GrpcNamingStrategy::DomainAction => {
+                // Extract domain and action for semantic naming
+                let domain = self.extract_domain_from_service(&service.name);
+                let action = self.extract_action_from_method(&method.name);
+                format!("{}_{}", domain, action)
+            },
+            GrpcNamingStrategy::HierarchicalPath => {
+                // Use package namespace + service + method
+                if !service.package.is_empty() {
+                    let package_suffix = service.package.split('.').last().unwrap_or("grpc");
+                    format!("{}_{}_{}", 
+                        package_suffix.to_lowercase(),
+                        self.normalize_service_name(&service.name),
+                        self.normalize_method_name(&method.name)
+                    )
+                } else {
+                    format!("grpc_{}_{}", 
+                        self.normalize_service_name(&service.name),
+                        self.normalize_method_name(&method.name)
+                    )
+                }
+            },
+            GrpcNamingStrategy::StreamingAware => {
+                // Include streaming type in the name
+                let streaming_suffix = match (method.client_streaming, method.server_streaming) {
+                    (true, true) => "_bidistream",
+                    (true, false) => "_clientstream", 
+                    (false, true) => "_serverstream",
+                    (false, false) => "",
+                };
+                format!("{}_{}{}",
+                    self.normalize_service_name(&service.name),
+                    self.normalize_method_name(&method.name),
+                    streaming_suffix
+                )
+            }
+        };
+        
+        // Apply prefix if configured
         if let Some(prefix) = &self.config.tool_prefix {
             format!("{}_{}", prefix, base_name)
         } else {
             base_name
         }
     }
+    
+    /// Determine the best naming strategy for this service/method combination
+    fn determine_naming_strategy(&self, service: &GrpcService, method: &GrpcMethod) -> GrpcNamingStrategy {
+        // Use streaming-aware naming for streaming methods
+        if method.client_streaming || method.server_streaming {
+            return GrpcNamingStrategy::StreamingAware;
+        }
+        
+        // Use hierarchical path if service has complex package structure
+        if !service.package.is_empty() {
+            if service.package.contains('.') && service.package.len() > 10 {
+                return GrpcNamingStrategy::HierarchicalPath;
+            }
+        }
+        
+        // Use domain-action for CRUD-like operations
+        if self.is_crud_like_method(&method.name) {
+            return GrpcNamingStrategy::DomainAction;
+        }
+        
+        // Default to service.method naming
+        GrpcNamingStrategy::ServiceMethod
+    }
+    
+    /// Normalize service name for tool naming
+    fn normalize_service_name(&self, service_name: &str) -> String {
+        service_name
+            .trim_end_matches("Service")
+            .trim_end_matches("API")
+            .trim_end_matches("Grpc")
+            .to_lowercase()
+            .replace('-', "_")
+            .replace('.', "_")
+    }
+    
+    /// Normalize method name for tool naming
+    fn normalize_method_name(&self, method_name: &str) -> String {
+        method_name
+            .to_lowercase()
+            .replace('-', "_")
+            .replace('.', "_")
+    }
+    
+    /// Extract domain concept from service name
+    fn extract_domain_from_service(&self, service_name: &str) -> String {
+        let normalized = self.normalize_service_name(service_name);
+        
+        // Handle common service patterns
+        if normalized.contains("user") { "user".to_string() }
+        else if normalized.contains("auth") { "auth".to_string() }
+        else if normalized.contains("order") { "order".to_string() }
+        else if normalized.contains("product") { "product".to_string() }
+        else if normalized.contains("payment") { "payment".to_string() }
+        else if normalized.contains("inventory") { "inventory".to_string() }
+        else if normalized.contains("notification") { "notification".to_string() }
+        else if normalized.contains("file") { "file".to_string() }
+        else { normalized }
+    }
+    
+    /// Extract action from method name
+    fn extract_action_from_method(&self, method_name: &str) -> String {
+        let normalized = method_name.to_lowercase();
+        
+        // Map common method patterns to actions
+        if normalized.starts_with("get") || normalized.starts_with("fetch") || normalized.starts_with("retrieve") {
+            "get".to_string()
+        } else if normalized.starts_with("create") || normalized.starts_with("add") || normalized.starts_with("insert") {
+            "create".to_string()
+        } else if normalized.starts_with("update") || normalized.starts_with("modify") || normalized.starts_with("edit") {
+            "update".to_string()
+        } else if normalized.starts_with("delete") || normalized.starts_with("remove") {
+            "delete".to_string()
+        } else if normalized.starts_with("list") || normalized.starts_with("search") || normalized.starts_with("find") {
+            "list".to_string()
+        } else if normalized.starts_with("upload") {
+            "upload".to_string()
+        } else if normalized.starts_with("download") {
+            "download".to_string()
+        } else {
+            normalized.replace('-', "_").replace('.', "_")
+        }
+    }
+    
+    /// Check if method follows CRUD-like naming patterns
+    fn is_crud_like_method(&self, method_name: &str) -> bool {
+        let normalized = method_name.to_lowercase();
+        let crud_prefixes = ["get", "fetch", "retrieve", "create", "add", "insert", 
+                           "update", "modify", "edit", "delete", "remove", "list", "search", "find"];
+        
+        crud_prefixes.iter().any(|prefix| normalized.starts_with(prefix))
+    }
 
-    /// Generate input schema for gRPC method
+    /// Generate input schema for gRPC method with protobuf message analysis
     pub fn generate_input_schema(&self, method: &GrpcMethod) -> Result<Value> {
-        // Create a basic schema based on the method's input type
-        let schema = json!({
-            "type": "object",
-            "properties": {
-                // We'll create properties based on the method's input type name
-                // In a real implementation, we would parse the actual message definition
-                // and create a schema that matches the message structure
-            },
-            "required": []
-        });
-        
-        // In a real implementation, we would:
-        // 1. Parse the input message definition
-        // 2. Create properties for each field in the message
-        // 3. Set appropriate types, formats, and descriptions
-        // 4. Handle nested messages, enums, etc.
-        
-        // For now, we'll create a simple schema based on the method name
-        let mut schema_obj = schema.as_object().unwrap().clone();
+        // Analyze the protobuf message structure to generate appropriate schema
         let mut properties = serde_json::Map::new();
+        let mut required_fields = Vec::new();
         
+        // For now, use heuristic-based schema generation
+        // TODO: Implement protobuf definition parsing when protobuf metadata is available
+        self.generate_heuristic_schema(&method.input_type, &method.name, &mut properties, &mut required_fields);
+        
+        Ok(json!({
+            "type": "object",
+            "properties": properties,
+            "required": required_fields,
+            "additionalProperties": false
+        }))
+    }
+    
+    /// Parse protobuf message definition to extract JSON schema
+    fn parse_protobuf_message_schema(
+        &self,
+        message_def: &str,
+        properties: &mut serde_json::Map<String, Value>,
+        required_fields: &mut Vec<String>
+    ) -> Result<()> {
+        // Parse protobuf message syntax
+        let lines: Vec<&str> = message_def.lines()
+            .map(|l| l.trim())
+            .filter(|l| !l.is_empty() && !l.starts_with("//") && !l.starts_with("/*"))
+            .collect();
+            
+        for line in lines {
+            if line.starts_with("message") || line.starts_with("}") {
+                continue;
+            }
+            
+            // Parse field definitions
+            if let Some(field_info) = self.parse_protobuf_field(line) {
+                let json_type = self.protobuf_type_to_json_type(&field_info.pb_type);
+                
+                let mut field_schema = json!({
+                    "type": json_type.type_name,
+                    "description": field_info.description.unwrap_or_else(|| 
+                        format!("{} field", field_info.name)
+                    )
+                });
+                
+                // Add format for specific types
+                if let Some(format) = json_type.format {
+                    field_schema.as_object_mut().unwrap().insert("format".to_string(), json!(format));
+                }
+                
+                // Handle repeated fields (arrays)
+                if field_info.repeated {
+                    field_schema = json!({
+                        "type": "array",
+                        "items": field_schema,
+                        "description": format!("Array of {}", field_info.name)
+                    });
+                }
+                
+                // Handle optional vs required
+                if field_info.required {
+                    required_fields.push(field_info.name.clone());
+                }
+                
+                properties.insert(field_info.name, field_schema);
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Parse a single protobuf field definition
+    fn parse_protobuf_field(&self, line: &str) -> Option<ProtobufFieldInfo> {
+        // Handle field patterns like:
+        // string name = 1;
+        // repeated int32 ids = 2;
+        // optional User user = 3;
+        
+        let line = line.trim_end_matches(';');
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        
+        if parts.len() < 4 {
+            return None;
+        }
+        
+        let (repeated, optional, type_idx) = if parts[0] == "repeated" {
+            (true, false, 1)
+        } else if parts[0] == "optional" {
+            (false, false, 1)
+        } else {
+            (false, true, 0) // Default proto3 fields are optional
+        };
+        
+        if type_idx + 2 >= parts.len() {
+            return None;
+        }
+        
+        let pb_type = parts[type_idx].to_string();
+        let name = parts[type_idx + 1].to_string();
+        let required = !optional && !repeated;
+        
+        Some(ProtobufFieldInfo {
+            name,
+            pb_type,
+            repeated,
+            required,
+            description: None, // Could be enhanced with comment parsing
+        })
+    }
+    
+    /// Convert protobuf type to JSON schema type
+    fn protobuf_type_to_json_type(&self, pb_type: &str) -> JsonSchemaType {
+        match pb_type {
+            "string" => JsonSchemaType { type_name: "string", format: None },
+            "bytes" => JsonSchemaType { type_name: "string", format: Some("byte") },
+            "int32" | "sint32" | "sfixed32" => JsonSchemaType { type_name: "integer", format: Some("int32") },
+            "int64" | "sint64" | "sfixed64" => JsonSchemaType { type_name: "integer", format: Some("int64") },
+            "uint32" | "fixed32" => JsonSchemaType { type_name: "integer", format: Some("uint32") },
+            "uint64" | "fixed64" => JsonSchemaType { type_name: "integer", format: Some("uint64") },
+            "float" => JsonSchemaType { type_name: "number", format: Some("float") },
+            "double" => JsonSchemaType { type_name: "number", format: Some("double") },
+            "bool" => JsonSchemaType { type_name: "boolean", format: None },
+            _ => {
+                // Assume it's a message type or enum
+                if pb_type.chars().next().unwrap_or('a').is_uppercase() {
+                    JsonSchemaType { type_name: "object", format: None }
+                } else {
+                    JsonSchemaType { type_name: "string", format: None }
+                }
+            }
+        }
+    }
+    
+    /// Generate schema using heuristics when message definition is not available
+    fn generate_heuristic_schema(
+        &self,
+        input_type: &str,
+        method_name: &str,
+        properties: &mut serde_json::Map<String, Value>,
+        required_fields: &mut Vec<String>
+    ) {
         // Create properties based on the method name and input type
-        if method.input_type.contains("Empty") {
+        if input_type.contains("Empty") {
             // No properties for Empty messages
-        } else if method.input_type.contains("Request") {
-            // Add some common request properties
-            if method.name.starts_with("Get") || method.name.starts_with("Retrieve") {
+            return;
+        } 
+        
+        if input_type.contains("Request") {
+            // Add common request properties based on method patterns
+            if method_name.starts_with("Get") || method_name.starts_with("Retrieve") {
                 properties.insert("id".to_string(), json!({
                     "type": "string",
                     "description": "ID of the resource to retrieve"
                 }));
-            } else if method.name.starts_with("List") || method.name.starts_with("Search") {
+                required_fields.push("id".to_string());
+                
+            } else if method_name.starts_with("List") || method_name.starts_with("Search") {
                 properties.insert("page_size".to_string(), json!({
                     "type": "integer",
                     "description": "Number of items to return",
@@ -1007,74 +1299,226 @@ impl GrpcCapabilityGenerator {
                     "description": "Token for pagination"
                 }));
                 
-                properties.insert("filter".to_string(), json!({
+                if method_name.starts_with("Search") {
+                    properties.insert("query".to_string(), json!({
+                        "type": "string",
+                        "description": "Search query string"
+                    }));
+                    required_fields.push("query".to_string());
+                }
+                
+            } else if method_name.starts_with("Create") || method_name.starts_with("Add") {
+                // Extract resource name from method
+                let resource_name = method_name
+                    .strip_prefix("Create")
+                    .or_else(|| method_name.strip_prefix("Add"))
+                    .unwrap_or("Resource")
+                    .to_lowercase();
+                    
+                properties.insert("name".to_string(), json!({
                     "type": "string",
-                    "description": "Filter expression"
+                    "description": format!("Name of the {} to create", resource_name)
                 }));
-            } else if method.name.starts_with("Create") || method.name.starts_with("Add") {
-                properties.insert("data".to_string(), json!({
-                    "type": "object",
-                    "description": "Data for the new resource"
-                }));
-            } else if method.name.starts_with("Update") || method.name.starts_with("Modify") {
+                required_fields.push("name".to_string());
+                
+            } else if method_name.starts_with("Update") || method_name.starts_with("Modify") {
                 properties.insert("id".to_string(), json!({
                     "type": "string",
                     "description": "ID of the resource to update"
                 }));
+                required_fields.push("id".to_string());
                 
-                properties.insert("data".to_string(), json!({
+                properties.insert("update_mask".to_string(), json!({
                     "type": "object",
-                    "description": "Updated data for the resource"
+                    "description": "Field mask specifying which fields to update"
                 }));
-            } else if method.name.starts_with("Delete") || method.name.starts_with("Remove") {
+                
+            } else if method_name.starts_with("Delete") || method_name.starts_with("Remove") {
                 properties.insert("id".to_string(), json!({
-                    "type": "string",
+                    "type": "string", 
                     "description": "ID of the resource to delete"
                 }));
+                required_fields.push("id".to_string());
             }
         }
         
-        // Add the properties to the schema
-        schema_obj.insert("properties".to_string(), Value::Object(properties));
+        // Add common fields for any request type
+        if !properties.contains_key("timeout") {
+            properties.insert("timeout".to_string(), json!({
+                "type": "string",
+                "description": "Request timeout (e.g., '30s')",
+                "default": "30s"
+            }));
+        }
         
-        Ok(Value::Object(schema_obj))
+        if !properties.contains_key("metadata") {
+            properties.insert("metadata".to_string(), json!({
+                "type": "object",
+                "description": "Additional metadata for the request"
+            }));
+        }
     }
 
-    /// Create routing configuration for gRPC method
+    /// Create comprehensive routing configuration for gRPC method
     pub fn create_routing_config(&self, service: &GrpcService, method: &GrpcMethod) -> Result<RoutingConfig> {
-        // This is a placeholder implementation that will be filled in with actual code
-        // For now, it returns a simple gRPC routing configuration
         let mut config = serde_json::Map::new();
         
+        // Core gRPC routing information
+        config.insert("protocol".to_string(), json!("grpc"));
         config.insert("endpoint".to_string(), json!(self.config.endpoint));
         config.insert("service".to_string(), json!(format!("{}.{}", service.package, service.name)));
         config.insert("method".to_string(), json!(method.name));
+        config.insert("full_method_name".to_string(), json!(format!("{}.{}/{}", service.package, service.name, method.name)));
         
-        // Add authentication headers if configured
+        // Message types
+        config.insert("input_type".to_string(), json!(method.input_type));
+        config.insert("output_type".to_string(), json!(method.output_type));
+        
+        // Streaming configuration
+        let mut streaming_config = serde_json::Map::new();
+        streaming_config.insert("client_streaming".to_string(), json!(method.client_streaming));
+        streaming_config.insert("server_streaming".to_string(), json!(method.server_streaming));
+        streaming_config.insert("is_unary".to_string(), json!(!method.client_streaming && !method.server_streaming));
+        streaming_config.insert("is_bidirectional".to_string(), json!(method.client_streaming && method.server_streaming));
+        
+        // Add streaming strategies based on method type
+        if method.client_streaming {
+            streaming_config.insert("client_strategy".to_string(), json!(self.config.client_streaming_strategy));
+        }
+        if method.server_streaming {
+            streaming_config.insert("server_strategy".to_string(), json!(self.config.server_streaming_strategy));
+        }
+        if method.client_streaming && method.server_streaming {
+            streaming_config.insert("bidirectional_strategy".to_string(), json!(self.config.bidirectional_streaming_strategy));
+        }
+        
+        config.insert("streaming".to_string(), json!(streaming_config));
+        
+        // Channel configuration
+        let mut channel_config = serde_json::Map::new();
+        
+        // Parse endpoint for channel details
+        if let Ok(url) = url::Url::parse(&self.config.endpoint) {
+            channel_config.insert("host".to_string(), json!(url.host_str().unwrap_or("localhost")));
+            channel_config.insert("port".to_string(), json!(url.port().unwrap_or(if url.scheme() == "https" { 443 } else { 80 })));
+            channel_config.insert("scheme".to_string(), json!(url.scheme()));
+            channel_config.insert("use_tls".to_string(), json!(url.scheme() == "https"));
+        } else {
+            // Fallback for non-URL endpoints
+            let parts: Vec<&str> = self.config.endpoint.split(':').collect();
+            channel_config.insert("host".to_string(), json!(parts.get(0).unwrap_or(&"localhost")));
+            channel_config.insert("port".to_string(), json!(parts.get(1).unwrap_or(&"80").parse::<u16>().unwrap_or(80)));
+            channel_config.insert("use_tls".to_string(), json!(false));
+        }
+        
+        // Connection settings
+        channel_config.insert("keep_alive_time".to_string(), json!("30s"));
+        channel_config.insert("keep_alive_timeout".to_string(), json!("5s"));
+        channel_config.insert("keep_alive_while_idle".to_string(), json!(true));
+        channel_config.insert("max_receive_message_size".to_string(), json!(4 * 1024 * 1024)); // 4MB
+        channel_config.insert("max_send_message_size".to_string(), json!(4 * 1024 * 1024)); // 4MB
+        
+        config.insert("channel".to_string(), json!(channel_config));
+        
+        // Authentication configuration
         if let Some(auth_config) = &self.config.auth_config {
+            let mut auth_routing_config = serde_json::Map::new();
             let mut headers = auth_config.headers.clone();
             
+            // Add authentication type
+            let auth_type_name = match &auth_config.auth_type {
+                AuthType::None => "none",
+                AuthType::ApiKey { .. } => "api_key",
+                AuthType::Bearer { .. } => "bearer",
+                AuthType::Basic { .. } => "basic",
+                AuthType::OAuth { .. } => "oauth",
+            };
+            auth_routing_config.insert("type".to_string(), json!(auth_type_name));
+            
+            // Process authentication and add headers
             match &auth_config.auth_type {
                 AuthType::None => {}
                 AuthType::ApiKey { key, header } => {
                     headers.insert(header.clone(), key.clone());
+                    auth_routing_config.insert("key_header".to_string(), json!(header));
                 }
                 AuthType::Bearer { token } => {
                     headers.insert("Authorization".to_string(), format!("Bearer {}", token));
+                    auth_routing_config.insert("token_type".to_string(), json!("Bearer"));
                 }
                 AuthType::Basic { username, password } => {
                     let credentials = base64::engine::general_purpose::STANDARD.encode(format!("{}:{}", username, password));
                     headers.insert("Authorization".to_string(), format!("Basic {}", credentials));
+                    auth_routing_config.insert("username".to_string(), json!(username));
+                    auth_routing_config.insert("encoding".to_string(), json!("base64"));
                 }
                 AuthType::OAuth { token, token_type } => {
                     headers.insert("Authorization".to_string(), format!("{} {}", token_type, token));
+                    auth_routing_config.insert("token_type".to_string(), json!(token_type));
+                    auth_routing_config.insert("flow".to_string(), json!("client_credentials"));
                 }
             }
             
             if !headers.is_empty() {
                 config.insert("headers".to_string(), json!(headers));
             }
+            
+            config.insert("authentication".to_string(), json!(auth_routing_config));
+        } else {
+            // No authentication configured
+            let mut auth_routing_config = serde_json::Map::new();
+            auth_routing_config.insert("type".to_string(), json!("none"));
+            config.insert("authentication".to_string(), json!(auth_routing_config));
         }
+        
+        // Method options and metadata
+        if self.config.include_method_options && !method.options.is_empty() {
+            config.insert("method_options".to_string(), json!(method.options));
+        }
+        
+        // Service-level options
+        if !service.options.is_empty() {
+            config.insert("service_options".to_string(), json!(service.options));
+        }
+        
+        // Timeout and retry configuration
+        let mut call_options = serde_json::Map::new();
+        call_options.insert("timeout".to_string(), json!("30s"));
+        call_options.insert("max_retries".to_string(), json!(3));
+        call_options.insert("retry_delay".to_string(), json!("1s"));
+        call_options.insert("retry_multiplier".to_string(), json!(2.0));
+        call_options.insert("max_retry_delay".to_string(), json!("10s"));
+        
+        // Adjust timeout for streaming methods
+        if method.server_streaming {
+            call_options.insert("timeout".to_string(), json!("300s")); // 5 minutes for streaming
+            call_options.insert("max_retries".to_string(), json!(1)); // Fewer retries for streaming
+        }
+        
+        config.insert("call_options".to_string(), json!(call_options));
+        
+        // Load balancing and health checking
+        let mut lb_config = serde_json::Map::new();
+        lb_config.insert("policy".to_string(), json!("round_robin"));
+        lb_config.insert("health_check_service".to_string(), json!(""));
+        lb_config.insert("enable_health_check".to_string(), json!(true));
+        config.insert("load_balancing".to_string(), json!(lb_config));
+        
+        // Compression settings
+        let mut compression_config = serde_json::Map::new();
+        compression_config.insert("request_compression".to_string(), json!("gzip"));
+        compression_config.insert("response_compression".to_string(), json!("gzip"));
+        compression_config.insert("compression_threshold".to_string(), json!(1024)); // Compress if > 1KB
+        config.insert("compression".to_string(), json!(compression_config));
+        
+        // Metadata for debugging and tracing
+        let mut metadata = serde_json::Map::new();
+        metadata.insert("generator".to_string(), json!("magictunnel-grpc"));
+        metadata.insert("package".to_string(), json!(service.package));
+        metadata.insert("service_name".to_string(), json!(service.name));
+        metadata.insert("method_name".to_string(), json!(method.name));
+        metadata.insert("generated_at".to_string(), json!(chrono::Utc::now().to_rfc3339()));
+        config.insert("metadata".to_string(), json!(metadata));
         
         Ok(RoutingConfig::new("grpc".to_string(), Value::Object(config)))
     }

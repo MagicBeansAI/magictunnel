@@ -2,43 +2,166 @@
 
 ## Overview
 
-MagicTunnel uses YAML configuration files to define server settings, tool registries, and smart discovery behavior.
+MagicTunnel uses a **hierarchical YAML configuration** structure to organize settings by concern and precedence level. This provides clean separation between global infrastructure, MCP protocol settings, smart discovery features, and tool-specific overrides.
+
+## Hierarchical Configuration Structure
+
+The new configuration follows a 4-tier hierarchy:
+
+- 🌍 **Global**: Infrastructure, authentication, logging, defaults
+- 📡 **MCP**: Protocol services, sampling, elicitation  
+- 🤖 **Discovery**: Smart discovery, tool enhancement, visibility
+- 🛠️ **Tools**: Individual tool overrides and routing
 
 ## Basic Configuration
 
 Create `magictunnel-config.yaml`:
 
 ```yaml
-# Server settings
-server:
-  host: "127.0.0.1"
-  port: 8080
-  timeout: 30
-
-# Tool registry configuration  
-registry:
-  paths: ["./capabilities"]
-  hot_reload: true
-  validation:
-    strict: true
-
-# Smart discovery settings
-smart_discovery:
-  enabled: true
-  tool_selection_mode: "rule_based"  # or "llm_based"
-  default_confidence_threshold: 0.5
-
-# Optional: LLM-based tool selection
-llm_tool_selection:
-  enabled: false
-  provider: "openai"  # openai, anthropic, ollama
-  model: "gpt-4"
+# Global infrastructure settings (Tier 1)
+global:
+  # Server infrastructure
+  server:
+    host: "127.0.0.1"
+    port: 8080
+    timeout: 30
+    websocket: true
   
-# Optional: External MCP server integration
-external_mcp:
-  enabled: false
-  config_file: "external-mcp-servers.yaml"
+  # Tool registry configuration
+  registry:
+    type: "file"
+    paths: ["./capabilities"]
+    hot_reload: true
+    validation:
+      strict: true
+      allow_unknown_fields: false
+  
+  # Authentication and security
+  auth:
+    enabled: true
+    server_level:
+      ApiKey:
+        keys: ["your-api-key"]
+  
+  # Default settings (applied across all levels)
+  defaults:
+    timeout: 30
+    retry_attempts: 3
+    retry_delay_ms: 1000
+
+# MCP protocol services (Tier 2)  
+mcp:
+  # Protocol-specific timeout override
+  timeout: 25
+  max_retries: 2
+  
+  # MCP client configuration
+  mcp_client:
+    connection_timeout_ms: 5000
+    request_timeout_ms: 30000
+  
+  # Sampling service (MCP 2025-06-18)
+  sampling:
+    enabled: true
+    default_model: "gpt-4"
+  
+  # Elicitation service (MCP 2025-06-18)  
+  elicitation:
+    enabled: true
+    default_model: "gpt-4"
+
+# Smart Discovery AI services (Tier 3)
+discovery:
+  # Smart discovery configuration
+  smart_discovery:
+    enabled: true
+    tool_selection_mode: "hybrid"  # rule_based | semantic | llm_based | hybrid
+    default_confidence_threshold: 0.7
+  
+  # Tool enhancement services
+  tool_enhancement:
+    enabled: true
+    default_model: "gpt-4"
+  
+  # Tool visibility management
+  visibility:
+    hide_individual_tools: false
+    default_hidden: false
+    
+# Tool-specific overrides (Tier 4)
+tools:
+  network_ping:
+    timeout: 10      # Override global default
+    max_retries: 1   # Override MCP default
+    hidden: false    # Override visibility default
 ```
+
+## Configuration Precedence Rules
+
+The hierarchical configuration follows a **strict precedence cascade**:
+
+**Tool** > **MCP** > **Global** > **Default**
+
+### Precedence Examples
+
+```yaml
+global:
+  defaults:
+    timeout: 30        # Base timeout for all tools
+mcp:
+  timeout: 25          # Override for MCP protocol operations  
+tools:
+  slow_tool:
+    timeout: 60        # Override for specific tool
+```
+
+**Resolution for `slow_tool`**: 60 seconds (tool-specific override)  
+**Resolution for any other tool**: 25 seconds (MCP-level override)  
+**Resolution with no MCP config**: 30 seconds (global default)
+
+### Override Behavior
+
+- **Tool-level settings** always take highest precedence
+- **MCP-level settings** override global defaults for protocol operations
+- **Global settings** provide system-wide defaults
+- **Missing settings** fall back through the hierarchy
+
+## Migration from Flat Configuration
+
+If you have an existing flat configuration, use the migration tool:
+
+```bash
+# Migrate existing config
+cargo run --bin magictunnel-config-migrate -- convert \
+  --input config.yaml \
+  --output magictunnel-config.yaml \
+  --validate
+
+# Preview migration without writing
+cargo run --bin magictunnel-config-migrate -- preview \
+  --input config.yaml
+
+# Validate hierarchical config
+cargo run --bin magictunnel-config-migrate -- validate \
+  --config magictunnel-config.yaml
+```
+
+### Migration Mapping
+
+The migration tool automatically restructures your configuration:
+
+| Flat Structure | Hierarchical Structure |
+|----------------|----------------------|
+| `server.*` | `global.server.*` |
+| `registry.*` | `global.registry.*` |
+| `auth.*` | `global.auth.*` |
+| `logging.*` | `global.logging.*` |
+| `smart_discovery.*` | `discovery.smart_discovery.*` |
+| `tool_enhancement.*` | `discovery.tool_enhancement.*` |
+| `sampling.*` | `mcp.sampling.*` |
+| `elicitation.*` | `mcp.elicitation.*` |
+
+**Note**: The old flat configuration format is no longer supported. Use the migration tool to convert your existing configurations.
 
 ## Configuration Sections
 

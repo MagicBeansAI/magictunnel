@@ -5,11 +5,12 @@
 //! Target: <100μs per evaluation, <1ms for batch operations.
 
 use crate::discovery::permission_cache::ToolId;
-use crate::security::SecurityContext;
+use crate::security::{SecurityContext, RbacService};
 use ahash::AHashSet;
 use regex::RegexSet;
 use std::sync::Arc;
 use std::time::Instant;
+use std::collections::HashMap;
 
 /// Ultra-fast user context optimized for hot path evaluation
 #[derive(Debug, Clone)]
@@ -31,8 +32,11 @@ pub struct FastUserContext {
 }
 
 impl FastUserContext {
-    /// Create fast user context from security context
-    pub fn from_security_context(security_context: &SecurityContext) -> Option<Self> {
+    /// Create fast user context from security context with RBAC service
+    pub fn from_security_context_with_rbac(
+        security_context: &SecurityContext, 
+        rbac_service: Option<&RbacService>
+    ) -> Option<Self> {
         let user = security_context.user.as_ref()?;
         let user_id = user.id.as_ref()?;
         
@@ -45,16 +49,33 @@ impl FastUserContext {
             .map(|role| -> Arc<str> { role.clone().into() })
             .collect();
         
-        // Calculate permissions bitmap (this would integrate with your permission system)
+        // Calculate permissions bitmap from user roles
         let permissions_bitmap = Self::calculate_permissions_bitmap(&roles_set);
+        
+        // Map API key permissions into bitmap if available
+        let api_key_permissions = if let (Some(api_key_name), Some(rbac)) = (&user.api_key_name, rbac_service) {
+            let api_key_roles = rbac.get_api_key_roles(api_key_name);
+            let api_key_roles_set: AHashSet<Arc<str>> = api_key_roles
+                .iter()
+                .map(|role| -> Arc<str> { role.clone().into() })
+                .collect();
+            Self::calculate_permissions_bitmap(&api_key_roles_set)
+        } else {
+            0
+        };
         
         Some(Self {
             user_id_hash,
             user_id: user_id_arc,
             permissions_bitmap,
             roles_set,
-            api_key_permissions: 0, // TODO: Implement API key permissions
+            api_key_permissions,
         })
+    }
+    
+    /// Create fast user context from security context (fallback method)
+    pub fn from_security_context(security_context: &SecurityContext) -> Option<Self> {
+        Self::from_security_context_with_rbac(security_context, None)
     }
     
     /// Generate consistent hash for user ID
@@ -65,32 +86,61 @@ impl FastUserContext {
         hasher.finish()
     }
     
-    /// Calculate permissions bitmap from roles
-    /// This is a placeholder - integrate with your actual permission system
+    /// Calculate permissions bitmap from roles using real permission mapping
     fn calculate_permissions_bitmap(roles: &AHashSet<Arc<str>>) -> u64 {
         let mut bitmap = 0u64;
         
-        // Example mapping of roles to permission bits
-        for (index, role) in roles.iter().enumerate() {
-            if index < 64 {
-                bitmap |= 1 << index;
+        // Create a stable mapping of role names to permission bits
+        // This ensures consistent bit assignments across service restarts
+        let role_permission_map = Self::get_role_permission_mapping();
+        
+        for role in roles {
+            if let Some(permission_bits) = role_permission_map.get(role.as_ref()) {
+                bitmap |= permission_bits;
             }
         }
         
-        // Add some predefined permission mappings
-        if roles.iter().any(|role| role.as_ref() == "admin") {
-            bitmap |= 0xFFFFFFFFFFFFFFFF; // Admin gets all permissions
-        }
-        
-        if roles.iter().any(|role| role.as_ref() == "user") {
-            bitmap |= 0x00000000000000FF; // User gets first 8 permissions
-        }
-        
-        if roles.iter().any(|role| role.as_ref() == "developer") {
-            bitmap |= 0x000000000000FF00; // Developer gets permissions 8-15
-        }
-        
         bitmap
+    }
+    
+    /// Get standardized role to permission bit mapping
+    /// This provides a stable, consistent mapping that won't change between runs
+    fn get_role_permission_mapping() -> HashMap<&'static str, u64> {
+        let mut map = HashMap::new();
+        
+        // Core system roles with standardized permission bits
+        map.insert("admin", 0xFFFFFFFFFFFFFFFF);           // All permissions (bits 0-63)
+        map.insert("superuser", 0xFFFFFFFFFFFFFFF0);        // Almost all permissions (bits 4-63)
+        map.insert("operator", 0x00000000FFFFFFFF);         // System operations (bits 0-31)
+        
+        // User role hierarchies
+        map.insert("power_user", 0x000000000000FFFF);       // Extended user permissions (bits 0-15)
+        map.insert("user", 0x00000000000000FF);             // Basic user permissions (bits 0-7)
+        map.insert("guest", 0x000000000000000F);            // Read-only permissions (bits 0-3)
+        
+        // Functional roles
+        map.insert("developer", 0x0000000000FF0000);        // Development tools (bits 16-23)
+        map.insert("analyst", 0x000000000F000000);          // Analytics tools (bits 24-27)
+        map.insert("security_officer", 0x00000000F0000000);  // Security tools (bits 28-31)
+        map.insert("auditor", 0x0000000F00000000);          // Audit tools (bits 32-35)
+        
+        // API access roles
+        map.insert("api_full", 0x000000F000000000);         // Full API access (bits 36-39)
+        map.insert("api_read", 0x00000F0000000000);         // Read-only API (bits 40-43)
+        map.insert("api_limited", 0x0000F00000000000);      // Limited API access (bits 44-47)
+        
+        // Service-specific roles
+        map.insert("mcp_admin", 0x000F000000000000);        // MCP administration (bits 48-51)
+        map.insert("tool_manager", 0x00F0000000000000);     // Tool management (bits 52-55)
+        map.insert("config_manager", 0x0F00000000000000);   // Configuration management (bits 56-59)
+        
+        // Reserved for future expansion (bits 60-63)
+        map.insert("reserved_1", 0x1000000000000000);
+        map.insert("reserved_2", 0x2000000000000000);
+        map.insert("reserved_3", 0x4000000000000000);
+        map.insert("reserved_4", 0x8000000000000000);
+        
+        map
     }
     
     /// Check if user has a specific permission bit
@@ -114,6 +164,29 @@ impl FastUserContext {
     /// Check if user has a specific role
     pub fn has_role(&self, role: &str) -> bool {
         self.roles_set.iter().any(|r| r.as_ref() == role)
+    }
+    
+    /// Check if API key has a specific permission bit
+    pub fn api_key_has_permission(&self, permission_bit: u8) -> bool {
+        if permission_bit >= 64 {
+            return false;
+        }
+        (self.api_key_permissions & (1 << permission_bit)) != 0
+    }
+    
+    /// Check if API key has any of the specified permission bits
+    pub fn api_key_has_any_permission(&self, permission_mask: u64) -> bool {
+        (self.api_key_permissions & permission_mask) != 0
+    }
+    
+    /// Check if user or API key has the required permissions
+    pub fn has_effective_permission(&self, permission_bit: u8) -> bool {
+        self.has_permission(permission_bit) || self.api_key_has_permission(permission_bit)
+    }
+    
+    /// Check if user or API key has any of the required permissions
+    pub fn has_effective_any_permission(&self, permission_mask: u64) -> bool {
+        self.has_any_permission(permission_mask) || self.api_key_has_any_permission(permission_mask)
     }
 }
 

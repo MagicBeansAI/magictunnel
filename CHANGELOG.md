@@ -11,6 +11,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.22] - Configuration Architecture & Placeholder Content Fixes ✅
+
+### Added - Configuration Architecture Restructuring ✅
+- **🏗️ Hierarchical Configuration System**: Complete 4-tier configuration architecture (Global → MCP → Discovery → Tools) with clean separation of concerns
+- **🔧 Migration Utilities**: Created `magictunnel-config-migrate` CLI tool with convert, validate, preview, and diff commands
+- **📊 Precedence Resolution**: Tool → Discovery → MCP → Global cascade system with comprehensive override capabilities
+- **📚 Complete Documentation**: Migration guides, precedence rules, and hierarchical configuration examples
+
+### Fixed - Production Code Cleanup ✅
+- **📁 Registry File Paths**: Eliminated fake file paths (`format!("file_{}", index)`) - now uses actual file paths throughout loading pipeline
+- **🔧 Placeholder Content**: Removed test data from production code paths with proper path preservation
+- **⚙️ Configuration Migration**: Successfully migrated both production config and template to hierarchical structure
+- **✅ Production Readiness**: Enhanced production readiness by eliminating placeholder content and implementing proper configuration architecture
+
+### Technical Implementation ✅
+- **Configuration Structs**: Complete `HierarchicalConfig` implementation with 36+ comprehensive tests
+- **Migration Pipeline**: Reliable flat-to-hierarchical conversion with validation and error handling
+- **Backward Compatibility**: Legacy `build_registry()` method preserved while using modern path-preserving methods
+- **File Path Preservation**: Registry loading now correctly tracks actual file paths from discovery through final registry building
+
+### Files Modified ✅
+- **CLI Tools**: `src/bin/magictunnel-config-migrate.rs` - Complete migration utility implementation
+- **Configuration**: `src/config/hierarchical.rs` - 4-tier hierarchical configuration system
+- **Registry Service**: `src/registry/service.rs` - Fixed fake file paths with actual path preservation
+- **Documentation**: `docs/config.md`, `docs/migration-guide.md`, `docs/precedence-rules.md`
+- **Templates**: `config.yaml.template`, `magictunnel-config.yaml` - Migrated to hierarchical structure
+
+---
+
 ## [0.3.21] - Production Readiness & gRPC Implementation Complete ✅
 
 ### Added - Major Infrastructure Implementation ✅

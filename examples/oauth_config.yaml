@@ -1,106 +1,227 @@
-# OAuth 2.0 Authentication Configuration Examples for MCP Proxy
+# Hierarchical OAuth 2.1 Authentication Configuration Examples
 
 # Example 1: GitHub OAuth Configuration
-server:
-  host: "127.0.0.1"
-  port: 8080
+global:
+  # Server infrastructure
+  server:
+    host: "127.0.0.1"
+    port: 8080
+    timeout: 30
+    websocket: true
+  
+  # Tool registry configuration
+  registry:
+    type: "file"
+    paths: ["data/capabilities"]
+    hot_reload: true
+    validation:
+      strict: true
+      allow_unknown_fields: false
+  
+  # OAuth 2.1 authentication
+  auth:
+    enabled: true
+    server_level:
+      OAuth21:
+        provider: "github"
+        client_id: "your_github_client_id_here"
+        client_secret: "${OAUTH_CLIENT_SECRET}"
+        auth_url: "https://github.com/login/oauth/authorize"
+        token_url: "https://github.com/login/oauth/access_token"
+        device_code_url: "https://github.com/login/device/code"
+        scopes: ["read:user", "user:email"]
+        pkce_enabled: true
+        resource_indicators: true
+  
+  # Logging configuration
+  logging:
+    level: "info"
+    format: "json"
+  
+  # Default settings
+  defaults:
+    timeout: 30
+    retry_attempts: 3
 
-registry:
-  directories:
-    - "data/capabilities"
-  watch: true
+# MCP protocol services
+mcp:
+  sampling:
+    enabled: true
+    default_model: "gpt-4"
+  elicitation:
+    enabled: true
+    default_model: "gpt-4"
 
-auth:
-  enabled: true
-  type: "oauth"
-  oauth:
-    provider: "github"
-    client_id: "your_github_client_id_here"
-    client_secret: "your_github_client_secret_here"
-    auth_url: "https://github.com/login/oauth/authorize"
-    token_url: "https://github.com/login/oauth/access_token"
-
-logging:
-  level: "info"
-  format: "json"
+# Smart discovery services
+discovery:
+  smart_discovery:
+    enabled: true
+    tool_selection_mode: "hybrid"
 
 ---
 
 # Example 2: Google OAuth Configuration
-server:
-  host: "127.0.0.1"
-  port: 8080
+global:
+  server:
+    host: "127.0.0.1"
+    port: 8080
+    timeout: 30
+    websocket: true
+  
+  registry:
+    type: "file"
+    paths: ["data/capabilities"]
+    hot_reload: true
+  
+  auth:
+    enabled: true
+    server_level:
+      OAuth21:
+        provider: "google"
+        client_id: "your_google_client_id.apps.googleusercontent.com"
+        client_secret: "${GOOGLE_CLIENT_SECRET}"
+        auth_url: "https://accounts.google.com/o/oauth2/v2/auth"
+        token_url: "https://oauth2.googleapis.com/token"
+        device_code_url: "https://oauth2.googleapis.com/device/code"
+        scopes: ["openid", "profile", "email"]
+        pkce_enabled: true
+        resource_indicators: true
+  
+  logging:
+    level: "info"
+    format: "json"
+  
+  defaults:
+    timeout: 30
+    retry_attempts: 3
 
-registry:
-  directories:
-    - "data/capabilities"
-  watch: true
+mcp:
+  timeout: 25
+  sampling:
+    enabled: true
+    default_model: "gpt-4"
 
-auth:
-  enabled: true
-  type: "oauth"
-  oauth:
-    provider: "google"
-    client_id: "your_google_client_id.apps.googleusercontent.com"
-    client_secret: "your_google_client_secret"
-    auth_url: "https://accounts.google.com/o/oauth2/auth"
-    token_url: "https://oauth2.googleapis.com/token"
-
-logging:
-  level: "info"
-  format: "json"
+discovery:
+  smart_discovery:
+    enabled: true
+    tool_selection_mode: "hybrid"
 
 ---
 
 # Example 3: Microsoft Azure AD OAuth Configuration
-server:
-  host: "127.0.0.1"
-  port: 8080
+global:
+  server:
+    host: "127.0.0.1"
+    port: 8080
+    timeout: 30
+    websocket: true
+  
+  registry:
+    type: "file"
+    paths: ["data/capabilities"]
+    hot_reload: true
+  
+  auth:
+    enabled: true
+    server_level:
+      OAuth21:
+        provider: "microsoft"
+        client_id: "your_azure_application_id"
+        client_secret: "${AZURE_CLIENT_SECRET}"
+        auth_url: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+        token_url: "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+        device_code_url: "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode"
+        scopes: ["openid", "profile", "email", "User.Read"]
+        pkce_enabled: true
+        resource_indicators: true
+        tenant_id: "common"  # or specific tenant ID
+  
+  logging:
+    level: "info"
+    format: "json"
+  
+  defaults:
+    timeout: 30
+    retry_attempts: 3
 
-registry:
-  directories:
-    - "data/capabilities"
-  watch: true
+mcp:
+  sampling:
+    enabled: true
+    default_model: "gpt-4"
+  elicitation:
+    enabled: true
+    default_model: "gpt-4"
 
-auth:
-  enabled: true
-  type: "oauth"
-  oauth:
-    provider: "microsoft"
-    client_id: "your_azure_application_id"
-    client_secret: "your_azure_client_secret"
-    auth_url: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
-    token_url: "https://login.microsoftonline.com/common/oauth2/v2.0/token"
-
-logging:
-  level: "info"
-  format: "json"
+discovery:
+  smart_discovery:
+    enabled: true
+    tool_selection_mode: "hybrid"
 
 ---
 
-# Example 4: Custom OAuth Provider Configuration
-server:
-  host: "127.0.0.1"
-  port: 8080
+# Example 4: Custom OAuth Provider Configuration  
+global:
+  server:
+    host: "127.0.0.1"
+    port: 8080
+    timeout: 30
+    websocket: true
+  
+  registry:
+    type: "file"
+    paths: ["data/capabilities"]
+    hot_reload: true
+  
+  auth:
+    enabled: true
+    server_level:
+      OAuth21:
+        provider: "custom"
+        client_id: "your_custom_client_id"
+        client_secret: "${CUSTOM_CLIENT_SECRET}"
+        auth_url: "https://your-oauth-provider.com/oauth/authorize"
+        token_url: "https://your-oauth-provider.com/oauth/token"
+        device_code_url: "https://your-oauth-provider.com/device/code"
+        scopes: ["read", "write"]
+        pkce_enabled: true
+        resource_indicators: true
+        session_persistence: true
+        background_refresh: true
+  
+  logging:
+    level: "info"
+    format: "json"
+  
+  security:
+    request_sanitization:
+      enabled: true
+      secret_detection: true
+  
+  defaults:
+    timeout: 30
+    retry_attempts: 3
 
-registry:
-  directories:
-    - "data/capabilities"
-  watch: true
+mcp:
+  timeout: 25
+  sampling:
+    enabled: true
+    default_model: "gpt-4"
 
-auth:
-  enabled: true
-  type: "oauth"
-  oauth:
-    provider: "custom"
-    client_id: "your_custom_client_id"
-    client_secret: "your_custom_client_secret"
-    auth_url: "https://your-oauth-provider.com/oauth/authorize"
-    token_url: "https://your-oauth-provider.com/oauth/token"
+discovery:
+  smart_discovery:
+    enabled: true
+    tool_selection_mode: "hybrid"
+    default_confidence_threshold: 0.7
 
-logging:
-  level: "info"
-  format: "json"
+# Tool-specific OAuth overrides
+tools:
+  github_api:
+    auth_required: true
+    oauth_scopes: ["repo", "read:org"]
+  
+  google_drive:
+    auth_required: true
+    oauth_scopes: ["https://www.googleapis.com/auth/drive.readonly"]
 
 ---
 

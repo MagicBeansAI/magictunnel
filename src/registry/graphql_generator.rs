@@ -5529,7 +5529,23 @@ impl GraphQLCapabilityGenerator {
                     (type_and_default, None)
                 };
 
-                let (arg_type, required) = self.parse_graphql_type_from_sdl(type_str)?;
+                // Check for directives in the type string (e.g., "String! @deprecated(reason: \"Old field\")")
+                let (clean_type_str, directive_str) = if let Some(at_pos) = type_str.find('@') {
+                    let clean_type = type_str[..at_pos].trim();
+                    let directives = type_str[at_pos..].trim();
+                    (clean_type, Some(directives))
+                } else {
+                    (type_str, None)
+                };
+
+                let (arg_type, required) = self.parse_graphql_type_from_sdl(clean_type_str)?;
+                
+                // Parse directives if present
+                let directives = if let Some(directive_str) = directive_str {
+                    self.parse_directives_from_sdl(directive_str)?
+                } else {
+                    Vec::new()
+                };
 
                 arguments.push(GraphQLArgument {
                     name,
@@ -5537,7 +5553,7 @@ impl GraphQLCapabilityGenerator {
                     description,
                     required,
                     default_value,
-                    directives: Vec::new(), // TODO: Parse directives from SDL
+                    directives,
                 });
             }
         }
@@ -6065,6 +6081,199 @@ impl GraphQLCapabilityGenerator {
         }
 
         None
+    }
+
+    /// Parse GraphQL directives from SDL string
+    /// Example: "@deprecated(reason: \"Use newField\") @auth(requires: USER)"
+    fn parse_directives_from_sdl(&self, directive_str: &str) -> Result<Vec<GraphQLDirective>, ProxyError> {
+        let mut directives = Vec::new();
+        let mut current_pos = 0;
+        let directive_str = directive_str.trim();
+        
+        while current_pos < directive_str.len() {
+            // Find the next @ symbol
+            if let Some(at_pos) = directive_str[current_pos..].find('@') {
+                let start_pos = current_pos + at_pos + 1; // Skip the @
+                
+                // Find the directive name (until space or opening parenthesis)
+                let remaining = &directive_str[start_pos..];
+                let name_end = remaining.find(|c: char| c.is_whitespace() || c == '(' || c == '@')
+                    .unwrap_or(remaining.len());
+                
+                let directive_name = remaining[..name_end].to_string();
+                
+                // Check if this directive has arguments
+                let mut arguments = HashMap::new();
+                let mut next_directive_pos = start_pos + name_end;
+                
+                if remaining.chars().nth(name_end) == Some('(') {
+                    // Find the matching closing parenthesis
+                    let mut paren_depth = 0;
+                    let mut arg_end_pos = name_end + 1;
+                    let mut in_string = false;
+                    let mut escape_next = false;
+                    
+                    for (i, ch) in remaining[name_end + 1..].chars().enumerate() {
+                        if escape_next {
+                            escape_next = false;
+                            continue;
+                        }
+                        
+                        match ch {
+                            '\\' if in_string => escape_next = true,
+                            '"' => in_string = !in_string,
+                            '(' if !in_string => paren_depth += 1,
+                            ')' if !in_string => {
+                                if paren_depth == 0 {
+                                    arg_end_pos = name_end + 1 + i;
+                                    break;
+                                }
+                                paren_depth -= 1;
+                            },
+                            _ => {}
+                        }
+                    }
+                    
+                    // Parse arguments between parentheses
+                    let args_str = &remaining[name_end + 1..arg_end_pos];
+                    if !args_str.trim().is_empty() {
+                        arguments = self.parse_directive_arguments_from_sdl(args_str)?;
+                    }
+                    
+                    next_directive_pos = start_pos + arg_end_pos + 1;
+                }
+                
+                let is_repeatable = GraphQLDirective::is_directive_repeatable(&directive_name);
+                directives.push(GraphQLDirective {
+                    name: directive_name,
+                    arguments,
+                    location: Some(DirectiveLocation::ArgumentDefinition),
+                    is_repeatable,
+                });
+                
+                current_pos = next_directive_pos;
+            } else {
+                break;
+            }
+        }
+        
+        Ok(directives)
+    }
+    
+    /// Parse directive arguments from SDL string
+    /// Example: "reason: \"Use newField\", deprecated: true"
+    fn parse_directive_arguments_from_sdl(&self, args_str: &str) -> Result<HashMap<String, Value>, ProxyError> {
+        let mut arguments = HashMap::new();
+        let args_str = args_str.trim();
+        
+        if args_str.is_empty() {
+            return Ok(arguments);
+        }
+        
+        // Split arguments by comma, respecting string boundaries
+        let mut current_arg = String::new();
+        let mut in_string = false;
+        let mut escape_next = false;
+        let mut paren_depth = 0;
+        
+        for ch in args_str.chars() {
+            if escape_next {
+                current_arg.push(ch);
+                escape_next = false;
+                continue;
+            }
+            
+            match ch {
+                '\\' if in_string => {
+                    escape_next = true;
+                    current_arg.push(ch);
+                },
+                '"' => {
+                    in_string = !in_string;
+                    current_arg.push(ch);
+                },
+                '(' | '[' | '{' if !in_string => {
+                    paren_depth += 1;
+                    current_arg.push(ch);
+                },
+                ')' | ']' | '}' if !in_string => {
+                    paren_depth -= 1;
+                    current_arg.push(ch);
+                },
+                ',' if !in_string && paren_depth == 0 => {
+                    if !current_arg.trim().is_empty() {
+                        self.parse_single_directive_argument(&mut arguments, current_arg.trim())?;
+                    }
+                    current_arg.clear();
+                },
+                _ => {
+                    current_arg.push(ch);
+                }
+            }
+        }
+        
+        // Handle the last argument
+        if !current_arg.trim().is_empty() {
+            self.parse_single_directive_argument(&mut arguments, current_arg.trim())?;
+        }
+        
+        Ok(arguments)
+    }
+    
+    /// Parse a single directive argument (key: value)
+    fn parse_single_directive_argument(&self, arguments: &mut HashMap<String, Value>, arg_str: &str) -> Result<(), ProxyError> {
+        if let Some(colon_pos) = arg_str.find(':') {
+            let key = arg_str[..colon_pos].trim().to_string();
+            let value_str = arg_str[colon_pos + 1..].trim();
+            
+            // Parse the value
+            let value = self.parse_directive_argument_value(value_str)?;
+            arguments.insert(key, value);
+        }
+        
+        Ok(())
+    }
+    
+    /// Parse a directive argument value from SDL
+    fn parse_directive_argument_value(&self, value_str: &str) -> Result<Value, ProxyError> {
+        let value_str = value_str.trim();
+        
+        // Parse different value types
+        if value_str == "true" {
+            Ok(Value::Bool(true))
+        } else if value_str == "false" {
+            Ok(Value::Bool(false))
+        } else if value_str == "null" {
+            Ok(Value::Null)
+        } else if value_str.starts_with('"') && value_str.ends_with('"') {
+            // String value - remove quotes and handle escape sequences
+            let content = &value_str[1..value_str.len()-1];
+            Ok(Value::String(content.replace("\\\"", "\"").replace("\\\\", "\\")))
+        } else if let Ok(num) = value_str.parse::<i64>() {
+            Ok(Value::Number(serde_json::Number::from(num)))
+        } else if let Ok(num) = value_str.parse::<f64>() {
+            if let Some(number) = serde_json::Number::from_f64(num) {
+                Ok(Value::Number(number))
+            } else {
+                Ok(Value::String(value_str.to_string()))
+            }
+        } else if value_str.starts_with('[') && value_str.ends_with(']') {
+            // Array value - simplified parsing
+            let array_content = &value_str[1..value_str.len()-1].trim();
+            if array_content.is_empty() {
+                Ok(Value::Array(Vec::new()))
+            } else {
+                // For now, treat as array of strings - could be enhanced
+                let items: Vec<Value> = array_content
+                    .split(',')
+                    .map(|s| self.parse_directive_argument_value(s.trim()))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(Value::Array(items))
+            }
+        } else {
+            // Enum value or unquoted string
+            Ok(Value::String(value_str.to_string()))
+        }
     }
 
     /// Extract description that appears before a field definition

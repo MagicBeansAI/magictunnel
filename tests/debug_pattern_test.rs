@@ -35,11 +35,11 @@ fn debug_pattern_matching_flow() {
         data_file: data_file.to_string_lossy().to_string(),
     };
     
-    let service = match AllowlistService::with_data_file(config.clone(), data_file.to_string_lossy().to_string()) {
+    let service = match AllowlistService::with_data_file(config.clone(), data_file.to_string_lossy().to_string(), None) {
         Ok(s) => s,
         Err(e) => {
             println!("ℹ️  Enhanced data file not found, falling back to basic service: {}", e);
-            AllowlistService::new(config).unwrap()
+            AllowlistService::new(config, None).unwrap()
         }
     };
     

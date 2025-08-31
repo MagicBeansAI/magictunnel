@@ -10,6 +10,9 @@ use actix_web::HttpRequest;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc, time::{Duration, SystemTime}};
 use tracing::{debug, info};
+use chrono::Utc;
+use crate::security::{SecurityServiceStatistics, ServiceHealth, HealthStatus, PolicyEngineStatistics};
+use crate::security::statistics::PerformanceMetrics;
 use chrono::Timelike;
 
 /// Comprehensive security validator for remote sessions
@@ -67,6 +70,9 @@ pub struct SecurityPolicyEngine {
     
     /// Policy enforcement level
     enforcement_level: SecurityEnforcementLevel,
+    
+    /// Policy engine statistics
+    stats: std::sync::RwLock<PolicyEngineStats>,
 }
 
 /// Individual security policy
@@ -829,6 +835,7 @@ impl SecurityPolicyEngine {
         Self {
             policies: std::sync::RwLock::new(Vec::new()),
             enforcement_level: SecurityEnforcementLevel::Restrictive,
+            stats: std::sync::RwLock::new(PolicyEngineStats::default()),
         }
     }
     
@@ -838,6 +845,7 @@ impl SecurityPolicyEngine {
         session: &IsolatedSession,
     ) -> Result<Vec<PolicyViolation>> {
         let mut violations = Vec::new();
+        let eval_start = std::time::Instant::now();
         let policies = self.policies.read().unwrap();
         
         for policy in policies.iter() {
@@ -859,6 +867,18 @@ impl SecurityPolicyEngine {
                         recommended_actions: vec![SessionAction::LogEvent],
                     });
                 }
+            }
+        }
+        // Update statistics
+        let elapsed_ms = eval_start.elapsed().as_millis() as u64;
+        {
+            let mut stats = self.stats.write().unwrap();
+            stats.total_evaluations = stats.total_evaluations.saturating_add(1);
+            stats.total_processing_time_ms = stats.total_processing_time_ms.saturating_add(elapsed_ms);
+            if violations.is_empty() {
+                stats.successful_evaluations = stats.successful_evaluations.saturating_add(1);
+            } else {
+                stats.failed_evaluations = stats.failed_evaluations.saturating_add(1);
             }
         }
         
@@ -999,6 +1019,108 @@ impl SecurityPolicyEngine {
         stats.insert("total_policies".to_string(), serde_json::Value::Number(policies.len().into()));
         stats.insert("active_policies".to_string(), serde_json::Value::Number(policies.iter().filter(|p| p.enabled).count().into()));
         Ok(stats)
+    }
+}
+
+// --------------------------------------------------------------------------------
+// Policy Engine Statistics Types
+// --------------------------------------------------------------------------------
+
+#[derive(Debug, Clone)]
+struct PolicyEngineStats {
+    started_at: std::time::Instant,
+    total_evaluations: u64,
+    successful_evaluations: u64,
+    failed_evaluations: u64,
+    cache_hits: u64,
+    cache_misses: u64,
+    total_processing_time_ms: u64,
+    last_error: Option<String>,
+}
+
+impl Default for PolicyEngineStats {
+    fn default() -> Self {
+        Self {
+            started_at: std::time::Instant::now(),
+            total_evaluations: 0,
+            successful_evaluations: 0,
+            failed_evaluations: 0,
+            cache_hits: 0,
+            cache_misses: 0,
+            total_processing_time_ms: 0,
+            last_error: None,
+        }
+    }
+}
+
+impl SecurityPolicyEngine {
+    fn avg_eval_time_ms(&self) -> f64 {
+        let s = self.stats.read().unwrap();
+        if s.total_evaluations == 0 { 0.0 } else { s.total_processing_time_ms as f64 / s.total_evaluations as f64 }
+    }
+}
+
+// Implement unified statistics/health reporting for Policy Engine
+#[async_trait::async_trait]
+impl SecurityServiceStatistics for SecurityPolicyEngine {
+    type Statistics = PolicyEngineStatistics;
+
+    async fn get_statistics(&self) -> Self::Statistics {
+        let s = self.stats.read().unwrap().clone();
+        let active_policies = self.policies.read().map(|p| p.iter().filter(|x| x.enabled).count()).unwrap_or(0);
+        PolicyEngineStatistics {
+            total_evaluations: s.total_evaluations,
+            successful_evaluations: s.successful_evaluations,
+            failed_evaluations: s.failed_evaluations,
+            cache_hits: s.cache_hits,
+            cache_misses: s.cache_misses,
+            avg_evaluation_time_ms: self.avg_eval_time_ms(),
+            active_policies_count: active_policies,
+            service_status: "Active".to_string(),
+        }
+    }
+
+    async fn get_health(&self) -> ServiceHealth {
+        let s = self.stats.read().unwrap();
+        ServiceHealth {
+            status: if s.last_error.is_none() { HealthStatus::Healthy } else { HealthStatus::Warning },
+            is_healthy: s.last_error.is_none(),
+            last_checked: Utc::now(),
+            error_message: s.last_error.clone(),
+            uptime_seconds: s.started_at.elapsed().as_secs(),
+            performance: PerformanceMetrics {
+                avg_response_time_ms: self.avg_eval_time_ms(),
+                requests_per_second: if s.started_at.elapsed().as_secs() > 0 {
+                    s.total_evaluations as f64 / s.started_at.elapsed().as_secs() as f64
+                } else { 0.0 },
+                error_rate: if s.total_evaluations > 0 { s.failed_evaluations as f64 / s.total_evaluations as f64 } else { 0.0 },
+                memory_usage_bytes: 0,
+            },
+        }
+    }
+
+    async fn reset_statistics(&self) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let mut s = self.stats.write().unwrap();
+        *s = PolicyEngineStats::default();
+        Ok(())
+    }
+}
+
+impl SecurityPolicyEngine {
+    /// Non-async snapshot of policy engine statistics for API use
+    pub fn get_policy_engine_statistics_snapshot(&self) -> PolicyEngineStatistics {
+        let s = self.stats.read().unwrap().clone();
+        let active_policies = self.policies.read().map(|p| p.iter().filter(|x| x.enabled).count()).unwrap_or(0);
+        PolicyEngineStatistics {
+            total_evaluations: s.total_evaluations,
+            successful_evaluations: s.successful_evaluations,
+            failed_evaluations: s.failed_evaluations,
+            cache_hits: s.cache_hits,
+            cache_misses: s.cache_misses,
+            avg_evaluation_time_ms: self.avg_eval_time_ms(),
+            active_policies_count: active_policies,
+            service_status: "Active".to_string(),
+        }
     }
 }
 
@@ -1423,9 +1545,25 @@ impl ThreatDetectionEngine {
             }
             return true;
         } else if pattern.contains('/') {
-            // CIDR matching - simplified implementation
-            // In production, use proper CIDR library
-            return pattern == ip; // Placeholder
+            // CIDR matching for IPv4 (basic implementation)
+            fn ipv4_to_u32(s: &str) -> Option<u32> {
+                let parts: Vec<&str> = s.split('.').collect();
+                if parts.len() != 4 { return None; }
+                let mut n: u32 = 0;
+                for p in parts {
+                    let v: u8 = p.parse().ok()?;
+                    n = (n << 8) | (v as u32);
+                }
+                Some(n)
+            }
+            let mut iter = pattern.split('/');
+            let base = iter.next().unwrap_or("");
+            let prefix_len: u8 = iter.next().and_then(|m| m.parse().ok()).unwrap_or(32);
+            if let (Some(ip_u32), Some(base_u32)) = (ipv4_to_u32(ip), ipv4_to_u32(base)) {
+                let mask: u32 = if prefix_len == 0 { 0 } else { u32::MAX << (32 - prefix_len) };
+                return (ip_u32 & mask) == (base_u32 & mask);
+            }
+            return false;
         } else {
             // Exact match
             return pattern == ip;

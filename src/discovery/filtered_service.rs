@@ -11,7 +11,7 @@ use crate::discovery::audit_trail::{
     DiscoveryAuditTrail, ExcludedTool, ScoredTool, SelectedTool, ExclusionReason,
     ParameterMappingResult
 };
-use crate::security::{SecurityContext, AllowlistService};
+use crate::security::{SecurityContext, AllowlistService, RbacService};
 use crate::error::Result;
 use ahash::{AHashMap, AHashSet};
 use std::sync::Arc;
@@ -101,12 +101,43 @@ pub struct FilteringPerformanceMetrics {
 }
 
 impl FilteredSmartDiscoveryService {
-    /// Create a new filtered smart discovery service
+    /// Create a new filtered smart discovery service with RBAC service
     pub fn new(
         inner: Arc<SmartDiscoveryService>,
         config: FilteredDiscoveryConfig,
+        rbac_service: Arc<RbacService>,
     ) -> Self {
-        let permission_cache = Arc::new(PermissionCacheManager::new_with_default_rbac(config.cache_config.clone()));
+        let permission_cache = Arc::new(
+            PermissionCacheManager::new_production(config.cache_config.clone(), rbac_service)
+                .expect("Failed to create production permission cache manager")
+        );
+        let permission_evaluator = Arc::new(tokio::sync::RwLock::new(
+            FastPermissionEvaluator::new(RuleAction::Deny) // Default deny
+        ));
+        
+        Self {
+            inner,
+            permission_cache,
+            permission_evaluator,
+            allowlist_service: None,
+            config,
+        }
+    }
+    
+    /// Create a new filtered smart discovery service with default RBAC for testing
+    /// ⚠️  WARNING: This method is for testing/development only
+    #[cfg(debug_assertions)]
+    pub fn new_with_mock_rbac(
+        inner: Arc<SmartDiscoveryService>,
+        config: FilteredDiscoveryConfig,
+    ) -> Self {
+        use tracing::warn;
+        
+        warn!("⚠️  Creating FilteredSmartDiscoveryService with mock RBAC - FOR TESTING ONLY");
+        
+        let permission_cache = Arc::new(
+            PermissionCacheManager::new_with_default_rbac(config.cache_config.clone())
+        );
         let permission_evaluator = Arc::new(tokio::sync::RwLock::new(
             FastPermissionEvaluator::new(RuleAction::Deny) // Default deny
         ));
@@ -161,7 +192,7 @@ impl FilteredSmartDiscoveryService {
             
             let result = tokio::time::timeout(
                 std::time::Duration::from_millis(self.config.max_permission_filtering_time_ms),
-                self.filter_tools_by_permissions(security_context, &mut audit_trail)
+                self.filter_tools_by_permissions(security_context, &mut audit_trail, &request.request)
             ).await;
             
             let filter_duration = filter_start.elapsed();
@@ -260,6 +291,7 @@ impl FilteredSmartDiscoveryService {
         &self,
         security_context: &SecurityContext,
         audit_trail: &mut Option<DiscoveryAuditTrail>,
+        request_text: &str,
     ) -> Result<(AHashSet<ToolId>, Vec<ExcludedTool>)> {
         // Get all available tools
         let enabled_tools = self.inner.get_registry().get_enabled_tools();
@@ -298,49 +330,62 @@ impl FilteredSmartDiscoveryService {
                 if evaluation_result.allowed {
                     allowed_tools.insert(tool_name.clone());
                     
-                    // Add to audit trail as considered tool
+                    // Compute a preliminary discovery score based on request/tool similarity
+                    let prelim_score = self.estimate_potential_match_score(request_text, &tool_def);
+                    
+                    // Add to audit trail as considered tool with real score
                     if let Some(ref mut audit) = audit_trail {
                         audit.add_considered_tool(ScoredTool {
                             tool_id: tool_name.clone(),
                             tool_name: tool_name.clone(),
                             tool_description: Some(tool_def.description.clone()),
-                            discovery_score: 1.0, // Will be calculated later by discovery
+                            discovery_score: prelim_score,
                             semantic_score: None,
                             rule_score: None,
                             llm_score: None,
-                            final_score: 1.0,
+                            final_score: prelim_score,
                             ranking_position: 0, // Will be set later
-                            match_reasoning: "Passed permission filtering".to_string(),
+                            match_reasoning: if prelim_score > 0.0 {
+                                format!("Permission-allowed; lexical match {:.2}", prelim_score)
+                            } else {
+                                "Permission-allowed".to_string()
+                            },
                             parameter_mapping_score: None,
                         });
                     }
                 } else {
                     // Tool is excluded - determine why
-                    let exclusion_reason = self.determine_exclusion_reason(&evaluation_result.reason);
-                    
-                    excluded_tools.push(ExcludedTool {
+                    let exclusion_reason = self.determine_exclusion_reason(&tool_name, &evaluation_result.reason);
+
+                    // Estimate how good a match this would have been for visibility
+                    let potential_match_score = self
+                        .estimate_potential_match_score(request_text, &tool_def);
+
+                    let excluded_entry = ExcludedTool {
                         tool_id: tool_name.clone(),
                         tool_name: tool_name.clone(),
                         tool_description: Some(tool_def.description.clone()),
                         exclusion_reason: exclusion_reason.clone(),
                         blocking_rule: Some(evaluation_result.reason.clone()),
-                        potential_match_score: None, // TODO: Calculate potential match score
-                    });
-                    
-                    // Add to audit trail
+                        potential_match_score: Some(potential_match_score),
+                    };
+
+                    excluded_tools.push(excluded_entry.clone());
+
+                    // Add to audit trail with detailed entry
                     if let Some(ref mut audit) = audit_trail {
                         match exclusion_reason {
                             ExclusionReason::AllowlistExplicitDeny { .. } |
                             ExclusionReason::AllowlistPatternDeny { .. } |
                             ExclusionReason::AllowlistDefaultDeny => {
-                                audit.add_allowlist_exclusion(tool_name.clone(), tool_name.clone(), exclusion_reason);
+                                audit.add_allowlist_excluded_tool(excluded_entry);
                             }
                             ExclusionReason::RbacRoleRestriction { .. } |
                             ExclusionReason::RbacPermissionRestriction { .. } => {
-                                audit.add_rbac_exclusion(tool_name.clone(), tool_name.clone(), exclusion_reason);
+                                audit.add_rbac_excluded_tool(excluded_entry);
                             }
                             _ => {
-                                audit.add_allowlist_exclusion(tool_name.clone(), tool_name.clone(), exclusion_reason);
+                                audit.add_allowlist_excluded_tool(excluded_entry);
                             }
                         }
                     }
@@ -355,21 +400,62 @@ impl FilteredSmartDiscoveryService {
     }
     
     /// Determine the specific reason for tool exclusion
-    fn determine_exclusion_reason(&self, reason: &str) -> ExclusionReason {
+    fn determine_exclusion_reason(&self, tool_name: &str, reason: &str) -> ExclusionReason {
+        // First, try to use allowlist decision details if available
+        if let Some(ref svc) = self.allowlist_service {
+            if let Some(decision) = svc.get_tool_decision(tool_name) {
+                use crate::security::allowlist_data::RuleSource;
+                return match decision.rule_source {
+                    RuleSource::ExplicitTool | RuleSource::ExplicitCapability => {
+                        ExclusionReason::AllowlistExplicitDeny { rule_id: decision.rule_name }
+                    }
+                    RuleSource::ToolPattern | RuleSource::CapabilityPattern | RuleSource::GlobalPattern => {
+                        ExclusionReason::AllowlistPatternDeny { pattern: decision.rule_name }
+                    }
+                    RuleSource::DefaultAction => ExclusionReason::AllowlistDefaultDeny,
+                    RuleSource::EmergencyLockdown => ExclusionReason::EmergencyLockdown,
+                };
+            }
+        }
+
+        // Fall back to evaluator reason hints and RBAC index
         match reason {
             "explicit_deny_bitmap" => ExclusionReason::AllowlistExplicitDeny {
-                rule_id: "explicit_deny_bitmap".to_string()
+                rule_id: "explicit_deny_bitmap".to_string(),
             },
             "pattern_match" => ExclusionReason::AllowlistPatternDeny {
-                pattern: "unknown_pattern".to_string() // TODO: Get actual pattern
+                pattern: "pattern_rule".to_string(),
             },
             "default" => ExclusionReason::AllowlistDefaultDeny,
-            reason if reason.contains("role") => ExclusionReason::RbacRoleRestriction {
-                required_roles: vec!["unknown".to_string()] // TODO: Get actual required roles
-            },
-            reason if reason.contains("permission") => ExclusionReason::RbacPermissionRestriction {
-                required_permissions: vec!["unknown".to_string()] // TODO: Get actual permissions
-            },
+            r if r.contains("role") => {
+                let required_roles = self
+                    .permission_cache
+                    .get_tool_required_roles(&tool_name.to_string());
+                if required_roles.is_empty() {
+                    ExclusionReason::RbacRoleRestriction {
+                        required_roles: vec!["unknown".to_string()],
+                    }
+                } else {
+                    ExclusionReason::RbacRoleRestriction { required_roles }
+                }
+            }
+            r if r.contains("permission") => {
+                let bitmap_opt = self
+                    .permission_cache
+                    .get_tool_required_permissions_bitmap(&tool_name.to_string());
+                let permission_names = if let Some(bitmap) = bitmap_opt {
+                    // Map set bits to synthetic permission identifiers for visibility
+                    (0u8..64)
+                        .filter(|bit| (bitmap & (1u64 << bit)) != 0)
+                        .map(|bit| format!("perm_bit_{}", bit))
+                        .collect::<Vec<String>>()
+                } else {
+                    vec!["unknown".to_string()]
+                };
+                ExclusionReason::RbacPermissionRestriction {
+                    required_permissions: permission_names,
+                }
+            }
             _ => ExclusionReason::AllowlistDefaultDeny,
         }
     }
@@ -398,7 +484,8 @@ impl FilteredSmartDiscoveryService {
                             tool_id: tool_name.to_string(),
                             tool_name: tool_name.to_string(),
                             tool_description: None,
-                            discovery_score: 1.0, // TODO: Get actual score from response
+                            // Use the discovery confidence score from metadata when available
+                            discovery_score: discovery_response.metadata.confidence_score,
                             semantic_score: None,
                             rule_score: None,
                             llm_score: None,
@@ -412,7 +499,12 @@ impl FilteredSmartDiscoveryService {
                             unmapped_parameters: Vec::new(),
                             defaulted_parameters: Vec::new(),
                             mapping_confidence: 1.0,
-                            used_llm_mapping: false, // TODO: Get from discovery response
+                            // Heuristic: consider LLM mapping used if extraction status is present
+                            used_llm_mapping: discovery_response
+                                .metadata
+                                .extraction_status
+                                .as_ref()
+                                .is_some(),
                         },
                         selection_confidence: 1.0,
                         is_fallback: false,
@@ -432,6 +524,39 @@ impl FilteredSmartDiscoveryService {
         
         // Update discovery method
         audit_trail.discovery_method = "filtered_smart_discovery".to_string();
+    }
+
+    /// Rough estimate of how well a tool would match a request (0.0 - 1.0)
+    fn estimate_potential_match_score(
+        &self,
+        request_text: &str,
+        tool_def: &crate::registry::types::ToolDefinition,
+    ) -> f64 {
+        fn tokenize(s: &str) -> std::collections::HashSet<String> {
+            s.split(|c: char| !c.is_alphanumeric())
+                .filter(|t| !t.is_empty())
+                .map(|t| t.to_lowercase())
+                .collect()
+        }
+
+        let req = tokenize(request_text);
+        let tool_text = format!("{} {}", tool_def.name, tool_def.description);
+        let tool = tokenize(&tool_text);
+
+        if req.is_empty() || tool.is_empty() {
+            return 0.0;
+        }
+
+        let intersection = req.intersection(&tool).count() as f64;
+        let union = req.union(&tool).count() as f64;
+        let mut score = if union > 0.0 { intersection / union } else { 0.0 };
+
+        // Small boost if tool name appears in request
+        if request_text.to_lowercase().contains(&tool_def.name.to_lowercase()) {
+            score = (score + 0.2).min(1.0);
+        }
+
+        score
     }
     
     /// Log filtering summary for debugging

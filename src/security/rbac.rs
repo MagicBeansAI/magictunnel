@@ -1373,6 +1373,7 @@ impl RbacService {
 }
 
 // Implementation of SecurityServiceStatistics trait for RbacService
+#[async_trait::async_trait]
 impl SecurityServiceStatistics for RbacService {
     type Statistics = RbacStatistics;
     

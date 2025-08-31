@@ -1,6 +1,6 @@
 [package]
 name = "magictunnel"
-version = "0.3.21"
+version = "0.3.22"
 edition = "2021"
 authors = ["gouravd"]
 description = "MagicTunnel - Fastest way to make LLMs talk to your internal systems and external ones"
@@ -204,3 +204,7 @@ path = "src/bin/magictunnel-supervisor.rs"
 [[bin]]
 name = "magictunnel-llm"
 path = "src/bin/magictunnel-llm.rs"
+
+[features]
+# Enable GeoIP enrichment of security audit events via headers/IP lookup stubs
+geoip = []

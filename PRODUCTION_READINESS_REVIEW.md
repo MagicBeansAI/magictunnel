@@ -1,63 +1,22 @@
 # MagicTunnel Production Readiness Review
 
-*Version: 0.3.21 - Updated*
+*Version: 0.3.22 - Updated after Configuration Architecture Restructuring Completion*
 
 ## Overview
 
 This document provides a comprehensive review of incomplete implementations, temporary code, and production readiness gaps in the MagicTunnel codebase. This review was conducted to identify all TODOs, stubs, mocks, FIXMEs, and other temporary solutions that need to be addressed before production deployment.
 
-## ✅ **Major Progress Update**
-
-**Significant implementation progress has been made! Multiple critical production readiness issues have been resolved:**
-
-### 🎯 **Recently Completed (Current Session)**
-- ✅ **gRPC Server Tool Execution** - Complete router integration replacing all placeholder responses
-- ✅ **gRPC Annotations Conversion** - Full ToolAnnotations protobuf support 
-- ✅ **CLI Resource Listing** - Comprehensive `list_all_content()` functionality
-- ✅ **Dashboard .env File Parsing** - Complete environment variable visibility with source tracking
-- ✅ **Hardcoded Configuration Values** - Environment variable support for all hardcoded values
-- ✅ **Startup Logging Infrastructure** - Full implementation with comprehensive test coverage
-
-### 📊 **Production Readiness Score: 92%** 
-**Up from ~85% - Configuration management and infrastructure gaps resolved**
-
 
 ## 🚨 Critical Production Readiness Issues
 
-### ✅ Non-Functional Components - Major Progress
+### 🔄 Remaining Implementation Gaps
 
-| Component | Status | Location | Resolution |
-|-----------|--------|----------|------------|
-| ✅ **gRPC Server** | **COMPLETED** | `src/grpc/server.rs:131,133` | Full router integration with actual tool execution |
-| **MCP Notifications** | Remaining | `src/mcp/notifications.rs:40,41` | Limited MCP protocol support |
-
----
-
-## 🔧 Feature Implementation Gaps
-
-## 🧪 Configuration & Test Data Issues
-
-### ✅ Hardcoded Values - Resolved
-
-| Type | Status | Location | Resolution |
-|------|--------|----------|------------|
-| ✅ **Network** | **FIXED** | `src/services/proxy_services.rs:371,400` | Now uses `MAGICTUNNEL_HOST` and `MAGICTUNNEL_PORT` environment variables |
-| ✅ **Services** | **FIXED** | `src/mcp/tool_enhancement.rs:227` | Now checks `OLLAMA_BASE_URL` environment variable first |
-
-### Placeholder Content
-
-| Component | Location | Content | Impact |
-|-----------|----------|---------|---------|
-| **Dashboard** | `src/web/dashboard.rs:4756,6967` | Template placeholders | Limited dashboard functionality |
-| **Registry** | `src/registry/service.rs:941` | Fake file paths | Test data in production code |
-
----
-
-## 📋 Infrastructure & CLI Gaps
-
-| Feature | Status | Location | Resolution |
-|---------|--------|----------|------------|
-| ✅ **Startup Logging** | **COMPLETED** | `tests/multi_mode_startup_test.rs:26,36,49,153` | Full startup logger infrastructure implemented and tests updated |
+| Component | Status | Location | Priority |
+|-----------|--------|----------|----------|
+| **MCP Prompts Notifications** | Not Implemented | `src/mcp/notifications.rs:41` | Medium - MCP protocol compliance |
+| **MCP Resources Notifications** | Not Implemented | `src/mcp/notifications.rs:40` | Medium - MCP protocol compliance |
+| **MCP Resource Subscriptions** | Partially Implemented | `src/mcp/notifications.rs:43` | Medium - Backend exists, protocol methods needed |
+| **Web Admin Authentication** | Not Implemented | TODO.md:12 | High - Separate dashboard auth system |
 
 ---
 
@@ -66,11 +25,6 @@ This document provides a comprehensive review of incomplete implementations, tem
 ### Phase 2: Core Functionality (High Priority - Week 2-3)
 
 - [ ] **Finish MCP notification features** (`src/mcp/notifications.rs:40,41`)
-
-### Phase 4: Configuration & Polish (Lower Priority - Week 7-8)
-
-- [ ] **Remove hardcoded configuration values**
-- [ ] **Add proper configuration management**
 
 ---
 
@@ -83,7 +37,7 @@ TODO: LLM-Assisted Elicitation Request Generation (Future Enhancement)
 ```
 
 
-### Not Implemented Features
+### Remaining Not Implemented Features
 ```rust
 // src/mcp/notifications.rs:40
 resources_list_changed: false, // NOT IMPLEMENTED - see TODO.md
@@ -92,8 +46,58 @@ resources_list_changed: false, // NOT IMPLEMENTED - see TODO.md
 prompts_list_changed: false,   // NOT IMPLEMENTED - see TODO.md
 
 // src/services/advanced_services.rs:16
-/// **MagicTunnel Authentication** (TODO - not yet implemented):
+/// **MagicTunnel Authentication** (TODO - separate from OAuth 2.1 system)
 
 // src/services/advanced_services.rs:399
 /// Check if MagicTunnel authentication is implemented (always false for now)
 ```
+
+## 🎯 **Updated Action Plan**
+
+### Phase 1: High Priority Remaining Items (1-2 weeks)
+
+#### **1.1 Web Admin Authentication System**
+- [ ] **Separate authentication for web dashboard admin access**
+  - Create admin user management system independent of OAuth 2.1
+  - Implement login/logout flows for dashboard access
+  - Secure all dashboard endpoints with admin authentication
+  - Add role-based access control for admin functions
+
+
+#### **1.2 Complete MCP Notification System**
+- [ ] **Prompts List Changed Notifications**
+  - Add prompt tracking to registry service
+  - Implement notification triggers on prompt changes
+  - Test across all transport methods
+- [ ] **Resources List Changed Notifications**
+  - Add resource tracking to registry service
+  - Implement notification triggers on resource changes
+  - Test across all transport methods
+- [ ] **Resource Subscriptions Protocol Methods**
+  - Connect existing `McpNotificationManager.subscribe_to_resource()` to MCP server handlers
+  - Add MCP protocol methods (resources/subscribe, resources/unsubscribe)
+  - Implement proper error handling and validation
+
+### Phase 2: Medium Priority Enhancement (2-3 weeks)
+
+#### **2.1 MCP Roots UI Implementation**
+- [ ] **Frontend interface for filesystem/URI boundary management**
+  - Create navigation entry and responsive page layout
+  - Implement RootsDiscoveryCard and SecurityConfigPanel components
+  - Add real-time discovery updates and pattern validation
+  - Backend complete (791 lines), UI needed for user management
+  
+### Phase 3: Lower Priority Polish (1-2 weeks)
+
+#### **3.1 OAuth 2.1 Code Quality & Production Validation**
+- [ ] **Code cleanup** ⚠️ **NEEDS WORK** (~269 warnings requiring cleanup)
+
+## 🏆 **Production Readiness Summary**
+
+### **⚠️ HIGH PRIORITY REMAINING**
+- **Web Admin Authentication**: Separate system for dashboard access
+- **MCP Notifications**: Prompts and resources list_changed notifications
+
+### **📈 MEDIUM PRIORITY ENHANCEMENTS**
+- **MCP Roots UI**: User interface for boundary management (backend complete)
+- **Resource Subscriptions**: MCP protocol method exposure

@@ -4,7 +4,7 @@ This document outlines current tasks and future development plans for MagicTunne
 
 ## 🚀 Current Status
 
-**MagicTunnel v0.3.20** - **Production Ready** with Complete OAuth 2.1 Enterprise Authentication System
+**MagicTunnel v0.3.22** - **Production Ready** with Complete OAuth 2.1 Enterprise Authentication System
 
 📚 **[View Complete Achievement History](TODO_DONE.md)** - Detailed archive of all completed work
 
@@ -13,11 +13,9 @@ This document outlines current tasks and future development plans for MagicTunne
 - **❌ MCP Client Authentication Injection** - **NOT IMPLEMENTED** (Credential injection for tool calls)
 
 ### 🗂️ MCP Features Status Summary
-- **✅ MCP Roots Backend** - **COMPLETE** (Filesystem/URI boundary discovery - 547 lines production-ready)
 - **❌ MCP Roots UI** - **NOT IMPLEMENTED** (Frontend interface for roots management)
 
 ### 📡 MCP Notifications Status Summary
-- **✅ Tools List Changed** - **COMPLETE** (Full notification support across all transports)
 - **❌ Prompts List Changed** - **NOT IMPLEMENTED** (MCP 2025-06-18 prompts/list_changed notifications)
   - [ ] **Implement prompts/list_changed notification support**
     - [ ] Add prompt tracking to registry service
@@ -48,7 +46,6 @@ This document outlines current tasks and future development plans for MagicTunne
 
 #### **Integration Test Improvements (OPTIONAL)**
 - [ ] **Improve OAuth integration test coverage** (`tests/oauth2_1_*`)
-  - ✅ Compilation errors resolved - tests now compile and run
   - [ ] Enhance test authentication flow coverage
   - [ ] Add more comprehensive cross-platform token storage validation
   - [ ] Expand session recovery test scenarios
@@ -74,45 +71,10 @@ This document outlines current tasks and future development plans for MagicTunne
 
 ---
 
-## ✅ **COMPLETE: Multi-Mode Architecture (v0.3.10) - Optional Testing**
-
-**Status**: Multi-mode architecture **COMPLETE** (v0.3.10) - testing recommended for validation
-**Priority**: **MEDIUM** - Testing for confidence, system is functional
-
-### Multi-Mode Architecture Test Suite Implementation (Optional - 2-3 days)
-
-#### **Recommended Validation Tests**
-- [ ] **Configuration Resolution Testing** (`tests/multi_mode_config_test.rs`)
-  - [ ] Test environment variable override behavior (MAGICTUNNEL_RUNTIME_MODE, CONFIG_PATH, SMART_DISCOVERY)
-  - [ ] Test config file priority resolution (magictunnel-config.yaml > config.yaml > defaults)
-  - [ ] Test built-in proxy mode defaults when no config exists
-  - [ ] Test invalid configuration error handling and helpful error messages
-  - [ ] Test configuration validation for both proxy and advanced modes
-
-- [ ] **Runtime Mode Service Loading Testing** (`tests/multi_mode_services_test.rs`)
-  - [ ] Test proxy mode loads only core services (MCP server, registry, basic web UI)
-  - [ ] Test advanced mode loads all services (security, auth, LLM services, enterprise features)
-  - [ ] Test service dependency validation during startup
-  - [ ] Test graceful service startup failure handling
-  - [ ] Test service status reporting and health checks
-
-- [ ] **Environment Integration Testing** (`tests/multi_mode_environment_test.rs`)
-  - [ ] Test `MAGICTUNNEL_RUNTIME_MODE=proxy` vs `=advanced` behavior
-  - [ ] Test `MAGICTUNNEL_CONFIG_PATH` custom config loading
-  - [ ] Test `MAGICTUNNEL_SMART_DISCOVERY=true|false` override functionality
-  - [ ] Test environment variable validation and parsing
-  - [ ] Test environment override warnings in startup logs
-
-**Implementation Notes:**
-- Multi-mode architecture is **implemented and functional**
-- Testing provides additional validation and confidence
-- System works correctly without tests - testing is for regression prevention
-
----
 
 ## 📋 **HIGH PRIORITY: MCP Roots UI Implementation**
 
-**Status**: Backend complete (547 lines) - Frontend UI needed for management interface  
+**Status**: Backend complete (791 lines) - Frontend UI needed for management interface  
 **Priority**: **HIGH** - Missing user interface for filesystem/URI boundary management
 
 ### Phase 1: MCP Roots UI Foundation (2-3 days)
@@ -122,7 +84,6 @@ This document outlines current tasks and future development plans for MagicTunne
 - [ ] **Create base Roots page** (`frontend/src/routes/roots/+page.svelte`)
 - [ ] **Design page layout** with tabs for Discovery, Security, Management
 - [ ] **Add breadcrumb navigation** and page title
-- ✅ **Create responsive design** for mobile and desktop (COMPLETED v0.3.19 - responsive card layout system)
 
 #### 1.2 Backend API Integration
 - [ ] **Create roots API endpoints** in backend (`src/web/roots_api.rs`)
@@ -144,12 +105,9 @@ This document outlines current tasks and future development plans for MagicTunne
 
 #### 2.1 Real-time Features
 - [ ] **Live discovery updates** using WebSocket/SSE
-- ✅ **Real-time permission validation** with instant feedback
-- ✅ **Dynamic security pattern testing** before applying (COMPLETED v0.3.18 - hierarchical pattern highlighting with real-time feedback)
 - [ ] **Auto-refresh** for discovery results every 5 minutes
 
 #### 2.2 Security & Validation
-- ✅ **Pattern validation** with regex testing interface (COMPLETED v0.3.18 - comprehensive pattern testing with regex, glob, and exact matching)
 - [ ] **Permission conflict detection** and resolution
 - [ ] **Access testing** - test if paths/URIs are accessible
 - [ ] **Security risk assessment** for new root entries
@@ -506,8 +464,6 @@ frontend/src/routes/roots/
   - [ ] `PUT /dashboard/api/mcp-servers/{server_name}/config` - Update server configuration
   - [ ] `POST /dashboard/api/mcp-servers/bulk/refresh` - Bulk capability refresh
 
-#### **Memory Leak Fix** ✅ **COMPLETED**
-- [x] ✅ **Fixed stop_server() memory leak**: `version_info` HashMap now properly cleaned up when servers are stopped
 
 **Timeline**: 1-2 weeks  
 **Impact**: **CRITICAL** - Transforms MCP server management from basic startup-only configuration to full dynamic lifecycle management with persistence and enterprise features
