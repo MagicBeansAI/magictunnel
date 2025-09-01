@@ -1,12 +1,12 @@
 [package]
 name = "magictunnel"
-version = "0.3.22"
+version = "0.3.23"
 edition = "2021"
 authors = ["gouravd"]
 description = "MagicTunnel - Fastest way to make LLMs talk to your internal systems and external ones"
 license = "MIT"
 repository = "https://github.com/gouravd/magictunnel"
-keywords = ["mcp", "tunnel", "agent", "orchestration", "ai"]
+keywords = ["mcp", "tunnel", "agent", "orchestration", "ai", "proxy", "mcp-proxy"]
 categories = ["web-programming", "api-bindings"]
 
 [dependencies]

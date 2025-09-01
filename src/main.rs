@@ -37,7 +37,7 @@ use tonic::transport::Server;
 #[command(version)]
 struct Cli {
     /// Configuration file path
-    #[arg(short, long, default_value = "config.yaml")]
+    #[arg(short, long, default_value = "magictunnel-config.yaml")]
     config: PathBuf,
 
     /// Log level (trace, debug, info, warn, error)
@@ -92,8 +92,15 @@ async fn main() -> Result<()> {
     startup::display_startup_banner(env!("CARGO_PKG_VERSION"));
     
     // Load configuration with full resolution
+    // Only pass CLI config path if it was explicitly provided (not default)
+    let cli_config_path = if cli.config == PathBuf::from("magictunnel-config.yaml") {
+        None  // Let resolver use priority system
+    } else {
+        Some(&cli.config)  // Use explicitly provided path
+    };
+    
     let resolution = Config::load_with_resolution(
-        Some(&cli.config),
+        cli_config_path,
         cli.host,
         cli.port,
     ).map_err(|e| {

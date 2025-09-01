@@ -28,6 +28,10 @@ pub struct SmartDiscoveryRequest {
     
     /// Enable smart sequential execution for multi-step tasks (default: true)
     pub sequential_mode: Option<bool>,
+    
+    /// Authentication context for tool execution (not serialized - used internally)
+    #[serde(skip)]
+    pub auth_context: Option<std::sync::Arc<crate::auth::AuthenticationContext>>,
 }
 
 /// Response structure for smart tool discovery

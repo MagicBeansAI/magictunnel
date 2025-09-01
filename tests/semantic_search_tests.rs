@@ -332,6 +332,7 @@ async fn test_hybrid_search_strategy() {
         confidence_threshold: Some(0.6),
         include_error_details: Some(true),
         sequential_mode: Some(true),
+        auth_context: None,
     };
     
     let response = discovery_service.discover_and_execute(request).await;

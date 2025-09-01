@@ -405,7 +405,7 @@ impl AgentRouter for DefaultAgentRouter {
             }
             // Smart Discovery agent type
             AgentType::SmartDiscovery { enabled } => {
-                self.execute_smart_discovery_agent(tool_call, *enabled).await
+                self.execute_smart_discovery_agent_with_auth(tool_call, *enabled, None).await
             }
         }
     }
@@ -2578,11 +2578,12 @@ impl DefaultAgentRouter {
         Ok(enhanced_response)
     }
 
-    /// Execute Smart Discovery agent
-    async fn execute_smart_discovery_agent(
+    /// Execute Smart Discovery agent with authentication context
+    async fn execute_smart_discovery_agent_with_auth(
         &self,
         tool_call: &ToolCall,
         enabled: bool,
+        auth_context: Option<&crate::auth::AuthenticationContext>,
     ) -> Result<AgentResult> {
         use serde_json::json;
 
@@ -2620,7 +2621,7 @@ impl DefaultAgentRouter {
         };
 
         // Parse the request from tool call arguments
-        let request = match self.parse_smart_discovery_request(tool_call) {
+        let mut request = match self.parse_smart_discovery_request(tool_call) {
             Ok(req) => req,
             Err(e) => {
                 return Ok(AgentResult {
@@ -2635,6 +2636,14 @@ impl DefaultAgentRouter {
                 });
             }
         };
+
+        // Add authentication context to the request
+        if let Some(auth) = auth_context {
+            debug!("🔐 Adding authentication context to smart discovery request");
+            request.auth_context = Some(std::sync::Arc::new(auth.clone()));
+        } else {
+            debug!("🔓 No authentication context available for smart discovery request");
+        }
 
         // Execute smart discovery using the injected service
         match smart_discovery_service.discover_and_execute(request).await {
@@ -2814,6 +2823,7 @@ impl DefaultAgentRouter {
             confidence_threshold,
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None, // Will be set later by the caller
         })
     }
 
@@ -2887,7 +2897,7 @@ impl DefaultAgentRouter {
             }
             AgentType::SmartDiscovery { enabled } => {
                 debug!("Authentication context passed to smart discovery agent");
-                self.execute_smart_discovery_agent(tool_call, *enabled).await
+                self.execute_smart_discovery_agent_with_auth(tool_call, *enabled, auth_context).await
             }
         }
     }

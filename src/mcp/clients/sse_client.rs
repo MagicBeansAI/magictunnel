@@ -145,6 +145,106 @@ impl SseMcpClient {
         })
     }
 
+    /// Create a new SSE MCP client with authentication context
+    pub fn new_with_auth(
+        mut config: SseClientConfig, 
+        service_id: String, 
+        auth_context: &crate::auth::AuthenticationContext
+    ) -> Result<Self> {
+        // Update authentication from context
+        config.auth = Self::auth_config_from_context(auth_context);
+        
+        Self::new(config, service_id)
+    }
+
+    /// Update authentication configuration from AuthenticationContext
+    pub fn set_authentication_context(&mut self, auth_context: &crate::auth::AuthenticationContext) {
+        debug!("Updating SSE authentication context for service '{}'", self.service_id);
+        self.config.auth = Self::auth_config_from_context(auth_context);
+    }
+
+    /// Convert AuthenticationContext to SseAuthConfig
+    fn auth_config_from_context(auth_context: &crate::auth::AuthenticationContext) -> SseAuthConfig {
+        // Get auth headers from context
+        let auth_headers = auth_context.get_auth_headers(None);
+        
+        // Check for Authorization header (Bearer token or API key)
+        if let Some(auth_header) = auth_headers.get("Authorization") {
+            if auth_header.starts_with("Bearer ") {
+                let token = auth_header.strip_prefix("Bearer ").unwrap_or(auth_header).to_string();
+                debug!("Using Bearer token authentication for SSE client");
+                return SseAuthConfig::Bearer { token };
+            } else if auth_header.starts_with("ApiKey ") {
+                let key = auth_header.strip_prefix("ApiKey ").unwrap_or(auth_header).to_string();
+                debug!("Using API Key authentication for SSE client");
+                return SseAuthConfig::ApiKey { 
+                    header: "Authorization".to_string(), 
+                    key 
+                };
+            } else {
+                // Treat as Bearer token by default
+                debug!("Using Authorization header as Bearer token for SSE client");
+                return SseAuthConfig::Bearer { token: auth_header.clone() };
+            }
+        }
+        
+        // Check for other API key headers
+        for (header_name, header_value) in &auth_headers {
+            if header_name != "Authorization" && header_name != "X-Session-ID" && header_name != "X-User-ID" {
+                debug!("Using custom API key header '{}' for SSE client", header_name);
+                return SseAuthConfig::ApiKey { 
+                    header: header_name.clone(), 
+                    key: header_value.clone() 
+                };
+            }
+        }
+        
+        debug!("No suitable authentication found in context, using None for SSE client");
+        SseAuthConfig::None
+    }
+
+    /// Call a tool with authentication context
+    pub async fn call_tool_with_auth(
+        &self, 
+        tool_name: &str, 
+        arguments: Value, 
+        auth_context: &crate::auth::AuthenticationContext
+    ) -> Result<Value> {
+        // Temporarily update auth config for this request
+        let original_auth = self.config.auth.clone();
+        
+        // Update auth config from context
+        let mut client = self.clone_with_auth(auth_context)?;
+        
+        // Use the auth-enabled client to make the call
+        let result = client.call_tool(tool_name, arguments).await;
+        
+        result
+    }
+
+    /// Call a tool with authentication context and client ID
+    pub async fn call_tool_with_auth_and_client_id(
+        &self, 
+        tool_name: &str, 
+        arguments: Value, 
+        client_id: Option<String>,
+        auth_context: &crate::auth::AuthenticationContext
+    ) -> Result<Value> {
+        // Create a temporary client with updated auth
+        let mut client = self.clone_with_auth(auth_context)?;
+        
+        // Use the auth-enabled client to make the call
+        client.call_tool_with_client_id(tool_name, arguments, client_id).await
+    }
+
+    /// Create a copy of this client with updated authentication
+    fn clone_with_auth(&self, auth_context: &crate::auth::AuthenticationContext) -> Result<Self> {
+        let mut config = self.config.clone();
+        config.auth = Self::auth_config_from_context(auth_context);
+        
+        Self::new(config, self.service_id.clone())
+    }
+
     /// Connect to the SSE service
     pub async fn connect(&self) -> Result<()> {
         let mut state = self.connection_state.write().await;

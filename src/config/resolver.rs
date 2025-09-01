@@ -85,8 +85,13 @@ impl ConfigResolver {
             let content = std::fs::read_to_string(config_path)
                 .map_err(|e| ProxyError::config(format!("Failed to read config file {:?}: {}", config_path, e)))?;
 
-            let config: Config = serde_yaml::from_str(&content)
+            // Use hierarchical config parsing which supports both hierarchical and flat formats
+            use crate::config::hierarchical::HierarchicalConfig;
+            let hierarchical_config = HierarchicalConfig::from_yaml(&content)
                 .map_err(|e| ProxyError::config(format!("Failed to parse config file {:?}: {}", config_path, e)))?;
+            
+            // Convert hierarchical config to flat config for compatibility
+            let config = hierarchical_config.to_flat_config();
             
             debug!("🔧 Config loaded - enhancement_storage present: {}", config.enhancement_storage.is_some());
             debug!("🔧 Security config present: {}", config.security.is_some());

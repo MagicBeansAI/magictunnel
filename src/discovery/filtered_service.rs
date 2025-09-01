@@ -229,6 +229,7 @@ impl FilteredSmartDiscoveryService {
                 confidence_threshold: request.confidence_threshold,
                 include_error_details: request.include_error_details,
                 sequential_mode: request.sequential_mode,
+                auth_context: request.auth_context.clone(),
             };
             
             // Run discovery on filtered tools
@@ -244,6 +245,7 @@ impl FilteredSmartDiscoveryService {
                         confidence_threshold: request.confidence_threshold,
                         include_error_details: request.include_error_details,
                         sequential_mode: request.sequential_mode,
+                        auth_context: request.auth_context.clone(),
                     };
                     self.inner.discover_and_execute(fallback_request).await?
                 }
@@ -260,6 +262,7 @@ impl FilteredSmartDiscoveryService {
                 confidence_threshold: request.confidence_threshold,
                 include_error_details: request.include_error_details,
                 sequential_mode: request.sequential_mode,
+                auth_context: request.auth_context.clone(),
             };
             self.inner.discover_and_execute(original_request).await?
         };

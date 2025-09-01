@@ -3772,12 +3772,36 @@ pub async fn call_tool_handler(
     _registry: web::Data<Arc<RegistryService>>,
     mcp_server: web::Data<Arc<McpServer>>,
 ) -> HttpResponse {
-    // Check authentication with write permission for tool execution
-    if let Err(auth_error) = check_authentication(&req, &mcp_server.auth_middleware, "write").await {
-        return auth_error;
-    }
+    // Extract authentication context for tool execution
+    let auth_result = match check_authentication_context(&req, &mcp_server.auth_middleware, "write").await {
+        Ok(auth_result) => auth_result,
+        Err(auth_error) => return auth_error,
+    };
 
-    match mcp_server.call_tool_with_router(&tool_call).await {
+    // Create AuthenticationContext from AuthenticationResult if available
+    let auth_context = if let Some(auth_result) = auth_result {
+        match crate::auth::AuthenticationContext::from_auth_result(
+            &auth_result,
+            req.headers()
+                .get("mcp-session-id")
+                .and_then(|h| h.to_str().ok())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "http_request".to_string())
+        ) {
+            Ok(ctx) => {
+                debug!("Extracted auth context for tool call '{}': user={}", tool_call.name, ctx.user_id);
+                Some(ctx)
+            }
+            Err(e) => {
+                warn!("Failed to create AuthenticationContext from auth result: {}", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    match mcp_server.call_tool_with_router_and_auth_context(&tool_call, auth_context).await {
         Ok(result) => HttpResponse::Ok().json(result),
         Err(e) => {
             error!("Failed to call tool '{}': {}", tool_call.name, e);
@@ -4581,6 +4605,21 @@ async fn list_tools_from_registry(registry: &Arc<RegistryService>) -> Result<Vec
 impl McpServer {
     pub async fn call_tool_with_router(&self, tool_call: &ToolCall) -> Result<ToolResult> {
         self.call_tool_with_router_and_context(tool_call, None).await
+    }
+    
+    /// Call tool with authentication context (extracted from request)
+    pub async fn call_tool_with_router_and_auth_context(
+        &self, 
+        tool_call: &ToolCall,
+        auth_context: Option<crate::auth::AuthenticationContext>
+    ) -> Result<ToolResult> {
+        debug!("Calling tool '{}' with authentication context: {}", 
+               tool_call.name, 
+               auth_context.as_ref().map(|ctx| ctx.user_id.as_str()).unwrap_or("none"));
+        
+        // Use the standard tool execution method with authentication context
+        debug!("Executing tool with authentication context via standard method");
+        self.call_tool_with_auth(tool_call.clone(), auth_context).await
     }
     
     /// Call tool with security context

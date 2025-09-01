@@ -127,6 +127,55 @@ impl WebSocketMcpClient {
         }
     }
 
+    /// Create a new WebSocket MCP Client with authentication context
+    pub fn new_with_auth(
+        server_name: String,
+        mut config: WebSocketClientConfig,
+        client_config: McpClientConfig,
+        auth_context: &crate::auth::AuthenticationContext,
+    ) -> Self {
+        // Extract authentication headers from context and add to config
+        let auth_headers = auth_context.get_auth_headers(None);
+        for (header_name, header_value) in auth_headers {
+            debug!("Adding auth header to WebSocket config: {} = {}", 
+                header_name, 
+                if header_name == "Authorization" { "[REDACTED]" } else { &header_value });
+            config.auth_headers.insert(header_name, header_value);
+        }
+
+        Self {
+            server_name,
+            config,
+            client_config,
+            websocket: Arc::new(Mutex::new(None)),
+            connection_state: Arc::new(RwLock::new(ConnectionState::Disconnected)),
+            pending_requests: Arc::new(Mutex::new(HashMap::new())),
+            request_forwarder: None,
+            original_client_id: None,
+            connection_start_time: Arc::new(RwLock::new(None)),
+            reconnect_attempts: Arc::new(Mutex::new(0)),
+            message_sender: Arc::new(Mutex::new(None)),
+            shutdown_sender: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    /// Update authentication headers from AuthenticationContext
+    pub fn set_authentication_context(&mut self, auth_context: &crate::auth::AuthenticationContext) {
+        debug!("Updating WebSocket authentication context for server '{}'", self.server_name);
+        
+        // Get all auth headers from the context
+        let auth_headers = auth_context.get_auth_headers(None);
+        
+        // Clear existing auth headers and add new ones
+        self.config.auth_headers.clear();
+        for (header_name, header_value) in auth_headers {
+            debug!("Setting auth header: {} = {}", 
+                header_name, 
+                if header_name == "Authorization" { "[REDACTED]" } else { &header_value });
+            self.config.auth_headers.insert(header_name, header_value);
+        }
+    }
+
     /// Connect to the WebSocket server
     pub async fn connect(&self) -> Result<()> {
         let mut state = self.connection_state.write().await;

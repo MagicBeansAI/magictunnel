@@ -215,6 +215,114 @@ impl HttpMcpClient {
         }
     }
 
+    /// Call a tool with authentication context override
+    pub async fn call_tool_with_auth(
+        &self, 
+        tool_name: &str, 
+        arguments: Value,
+        auth_context: Option<&crate::auth::AuthenticationContext>
+    ) -> Result<Value> {
+        debug!("HTTP Client: Calling tool '{}' with auth context: {}", tool_name, auth_context.is_some());
+        
+        let request = McpRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(json!(Uuid::new_v4().to_string())),
+            method: "tools/call".to_string(),
+            params: Some(json!({
+                "name": tool_name,
+                "arguments": arguments
+            })),
+        };
+
+        let response = self.send_request_with_auth(&request, auth_context).await?;
+        
+        if let Some(result) = response.result {
+            Ok(result)
+        } else if let Some(error) = response.error {
+            Err(ProxyError::mcp(format!("MCP error from service: {}", error.message)))
+        } else {
+            Err(ProxyError::mcp("Empty response from call_tool_with_auth"))
+        }
+    }
+
+    /// Call a tool with both client ID and authentication context
+    pub async fn call_tool_with_client_id_and_auth(
+        &self, 
+        tool_name: &str, 
+        arguments: Value, 
+        client_id: Option<String>,
+        auth_context: Option<&crate::auth::AuthenticationContext>
+    ) -> Result<Value> {
+        debug!("HTTP Client: Calling tool '{}' with client_id: {:?}, auth context: {}", 
+               tool_name, client_id, auth_context.is_some());
+
+        // Create request with client ID included in the params
+        let mut params = json!({
+            "name": tool_name,
+            "arguments": arguments
+        });
+
+        // Add client ID to params if provided
+        if let Some(ref client_id) = client_id {
+            if let Some(params_obj) = params.as_object_mut() {
+                params_obj.insert("client_id".to_string(), json!(client_id));
+            }
+        }
+
+        let request = McpRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(json!(Uuid::new_v4().to_string())),
+            method: "tools/call".to_string(),
+            params: Some(params),
+        };
+
+        let response = self.send_request_with_auth(&request, auth_context).await?;
+        
+        if let Some(result) = response.result {
+            info!("HTTP Client: Tool '{}' executed successfully with client_id: {:?}, auth: {}", 
+                  tool_name, client_id, auth_context.is_some());
+            Ok(result)
+        } else if let Some(error) = response.error {
+            error!("HTTP Client: Tool '{}' failed with client_id {:?}, auth {}: {}", 
+                   tool_name, client_id, auth_context.is_some(), error.message);
+            Err(ProxyError::mcp(format!("MCP error from service: {}", error.message)))
+        } else {
+            Err(ProxyError::mcp("Empty response from call_tool_with_client_id_and_auth"))
+        }
+    }
+
+    /// Send an MCP request with authentication context override
+    async fn send_request_with_auth(
+        &self, 
+        request: &McpRequest,
+        auth_context: Option<&crate::auth::AuthenticationContext>
+    ) -> Result<McpResponse> {
+        let mut attempts = 0;
+        let max_attempts = self.config.retry_attempts + 1;
+
+        while attempts < max_attempts {
+            attempts += 1;
+
+            match self.send_single_request_with_auth(request, auth_context).await {
+                Ok(response) => return Ok(response),
+                Err(e) if attempts < max_attempts && self.is_retryable_error(&e) => {
+                    warn!(
+                        "HTTP MCP request with auth failed (attempt {}/{}): {}. Retrying in {}ms...",
+                        attempts, max_attempts, e, self.config.retry_delay_ms
+                    );
+                    tokio::time::sleep(Duration::from_millis(self.config.retry_delay_ms)).await;
+                    continue;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
+        Err(ProxyError::connection(format!(
+            "HTTP MCP request with auth failed after {} attempts",
+            max_attempts
+        )))
+    }
+
     /// Send an MCP request to the HTTP service
     async fn send_request(&self, request: &McpRequest) -> Result<McpResponse> {
         let mut attempts = 0;
@@ -288,6 +396,143 @@ impl HttpMcpClient {
         );
 
         Ok(mcp_response)
+    }
+
+    /// Send a single HTTP request with authentication context override
+    async fn send_single_request_with_auth(
+        &self, 
+        request: &McpRequest,
+        auth_context: Option<&crate::auth::AuthenticationContext>
+    ) -> Result<McpResponse> {
+        debug!(
+            "Sending HTTP MCP request to {} with auth context {}: method={}, id={:?}",
+            self.service_id, auth_context.is_some(), request.method, request.id
+        );
+
+        // Build the request
+        let mut req_builder = self.http_client
+            .post(self.base_url.clone())
+            .header("Content-Type", "application/json")
+            .json(request);
+
+        // Add authentication (prefer auth context over config)
+        if let Some(auth_ctx) = auth_context {
+            // Check for expired tokens and attempt refresh if needed
+            if let Ok(Some(refreshed_context)) = self.try_refresh_auth_if_needed(auth_ctx).await {
+                debug!("Using refreshed authentication context");
+                req_builder = self.add_authentication_from_context(req_builder, &refreshed_context)?;
+            } else {
+                req_builder = self.add_authentication_from_context(req_builder, auth_ctx)?;
+            }
+        } else {
+            req_builder = self.add_authentication(req_builder)?;
+        }
+
+        // Send the request
+        let response = req_builder
+            .send()
+            .await
+            .map_err(|e| ProxyError::connection(format!("HTTP request with auth failed: {}", e)))?;
+
+        // Check status code
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            
+            // Check for authentication errors that might indicate expired tokens
+            if status == reqwest::StatusCode::UNAUTHORIZED {
+                if let Some(auth_ctx) = auth_context {
+                    warn!("Received 401 Unauthorized, token might be expired for service {}", self.service_id);
+                    // Log expired token information for debugging
+                    for (provider_name, token) in &auth_ctx.provider_tokens {
+                        if token.is_expired() {
+                            warn!("Confirmed: Provider '{}' token is expired", provider_name);
+                        }
+                    }
+                }
+            }
+            
+            return Err(ProxyError::connection(format!(
+                "HTTP {} error from MCP service: {}", 
+                status, error_text
+            )));
+        }
+
+        // Parse JSON response
+        let response_text = response.text().await
+            .map_err(|e| ProxyError::connection(format!("Failed to read response body: {}", e)))?;
+
+        let mcp_response: McpResponse = serde_json::from_str(&response_text)
+            .map_err(|e| ProxyError::mcp(format!("Invalid MCP response JSON: {}", e)))?;
+
+        debug!(
+            "Received HTTP MCP response from {} with auth: id={}, success={}",
+            self.service_id, mcp_response.id, mcp_response.error.is_none()
+        );
+
+        Ok(mcp_response)
+    }
+
+    /// Add authentication headers from AuthenticationContext
+    fn add_authentication_from_context(
+        &self, 
+        mut req_builder: RequestBuilder, 
+        auth_context: &crate::auth::AuthenticationContext
+    ) -> Result<RequestBuilder> {
+        debug!("Adding authentication headers from AuthenticationContext");
+        
+        // Get all auth headers from the context (includes Authorization, X-Session-ID, etc.)
+        let auth_headers = auth_context.get_auth_headers(None);
+        
+        if !auth_headers.is_empty() {
+            // Apply all headers to the request builder
+            for (header_name, header_value) in auth_headers {
+                debug!("Adding auth header: {} = {}", header_name, 
+                    if header_name == "Authorization" { "[REDACTED]" } else { &header_value });
+                req_builder = req_builder.header(&header_name, header_value);
+            }
+            Ok(req_builder)
+        } else {
+            debug!("No authentication headers found in AuthenticationContext, falling back to config");
+            // Fall back to config-based authentication
+            self.add_authentication(req_builder)
+        }
+    }
+
+    /// Check if authentication context needs token refresh and attempt refresh if needed
+    async fn try_refresh_auth_if_needed(
+        &self, 
+        auth_context: &crate::auth::AuthenticationContext
+    ) -> Result<Option<crate::auth::AuthenticationContext>> {
+        // Check if any provider tokens are expired
+        let mut needs_refresh = false;
+        let mut expired_providers = Vec::new();
+        
+        for (provider_name, token) in &auth_context.provider_tokens {
+            if token.is_expired() {
+                debug!("Provider token '{}' is expired, needs refresh", provider_name);
+                needs_refresh = true;
+                expired_providers.push(provider_name.clone());
+                
+                // Check if we have a refresh token available
+                if token.refresh_token.is_none() {
+                    warn!("Provider '{}' token is expired but no refresh token available", provider_name);
+                }
+            }
+        }
+        
+        if !needs_refresh {
+            return Ok(None); // No refresh needed
+        }
+        
+        // For now, we'll return an error indicating refresh is needed
+        // TODO: Integrate with the TokenRefreshService for actual token refresh
+        warn!("Authentication context has expired tokens for providers: {:?}", expired_providers);
+        warn!("Token refresh integration with TokenRefreshService not yet implemented");
+        
+        // Return None to indicate no refresh was performed
+        // The caller should handle the expired token error
+        Ok(None)
     }
 
     /// Add authentication headers to the request

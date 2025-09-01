@@ -94,6 +94,7 @@ async fn test_basic_discovery_requests() {
             confidence_threshold: None,
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         },
         SmartDiscoveryRequest {
             request: "request with context".to_string(),
@@ -102,6 +103,7 @@ async fn test_basic_discovery_requests() {
             confidence_threshold: None,
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         },
         SmartDiscoveryRequest {
             request: "request with preferences".to_string(),
@@ -110,6 +112,7 @@ async fn test_basic_discovery_requests() {
             confidence_threshold: None,
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         },
         SmartDiscoveryRequest {
             request: "request with custom threshold".to_string(),
@@ -118,6 +121,7 @@ async fn test_basic_discovery_requests() {
             confidence_threshold: Some(0.8),
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         },
     ];
     
@@ -178,6 +182,7 @@ async fn test_llm_parameter_mapping_comprehensive() {
             confidence_threshold: None,
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         };
         
         let response = service.discover_and_execute(request).await.unwrap();
@@ -242,6 +247,7 @@ async fn test_fallback_strategies_comprehensive() {
             confidence_threshold: None,
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         };
         
         let response = service.discover_and_execute(request).await.unwrap();
@@ -311,6 +317,7 @@ async fn test_caching_comprehensive() {
             confidence_threshold: None,
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         };
         
         let response = service.discover_and_execute(request).await.unwrap();
@@ -346,6 +353,7 @@ async fn test_caching_comprehensive() {
             confidence_threshold: Some(confidence),
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         };
         
         let response = service.discover_and_execute(request).await.unwrap();
@@ -395,6 +403,7 @@ async fn test_performance_and_concurrency() {
                 confidence_threshold: None,
                 include_error_details: None,
                 sequential_mode: None,
+                auth_context: None,
             };
             
             let response = service_clone.discover_and_execute(request).await.unwrap();
@@ -473,6 +482,7 @@ async fn test_error_handling_comprehensive() {
             confidence_threshold: None,
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         };
         
         let response = service.discover_and_execute(request).await.unwrap();
@@ -497,6 +507,7 @@ async fn test_error_handling_comprehensive() {
             confidence_threshold: Some(threshold),
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         };
         
         let response = service.discover_and_execute(request).await.unwrap();
@@ -549,6 +560,7 @@ async fn test_preferred_tools_comprehensive() {
             confidence_threshold: None,
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         };
         
         let response = service.discover_and_execute(request).await.unwrap();
@@ -609,6 +621,7 @@ async fn test_context_usage_comprehensive() {
             confidence_threshold: None,
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         };
         
         let response = service.discover_and_execute(request).await.unwrap();
@@ -699,6 +712,7 @@ async fn test_service_monitoring_comprehensive() {
             confidence_threshold: None,
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         };
         
         let _response = service.discover_and_execute(request).await.unwrap();
@@ -791,6 +805,7 @@ async fn test_disabled_service_comprehensive() {
             confidence_threshold: None,
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         };
         
         let response = service.discover_and_execute(request).await.unwrap();

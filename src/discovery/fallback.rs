@@ -1061,6 +1061,7 @@ mod tests {
             confidence_threshold: None,
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         };
         
         let result = manager.execute_fallback(&request, &tools, "No matches found");

@@ -701,8 +701,12 @@ impl SmartDiscoveryService {
             let execution_start = Utc::now();
             let execution_start_instant = std::time::Instant::now();
             
-            // Execute the tool using the router
-            match router_opt.as_ref().unwrap().route(&tool_call, &tool_def).await {
+            // Execute the tool using the router with authentication context
+            let auth_context_ref = effective_request.auth_context.as_deref();
+            debug!("🔐 AUTHENTICATION CONTEXT: Tool '{}' executing with auth context: {}", 
+                   best_match.tool_name, auth_context_ref.is_some());
+            
+            match router_opt.as_ref().unwrap().route_with_auth(&tool_call, &tool_def, auth_context_ref).await {
                 Ok(agent_result) => {
                     let duration_ms = execution_start_instant.elapsed().as_millis() as u64;
                     info!("✅ TOOL EXECUTION SUCCESS - Tool: '{}' executed successfully in {}ms", best_match.tool_name, duration_ms);
@@ -2221,6 +2225,7 @@ impl SmartDiscoveryService {
                 confidence_threshold: None,
                 include_error_details: None,
                 sequential_mode: None,
+                auth_context: None,
             };
             
             // Check if tool would match without constraints
@@ -2479,6 +2484,7 @@ impl SmartDiscoveryService {
                             confidence_threshold: None,
                             include_error_details: None,
                             sequential_mode: None,
+                            auth_context: None,
                         }),
                     });
                 }
@@ -2495,6 +2501,7 @@ impl SmartDiscoveryService {
                 confidence_threshold: None,
                 include_error_details: None,
                 sequential_mode: None,
+                auth_context: None,
             };
             
             for (tool_name, tool_def) in tools {
@@ -3132,6 +3139,7 @@ Extract the first step as a simple, clear request:"#,
                 confidence_threshold: request.confidence_threshold,
                 include_error_details: request.include_error_details,
                 sequential_mode: Some(false), // Don't recurse
+                auth_context: request.auth_context.clone(), // Preserve auth context
             });
         }
 

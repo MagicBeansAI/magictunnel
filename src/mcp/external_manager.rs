@@ -1806,6 +1806,225 @@ impl ExternalMcpManager {
         }
     }
 
+    /// Execute tool with authentication context
+    pub async fn execute_tool_with_auth_context(
+        &self,
+        server_name: &str,
+        tool_name: &str,
+        arguments: Value,
+        auth_context: &crate::auth::AuthenticationContext,
+    ) -> Result<Value> {
+        debug!("🔧 [AUTH_CTX] Executing tool '{}' on server '{}' with auth context", tool_name, server_name);
+        let start_time = Instant::now();
+
+        // Check if process exists and is running
+        let processes = self.processes.read().await;
+
+        let process = match processes.get(server_name) {
+            Some(p) => p,
+            None => {
+                let error = format!("External MCP server '{}' not found", server_name);
+                self.metrics_collector.record_request_error(server_name, "server_not_found", "tools/call").await;
+                return Err(ProxyError::mcp(error));
+            }
+        };
+
+        if !process.is_running().await {
+            let error = format!("External MCP server '{}' is not running", server_name);
+            self.metrics_collector.record_request_error(server_name, "server_not_running", "tools/call").await;
+            return Err(ProxyError::connection(error));
+        }
+
+        // Create parameters with auth context information
+        let mut params = json!({
+            "name": tool_name,
+            "arguments": arguments
+        });
+
+        // Add auth context information to the tool call
+        // This allows external MCP servers to access authentication information if they support it
+        if let Some(params_obj) = params.as_object_mut() {
+            // Add user information if available
+            params_obj.insert("_mcp_user_id".to_string(), json!(auth_context.user_id));
+            
+            // Add session information if available  
+            params_obj.insert("_mcp_session_id".to_string(), json!(auth_context.session_id));
+            
+            // Get auth headers from context and add as metadata
+            let auth_headers = auth_context.get_auth_headers(None);
+            if !auth_headers.is_empty() {
+                params_obj.insert("_mcp_auth_headers".to_string(), json!(auth_headers));
+            }
+        }
+
+        debug!("Executing tool '{}' with auth context (user: {})", tool_name, auth_context.user_id);
+
+        match process.send_request("tools/call", Some(params)).await {
+            Ok(response) => {
+                let elapsed_ms = start_time.elapsed().as_millis() as f64;
+                
+                if let Some(error) = response.error {
+                    // Record error in metrics
+                    self.metrics_collector.record_request_error(server_name, "tool_execution_error", "tools/call").await;
+                    
+                    error!("❌ [EXECUTE] Tool '{}' execution failed on server '{}' with auth context: {} ({}ms)", 
+                           tool_name, server_name, error.message, elapsed_ms);
+                    
+                    return Err(ProxyError::tool_execution(
+                        tool_name.to_string(), 
+                        format!("Tool execution failed: {}", error.message)
+                    ));
+                }
+
+                match response.result {
+                    Some(result) => {
+                        // Record successful execution in metrics
+                        self.metrics_collector.record_request_success(server_name, elapsed_ms, "tools/call").await;
+                        
+                        info!("✅ [EXECUTE] Tool '{}' executed successfully on server '{}' with auth context ({}ms)", 
+                              tool_name, server_name, elapsed_ms);
+                        
+                        Ok(result)
+                    }
+                    None => {
+                        // Record error in metrics
+                        self.metrics_collector.record_request_error(server_name, "empty_response", "tools/call").await;
+                        
+                        error!("❌ [EXECUTE] Empty response from tool '{}' on server '{}' with auth context ({}ms)", 
+                               tool_name, server_name, elapsed_ms);
+                        
+                        Err(ProxyError::mcp(format!("Empty response from tool '{}' execution", tool_name)))
+                    }
+                }
+            }
+            Err(e) => {
+                let elapsed_ms = start_time.elapsed().as_millis() as f64;
+                
+                // Record error in metrics
+                self.metrics_collector.record_request_error(server_name, "request_failed", "tools/call").await;
+                
+                error!("❌ [EXECUTE] Tool '{}' request failed on server '{}' with auth context: {} ({}ms)", 
+                       tool_name, server_name, e, elapsed_ms);
+                
+                Err(e)
+            }
+        }
+    }
+
+    /// Execute tool with authentication context and client ID
+    pub async fn execute_tool_with_auth_context_and_client_id(
+        &self,
+        server_name: &str,
+        tool_name: &str,
+        arguments: Value,
+        client_id: &Option<String>,
+        auth_context: &crate::auth::AuthenticationContext,
+    ) -> Result<Value> {
+        debug!("🔧 [AUTH_CTX] Executing tool '{}' on server '{}' with auth context and client_id: {:?}", 
+               tool_name, server_name, client_id);
+        let start_time = Instant::now();
+
+        // Check if process exists and is running
+        let processes = self.processes.read().await;
+
+        let process = match processes.get(server_name) {
+            Some(p) => p,
+            None => {
+                let error = format!("External MCP server '{}' not found", server_name);
+                self.metrics_collector.record_request_error(server_name, "server_not_found", "tools/call").await;
+                return Err(ProxyError::mcp(error));
+            }
+        };
+
+        if !process.is_running().await {
+            let error = format!("External MCP server '{}' is not running", server_name);
+            self.metrics_collector.record_request_error(server_name, "server_not_running", "tools/call").await;
+            return Err(ProxyError::connection(error));
+        }
+
+        // Create parameters with both auth context and client ID
+        let mut params = json!({
+            "name": tool_name,
+            "arguments": arguments
+        });
+
+        if let Some(params_obj) = params.as_object_mut() {
+            // Add client ID if provided
+            if let Some(ref client_id) = client_id {
+                params_obj.insert("client_id".to_string(), json!(client_id));
+                
+                // Also add it at the tool arguments level for servers that expect it there
+                if let Some(args_obj) = params_obj.get_mut("arguments").and_then(|v| v.as_object_mut()) {
+                    args_obj.insert("_mcp_client_id".to_string(), json!(client_id));
+                }
+            }
+
+            // Add auth context information
+            params_obj.insert("_mcp_user_id".to_string(), json!(auth_context.user_id));
+            params_obj.insert("_mcp_session_id".to_string(), json!(auth_context.session_id));
+            
+            // Get auth headers from context and add as metadata
+            let auth_headers = auth_context.get_auth_headers(None);
+            if !auth_headers.is_empty() {
+                params_obj.insert("_mcp_auth_headers".to_string(), json!(auth_headers));
+            }
+        }
+
+        debug!("Executing tool '{}' with auth context (user: {}) and client_id: {:?}", 
+               tool_name, auth_context.user_id, client_id);
+
+        match process.send_request("tools/call", Some(params)).await {
+            Ok(response) => {
+                let elapsed_ms = start_time.elapsed().as_millis() as f64;
+                
+                if let Some(error) = response.error {
+                    // Record error in metrics
+                    self.metrics_collector.record_request_error(server_name, "tool_execution_error", "tools/call").await;
+                    
+                    error!("❌ [EXECUTE] Tool '{}' execution failed on server '{}' with auth context and client_id {:?}: {} ({}ms)", 
+                           tool_name, server_name, client_id, error.message, elapsed_ms);
+                    
+                    return Err(ProxyError::tool_execution(
+                        tool_name.to_string(), 
+                        format!("Tool execution failed: {}", error.message)
+                    ));
+                }
+
+                match response.result {
+                    Some(result) => {
+                        // Record successful execution in metrics
+                        self.metrics_collector.record_request_success(server_name, elapsed_ms, "tools/call").await;
+                        
+                        info!("✅ [EXECUTE] Tool '{}' executed successfully on server '{}' with auth context and client_id {:?} ({}ms)", 
+                              tool_name, server_name, client_id, elapsed_ms);
+                        
+                        Ok(result)
+                    }
+                    None => {
+                        // Record error in metrics
+                        self.metrics_collector.record_request_error(server_name, "empty_response", "tools/call").await;
+                        
+                        error!("❌ [EXECUTE] Empty response from tool '{}' on server '{}' with auth context and client_id {:?} ({}ms)", 
+                               tool_name, server_name, client_id, elapsed_ms);
+                        
+                        Err(ProxyError::mcp(format!("Empty response from tool '{}' execution", tool_name)))
+                    }
+                }
+            }
+            Err(e) => {
+                let elapsed_ms = start_time.elapsed().as_millis() as f64;
+                
+                // Record error in metrics
+                self.metrics_collector.record_request_error(server_name, "request_failed", "tools/call").await;
+                
+                error!("❌ [EXECUTE] Tool '{}' request failed on server '{}' with auth context and client_id {:?}: {} ({}ms)", 
+                       tool_name, server_name, client_id, e, elapsed_ms);
+                
+                Err(e)
+            }
+        }
+    }
+
     /// Get all available tools from all servers
     pub async fn get_all_tools(&self) -> HashMap<String, Vec<Tool>> {
         let capabilities = self.capabilities.read().await;

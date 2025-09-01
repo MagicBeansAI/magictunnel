@@ -5953,32 +5953,9 @@ sanitization:
                 }
             }
         } else {
-            error!("Policy Engine service not available - PolicyEngine must be properly configured in production");
+            error!("Policy Engine service not available - PolicyEngine must be properly configured");
             
-            // Only provide fallback in development/testing environments
-            #[cfg(test)]
-            {
-                warn!("Using mock policy data for testing only");
-                let mock_policy = json!({
-                    "id": policy_id.as_str(),
-                    "name": "[TEST] Sample Policy",
-                    "description": "Test policy - PolicyEngine not configured",
-                    "priority": 75,
-                    "enabled": false,
-                    "conditions": [],
-                    "actions": [],
-                    "created_at": "2024-01-15T10:00:00Z",
-                    "modified_at": "2024-01-15T10:00:00Z"
-                });
-                
-                return Ok(HttpResponse::Ok().json(json!({
-                    "success": true,
-                    "data": mock_policy,
-                    "warning": "Using test data - PolicyEngine not available"
-                })));
-            }
-            
-            // In production, return error instead of mock data
+            // Return proper error without mock data fallback
             Ok(HttpResponse::ServiceUnavailable().json(json!({
                 "success": false,
                 "error": "Policy Engine service is not configured",
@@ -6076,16 +6053,29 @@ sanitization:
         debug!("Getting policy violations with query: {:?}", query);
         
         if let Some(policy_engine) = &self.policy_engine {
-            // Real statistics snapshot; violations list TBD (empty for now)
+            // Get real policy engine statistics
             let stats = policy_engine.get_policy_engine_statistics_snapshot();
-            let violations = json!([]);
+            
+            // Get real violations from audit collector if available
+            let (violations, total, filtered) = if let Some(audit_collector) = &self.audit_collector {
+                match self.get_real_policy_violations(&audit_collector, &query).await {
+                    Ok(violation_data) => violation_data,
+                    Err(e) => {
+                        error!("Failed to retrieve policy violations from audit collector: {}", e);
+                        (json!([]), 0, 0)
+                    }
+                }
+            } else {
+                // No audit collector available - return empty violations
+                (json!([]), 0, 0)
+            };
             
             Ok(HttpResponse::Ok().json(json!({
                 "success": true,
                 "data": {
                     "violations": violations,
-                    "total": 0,
-                    "filtered": 0,
+                    "total": total,
+                    "filtered": filtered,
                     "statistics": stats
                 },
                 "service_status": "Alpha - Policy Engine Active"
@@ -6093,38 +6083,7 @@ sanitization:
         } else {
             error!("Policy Engine service not available - cannot retrieve policy violations without proper PolicyEngine configuration");
             
-            // Only provide fallback in development/testing environments
-            #[cfg(test)]
-            {
-                warn!("Using mock violation data for testing only");
-                let mock_violations = json!([
-                    {
-                        "id": "test_violation_001",
-                        "policy_id": "test_policy",
-                        "policy_name": "[TEST] Mock Security Policy",
-                        "description": "Test violation data - PolicyEngine not configured",
-                        "severity": "info",
-                        "detected_at": chrono::Utc::now().to_rfc3339(),
-                        "context": {
-                            "service_status": "test_mode",
-                            "note": "Mock data for testing only"
-                        }
-                    }
-                ]);
-                
-                return Ok(HttpResponse::Ok().json(json!({
-                    "success": true,
-                    "data": {
-                        "violations": mock_violations,
-                        "total": 1,
-                        "filtered": 1
-                    },
-                    "service_status": "Test Mode - Mock Data",
-                    "warning": "Using test data - PolicyEngine not available"
-                })));
-            }
-            
-            // In production, return error instead of mock data
+            // Return proper error without mock data fallback
             Ok(HttpResponse::ServiceUnavailable().json(json!({
                 "success": false,
                 "error": "Policy Engine service is not configured",
@@ -6276,26 +6235,11 @@ sanitization:
                 }
             }
         } else {
-            // Fallback when ThreatDetectionEngine is not available
-            let mock_rule = json!({
-                "id": rule_id.as_str(),
-                "name": "Fallback Threat Rule",
-                "priority": 50,
-                "enabled": false,
-                "indicators": [
-                    {
-                        "indicator_type": "ServiceUnavailable",
-                        "pattern": "threat_engine_unavailable",
-                        "confidence": 1.0
-                    }
-                ],
-                "service_status": "Threat Detection Engine unavailable"
-            });
-            
-            Ok(HttpResponse::Ok().json(json!({
-                "success": true,
-                "data": mock_rule,
-                "service_status": "Fallback - Threat Detection Engine Unavailable"
+            error!("Threat Detection Engine service not available - cannot retrieve threat detection rules");
+            Ok(HttpResponse::ServiceUnavailable().json(json!({
+                "success": false,
+                "error": "Threat Detection Engine service is not configured",
+                "message": "ThreatDetectionEngine must be properly initialized to retrieve threat detection rules"
             })))
         }
     }
@@ -6672,6 +6616,102 @@ sanitization:
             Ok(HttpResponse::ServiceUnavailable().json(json!({
                 "error": "Policy Engine service not available"
             })))
+        }
+    }
+
+    /// Helper method to get real policy violations from audit collector
+    async fn get_real_policy_violations(
+        &self,
+        audit_collector: &Arc<crate::security::AuditCollector>,
+        query_params: &web::Query<serde_json::Value>
+    ) -> Result<(serde_json::Value, u64, u64)> {
+        use crate::security::audit::storage::AuditQuery;
+        use chrono::Utc;
+        
+        // Parse query parameters for filtering
+        let limit = query_params.get("limit")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(100) as usize;
+        
+        let start_time = query_params.get("since")
+            .and_then(|v| v.as_str())
+            .and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(s)
+                    .map_err(|e| {
+                        warn!("Invalid 'since' parameter format '{}': {}", s, e);
+                        e
+                    })
+                    .ok()
+            })
+            .map(|dt| dt.with_timezone(&Utc));
+        
+        let end_time = query_params.get("until")
+            .and_then(|v| v.as_str())
+            .and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(s)
+                    .map_err(|e| {
+                        warn!("Invalid 'until' parameter format '{}': {}", s, e);
+                        e
+                    })
+                    .ok()
+            })
+            .map(|dt| dt.with_timezone(&Utc));
+        
+        // Build audit query for policy violations
+        let audit_query = AuditQuery {
+            event_types: Some(vec!["policy_violation".to_string()]),
+            components: None,
+            severities: None,
+            user_ids: None,
+            start_time,
+            end_time,
+            search_text: None,
+            limit: Some(limit),
+            offset: None,
+            sort_by: Some("timestamp".to_string()),
+            sort_desc: true,
+            correlation_id: None,
+            metadata_filters: std::collections::HashMap::new(),
+        };
+        
+        // Get security violations from audit collector
+        match audit_collector.get_security_violations(&audit_query).await {
+            Ok(violations) => {
+                // Convert audit events to violation format
+                let violation_json = violations.iter().map(|event| {
+                    json!({
+                        "id": event.id,
+                        "policy_id": event.payload.get("policy_id").unwrap_or(&json!("unknown")),
+                        "policy_name": event.payload.get("policy_name").unwrap_or(&json!("Unknown Policy")),
+                        "description": event.payload.get("description").unwrap_or(&json!(event.message.clone())),
+                        "severity": match event.severity {
+                            crate::security::AuditSeverity::Critical => "critical",
+                            crate::security::AuditSeverity::Error => "error", 
+                            crate::security::AuditSeverity::Warning => "warning",
+                            crate::security::AuditSeverity::Info => "info",
+                            crate::security::AuditSeverity::Debug => "debug"
+                        },
+                        "detected_at": event.timestamp.to_rfc3339(),
+                        "context": {
+                            "user_id": event.metadata.user_id,
+                            "component": event.component,
+                            "correlation_id": event.correlation_id,
+                            "payload": event.payload,
+                            "service_status": "production"
+                        }
+                    })
+                }).collect::<Vec<_>>();
+                
+                let total = violations.len() as u64;
+                let filtered = total; // For now, filtered == total since we apply filters in the query
+                
+                Ok((json!(violation_json), total, filtered))
+            },
+            Err(e) => {
+                error!("Failed to retrieve security violations from audit collector: {}", e);
+                // Return empty result instead of failing
+                Ok((json!([]), 0, 0))
+            }
         }
     }
 

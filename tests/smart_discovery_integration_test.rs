@@ -125,6 +125,7 @@ smart_discovery:
         confidence_threshold: None,
         include_error_details: None,
         sequential_mode: None,
+        auth_context: None,
     };
     
     let file_response = smart_discovery.discover_and_execute(file_request).await.unwrap();
@@ -142,6 +143,7 @@ smart_discovery:
         confidence_threshold: Some(0.5),
         include_error_details: None,
         sequential_mode: None,
+        auth_context: None,
     };
     
     let http_response = smart_discovery.discover_and_execute(http_request).await.unwrap();
@@ -158,6 +160,7 @@ smart_discovery:
         confidence_threshold: None,
         include_error_details: None,
         sequential_mode: None,
+        auth_context: None,
     };
     
     let db_response = smart_discovery.discover_and_execute(db_request).await.unwrap();
@@ -328,6 +331,7 @@ async fn test_smart_discovery_error_handling_integration() {
         confidence_threshold: None,
         include_error_details: Some(true),
         sequential_mode: Some(true),
+        auth_context: None,
     };
     
     let unknown_response = smart_discovery.discover_and_execute(unknown_request).await.unwrap();
@@ -345,6 +349,7 @@ async fn test_smart_discovery_error_handling_integration() {
         confidence_threshold: None,
         include_error_details: Some(true),
         sequential_mode: Some(true),
+        auth_context: None,
     };
     
     let ambiguous_response = smart_discovery.discover_and_execute(ambiguous_request).await.unwrap();
@@ -360,6 +365,7 @@ async fn test_smart_discovery_error_handling_integration() {
         confidence_threshold: None,
         include_error_details: Some(true),
         sequential_mode: Some(true),
+        auth_context: None,
     };
     
     let incomplete_response = smart_discovery.discover_and_execute(incomplete_request).await.unwrap();
@@ -390,6 +396,7 @@ async fn test_smart_discovery_concurrent_load() {
                 confidence_threshold: None,
                 include_error_details: None,
                 sequential_mode: None,
+                auth_context: None,
             };
             
             let response = smart_discovery_clone.discover_and_execute(request).await.unwrap();
@@ -450,6 +457,7 @@ async fn test_smart_discovery_with_capability_categories() {
             confidence_threshold: Some(0.3), // Lower threshold for broader matching
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         };
         
         let response = smart_discovery.discover_and_execute(request).await.unwrap();
@@ -511,6 +519,7 @@ async fn test_smart_discovery_configuration_variations() {
             confidence_threshold: None,
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         };
         
         let response = smart_discovery.discover_and_execute(request).await.unwrap();
@@ -585,6 +594,7 @@ tools:
         confidence_threshold: None,
         include_error_details: None,
         sequential_mode: None,
+        auth_context: None,
     };
     
     let response = smart_discovery.discover_and_execute(request).await.unwrap();
@@ -622,6 +632,7 @@ async fn test_smart_discovery_statistics_monitoring() {
             confidence_threshold: None,
             include_error_details: None,
             sequential_mode: None,
+            auth_context: None,
         };
         
         let _response = smart_discovery.discover_and_execute(request).await.unwrap();
@@ -688,6 +699,7 @@ async fn test_smart_discovery_tool_accuracy() {
             confidence_threshold: Some(0.3),
             include_error_details: Some(true),
             sequential_mode: Some(true),
+            auth_context: None,
         };
         
         let response = smart_discovery.discover_and_execute(request).await.unwrap();
@@ -739,6 +751,7 @@ async fn test_smart_discovery_realistic_workflows() {
             confidence_threshold: Some(0.4),
             include_error_details: Some(true),
             sequential_mode: Some(true),
+            auth_context: None,
         };
         
         let response = smart_discovery.discover_and_execute(request).await.unwrap();
@@ -763,6 +776,7 @@ async fn test_smart_discovery_realistic_workflows() {
             confidence_threshold: Some(0.4),
             include_error_details: Some(true),
             sequential_mode: Some(true),
+            auth_context: None,
         };
         
         let response = smart_discovery.discover_and_execute(request).await.unwrap();
@@ -787,6 +801,7 @@ async fn test_smart_discovery_realistic_workflows() {
             confidence_threshold: Some(0.4),
             include_error_details: Some(true),
             sequential_mode: Some(true),
+            auth_context: None,
         };
         
         let response = smart_discovery.discover_and_execute(request).await.unwrap();
@@ -837,6 +852,7 @@ async fn test_smart_discovery_error_recovery() {
             confidence_threshold: None,
             include_error_details: Some(true),
             sequential_mode: Some(true),
+            auth_context: None,
         };
         
         let response = smart_discovery.discover_and_execute(request).await.unwrap();
@@ -920,7 +936,8 @@ async fn test_smart_discovery_large_registry_simulation() {
             preferred_tools: None,
             confidence_threshold: Some(0.3),
             include_error_details: None,
-            sequential_mode: None
+            sequential_mode: None,
+            auth_context: None,
         };
         
         let response = smart_discovery.discover_and_execute(request).await.unwrap();

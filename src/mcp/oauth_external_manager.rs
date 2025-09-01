@@ -972,6 +972,59 @@ impl OAuthExternalMcpManager {
         Ok(result)
     }
 
+    /// Execute OAuth tool with authentication context
+    pub async fn execute_oauth_tool_with_auth_context(
+        &self,
+        server_name: &str,
+        tool_name: &str,
+        arguments: Value,
+        auth_context: &crate::auth::AuthenticationContext
+    ) -> Result<Value> {
+        info!("🔧 [OAUTH AUTH CTX] Executing OAuth tool '{}' on server '{}' with auth context", tool_name, server_name);
+
+        // For OAuth servers, the connection already has its own OAuth credentials
+        // The additional auth_context might contain user-specific tokens or session info
+        // For now, we'll execute the tool normally but log the auth context presence
+        debug!("OAuth server '{}' tool execution with additional auth context (user: {})", 
+               server_name, auth_context.user_id);
+        
+        // Log auth context usage for audit
+        self.audit_logger.log_mcp_tool_execution(server_name, tool_name, true, true).await;
+        self.audit_logger.log_oauth_token_usage(server_name, "POST", "/mcp/tools/call").await;
+        
+        // Execute using standard OAuth tool execution
+        // TODO: In future versions, we might want to inject auth_context as additional headers
+        // or pass it as context in the tool arguments
+        self.execute_oauth_tool(server_name, tool_name, arguments).await
+    }
+
+    /// Execute OAuth tool with authentication context and client ID
+    pub async fn execute_oauth_tool_with_auth_context_and_client_id(
+        &self,
+        server_name: &str,
+        tool_name: &str,
+        arguments: Value,
+        client_id: &Option<String>,
+        auth_context: &crate::auth::AuthenticationContext
+    ) -> Result<Value> {
+        info!("🔧 [OAUTH AUTH CTX] Executing OAuth tool '{}' on server '{}' with auth context and client_id: {:?}", 
+              tool_name, server_name, client_id);
+
+        // For OAuth servers, the connection already has its own OAuth credentials
+        // The additional auth_context might contain user-specific tokens or session info
+        debug!("OAuth server '{}' tool execution with auth context (user: {}) and client_id: {:?}", 
+               server_name, auth_context.user_id, client_id);
+        
+        // Log auth context usage for audit
+        self.audit_logger.log_mcp_tool_execution(server_name, tool_name, true, true).await;
+        self.audit_logger.log_oauth_token_usage(server_name, "POST", "/mcp/tools/call").await;
+        
+        // Execute using OAuth tool execution with client ID
+        // TODO: In future versions, we might want to inject auth_context as additional headers
+        // or pass it as context in the tool arguments
+        self.execute_oauth_tool_with_client_id(server_name, tool_name, arguments, client_id).await
+    }
+
     /// Execute tool (unified interface for both traditional and OAuth servers)
     pub async fn execute_tool(
         &self,
@@ -1018,6 +1071,63 @@ impl OAuthExternalMcpManager {
         // Fall back to traditional MCP server with client ID
         debug!("🔄 Routing to traditional server with client ID: {}", server_name);
         self.traditional_manager.execute_tool_with_client_id(server_name, tool_name, arguments, client_id).await
+    }
+
+    /// Execute tool with authentication headers (compatibility method for agent router)
+    pub async fn execute_tool_with_auth(
+        &self,
+        tool_name: &str,
+        arguments: &Value,
+        auth_headers: HashMap<String, String>,
+    ) -> Result<Value> {
+        debug!("🔧 [AUTH] Executing tool '{}' with auth headers: {}", tool_name, auth_headers.len());
+        
+        // TODO: This method needs server_name to route to the correct server
+        // For now, return an error indicating that server routing is needed
+        return Err(ProxyError::routing(
+            "execute_tool_with_auth requires server_name parameter for routing".to_string()
+        ));
+    }
+
+    /// Execute tool with authentication context on a specific server
+    pub async fn execute_tool_with_auth_context(
+        &self,
+        server_name: &str,
+        tool_name: &str,
+        arguments: Value,
+        auth_context: &crate::auth::AuthenticationContext,
+    ) -> Result<Value> {
+        debug!("🔧 [AUTH_CTX] Executing tool '{}' on server '{}' with auth context", tool_name, server_name);
+        
+        // Check if it's an OAuth server first
+        if self.is_oauth_server(server_name).await {
+            debug!("Server '{}' is OAuth-enabled, using OAuth execution with auth context", server_name);
+            self.execute_oauth_tool_with_auth_context(server_name, tool_name, arguments, auth_context).await
+        } else {
+            debug!("Server '{}' is traditional, using traditional execution with auth context", server_name);
+            self.traditional_manager.execute_tool_with_auth_context(server_name, tool_name, arguments, auth_context).await
+        }
+    }
+
+    /// Execute tool with authentication context and client ID on a specific server
+    pub async fn execute_tool_with_auth_context_and_client_id(
+        &self,
+        server_name: &str,
+        tool_name: &str,
+        arguments: Value,
+        client_id: &Option<String>,
+        auth_context: &crate::auth::AuthenticationContext,
+    ) -> Result<Value> {
+        debug!("🔧 [AUTH_CTX] Executing tool '{}' on server '{}' with auth context and client_id: {:?}", tool_name, server_name, client_id);
+        
+        // Check if it's an OAuth server first
+        if self.is_oauth_server(server_name).await {
+            debug!("Server '{}' is OAuth-enabled, using OAuth execution with auth context and client_id", server_name);
+            self.execute_oauth_tool_with_auth_context_and_client_id(server_name, tool_name, arguments, client_id, auth_context).await
+        } else {
+            debug!("Server '{}' is traditional, using traditional execution with auth context and client_id", server_name);
+            self.traditional_manager.execute_tool_with_auth_context_and_client_id(server_name, tool_name, arguments, client_id, auth_context).await
+        }
     }
 
     /// Get all tools from both traditional and OAuth servers
