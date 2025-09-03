@@ -391,6 +391,7 @@ mod tests {
         
         let config = EmergencyLockdownConfig {
             state_file_path: state_file,
+            authorized_users: vec!["test_admin".to_string()],
             ..Default::default()
         };
 
@@ -421,6 +422,7 @@ mod tests {
         
         let config = EmergencyLockdownConfig {
             state_file_path: state_file,
+            authorized_users: vec!["test_admin".to_string()],
             ..Default::default()
         };
 
@@ -475,6 +477,7 @@ mod tests {
         
         let config = EmergencyLockdownConfig {
             state_file_path: state_file,
+            authorized_users: vec!["test_admin".to_string()],
             ..Default::default()
         };
 

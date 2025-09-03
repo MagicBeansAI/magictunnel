@@ -300,14 +300,16 @@ async fn validate_routing_configurations(yaml_file: &Path) -> Result<(), String>
                             // Validate routing type values
                             if let Some(routing_type) = routing_obj.get("type").and_then(|t| t.as_str()) {
                                 let basic_types = ["http", "grpc", "graphql", "websocket", "subprocess", "lambda"];
+                                let smart_types = ["smart_discovery"]; // Special routing types for AI-powered tools
                                 let valid_prefixes = ["enhanced_", "ai_", "external_"];
                                 
                                 let is_valid = basic_types.contains(&routing_type) ||
+                                    smart_types.contains(&routing_type) ||
                                     valid_prefixes.iter().any(|prefix| routing_type.starts_with(prefix));
                                 
                                 if !is_valid {
-                                    return Err(format!("Tool '{}' has invalid routing type: {}. Must be a basic type ({}) or start with enhanced_, ai_, or external_", 
-                                        tool_name, routing_type, basic_types.join(", ")));
+                                    return Err(format!("Tool '{}' has invalid routing type: {}. Must be a basic type ({}), smart type ({}), or start with enhanced_, ai_, or external_", 
+                                        tool_name, routing_type, basic_types.join(", "), smart_types.join(", ")));
                                 }
                             }
                         }

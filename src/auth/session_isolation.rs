@@ -7,6 +7,7 @@
 use crate::auth::{RemoteUserContext, ClientIdentity, TokenStorage, AuthenticationResult};
 use crate::error::{Result, ProxyError};
 use actix_web::HttpRequest;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
@@ -217,26 +218,24 @@ pub struct CleanupStats {
 }
 
 /// Token storage factory trait
+#[async_trait::async_trait]
 pub trait TokenStorageFactory: Send + Sync + std::fmt::Debug {
     /// Create token storage for remote user context
-    fn create_token_storage(&self, remote_context: &RemoteUserContext) -> Result<Arc<TokenStorage>>;
+    async fn create_token_storage(&self, remote_context: &RemoteUserContext) -> Result<Arc<TokenStorage>>;
 }
 
 /// Default token storage factory implementation
 #[derive(Debug)]
 pub struct DefaultTokenStorageFactory;
 
+#[async_trait::async_trait]
 impl TokenStorageFactory for DefaultTokenStorageFactory {
-    fn create_token_storage(&self, remote_context: &RemoteUserContext) -> Result<Arc<TokenStorage>> {
+    async fn create_token_storage(&self, remote_context: &RemoteUserContext) -> Result<Arc<TokenStorage>> {
         // Use the remote context's user context for token storage
         let user_context = remote_context.to_user_context();
         
         // Create token storage with the modified user context
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                TokenStorage::new(user_context).await.map(Arc::new)
-            })
-        })
+        TokenStorage::new(user_context).await.map(Arc::new)
     }
 }
 
@@ -313,7 +312,7 @@ impl IsolatedSessionManager {
 
         // Create client-specific token storage
         let token_storage = if self.config.strict_client_validation {
-            Some(self.token_storage_factory.create_token_storage(&remote_context)?)
+            Some(self.token_storage_factory.create_token_storage(&remote_context).await?)
         } else {
             None
         };

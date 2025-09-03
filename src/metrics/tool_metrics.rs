@@ -364,6 +364,28 @@ impl ToolMetricsCollector {
     /// Create a new tool metrics collector with persistent storage
     pub async fn new_with_storage<P: AsRef<Path>>(max_history_size: usize, storage_path: P) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let storage_path_str = storage_path.as_ref().to_string_lossy().to_string();
+        let storage_path_ref = storage_path.as_ref();
+        
+        // Validate that we can write to the storage path by checking parent directory
+        if let Some(parent_dir) = storage_path_ref.parent() {
+            // Check if parent directory exists or can be created
+            if !parent_dir.exists() {
+                // Try to create the parent directory
+                if let Err(e) = tokio::fs::create_dir_all(parent_dir).await {
+                    return Err(format!("Cannot create storage directory {}: {}", parent_dir.display(), e).into());
+                }
+            }
+            
+            // Verify the parent directory is writable by attempting a test file
+            let test_file = parent_dir.join(".write_test");
+            if let Err(e) = tokio::fs::write(&test_file, b"test").await {
+                return Err(format!("Storage path {} is not writable: {}", parent_dir.display(), e).into());
+            }
+            // Clean up test file
+            let _ = tokio::fs::remove_file(&test_file).await;
+        } else {
+            return Err(format!("Invalid storage path: {}", storage_path_ref.display()).into());
+        }
         
         let mut collector = Self {
             tool_metrics: Arc::new(RwLock::new(HashMap::new())),

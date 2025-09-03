@@ -160,10 +160,14 @@ mod phase_2b_tests {
     fn test_notification_capabilities() {
         // Test default notification capabilities
         let capabilities = NotificationCapabilities::default();
-        assert!(capabilities.resources_list_changed);
-        assert!(capabilities.prompts_list_changed);
-        assert!(capabilities.tools_list_changed);
-        assert!(capabilities.resource_subscriptions);
+        
+        // These are not yet implemented (as documented in the source)
+        assert!(!capabilities.resources_list_changed, "resources_list_changed should be false (not implemented)");
+        assert!(!capabilities.prompts_list_changed, "prompts_list_changed should be false (not implemented)");
+        assert!(!capabilities.resource_subscriptions, "resource_subscriptions should be false (not exposed via MCP protocol)");
+        
+        // This is implemented
+        assert!(capabilities.tools_list_changed, "tools_list_changed should be true (implemented)");
     }
 
     #[test]

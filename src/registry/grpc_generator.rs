@@ -37,8 +37,6 @@ pub enum StreamingStrategy {
 enum GrpcNamingStrategy {
     /// Standard service_method format
     ServiceMethod,
-    /// Domain-action format (e.g., user_get, order_create)
-    DomainAction,
     /// Hierarchical path including package (e.g., api_user_service_get)
     HierarchicalPath,
     /// Streaming-aware naming with type suffix
@@ -992,12 +990,6 @@ impl GrpcCapabilityGenerator {
                     self.normalize_method_name(&method.name)
                 )
             },
-            GrpcNamingStrategy::DomainAction => {
-                // Extract domain and action for semantic naming
-                let domain = self.extract_domain_from_service(&service.name);
-                let action = self.extract_action_from_method(&method.name);
-                format!("{}_{}", domain, action)
-            },
             GrpcNamingStrategy::HierarchicalPath => {
                 // Use package namespace + service + method
                 if !service.package.is_empty() {
@@ -1040,33 +1032,27 @@ impl GrpcCapabilityGenerator {
     
     /// Determine the best naming strategy for this service/method combination
     fn determine_naming_strategy(&self, service: &GrpcService, method: &GrpcMethod) -> GrpcNamingStrategy {
-        // Use streaming-aware naming for streaming methods
+        // Use streaming-aware naming for streaming methods to distinguish streaming operations
         if method.client_streaming || method.server_streaming {
             return GrpcNamingStrategy::StreamingAware;
         }
         
-        // Use hierarchical path if service has complex package structure
+        // Use hierarchical path if service has very complex package structure
         if !service.package.is_empty() {
-            if service.package.contains('.') && service.package.len() > 10 {
+            if service.package.contains('.') && service.package.len() > 15 {
                 return GrpcNamingStrategy::HierarchicalPath;
             }
         }
         
-        // Use domain-action for CRUD-like operations
-        if self.is_crud_like_method(&method.name) {
-            return GrpcNamingStrategy::DomainAction;
-        }
-        
-        // Default to service.method naming
+        // Default to service.method naming for predictable and explicit tool names
+        // This provides the most transparent mapping between gRPC service/method and tool names
         GrpcNamingStrategy::ServiceMethod
     }
     
     /// Normalize service name for tool naming
     fn normalize_service_name(&self, service_name: &str) -> String {
+        // Keep the full service name but normalize casing and special characters
         service_name
-            .trim_end_matches("Service")
-            .trim_end_matches("API")
-            .trim_end_matches("Grpc")
             .to_lowercase()
             .replace('-', "_")
             .replace('.', "_")
@@ -1080,54 +1066,6 @@ impl GrpcCapabilityGenerator {
             .replace('.', "_")
     }
     
-    /// Extract domain concept from service name
-    fn extract_domain_from_service(&self, service_name: &str) -> String {
-        let normalized = self.normalize_service_name(service_name);
-        
-        // Handle common service patterns
-        if normalized.contains("user") { "user".to_string() }
-        else if normalized.contains("auth") { "auth".to_string() }
-        else if normalized.contains("order") { "order".to_string() }
-        else if normalized.contains("product") { "product".to_string() }
-        else if normalized.contains("payment") { "payment".to_string() }
-        else if normalized.contains("inventory") { "inventory".to_string() }
-        else if normalized.contains("notification") { "notification".to_string() }
-        else if normalized.contains("file") { "file".to_string() }
-        else { normalized }
-    }
-    
-    /// Extract action from method name
-    fn extract_action_from_method(&self, method_name: &str) -> String {
-        let normalized = method_name.to_lowercase();
-        
-        // Map common method patterns to actions
-        if normalized.starts_with("get") || normalized.starts_with("fetch") || normalized.starts_with("retrieve") {
-            "get".to_string()
-        } else if normalized.starts_with("create") || normalized.starts_with("add") || normalized.starts_with("insert") {
-            "create".to_string()
-        } else if normalized.starts_with("update") || normalized.starts_with("modify") || normalized.starts_with("edit") {
-            "update".to_string()
-        } else if normalized.starts_with("delete") || normalized.starts_with("remove") {
-            "delete".to_string()
-        } else if normalized.starts_with("list") || normalized.starts_with("search") || normalized.starts_with("find") {
-            "list".to_string()
-        } else if normalized.starts_with("upload") {
-            "upload".to_string()
-        } else if normalized.starts_with("download") {
-            "download".to_string()
-        } else {
-            normalized.replace('-', "_").replace('.', "_")
-        }
-    }
-    
-    /// Check if method follows CRUD-like naming patterns
-    fn is_crud_like_method(&self, method_name: &str) -> bool {
-        let normalized = method_name.to_lowercase();
-        let crud_prefixes = ["get", "fetch", "retrieve", "create", "add", "insert", 
-                           "update", "modify", "edit", "delete", "remove", "list", "search", "find"];
-        
-        crud_prefixes.iter().any(|prefix| normalized.starts_with(prefix))
-    }
 
     /// Generate input schema for gRPC method with protobuf message analysis
     pub fn generate_input_schema(&self, method: &GrpcMethod) -> Result<Value> {

@@ -255,12 +255,21 @@ impl ClientIdentityExtractor {
             .realip_remote_addr()
             .unwrap_or_else(|| connection_info.peer_addr().unwrap_or("127.0.0.1:0"));
             
-        let socket_addr: std::net::SocketAddr = client_addr
-            .parse()
-            .map_err(|e| ProxyError::auth(format!("Invalid client address {}: {}", client_addr, e)))?;
-            
-        let client_ip = socket_addr.ip();
-        let client_port = if socket_addr.port() == 0 { None } else { Some(socket_addr.port()) };
+        // Handle both socket address format (IP:PORT) and just IP format
+        let (client_ip, client_port) = if client_addr.contains(':') {
+            // Parse as socket address
+            let socket_addr: std::net::SocketAddr = client_addr
+                .parse()
+                .map_err(|e| ProxyError::auth(format!("Invalid client address {}: {}", client_addr, e)))?;
+            let port = if socket_addr.port() == 0 { None } else { Some(socket_addr.port()) };
+            (socket_addr.ip(), port)
+        } else {
+            // Parse as just IP address
+            let ip_addr: IpAddr = client_addr
+                .parse()
+                .map_err(|e| ProxyError::auth(format!("Invalid client IP address {}: {}", client_addr, e)))?;
+            (ip_addr, None)
+        };
 
         // Extract standard identity headers
         let client_headers = self.extract_identity_headers(req);
@@ -522,8 +531,10 @@ impl ClientIdentityExtractor {
                                 // Check for NAT or proxy scenarios
                                 if mcp_ip != client_identity.client_ip {
                                     if self.is_private_ip(&mcp_ip) && !self.is_private_ip(&client_identity.client_ip) {
-                                        // Client behind NAT - this is normal
+                                        // Client behind NAT - warn about potential mismatch
+                                        warnings.push("IP address mismatch: client reports private IP but connects from public IP".to_string());
                                         trace!("Client behind NAT: reported {} vs actual {}", mcp_ip, client_identity.client_ip);
+                                        *confidence_score -= 0.1;
                                     } else if client_identity.forwarded_info.is_some() {
                                         // Client behind proxy - validate against forwarded info
                                         trace!("Client behind proxy: validating forwarded info");

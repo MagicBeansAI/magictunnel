@@ -1,0 +1,30 @@
+# Test allowlist data file for multi-mode services tests
+
+# Global configuration
+version: "1.0"
+default_action: deny
+emergency_lockdown: false
+
+# Tool-specific rules - empty for tests
+tools: {}
+
+# Tool pattern rules - empty for tests  
+tool_patterns: []
+
+# Capability-specific rules - empty for tests
+capabilities: {}
+
+# Capability pattern rules - empty for tests
+capability_patterns: []
+
+# Global patterns - empty for tests
+global_patterns: []
+
+# MagicTunnel level rules - empty for tests
+mt_level_rules: {}
+
+# Metadata
+metadata:
+  created: "2024-01-01T00:00:00Z"
+  description: "Test allowlist configuration for multi-mode services tests"
+  environment: "test"

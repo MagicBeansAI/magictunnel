@@ -426,6 +426,8 @@ impl GraphQLCapabilityGenerator {
 
         // Parse Mutation type
         if let Some(mutation_operations) = self.extract_operations_from_sdl(&merged_schema, "Mutation")? {
+            #[cfg(test)]
+            eprintln!("DEBUG: Adding {} Mutation operations", mutation_operations.len());
             operations.extend(mutation_operations);
         }
 
@@ -5108,7 +5110,11 @@ impl GraphQLCapabilityGenerator {
 
                 if end_pos > 0 {
                     let type_content = &content[..end_pos];
+                    #[cfg(test)]
+                    eprintln!("DEBUG: Parsing {} operations from type content ({} chars)", type_name, type_content.len());
                     operations = self.parse_operations_from_type_content(type_content, type_name)?;
+                    #[cfg(test)]
+                    eprintln!("DEBUG: Found {} operations for {}", operations.len(), type_name);
                 }
             }
         }
@@ -8298,15 +8304,19 @@ mod tests {
         assert!(result.is_ok());
 
         let capability_file = result.unwrap();
-        assert_eq!(capability_file.tools.len(), 5); // 3 queries + 2 mutations
+        
+        // Get enhanced tools
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+        assert_eq!(tools.len(), 5); // 3 queries + 2 mutations
 
-        // Check that tools have correct names
-        let tool_names: Vec<&str> = capability_file.tools.iter().map(|t| t.name.as_str()).collect();
-        assert!(tool_names.contains(&"ping"));
-        assert!(tool_names.contains(&"getUser"));
-        assert!(tool_names.contains(&"listUsers"));
-        assert!(tool_names.contains(&"createUser"));
-        assert!(tool_names.contains(&"updateUser"));
+        // Check that tools have correct names (with enhanced prefix)
+        let tool_names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
+        assert!(tool_names.contains(&"enhanced_ping"));
+        assert!(tool_names.contains(&"enhanced_getuser"));
+        assert!(tool_names.contains(&"enhanced_listusers"));
+        assert!(tool_names.contains(&"enhanced_createuser"));
+        assert!(tool_names.contains(&"enhanced_updateuser"));
     }
 
     #[test]
@@ -8417,22 +8427,24 @@ mod tests {
 
         let capability_file = result.unwrap();
 
+        // Get enhanced tools
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+
         // The real schema should have many operations
-        assert!(capability_file.tools.len() > 100, "Expected many tools from real schema, got {}", capability_file.tools.len());
+        assert!(tools.len() > 100, "Expected many tools from real schema, got {}", tools.len());
 
         // Check that tools have proper routing configuration
-        if let Some(first_tool) = capability_file.tools.first() {
-            assert_eq!(first_tool.routing.routing_type(), "http");
-            assert!(first_tool.routing.config.get("method").is_some());
-            assert!(first_tool.routing.config.get("url").is_some());
+        if let Some(first_tool) = tools.first() {
+            assert_eq!(first_tool.execution.routing.r#type, "enhanced_graphql");
         }
 
-        // Check metadata
-        assert!(capability_file.metadata.is_some());
-        let metadata = capability_file.metadata.as_ref().unwrap();
-        assert_eq!(metadata.name, Some("GraphQL API".to_string()));
-        assert!(metadata.description.is_some());
-        assert_eq!(metadata.version, Some("1.0.0".to_string()));
+        // Check metadata - enhanced capability files use enhanced_metadata
+        assert!(capability_file.enhanced_metadata.is_some());
+        let metadata = capability_file.enhanced_metadata.as_ref().unwrap();
+        assert_eq!(metadata.name, "enhanced-graphql-api-apiexamplecom-graphql");
+        assert!(!metadata.description.is_empty());
+        assert_eq!(metadata.version, "3.0.0");
     }
 
     #[test]
@@ -8449,23 +8461,25 @@ mod tests {
 
         let capability_file = result.unwrap();
 
+        // Get enhanced tools
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+
         // The introspection should have some operations
-        assert!(capability_file.tools.len() > 0, "Expected some tools from introspection, got {}", capability_file.tools.len());
+        assert!(tools.len() > 0, "Expected some tools from introspection, got {}", tools.len());
 
         // Check that tools have proper routing configuration
-        if let Some(first_tool) = capability_file.tools.first() {
-            assert_eq!(first_tool.routing.routing_type(), "http");
-            assert!(first_tool.routing.config.get("method").is_some());
-            assert!(first_tool.routing.config.get("url").is_some());
-            assert!(first_tool.name.starts_with("introspection_"));
+        if let Some(first_tool) = tools.first() {
+            assert_eq!(first_tool.execution.routing.r#type, "enhanced_graphql");
+            assert!(first_tool.name.starts_with("enhanced_introspection_"));
         }
 
-        // Check metadata
-        assert!(capability_file.metadata.is_some());
-        let metadata = capability_file.metadata.as_ref().unwrap();
-        assert_eq!(metadata.name, Some("GraphQL API".to_string()));
-        assert!(metadata.description.is_some());
-        assert_eq!(metadata.version, Some("1.0.0".to_string()));
+        // Check metadata - enhanced capability files use enhanced_metadata
+        assert!(capability_file.enhanced_metadata.is_some());
+        let metadata = capability_file.enhanced_metadata.as_ref().unwrap();
+        assert_eq!(metadata.name, "enhanced-graphql-api-apiexamplecom-graphql");
+        assert!(!metadata.description.is_empty());
+        assert_eq!(metadata.version, "3.0.0");
     }
 
     #[test]
@@ -8677,25 +8691,29 @@ type User {
 "#;
 
         let capability_file = generator.generate_from_sdl(schema).unwrap();
-        assert_eq!(capability_file.tools.len(), 3);
+        
+        // Get enhanced tools
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+        assert_eq!(tools.len(), 3);
 
         // Check simple operation (no arguments)
-        let simple_tool = &capability_file.tools[0];
-        assert_eq!(simple_tool.name, "simple");
-        assert_eq!(simple_tool.input_schema["properties"].as_object().unwrap().len(), 0);
+        let simple_tool = &tools[0];
+        assert_eq!(simple_tool.name, "enhanced_simple");
+        assert_eq!(simple_tool.core.input_schema["properties"].as_object().unwrap().len(), 0);
 
-        // Check withArgs operation (should have 2 arguments)
-        let with_args_tool = &capability_file.tools[1];
-        assert_eq!(with_args_tool.name, "withArgs");
-        let properties = with_args_tool.input_schema["properties"].as_object().unwrap();
+        // Check withArgs operation (should have 2 arguments)  
+        let with_args_tool = &tools[1];
+        assert_eq!(with_args_tool.name, "enhanced_withargs");
+        let properties = with_args_tool.core.input_schema["properties"].as_object().unwrap();
         assert_eq!(properties.len(), 2);
         assert!(properties.contains_key("id"));
         assert!(properties.contains_key("name"));
 
         // Check multiLine operation (should have 2 arguments)
-        let multi_line_tool = &capability_file.tools[2];
-        assert_eq!(multi_line_tool.name, "multiLine");
-        let properties = multi_line_tool.input_schema["properties"].as_object().unwrap();
+        let multi_line_tool = &tools[2];
+        assert_eq!(multi_line_tool.name, "enhanced_multiline");
+        let properties = multi_line_tool.core.input_schema["properties"].as_object().unwrap();
         assert_eq!(properties.len(), 2);
         assert!(properties.contains_key("names"));
         assert!(properties.contains_key("ages"));
@@ -8714,22 +8732,26 @@ type User {
 
         let capability_file = generator.generate_from_sdl(&schema_content).unwrap();
 
+        // Get enhanced tools
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+
         // Debug: print all tool names
-        println!("Generated tools: {:?}", capability_file.tools.iter().map(|t| &t.name).collect::<Vec<_>>());
+        println!("Generated tools: {:?}", tools.iter().map(|t| &t.name).collect::<Vec<_>>());
 
         // Should have searchUsers as a single tool, not separate names/ages/tags/filters tools
-        let search_users_tool = capability_file.tools.iter().find(|t| t.name == "list_searchUsers");
+        let search_users_tool = tools.iter().find(|t| t.name == "enhanced_list_searchusers");
         assert!(search_users_tool.is_some(), "searchUsers tool should exist");
 
         // Should NOT have separate tools for arguments
-        assert!(capability_file.tools.iter().find(|t| t.name == "list_names").is_none(), "names should not be a separate tool");
-        assert!(capability_file.tools.iter().find(|t| t.name == "list_ages").is_none(), "ages should not be a separate tool");
-        assert!(capability_file.tools.iter().find(|t| t.name == "list_tags").is_none(), "tags should not be a separate tool");
-        assert!(capability_file.tools.iter().find(|t| t.name == "list_filters").is_none(), "filters should not be a separate tool");
+        assert!(tools.iter().find(|t| t.name == "enhanced_list_names").is_none(), "names should not be a separate tool");
+        assert!(tools.iter().find(|t| t.name == "enhanced_list_ages").is_none(), "ages should not be a separate tool");
+        assert!(tools.iter().find(|t| t.name == "enhanced_list_tags").is_none(), "tags should not be a separate tool");
+        assert!(tools.iter().find(|t| t.name == "enhanced_list_filters").is_none(), "filters should not be a separate tool");
 
         // Check that searchUsers has the correct arguments
         let search_users_tool = search_users_tool.unwrap();
-        let properties = search_users_tool.input_schema["properties"].as_object().unwrap();
+        let properties = search_users_tool.core.input_schema["properties"].as_object().unwrap();
         assert_eq!(properties.len(), 4, "searchUsers should have 4 arguments but has {}: {:?}",
                    properties.len(), properties.keys().collect::<Vec<_>>());
         assert!(properties.contains_key("names"), "searchUsers should have names argument");
@@ -8751,15 +8773,19 @@ type User {
 
         let capability_file = generator.generate_from_sdl(&schema_content).unwrap();
 
+        // Get enhanced tools
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+
         // Debug: print all tool names
-        println!("Generated tools: {:?}", capability_file.tools.iter().map(|t| &t.name).collect::<Vec<_>>());
+        println!("Generated tools: {:?}", tools.iter().map(|t| &t.name).collect::<Vec<_>>());
 
         // Should have operations that use Input Object types
-        let search_users_tool = capability_file.tools.iter().find(|t| t.name == "input_searchUsers");
+        let search_users_tool = tools.iter().find(|t| t.name == "enhanced_input_searchusers");
         assert!(search_users_tool.is_some(), "searchUsers tool should exist");
 
         let search_users_tool = search_users_tool.unwrap();
-        let properties = search_users_tool.input_schema["properties"].as_object().unwrap();
+        let properties = search_users_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Should have list arguments (names, ages, tags, filters)
         assert!(properties.contains_key("names"), "searchUsers should have names argument");
@@ -8772,11 +8798,11 @@ type User {
         assert_eq!(names_schema["type"], "array", "names should be array type");
 
         // Test updateProfile operation with input object
-        let update_profile_tool = capability_file.tools.iter().find(|t| t.name == "input_updateProfile");
+        let update_profile_tool = tools.iter().find(|t| t.name == "enhanced_input_updateprofile");
         assert!(update_profile_tool.is_some(), "updateProfile tool should exist");
 
         let update_profile_tool = update_profile_tool.unwrap();
-        let properties = update_profile_tool.input_schema["properties"].as_object().unwrap();
+        let properties = update_profile_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Should have input argument
         assert!(properties.contains_key("input"), "updateProfile should have input argument");
@@ -8800,15 +8826,19 @@ type User {
 
         let capability_file = generator.generate_from_introspection(&introspection_content).unwrap();
 
+        // Get enhanced tools
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+
         // Debug: print all tool names
-        println!("Generated tools from introspection: {:?}", capability_file.tools.iter().map(|t| &t.name).collect::<Vec<_>>());
+        println!("Generated tools from introspection: {:?}", tools.iter().map(|t| &t.name).collect::<Vec<_>>());
 
         // Should have searchUsers operation
-        let search_users_tool = capability_file.tools.iter().find(|t| t.name == "introspection_searchUsers");
+        let search_users_tool = tools.iter().find(|t| t.name == "enhanced_introspection_searchusers");
         assert!(search_users_tool.is_some(), "searchUsers tool should exist");
 
         let search_users_tool = search_users_tool.unwrap();
-        let properties = search_users_tool.input_schema["properties"].as_object().unwrap();
+        let properties = search_users_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Should have list arguments (names, ages, tags, filters)
         assert!(properties.contains_key("names"), "searchUsers should have names argument");
@@ -8821,11 +8851,11 @@ type User {
         assert_eq!(names_schema["type"], "array", "names should be array type");
 
         // Test createUser operation with input object
-        let create_user_tool = capability_file.tools.iter().find(|t| t.name == "introspection_createUser");
+        let create_user_tool = tools.iter().find(|t| t.name == "enhanced_introspection_createuser");
         assert!(create_user_tool.is_some(), "createUser tool should exist");
 
         let create_user_tool = create_user_tool.unwrap();
-        let properties = create_user_tool.input_schema["properties"].as_object().unwrap();
+        let properties = create_user_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Should have input argument
         assert!(properties.contains_key("input"), "createUser should have input argument");
@@ -8848,15 +8878,19 @@ type User {
 
         let capability_file = generator.generate_from_sdl(&schema_content).unwrap();
 
+        // Get enhanced tools
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+
         // Debug: print all tool names
-        println!("Generated tools: {:?}", capability_file.tools.iter().map(|t| &t.name).collect::<Vec<_>>());
+        println!("Generated tools: {:?}", tools.iter().map(|t| &t.name).collect::<Vec<_>>());
 
         // Should have operations that use Enum types
-        let get_character_tool = capability_file.tools.iter().find(|t| t.name == "enum_getCharacter");
+        let get_character_tool = tools.iter().find(|t| t.name == "enhanced_enum_getcharacter");
         assert!(get_character_tool.is_some(), "getCharacter tool should exist");
 
         let get_character_tool = get_character_tool.unwrap();
-        let properties = get_character_tool.input_schema["properties"].as_object().unwrap();
+        let properties = get_character_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Should have episode argument of type Episode (Enum)
         assert!(properties.contains_key("episode"), "getCharacter should have episode argument");
@@ -8876,11 +8910,11 @@ type User {
         assert!(enum_strings.contains(&"JEDI"), "Episode enum should contain JEDI");
 
         // Test getUsers operation with multiple enum arguments
-        let get_users_tool = capability_file.tools.iter().find(|t| t.name == "enum_getUsers");
+        let get_users_tool = tools.iter().find(|t| t.name == "enhanced_enum_getusers");
         assert!(get_users_tool.is_some(), "getUsers tool should exist");
 
         let get_users_tool = get_users_tool.unwrap();
-        let properties = get_users_tool.input_schema["properties"].as_object().unwrap();
+        let properties = get_users_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Should have status and role arguments (both optional enums)
         assert!(properties.contains_key("status"), "getUsers should have status argument");
@@ -8910,15 +8944,19 @@ type User {
 
         let capability_file = generator.generate_from_introspection(&introspection_content).unwrap();
 
+        // Get enhanced tools
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+
         // Debug: print all tool names
-        println!("Generated tools from introspection: {:?}", capability_file.tools.iter().map(|t| &t.name).collect::<Vec<_>>());
+        println!("Generated tools from introspection: {:?}", tools.iter().map(|t| &t.name).collect::<Vec<_>>());
 
         // Should have getCharacter operation
-        let get_character_tool = capability_file.tools.iter().find(|t| t.name == "introspection_getCharacter");
+        let get_character_tool = tools.iter().find(|t| t.name == "enhanced_introspection_getcharacter");
         assert!(get_character_tool.is_some(), "getCharacter tool should exist");
 
         let get_character_tool = get_character_tool.unwrap();
-        let properties = get_character_tool.input_schema["properties"].as_object().unwrap();
+        let properties = get_character_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Should have episode argument of type Episode (Enum)
         assert!(properties.contains_key("episode"), "getCharacter should have episode argument");
@@ -8938,11 +8976,11 @@ type User {
         assert!(enum_strings.contains(&"JEDI"), "Episode enum should contain JEDI");
 
         // Test getUsers operation with multiple enum arguments
-        let get_users_tool = capability_file.tools.iter().find(|t| t.name == "introspection_getUsers");
+        let get_users_tool = tools.iter().find(|t| t.name == "enhanced_introspection_getusers");
         assert!(get_users_tool.is_some(), "getUsers tool should exist");
 
         let get_users_tool = get_users_tool.unwrap();
-        let properties = get_users_tool.input_schema["properties"].as_object().unwrap();
+        let properties = get_users_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Should have status and role arguments (both optional enums)
         assert!(properties.contains_key("status"), "getUsers should have status argument");
@@ -8971,15 +9009,19 @@ type User {
 
         let capability_file = generator.generate_from_sdl(&schema_content).unwrap();
 
+        // Get enhanced tools
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+
         // Debug: print all tool names
-        println!("Generated tools: {:?}", capability_file.tools.iter().map(|t| &t.name).collect::<Vec<_>>());
+        println!("Generated tools: {:?}", tools.iter().map(|t| &t.name).collect::<Vec<_>>());
 
         // Test getUsers operation with default values
-        let get_users_tool = capability_file.tools.iter().find(|t| t.name == "default_getUsers");
+        let get_users_tool = tools.iter().find(|t| t.name == "enhanced_default_getusers");
         assert!(get_users_tool.is_some(), "getUsers tool should exist");
 
         let get_users_tool = get_users_tool.unwrap();
-        let properties = get_users_tool.input_schema["properties"].as_object().unwrap();
+        let properties = get_users_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Should have limit and offset arguments with default values
         assert!(properties.contains_key("limit"), "getUsers should have limit argument");
@@ -8996,11 +9038,11 @@ type User {
         assert_eq!(offset_schema["default"], 0, "offset should have default value 0");
 
         // Test searchUsers operation with boolean default
-        let search_users_tool = capability_file.tools.iter().find(|t| t.name == "default_searchUsers");
+        let search_users_tool = tools.iter().find(|t| t.name == "enhanced_default_searchusers");
         assert!(search_users_tool.is_some(), "searchUsers tool should exist");
 
         let search_users_tool = search_users_tool.unwrap();
-        let properties = search_users_tool.input_schema["properties"].as_object().unwrap();
+        let properties = search_users_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Should have list arguments (names, ages, tags, filters)
         assert!(properties.contains_key("names"), "searchUsers should have names argument");
@@ -9013,11 +9055,11 @@ type User {
         assert_eq!(names_schema["type"], "array", "names should be array type");
 
         // Test getUsersByStatus operation with enum default
-        let get_users_by_status_tool = capability_file.tools.iter().find(|t| t.name == "default_getUsersByStatus");
+        let get_users_by_status_tool = tools.iter().find(|t| t.name == "enhanced_default_getusersbystatus");
         assert!(get_users_by_status_tool.is_some(), "getUsersByStatus tool should exist");
 
         let get_users_by_status_tool = get_users_by_status_tool.unwrap();
-        let properties = get_users_by_status_tool.input_schema["properties"].as_object().unwrap();
+        let properties = get_users_by_status_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Should have status argument with enum default
         assert!(properties.contains_key("status"), "getUsersByStatus should have status argument");
@@ -9043,15 +9085,19 @@ type User {
 
         let capability_file = generator.generate_from_introspection(&introspection_content).unwrap();
 
+        // Get enhanced tools
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+
         // Debug: print all tool names
-        println!("Generated tools from introspection: {:?}", capability_file.tools.iter().map(|t| &t.name).collect::<Vec<_>>());
+        println!("Generated tools from introspection: {:?}", tools.iter().map(|t| &t.name).collect::<Vec<_>>());
 
         // Test getUsers operation with default values
-        let get_users_tool = capability_file.tools.iter().find(|t| t.name == "introspection_getUsers");
+        let get_users_tool = tools.iter().find(|t| t.name == "enhanced_introspection_getusers");
         assert!(get_users_tool.is_some(), "getUsers tool should exist");
 
         let get_users_tool = get_users_tool.unwrap();
-        let properties = get_users_tool.input_schema["properties"].as_object().unwrap();
+        let properties = get_users_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Should have limit and offset arguments with default values
         assert!(properties.contains_key("limit"), "getUsers should have limit argument");
@@ -9068,11 +9114,11 @@ type User {
         assert_eq!(offset_schema["default"], 0, "offset should have default value 0");
 
         // Test searchUsers operation with boolean default
-        let search_users_tool = capability_file.tools.iter().find(|t| t.name == "introspection_searchUsers");
+        let search_users_tool = tools.iter().find(|t| t.name == "enhanced_introspection_searchusers");
         assert!(search_users_tool.is_some(), "searchUsers tool should exist");
 
         let search_users_tool = search_users_tool.unwrap();
-        let properties = search_users_tool.input_schema["properties"].as_object().unwrap();
+        let properties = search_users_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Should have list arguments (names, ages, tags, filters)
         assert!(properties.contains_key("names") || properties.contains_key("ages") ||
@@ -9080,11 +9126,11 @@ type User {
                 "searchUsers should have at least one argument");
 
         // Test getUsersByStatus operation with enum default
-        let get_users_by_status_tool = capability_file.tools.iter().find(|t| t.name == "introspection_getUsersByStatus");
+        let get_users_by_status_tool = tools.iter().find(|t| t.name == "enhanced_introspection_getusersbystatus");
         assert!(get_users_by_status_tool.is_some(), "getUsersByStatus tool should exist");
 
         let get_users_by_status_tool = get_users_by_status_tool.unwrap();
-        let properties = get_users_by_status_tool.input_schema["properties"].as_object().unwrap();
+        let properties = get_users_by_status_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Should have status argument with enum default
         assert!(properties.contains_key("status"), "getUsersByStatus should have status argument");
@@ -9110,19 +9156,22 @@ type User {
 
         let capability_file = generator.generate_from_sdl(&schema_content).unwrap();
 
-        // Should have multiple tools generated from comprehensive schema
-        assert!(!capability_file.tools.is_empty(), "Should generate tools from comprehensive schema");
-        assert!(capability_file.tools.len() > 5, "Should generate multiple tools from comprehensive schema");
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
 
-        // Check that tools have the debug prefix
-        for tool in &capability_file.tools {
-            assert!(tool.name.starts_with("debug_"), "Tool {} should have debug_ prefix", tool.name);
+        // Should have multiple tools generated from comprehensive schema
+        assert!(!tools.is_empty(), "Should generate tools from comprehensive schema");
+        assert!(tools.len() > 5, "Should generate multiple tools from comprehensive schema");
+
+        // Check that tools have the enhanced debug prefix (since this is an enhanced capability file)
+        for tool in tools {
+            assert!(tool.name.starts_with("enhanced_debug_"), "Tool {} should have enhanced_debug_ prefix", tool.name);
         }
 
         // Check that at least one tool has arguments
-        let tools_with_args: Vec<_> = capability_file.tools.iter()
+        let tools_with_args: Vec<_> = tools.iter()
             .filter(|t| {
-                if let Some(properties) = t.input_schema.get("properties").and_then(|p| p.as_object()) {
+                if let Some(properties) = t.core.input_schema.get("properties").and_then(|p| p.as_object()) {
                     !properties.is_empty()
                 } else {
                     false
@@ -9425,60 +9474,57 @@ type User {
 
         // Should have tools from the comprehensive test schema (includes directive examples)
         // We check for specific directive-related operations rather than total count
-        assert!(capability_file.tools.len() > 50); // Comprehensive schema has many operations
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+        assert!(tools.len() > 50); // Comprehensive schema has many operations
 
         // Test normal operation
-        let get_user_tool = capability_file.tools.iter().find(|t| t.name == "directive_test_getUser");
+        let get_user_tool = tools.iter().find(|t| t.name == "enhanced_directive_test_getuser");
         assert!(get_user_tool.is_some());
         let tool = get_user_tool.unwrap();
-        assert!(!tool.description.contains("DEPRECATED"));
+        assert!(!tool.core.description.contains("DEPRECATED"));
 
         // Test deprecated operation with reason
-        let get_old_user_tool = capability_file.tools.iter().find(|t| t.name == "directive_test_getOldUser");
+        let get_old_user_tool = tools.iter().find(|t| t.name == "enhanced_directive_test_getolduser");
         assert!(get_old_user_tool.is_some());
         let tool = get_old_user_tool.unwrap();
-        assert!(tool.description.contains("⚠️ DEPRECATED: Use getUser instead"));
+        assert!(tool.core.description.contains("⚠️ DEPRECATED: Use getUser instead"));
 
         // Test simple deprecated operation
-        let ping_tool = capability_file.tools.iter().find(|t| t.name == "directive_test_ping");
+        let ping_tool = tools.iter().find(|t| t.name == "enhanced_directive_test_ping");
         assert!(ping_tool.is_some());
         let tool = ping_tool.unwrap();
-        assert!(tool.description.contains("⚠️ DEPRECATED: This operation is deprecated"));
+        assert!(tool.core.description.contains("⚠️ DEPRECATED: This operation is deprecated"));
 
         // Test operation with normal arguments
-        let search_users_tool = capability_file.tools.iter().find(|t| t.name == "directive_test_searchUsers");
+        let search_users_tool = tools.iter().find(|t| t.name == "enhanced_directive_test_searchusers");
         assert!(search_users_tool.is_some());
         let tool = search_users_tool.unwrap();
 
         // Check that at least one of the expected arguments is present
-        let properties = tool.input_schema["properties"].as_object().unwrap();
+        let properties = tool.core.input_schema["properties"].as_object().unwrap();
         assert!(properties.contains_key("names") || properties.contains_key("query"), "searchUsers should have names or query argument");
 
         // Test directive-specific operations from comprehensive schema
-        let get_secret_data_tool = capability_file.tools.iter().find(|t| t.name == "directive_test_getSecretData");
+        let get_secret_data_tool = tools.iter().find(|t| t.name == "enhanced_directive_test_getsecretdata");
         assert!(get_secret_data_tool.is_some(), "getSecretData operation should be present");
 
-        let get_popular_content_tool = capability_file.tools.iter().find(|t| t.name == "directive_test_getPopularContent");
+        let get_popular_content_tool = tools.iter().find(|t| t.name == "enhanced_directive_test_getpopularcontent");
         assert!(get_popular_content_tool.is_some(), "getPopularContent operation should be present");
 
-        let get_static_content_tool = capability_file.tools.iter().find(|t| t.name == "directive_test_getStaticContent");
+        let get_static_content_tool = tools.iter().find(|t| t.name == "enhanced_directive_test_getstaticcontent");
         assert!(get_static_content_tool.is_some(), "getStaticContent operation should be present");
 
-        let create_user_with_validation_tool = capability_file.tools.iter().find(|t| t.name == "directive_test_createUserWithValidation");
+        let create_user_with_validation_tool = tools.iter().find(|t| t.name == "enhanced_directive_test_createuserwithvalidation");
         assert!(create_user_with_validation_tool.is_some(), "createUserWithValidation operation should be present");
 
-        let old_create_user_tool = capability_file.tools.iter().find(|t| t.name == "directive_test_oldCreateUser");
+        let old_create_user_tool = tools.iter().find(|t| t.name == "enhanced_directive_test_oldcreateuser");
         assert!(old_create_user_tool.is_some(), "oldCreateUser operation should be present");
         let tool = old_create_user_tool.unwrap();
-        assert!(tool.description.contains("⚠️ DEPRECATED: Use createUser instead"));
+        assert!(tool.core.description.contains("⚠️ DEPRECATED: Use createUser instead"));
 
-        // Verify annotations contain directive information for deprecated operations
-        if let Some(annotations) = &get_old_user_tool.unwrap().annotations {
-            assert!(annotations.contains_key("deprecated"));
-            assert_eq!(annotations.get("deprecated").unwrap(), "true");
-            assert!(annotations.contains_key("deprecation_reason"));
-            assert_eq!(annotations.get("deprecation_reason").unwrap(), "Use getUser instead");
-        }
+        // Enhanced tools don't use annotations - deprecation info is in description
+        // The deprecated information is already validated above in the description check
     }
 
     #[test]
@@ -9493,16 +9539,18 @@ type User {
             .expect("Failed to read comprehensive test schema file");
 
         let capability_file = generator.generate_from_sdl(&schema_content).unwrap();
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
 
         // Debug: print all tool names
-        println!("Generated tools: {:?}", capability_file.tools.iter().map(|t| &t.name).collect::<Vec<_>>());
+        println!("Generated tools: {:?}", tools.iter().map(|t| &t.name).collect::<Vec<_>>());
 
         // Test operation returning Interface type
-        let character_tool = capability_file.tools.iter().find(|t| t.name == "poly_getCharacter");
+        let character_tool = tools.iter().find(|t| t.name == "enhanced_poly_getcharacter");
         assert!(character_tool.is_some(), "getCharacter tool should exist");
 
         let character_tool = character_tool.unwrap();
-        let properties = character_tool.input_schema["properties"].as_object().unwrap();
+        let properties = character_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Should have id argument
         assert!(properties.contains_key("id"), "getCharacter should have id argument");
@@ -9511,11 +9559,11 @@ type User {
         assert_eq!(id_schema["type"], "string", "id should be string type");
 
         // Test operation returning Union type
-        let search_tool = capability_file.tools.iter().find(|t| t.name == "poly_search");
+        let search_tool = tools.iter().find(|t| t.name == "enhanced_poly_search");
         assert!(search_tool.is_some(), "search tool should exist");
 
         let search_tool = search_tool.unwrap();
-        let properties = search_tool.input_schema["properties"].as_object().unwrap();
+        let properties = search_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Should have query argument
         assert!(properties.contains_key("query"), "search should have query argument");
@@ -9548,16 +9596,18 @@ type User {
             .expect("Failed to read comprehensive test schema JSON file");
 
         let capability_file = generator.generate_from_introspection(&introspection_content).unwrap();
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
 
         // Debug: print all tool names
-        println!("Generated tools from introspection: {:?}", capability_file.tools.iter().map(|t| &t.name).collect::<Vec<_>>());
+        println!("Generated tools from introspection: {:?}", tools.iter().map(|t| &t.name).collect::<Vec<_>>());
 
         // Test operation returning Interface type
-        let character_tool = capability_file.tools.iter().find(|t| t.name == "introspection_getCharacter");
+        let character_tool = tools.iter().find(|t| t.name == "enhanced_introspection_getcharacter");
         assert!(character_tool.is_some(), "getCharacter tool should exist");
 
         // Test operation returning Union type
-        let search_tool = capability_file.tools.iter().find(|t| t.name == "introspection_search");
+        let search_tool = tools.iter().find(|t| t.name == "enhanced_introspection_search");
         assert!(search_tool.is_some(), "search tool should exist");
 
         // Test that Interface and Union types were extracted
@@ -9594,27 +9644,31 @@ type User {
 
         let capability_file = generator.generate_from_sdl(&schema_content).unwrap();
 
+        // Get enhanced tools
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+
         // Debug: print all tool names
-        println!("Generated tools: {:?}", capability_file.tools.iter().map(|t| &t.name).collect::<Vec<_>>());
+        println!("Generated tools: {:?}", tools.iter().map(|t| &t.name).collect::<Vec<_>>());
 
         // Test operation with description
-        let user_tool = capability_file.tools.iter().find(|t| t.name == "docs_getUser");
+        let user_tool = tools.iter().find(|t| t.name == "enhanced_docs_getuser");
         assert!(user_tool.is_some(), "getUser tool should exist");
 
         let user_tool = user_tool.unwrap();
-        assert!(!user_tool.description.is_empty(),
+        assert!(!user_tool.core.description.is_empty(),
                 "Tool description should not be empty");
 
         // Test operation with multi-line description
-        let search_users_tool = capability_file.tools.iter().find(|t| t.name == "docs_searchUsers");
+        let search_users_tool = tools.iter().find(|t| t.name == "enhanced_docs_searchusers");
         assert!(search_users_tool.is_some(), "searchUsers tool should exist");
 
         let search_users_tool = search_users_tool.unwrap();
-        assert!(!search_users_tool.description.is_empty(),
+        assert!(!search_users_tool.core.description.is_empty(),
                 "Tool description should not be empty");
 
         // Test that arguments have descriptions in the JSON schema
-        let properties = search_users_tool.input_schema["properties"].as_object().unwrap();
+        let properties = search_users_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Check if arguments exist (our comprehensive schema has names, ages, tags, filters)
         assert!(properties.contains_key("names") || properties.contains_key("ages") ||
@@ -9642,27 +9696,31 @@ type User {
 
         let capability_file = generator.generate_from_introspection(&introspection_content).unwrap();
 
+        // Get enhanced tools
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+
         // Debug: print all tool names
-        println!("Generated tools from introspection: {:?}", capability_file.tools.iter().map(|t| &t.name).collect::<Vec<_>>());
+        println!("Generated tools from introspection: {:?}", tools.iter().map(|t| &t.name).collect::<Vec<_>>());
 
         // Test operation with description from introspection
-        let user_tool = capability_file.tools.iter().find(|t| t.name == "introspection_getUser");
+        let user_tool = tools.iter().find(|t| t.name == "enhanced_introspection_getuser");
         assert!(user_tool.is_some(), "getUser tool should exist");
 
         let user_tool = user_tool.unwrap();
-        assert!(!user_tool.description.is_empty(),
+        assert!(!user_tool.core.description.is_empty(),
                 "Tool description should not be empty");
 
         // Test operation with detailed description
-        let search_users_tool = capability_file.tools.iter().find(|t| t.name == "introspection_searchUsers");
+        let search_users_tool = tools.iter().find(|t| t.name == "enhanced_introspection_searchusers");
         assert!(search_users_tool.is_some(), "searchUsers tool should exist");
 
         let search_users_tool = search_users_tool.unwrap();
-        assert!(!search_users_tool.description.is_empty(),
+        assert!(!search_users_tool.core.description.is_empty(),
                 "Tool description should not be empty");
 
         // Test that arguments have descriptions from introspection
-        let properties = search_users_tool.input_schema["properties"].as_object().unwrap();
+        let properties = search_users_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Check if arguments exist (our comprehensive schema has names, ages, tags, filters)
         assert!(properties.contains_key("names") || properties.contains_key("ages") ||
@@ -9717,15 +9775,17 @@ type User {
 
         let capability_file = generator.generate_from_sdl(&schema_content).unwrap();
 
-        // Should generate tools
-        assert!(!capability_file.tools.is_empty(), "Should generate tools from custom scalar schema");
+        // Should generate tools - use enhanced tools
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+        assert!(!tools.is_empty(), "Should generate tools from custom scalar schema");
 
         // Find the user tool and check custom scalar handling
-        let user_tool = capability_file.tools.iter().find(|t| t.name == "custom_getUser");
-        assert!(user_tool.is_some(), "Should have custom_getUser tool");
+        let user_tool = tools.iter().find(|t| t.name == "enhanced_custom_getuser");
+        assert!(user_tool.is_some(), "Should have enhanced_custom_getuser tool");
 
         let user_tool = user_tool.unwrap();
-        let properties = user_tool.input_schema["properties"].as_object().unwrap();
+        let properties = user_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Check scalar handling
         assert!(properties.contains_key("id"), "Should have id argument");
@@ -9733,11 +9793,11 @@ type User {
         assert_eq!(id_schema["type"], "string", "ID should map to string type");
 
         // Find the getUserByEmail tool and check Email scalar
-        let email_tool = capability_file.tools.iter().find(|t| t.name == "custom_getUserByEmail");
-        assert!(email_tool.is_some(), "Should have custom_getUserByEmail tool");
+        let email_tool = tools.iter().find(|t| t.name == "enhanced_custom_getuserbyemail");
+        assert!(email_tool.is_some(), "Should have enhanced_custom_getuserbyemail tool");
 
         let email_tool = email_tool.unwrap();
-        let email_properties = email_tool.input_schema["properties"].as_object().unwrap();
+        let email_properties = email_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Check Email scalar handling
         assert!(email_properties.contains_key("email"), "Should have email argument");
@@ -9759,15 +9819,19 @@ type User {
 
         let capability_file = generator.generate_from_introspection(&introspection_content).unwrap();
 
-        // Should generate tools
-        assert!(!capability_file.tools.is_empty(), "Should generate tools from custom scalar introspection");
+        // Get enhanced tools
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
 
-        // Find the user tool and check custom scalar handling
-        let user_tool = capability_file.tools.iter().find(|t| t.name == "introspection_custom_getUser");
-        assert!(user_tool.is_some(), "Should have introspection_custom_getUser tool");
+        // Should generate tools
+        assert!(!tools.is_empty(), "Should generate tools from custom scalar introspection");
+
+        // Find the user tool and check custom scalar handling (note: tool names are lowercased in enhanced format)
+        let user_tool = tools.iter().find(|t| t.name == "enhanced_introspection_custom_getuser");
+        assert!(user_tool.is_some(), "Should have enhanced_introspection_custom_getuser tool");
 
         let user_tool = user_tool.unwrap();
-        let properties = user_tool.input_schema["properties"].as_object().unwrap();
+        let properties = user_tool.core.input_schema["properties"].as_object().unwrap();
 
         // Check scalar handling from introspection
         assert!(properties.contains_key("id"), "Should have id argument");
@@ -9775,7 +9839,7 @@ type User {
         assert_eq!(id_schema["type"], "string", "ID should map to string type");
 
         // Check that custom scalars are handled properly (just verify we have tools with string types)
-        assert!(capability_file.tools.len() > 1, "Should have multiple tools generated");
+        assert!(tools.len() > 1, "Should have multiple tools generated");
     }
 
     #[test]
@@ -9788,29 +9852,31 @@ type User {
             .expect("Failed to read comprehensive test schema file");
 
         let capability_file = generator.generate_from_sdl(&schema_with_extensions).unwrap();
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
 
         // Should have many tools from the comprehensive schema extension file
         // Query: getUser, searchUsers, getUserProfile, getPosts, getPostsByUser
         // Mutation: createUser, createPost, updatePost
-        assert!(capability_file.tools.len() >= 8, "Should have at least 8 tools from comprehensive schema");
+        assert!(tools.len() >= 8, "Should have at least 8 tools from comprehensive schema");
 
         // Test that extended Query operations are present
-        let get_user_tool = capability_file.tools.iter().find(|t| t.name == "ext_test_getUser");
+        let get_user_tool = tools.iter().find(|t| t.name == "enhanced_ext_test_getuser");
         assert!(get_user_tool.is_some());
 
-        let search_users_tool = capability_file.tools.iter().find(|t| t.name == "ext_test_searchUsers");
+        let search_users_tool = tools.iter().find(|t| t.name == "enhanced_ext_test_searchusers");
         assert!(search_users_tool.is_some());
 
-        let search_users_by_email_tool = capability_file.tools.iter().find(|t| t.name == "ext_test_searchUsersByEmail");
+        let search_users_by_email_tool = tools.iter().find(|t| t.name == "enhanced_ext_test_searchusersbyemail");
         assert!(search_users_by_email_tool.is_some());
 
         // Test that extended Mutation operations are present
-        let verify_user_tool = capability_file.tools.iter().find(|t| t.name == "ext_test_verifyUser");
+        let verify_user_tool = tools.iter().find(|t| t.name == "enhanced_ext_test_verifyuser");
         assert!(verify_user_tool.is_some());
 
         // Test that the mutation has the expected parameters
         let verify_user_tool = verify_user_tool.unwrap();
-        let properties = verify_user_tool.input_schema["properties"].as_object().unwrap();
+        let properties = verify_user_tool.core.input_schema["properties"].as_object().unwrap();
         assert!(properties.contains_key("userId"));
 
         // The input should include both original and extended fields
@@ -10771,37 +10837,39 @@ type User {
         "#;
 
         let capability_file = generator.generate_from_sdl(subscription_schema).unwrap();
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
 
         // Find subscription tools
-        let subscription_tools: Vec<_> = capability_file.tools.iter()
-            .filter(|tool| tool.description.contains("subscription"))
+        let subscription_tools: Vec<_> = tools.iter()
+            .filter(|tool| tool.core.description.contains("subscription"))
             .collect();
 
         assert_eq!(subscription_tools.len(), 2, "Should have 2 subscription tools");
 
         // Test messageAdded tool
         let message_added_tool = subscription_tools.iter()
-            .find(|tool| tool.name == "sub_messageAdded")
-            .expect("Should have sub_messageAdded tool");
+            .find(|tool| tool.name == "enhanced_sub_messageadded")
+            .expect("Should have enhanced_sub_messageadded tool");
 
-        assert!(message_added_tool.description.contains("GraphQL subscription operation"));
-        assert_eq!(message_added_tool.input_schema["type"], "object");
+        assert!(message_added_tool.core.description.contains("GraphQL subscription operation"));
+        assert_eq!(message_added_tool.core.input_schema["type"], "object");
 
         // Should have no required properties (no arguments)
-        let properties = message_added_tool.input_schema["properties"].as_object().unwrap();
+        let properties = message_added_tool.core.input_schema["properties"].as_object().unwrap();
         assert_eq!(properties.len(), 0);
 
         // Test userOnline tool
         let user_online_tool = subscription_tools.iter()
-            .find(|tool| tool.name == "sub_userOnline")
-            .expect("Should have sub_userOnline tool");
+            .find(|tool| tool.name == "enhanced_sub_useronline")
+            .expect("Should have enhanced_sub_useronline tool");
 
         // Should have userId argument
-        let properties = user_online_tool.input_schema["properties"].as_object().unwrap();
+        let properties = user_online_tool.core.input_schema["properties"].as_object().unwrap();
         assert_eq!(properties.len(), 1);
         assert!(properties.contains_key("userId"));
 
-        let required = user_online_tool.input_schema["required"].as_array().unwrap();
+        let required = user_online_tool.core.input_schema["required"].as_array().unwrap();
         assert_eq!(required.len(), 1);
         assert_eq!(required[0], "userId");
     }
@@ -11065,10 +11133,12 @@ type User {
 
         let capability_file = generator.generate_from_sdl(&schema_content)
             .expect("Comprehensive schema processing should succeed");
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
 
         // Find subscription tools
-        let subscription_tools: Vec<_> = capability_file.tools.iter()
-            .filter(|tool| tool.description.contains("subscription"))
+        let subscription_tools: Vec<_> = tools.iter()
+            .filter(|tool| tool.core.description.contains("subscription"))
             .collect();
 
         // Should have subscription operations from the comprehensive schema
@@ -11076,25 +11146,25 @@ type User {
 
         // Test specific subscription operations from comprehensive schema
         let new_post_tool = subscription_tools.iter()
-            .find(|tool| tool.name.contains("newPostFromFollowing"))
+            .find(|tool| tool.name.contains("newpostfromfollowing"))
             .expect("Should have newPostFromFollowing subscription");
 
-        assert!(new_post_tool.description.contains("GraphQL subscription operation"));
+        assert!(new_post_tool.core.description.contains("GraphQL subscription operation"));
 
         let new_comment_tool = subscription_tools.iter()
-            .find(|tool| tool.name.contains("newCommentOnPost"))
+            .find(|tool| tool.name.contains("newcommentonpost"))
             .expect("Should have newCommentOnPost subscription");
 
         // Should have postId argument
-        let properties = new_comment_tool.input_schema["properties"].as_object().unwrap();
+        let properties = new_comment_tool.core.input_schema["properties"].as_object().unwrap();
         assert!(properties.contains_key("postId"), "newCommentOnPost should have postId argument");
 
         let user_status_tool = subscription_tools.iter()
-            .find(|tool| tool.name.contains("userOnlineStatusChanged"))
+            .find(|tool| tool.name.contains("useronlinestatuschanged"))
             .expect("Should have userOnlineStatusChanged subscription");
 
         // Should have userId argument
-        let properties = user_status_tool.input_schema["properties"].as_object().unwrap();
+        let properties = user_status_tool.core.input_schema["properties"].as_object().unwrap();
         assert!(properties.contains_key("userId"), "userOnlineStatusChanged should have userId argument");
     }
 
@@ -11634,10 +11704,12 @@ type User {
         assert!(result.is_ok(), "Valid introspection schema should pass validation");
 
         let capability_file = result.unwrap();
-        assert!(!capability_file.tools.is_empty(), "Should generate tools from valid schema");
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+        assert!(!tools.is_empty(), "Should generate tools from valid schema");
 
         // Should have the hello query
-        let hello_tool = capability_file.tools.iter().find(|t| t.name == "validated_hello");
+        let hello_tool = tools.iter().find(|t| t.name == "enhanced_validated_hello");
         assert!(hello_tool.is_some(), "Should have hello tool");
     }
 
@@ -11744,9 +11816,13 @@ type User {
 
         let capability_file = result.unwrap();
 
-        // Should have generated tools
-        assert!(!capability_file.tools.is_empty(), "Should generate tools from introspection schema");
+        // Get enhanced tools
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
 
-        println!("✅ Successfully generated {} tools from introspection schema", capability_file.tools.len());
+        // Should have generated tools
+        assert!(!tools.is_empty(), "Should generate tools from introspection schema");
+
+        println!("✅ Successfully generated {} tools from introspection schema", tools.len());
     }
 }

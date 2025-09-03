@@ -37,8 +37,14 @@ pub async fn create_filesystem_test_user_context() -> Result<UserContext> {
     let temp_dir = TempDir::new().map_err(|e| crate::error::ProxyError::config(format!("Failed to create temp dir: {}", e)))?;
     let session_dir = temp_dir.path().join("test_sessions");
     
-    // Use the explicit test creation method
-    UserContext::for_testing(session_dir)
+    // Create the user context first
+    let user_context = UserContext::for_testing(session_dir)?;
+    
+    // Keep the temp_dir alive by leaking it - it will be cleaned up by the OS when the process exits
+    // This is acceptable for test scenarios
+    std::mem::forget(temp_dir);
+    
+    Ok(user_context)
 }
 
 /// Create a test user context with custom session directory and filesystem storage

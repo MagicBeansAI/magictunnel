@@ -19,6 +19,12 @@ use uuid::Uuid;
 
 /// Helper function to create a test DashboardApi with tool metrics
 async fn create_test_dashboard_api() -> (DashboardApi, Arc<ToolMetricsCollector>) {
+    // Clean up any existing test data from previous runs
+    let storage_path = "data/tool_metrics.json";
+    if std::path::Path::new(storage_path).exists() {
+        std::fs::remove_file(storage_path).unwrap_or(());
+    }
+    
     let config = Config::default();
     let registry = Arc::new(RegistryService::new(config.registry.clone()).await.unwrap());
     
@@ -186,9 +192,10 @@ async fn test_tool_metrics_summary_endpoint() {
     assert!(body.get("overall_success_rate").is_some());
     assert!(body.get("most_popular_tool").is_some());
     
-    // Verify expected values (accounts for existing ping_globalping tool)
-    assert!(body["total_tools"].as_u64().unwrap() >= 4); // At least our 3 test tools + ping_globalping
-    assert!(body["active_tools"].as_u64().unwrap() >= 4);
+    
+    // Verify expected values (our 3 test tools)
+    assert!(body["total_tools"].as_u64().unwrap() >= 3); // At least our 3 test tools
+    assert!(body["active_tools"].as_u64().unwrap() >= 3);
     // Don't check exact execution counts since ping_globalping has variable data
     assert!(body["total_executions"].as_u64().unwrap() >= 26); // At least our test data
     assert!(body["total_successful_executions"].as_u64().unwrap() >= 23); // At least our test data
@@ -309,7 +316,7 @@ async fn test_top_tools_endpoint() {
     assert!(calc_tool_entry.is_some());
     assert_eq!(calc_tool_entry.unwrap()["value"], 3.0);
     
-    // Test top by success_rate
+    // Test top by success_rate (note: filters out tools with ≤10 executions)
     let req = test::TestRequest::get()
         .uri("/dashboard/api/tool-metrics/top/success_rate")
         .to_request();
@@ -320,11 +327,12 @@ async fn test_top_tools_endpoint() {
     let body: Value = test::read_body_json(resp).await;
     let top_tools = body["top_tools"].as_array().unwrap();
     
-    // calc_tool should be first (100% success rate with >10 executions filter might not apply)
-    // ping_tool should have high success rate (14/15 = 0.933)
-    // file_tool should have lower success rate (6/8 = 0.75)
+    // Only test_ping_tool (15 executions) should appear due to >10 execution filter
+    // test_file_tool (8) and test_calc_tool (3) are filtered out
     assert_eq!(body["metric"], "success_rate");
-    assert!(top_tools.len() >= 2); // At least ping_tool and file_tool should qualify
+    
+    
+    assert!(top_tools.len() >= 1); // Only test_ping_tool should qualify (>10 executions filter)
 }
 
 /// Test GET /dashboard/api/tool-metrics/executions/recent endpoint

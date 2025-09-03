@@ -780,6 +780,12 @@ impl SessionManager {
                 .map_err(|e| ProxyError::config(format!("Failed to serialize session state: {}", e)))?
         };
 
+        // Ensure the parent directory exists
+        if let Some(parent_dir) = state_file.parent() {
+            tokio::fs::create_dir_all(parent_dir).await
+                .map_err(|e| ProxyError::config(format!("Failed to create session directory: {}", e)))?;
+        }
+
         tokio::fs::write(&state_file, content).await
             .map_err(|e| ProxyError::config(format!("Failed to write session state: {}", e)))?;
 

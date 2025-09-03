@@ -26,12 +26,15 @@ mod tests {
         
         // Verify resource capabilities
         let resource_caps = &capabilities["capabilities"]["resources"];
-        assert_eq!(resource_caps["subscribe"], true);
-        assert_eq!(resource_caps["listChanged"], true);
+        // TODO: Change to true when resource subscriptions are implemented
+        assert_eq!(resource_caps["subscribe"], false);
+        // TODO: Change to true when resource list change notifications are implemented
+        assert_eq!(resource_caps["listChanged"], false);
         
         // Verify prompt capabilities
         let prompt_caps = &capabilities["capabilities"]["prompts"];
-        assert_eq!(prompt_caps["listChanged"], true);
+        // TODO: Change to true when prompt list change notifications are implemented
+        assert_eq!(prompt_caps["listChanged"], false);
         
         // Verify tools capability
         assert!(capabilities["capabilities"]["tools"].is_object());
@@ -72,27 +75,20 @@ mod tests {
         let server = create_test_server().await;
         
         let notification_manager = server.notification_manager();
+        
+        // TODO: Replace with actual notification test when resource list change notifications are implemented
+        // The methods exist and return Ok(), but capabilities are disabled so no notifications are sent
+        let result = notification_manager.notify_resources_list_changed();
+        assert!(result.is_ok(), "Method should succeed even when capability is disabled");
+        
+        // TODO: Also test prompt list changed notifications when implemented
+        let result = notification_manager.notify_prompts_list_changed();
+        assert!(result.is_ok(), "Method should succeed even when capability is disabled");
+        
+        // Verify that no notifications were actually sent (since capabilities are disabled)
         let mut receiver = notification_manager.subscribe();
-        
-        // Test resource list changed notification
-        notification_manager.notify_resources_list_changed().unwrap();
-        
-        let notification = timeout(Duration::from_millis(100), receiver.recv())
-            .await
-            .expect("Should receive notification")
-            .expect("Should not have error");
-        
-        assert_eq!(notification.method, "notifications/resources/list_changed");
-        
-        // Test prompt list changed notification
-        notification_manager.notify_prompts_list_changed().unwrap();
-        
-        let notification = timeout(Duration::from_millis(100), receiver.recv())
-            .await
-            .expect("Should receive notification")
-            .expect("Should not have error");
-        
-        assert_eq!(notification.method, "notifications/prompts/list_changed");
+        let result = tokio::time::timeout(Duration::from_millis(50), receiver.recv()).await;
+        assert!(result.is_err(), "No notifications should be received when capabilities are disabled");
     }
 
     #[tokio::test]
@@ -100,26 +96,15 @@ mod tests {
         let server = create_test_server().await;
         
         let notification_manager = server.notification_manager();
-        let mut receiver = notification_manager.subscribe();
         let test_uri = "file:///test/integration.txt".to_string();
         
-        // Subscribe to resource
-        notification_manager.subscribe_to_resource(test_uri.clone()).unwrap();
+        // TODO: Remove this test and implement actual resource subscription test when feature is implemented
+        // For now, verify that resource subscriptions are not yet supported
+        let result = notification_manager.subscribe_to_resource(test_uri.clone());
+        assert!(result.is_err());
         
-        // Verify subscription
-        let subscriptions = notification_manager.get_resource_subscriptions().unwrap();
-        assert!(subscriptions.contains(&test_uri));
-        
-        // Notify resource updated
-        notification_manager.notify_resource_updated(test_uri.clone()).unwrap();
-        
-        let notification = timeout(Duration::from_millis(100), receiver.recv())
-            .await
-            .expect("Should receive notification")
-            .expect("Should not have error");
-        
-        assert_eq!(notification.method, "notifications/resources/updated");
-        assert_eq!(notification.params.unwrap()["uri"], test_uri);
+        let error_msg = format!("{}", result.unwrap_err());
+        assert!(error_msg.contains("Resource subscriptions not supported"));
     }
 
     #[tokio::test]
@@ -249,20 +234,16 @@ mod tests {
         
         let notification_manager = server.notification_manager();
         
-        // Initially no subscriptions
+        // TODO: Replace with actual stats test when resource subscriptions are implemented
+        // For now, verify stats show no resource subscription capabilities
         let stats = notification_manager.get_stats().unwrap();
         assert_eq!(stats.resource_subscriptions_count, 0);
         
-        // Add subscriptions
-        notification_manager.subscribe_to_resource("file:///test1.txt".to_string()).unwrap();
-        notification_manager.subscribe_to_resource("file:///test2.txt".to_string()).unwrap();
-        notification_manager.subscribe_to_resource("file:///test3.txt".to_string()).unwrap();
-        
-        let stats = notification_manager.get_stats().unwrap();
-        assert_eq!(stats.resource_subscriptions_count, 3);
-        assert!(stats.capabilities.resources_list_changed);
-        assert!(stats.capabilities.prompts_list_changed);
-        assert!(stats.capabilities.resource_subscriptions);
+        // Verify capabilities reflect unimplemented features
+        // TODO: Change these to true when features are implemented
+        assert!(!stats.capabilities.resources_list_changed);
+        assert!(!stats.capabilities.prompts_list_changed);
+        assert!(!stats.capabilities.resource_subscriptions);
     }
 
     #[tokio::test]

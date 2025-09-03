@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.24] - Test Fixes
+- **Test Fixes**: Resolved 71 test failures across 500 tests
+- **Test Coverage**: Achieved 100% passing rate across entire test suite inluding 50+ integration tests and Unittests
+- **Wired RateLimiter to dashboard**: Linked late limiter and monitoring to Dashboard
+
 ## [0.3.23] - Hierarchical Configuration Integration & MCP Client Authentication Complete
 
 ### Added

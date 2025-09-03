@@ -321,25 +321,35 @@ impl RemoteTokenStorage {
 
     /// Validate token ownership
     fn validate_token_ownership(&self, token_data: &TokenData) -> bool {
+        // Require essential metadata to be present for ownership validation
+        let token_client_id = match token_data.metadata.get("client_id") {
+            Some(id) => id,
+            None => return false, // Must have client_id for validation
+        };
+        
+        let token_client_ip = match token_data.metadata.get("client_ip") {
+            Some(ip) => ip,
+            None => return false, // Must have client_ip for validation
+        };
+        
+        let token_session_id = match token_data.metadata.get("session_id") {
+            Some(id) => id,
+            None => return false, // Must have session_id for validation
+        };
+        
         // Check if token metadata matches this client
-        if let Some(token_client_id) = token_data.metadata.get("client_id") {
-            if token_client_id != &self.metadata.client_id {
-                return false;
-            }
+        if token_client_id != &self.metadata.client_id {
+            return false;
         }
         
         // Check IP address match
-        if let Some(token_client_ip) = token_data.metadata.get("client_ip") {
-            if token_client_ip != &self.remote_context.client_identity.client_ip.to_string() {
-                return false;
-            }
+        if token_client_ip != &self.remote_context.client_identity.client_ip.to_string() {
+            return false;
         }
         
         // Check session ID match
-        if let Some(token_session_id) = token_data.metadata.get("session_id") {
-            if token_session_id != &self.remote_context.remote_session_id {
-                return false;
-            }
+        if token_session_id != &self.remote_context.remote_session_id {
+            return false;
         }
         
         true

@@ -1812,8 +1812,19 @@ impl Config {
         host_override: Option<String>,
         port_override: Option<u16>,
     ) -> Result<Self> {
-        // Load with new resolver system
-        let resolution = Self::load_with_resolution(Some(path.as_ref()), host_override, port_override)?;
+        // Load with new resolver system - for API usage, use fallback behavior
+        let resolution = Self::load_with_resolution_internal(Some(path.as_ref()), host_override, port_override, false)?;
+        Ok(resolution.config)
+    }
+
+    /// Load configuration for CLI usage - fails if explicitly provided path doesn't exist
+    pub fn load_for_cli<P: AsRef<Path>>(
+        path: P,
+        host_override: Option<String>,
+        port_override: Option<u16>,
+    ) -> Result<Self> {
+        // Load with new resolver system - for CLI usage, fail on nonexistent explicit paths
+        let resolution = Self::load_with_resolution_internal(Some(path.as_ref()), host_override, port_override, true)?;
         Ok(resolution.config)
     }
 
@@ -1832,6 +1843,41 @@ impl Config {
         let resolver = ConfigResolver::new()?;
         let mut resolution = resolver.resolve_config(path.as_ref().map(|p| p.as_ref()))?;
 
+        // Apply CLI overrides (highest precedence)
+        if let Some(host) = host_override {
+            resolution.config.server.host = host;
+        }
+        if let Some(port) = port_override {
+            resolution.config.server.port = port;
+        }
+
+        // Validate final configuration
+        resolution.config.validate()?;
+        
+        Ok(resolution)
+    }
+
+    /// Internal method for configuration loading with CLI behavior control
+    fn load_with_resolution_internal(
+        path: Option<&Path>,
+        host_override: Option<String>,
+        port_override: Option<u16>,
+        is_cli_usage: bool,
+    ) -> Result<crate::config::ConfigResolution> {
+        use crate::config::ConfigResolver;
+
+        // Load .env files in order of precedence: .env → .env.{environment} → .env.local
+        Self::load_env_files()?;
+
+        let resolver = ConfigResolver::new()?;
+        
+        // Use appropriate resolver method based on usage context
+        let mut resolution = if is_cli_usage {
+            resolver.resolve_config_for_cli(path)?
+        } else {
+            resolver.resolve_config(path)?
+        };
+        
         // Apply CLI overrides (highest precedence)
         if let Some(host) = host_override {
             resolution.config.server.host = host;

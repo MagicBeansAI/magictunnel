@@ -63,7 +63,7 @@ fn create_test_oauth_config() -> AuthConfig {
 #[tokio::test]
 async fn test_token_storage_creation() {
     let user_context = create_test_user_context().await.unwrap();
-    let token_storage = TokenStorage::new(user_context).await;
+    let token_storage = TokenStorage::new_with_mock_backend(user_context).await;
     
     assert!(token_storage.is_ok());
     
@@ -148,7 +148,7 @@ async fn test_token_refresh_update() {
 #[tokio::test]
 async fn test_basic_token_storage_operations() {
     let user_context = create_test_user_context().await.unwrap();
-    let token_storage = TokenStorage::new(user_context).await.unwrap();
+    let token_storage = TokenStorage::new_with_mock_backend(user_context).await.unwrap();
     
     let oauth_token = create_test_oauth_token("github", Some("testuser"));
     
@@ -181,7 +181,7 @@ async fn test_basic_token_storage_operations() {
 #[tokio::test]
 async fn test_multiple_providers_and_users() {
     let user_context = create_test_user_context().await.unwrap();
-    let token_storage = TokenStorage::new(user_context).await.unwrap();
+    let token_storage = TokenStorage::new_with_mock_backend(user_context).await.unwrap();
     
     let providers_users = [
         ("github", Some("user1")),
@@ -218,7 +218,7 @@ async fn test_multiple_providers_and_users() {
 #[tokio::test]
 async fn test_expired_token_cleanup() {
     let user_context = create_test_user_context().await.unwrap();
-    let token_storage = TokenStorage::new(user_context).await.unwrap();
+    let token_storage = TokenStorage::new_with_mock_backend(user_context).await.unwrap();
     
     // Store token that will expire immediately
     let mut expired_oauth_token = create_test_oauth_token("github", Some("testuser"));
@@ -252,7 +252,7 @@ async fn test_expired_token_cleanup() {
 #[tokio::test]
 async fn test_concurrent_token_operations() {
     let user_context = create_test_user_context().await.unwrap();
-    let token_storage = Arc::new(TokenStorage::new(user_context).await.unwrap());
+    let token_storage = Arc::new(TokenStorage::new_with_mock_backend(user_context).await.unwrap());
     
     let mut handles = Vec::new();
     
@@ -317,7 +317,7 @@ async fn test_token_storage_with_oauth_validator() {
 #[tokio::test]
 async fn test_token_cache_operations() {
     let user_context = create_test_user_context().await.unwrap();
-    let token_storage = TokenStorage::new(user_context).await.unwrap();
+    let token_storage = TokenStorage::new_with_mock_backend(user_context).await.unwrap();
     
     let oauth_token = create_test_oauth_token("github", Some("testuser"));
     
@@ -349,7 +349,7 @@ async fn test_filesystem_storage_encryption() {
     // Force filesystem storage by using a user context without secure storage
     let filesystem_context = user_context.clone();
     
-    let token_storage = TokenStorage::new(filesystem_context).await.unwrap();
+    let token_storage = TokenStorage::new_with_mock_backend(filesystem_context).await.unwrap();
     
     // Verify we're using filesystem storage on the test system
     assert!(matches!(
@@ -395,7 +395,7 @@ async fn test_token_data_zeroization() {
 #[tokio::test]
 async fn test_storage_backend_availability() {
     let user_context = create_test_user_context().await.unwrap();
-    let token_storage = TokenStorage::new(user_context).await.unwrap();
+    let token_storage = TokenStorage::new_with_mock_backend(user_context).await.unwrap();
     
     // Test that storage backend is available
     assert!(token_storage.is_storage_available().await);
@@ -414,7 +414,7 @@ async fn test_storage_backend_availability() {
 #[tokio::test]
 async fn test_error_handling() {
     let user_context = create_test_user_context().await.unwrap();
-    let token_storage = TokenStorage::new(user_context).await.unwrap();
+    let token_storage = TokenStorage::new_with_mock_backend(user_context).await.unwrap();
     
     // Test retrieving non-existent token
     let result = token_storage.retrieve_oauth_token("nonexistent", Some("user")).await;
@@ -429,7 +429,7 @@ async fn test_error_handling() {
 #[tokio::test] 
 async fn test_token_metadata() {
     let user_context = create_test_user_context().await.unwrap();
-    let token_storage = TokenStorage::new(user_context).await.unwrap();
+    let token_storage = TokenStorage::new_with_mock_backend(user_context).await.unwrap();
     
     let oauth_token = create_test_oauth_token("github", Some("testuser"));
     let mut token_data = TokenData::from_oauth_response(
@@ -504,7 +504,7 @@ async fn test_cross_platform_compatibility() {
     let user_context = create_test_user_context().await.unwrap();
     
     // Test that we can create token storage on any platform
-    let token_storage_result = TokenStorage::new(user_context).await;
+    let token_storage_result = TokenStorage::new_with_mock_backend(user_context).await;
     assert!(token_storage_result.is_ok());
     
     let token_storage = token_storage_result.unwrap();
@@ -563,7 +563,7 @@ async fn test_filesystem_storage_forced() {
     let user_context = create_test_user_context().await.unwrap();
     assert_eq!(user_context.secure_storage, SecureStorageType::Filesystem);
     
-    let token_storage = TokenStorage::new(user_context).await.unwrap();
+    let token_storage = TokenStorage::new_with_mock_backend(user_context).await.unwrap();
     assert_eq!(*token_storage.storage_type(), SecureStorageType::Filesystem);
     
     // Test basic operations with filesystem backend

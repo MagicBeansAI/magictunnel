@@ -28,11 +28,22 @@ impl ConfigResolver {
 
     /// Resolve configuration with full priority system
     pub fn resolve_config(&self, cli_config_path: Option<&Path>) -> Result<ConfigResolution> {
-        // Step 1: Determine config file path
+        self.resolve_config_internal(cli_config_path, false)
+    }
+
+    /// Resolve configuration for CLI usage - fails if explicitly provided path doesn't exist
+    pub fn resolve_config_for_cli(&self, cli_config_path: Option<&Path>) -> Result<ConfigResolution> {
+        self.resolve_config_internal(cli_config_path, true)
+    }
+
+    /// Internal resolve configuration with CLI behavior control
+    fn resolve_config_internal(&self, cli_config_path: Option<&Path>, is_cli_usage: bool) -> Result<ConfigResolution> {
+        // Step 1: Determine config file path and track if it was explicitly provided
         let config_path = self.resolve_config_path(cli_config_path);
+        let is_cli_provided = cli_config_path.is_some();
         
         // Step 2: Load base configuration
-        let mut config = self.load_base_config(&config_path)?;
+        let mut config = self.load_base_config(&config_path, is_cli_provided && is_cli_usage)?;
         
         // Step 3: Apply environment overrides
         self.env_overrides.apply_to_config(&mut config);
@@ -79,7 +90,7 @@ impl ConfigResolver {
     }
 
     /// Load base configuration from file or defaults
-    fn load_base_config(&self, config_path: &Path) -> Result<Config> {
+    fn load_base_config(&self, config_path: &Path, is_cli_provided: bool) -> Result<Config> {
         if config_path.exists() {
             info!("Loading configuration from: {:?}", config_path);
             let content = std::fs::read_to_string(config_path)
@@ -101,6 +112,14 @@ impl ConfigResolver {
             }
             Ok(config)
         } else {
+            // If this was explicitly provided via CLI and doesn't exist, that's an error
+            if is_cli_provided {
+                return Err(ProxyError::config(format!(
+                    "Explicitly provided config file not found: {:?}", 
+                    config_path
+                )));
+            }
+            
             info!("Config file not found, using built-in proxy mode defaults");
             Ok(Self::create_proxy_mode_defaults())
         }

@@ -58,8 +58,14 @@ impl IntegrationTestContext {
         let user_context = UserContext::with_session_dir(session_dir)?;
         debug!("Created user context: {}", user_context.get_unique_user_id());
         
-        // Phase 2.2: Multi-Platform Token Storage
-        let token_storage = Arc::new(TokenStorage::new(user_context.clone()).await?);
+        // Phase 2.2: Multi-Platform Token Storage (use filesystem for persistence testing)
+        let filesystem_storage = Arc::new(
+            magictunnel::auth::token_storage::FilesystemStorage::new(
+                user_context.session_dir.clone(), 
+                user_context.get_unique_user_id()
+            )?
+        );
+        let token_storage = Arc::new(TokenStorage::new_with_backend(user_context.clone(), filesystem_storage).await?);
         debug!("Created token storage with backend: {:?}", token_storage.storage_type());
         
         // Set up OAuth provider configurations
@@ -103,7 +109,14 @@ impl IntegrationTestContext {
         let session_dir = temp_dir.path().join("oauth2_1_phase2_sessions");
         
         let user_context = UserContext::with_session_dir(session_dir)?;
-        let token_storage = Arc::new(TokenStorage::new(user_context.clone()).await?);
+        // Use filesystem storage for persistence testing (avoids keychain prompts)
+        let filesystem_storage = Arc::new(
+            magictunnel::auth::token_storage::FilesystemStorage::new(
+                user_context.session_dir.clone(), 
+                user_context.get_unique_user_id()
+            )?
+        );
+        let token_storage = Arc::new(TokenStorage::new_with_backend(user_context.clone(), filesystem_storage).await?);
         
         let mut new_context = IntegrationTestContext {
             user_context,
@@ -358,7 +371,7 @@ async fn test_cross_platform_session_storage() {
         let temp_dir = TempDir::new().unwrap();
         let session_dir = temp_dir.path().join(format!("{}_sessions", user_prefix));
         let user_context = UserContext::with_session_dir(session_dir.clone()).unwrap();
-        let token_storage = TokenStorage::new(user_context.clone()).await.unwrap();
+        let token_storage = TokenStorage::new_with_mock_backend(user_context.clone()).await.unwrap();
         
         info!("Created storage with type: {:?}", token_storage.storage_type());
         
@@ -636,7 +649,7 @@ async fn test_basic_storage_operations() -> Result<()> {
     let temp_dir = TempDir::new().unwrap();
     let session_dir = temp_dir.path().join("basic_storage_test");
     let user_context = UserContext::with_session_dir(session_dir)?;
-    let token_storage = TokenStorage::new(user_context).await?;
+    let token_storage = TokenStorage::new_with_mock_backend(user_context).await?;
     
     // Test basic storage functionality
     let oauth_token = create_test_oauth_token_response("test_provider", "test_user", false);
@@ -652,7 +665,7 @@ async fn test_simplified_integration() -> Result<()> {
     let temp_dir = TempDir::new().unwrap();
     let session_dir = temp_dir.path().join("integration_test");
     let user_context = UserContext::with_session_dir(session_dir)?;
-    let token_storage = Arc::new(TokenStorage::new(user_context.clone()).await?);
+    let token_storage = Arc::new(TokenStorage::new_with_mock_backend(user_context.clone()).await?);
     
     // Test basic token operations
     let oauth_token = create_test_oauth_token_response("github", "integration_user", false);

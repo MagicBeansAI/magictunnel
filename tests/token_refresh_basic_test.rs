@@ -29,7 +29,7 @@ fn create_test_user_context() -> UserContext {
 /// Create a test token storage
 async fn create_test_token_storage() -> Arc<TokenStorage> {
     let user_context = create_test_user_context();
-    Arc::new(TokenStorage::new(user_context).await.expect("Failed to create token storage"))
+    Arc::new(TokenStorage::new_with_mock_backend(user_context).await.expect("Failed to create token storage"))
 }
 
 /// Create a test session manager

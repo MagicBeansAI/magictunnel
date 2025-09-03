@@ -146,7 +146,7 @@ async fn main() -> Result<()> {
         .init();
 
     // Load configuration
-    let config = Config::load(&cli.config, None, None)?;
+    let config = Config::load_for_cli(&cli.config, None, None)?;
 
     match cli.command {
         Commands::Status { detailed } => show_status(&config, detailed).await,

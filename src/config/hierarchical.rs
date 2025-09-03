@@ -1558,63 +1558,57 @@ registry:
         // Test YAML parsing performance with hierarchical configuration
         use std::time::Instant;
         
-        // Create a complex YAML configuration
-        let complex_yaml = r#"
+        // Use the actual config file for performance testing
+        let config_path = std::path::Path::new("magictunnel-config.yaml");
+        let complex_yaml = if config_path.exists() {
+            std::fs::read_to_string(config_path).expect("Failed to read magictunnel-config.yaml")
+        } else {
+            // Fallback to template file
+            let template_path = std::path::Path::new("config.yaml.template");
+            if template_path.exists() {
+                std::fs::read_to_string(template_path).expect("Failed to read config.yaml.template")
+            } else {
+                // Use a minimal valid YAML as last resort
+                r#"
 global:
+  deployment:
+    runtime_mode: proxy
   server:
-    host: "0.0.0.0"
+    host: 0.0.0.0
     port: 3001
-    timeout: 30
-    websocket: true
   registry:
-    paths: ["./capabilities", "./extensions", "./plugins"]
-    hot_reload: true
-    validation:
-      strict: false
-      allow_unknown_fields: true
+    type: file
+    paths:
+    - ./capabilities
+  logging:
+    level: info
+    format: text
+  security:
+    enabled: false
   auth:
-    oauth:
-      enabled: true
-    api_keys:
-      enabled: true
-  timeout: 60
-  max_retries: 5
-  priority: 10
-  enabled: true
-  hidden: false
+    enabled: false
+  defaults: {}
 
-mcp:
-  timeout: 45
-  max_retries: 3
-  priority: 8
-  enabled: true
-  hidden: false
+mcp: {}
 
-discovery:
-  smart_discovery:
-    enabled: true
-    tool_selection_mode: "hybrid"
-    confidence_threshold: 0.75
+discovery: {}
 
-tools:
-  example_tool:
-    timeout: 25
-    max_retries: 2
-    priority: 7
-    enabled: true
-    hidden: false
-  another_tool:
-    timeout: 35
-    max_retries: 4
-    priority: 9
-    enabled: true
-    hidden: true
-"#;
+tools: {}
+"#.to_string()
+            }
+        };
         
         // Test parsing performance
+        // First, try parsing once to see if there are any errors
+        let test_result = HierarchicalConfig::from_yaml(&complex_yaml);
+        if let Err(e) = &test_result {
+            println!("YAML parsing error: {}", e);
+            panic!("Failed to parse YAML: {}", e);
+        }
+        
         let start = Instant::now();
         for _ in 0..100 {
-            let result = HierarchicalConfig::from_yaml(complex_yaml);
+            let result = HierarchicalConfig::from_yaml(&complex_yaml);
             assert!(result.is_ok());
         }
         let duration = start.elapsed();

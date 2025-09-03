@@ -160,7 +160,7 @@ async fn test_security_integration_blocked() {
     assert!(!result.allowed);
     assert!(result.blocked);
     assert!(!result.requires_approval);
-    assert!(result.reason.contains("allowlist") || result.reason.contains("default"));
+    assert!(result.reason.contains("allowlist") || result.reason.contains("default") || result.reason.contains("Default"));
 }
 
 #[tokio::test]

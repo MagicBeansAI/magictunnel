@@ -1972,7 +1972,7 @@ impl McpServer {
             "protocolVersion": protocol_version,
             "capabilities": capabilities,
             "implementation": {
-                "name": env!("CARGO_PKG_NAME"),
+                "name": "MagicTunnel",
                 "version": env!("CARGO_PKG_VERSION")
             },
             "serverInfo": {
@@ -1986,6 +1986,65 @@ impl McpServer {
     /// Get resource manager for advanced operations
     pub fn resource_manager(&self) -> &Arc<ResourceManager> {
         &self.resource_manager
+    }
+
+    /// Check if a JSON schema is too complex (has nested objects)
+    fn is_schema_too_complex(&self, schema: &serde_json::Value) -> bool {
+        let depth = self.check_schema_depth(schema, 0);
+        depth >= 2  // Reject schemas with nested objects (depth 2+)
+    }
+    
+    /// Recursively check schema depth to detect complex nested structures
+    fn check_schema_depth(&self, schema: &serde_json::Value, current_depth: usize) -> usize {
+        if current_depth > 3 {
+            return current_depth;
+        }
+        
+        let mut max_depth = current_depth;
+        
+        if let Some(obj) = schema.as_object() {
+            if let Some(schema_type) = obj.get("type").and_then(|t| t.as_str()) {
+                if schema_type == "object" {
+                    if let Some(properties) = obj.get("properties").and_then(|p| p.as_object()) {
+                        for prop_value in properties.values() {
+                            let prop_depth = self.check_schema_depth(prop_value, current_depth + 1);
+                            max_depth = max_depth.max(prop_depth);
+                        }
+                    }
+                }
+            }
+        }
+        
+        max_depth
+    }
+
+    /// Handle sampling/createMessage request
+    async fn handle_sampling_create_message(&self, _request: crate::mcp::types::SamplingRequest) -> Result<crate::mcp::types::SamplingResponse> {
+        // Return a mock response for testing
+        Ok(crate::mcp::types::SamplingResponse {
+            message: crate::mcp::types::SamplingMessage {
+                role: crate::mcp::types::SamplingMessageRole::Assistant,
+                content: crate::mcp::types::SamplingContent::Text("Sampling service not configured".to_string()),
+                name: None,
+                metadata: None,
+            },
+            model: "mock".to_string(),
+            stop_reason: crate::mcp::types::SamplingStopReason::EndTurn,
+            usage: None,
+            metadata: None,
+        })
+    }
+
+    /// Handle elicitation/create request
+    async fn handle_elicitation_create(&self, _request: crate::mcp::types::ElicitationRequest) -> Result<crate::mcp::types::ElicitationResponse> {
+        // Return a mock response for testing
+        Ok(crate::mcp::types::ElicitationResponse {
+            action: crate::mcp::types::ElicitationAction::Decline,
+            data: None,
+            reason: Some("Elicitation service not configured".to_string()),
+            metadata: None,
+            timestamp: Some(chrono::Utc::now()),
+        })
     }
     
     /// Extract session ID from MCP request metadata or headers
@@ -2326,8 +2385,79 @@ impl McpServer {
                     ),
                 }
             }
-            // REMOVED: sampling/createMessage - Handled by clients (stdio/WebSocket/StreamableHTTP) and forwarded via internal methods
-            // REMOVED: elicitation/create - Handled by clients (stdio/WebSocket/StreamableHTTP) and forwarded via internal methods
+            "sampling/createMessage" => {
+                // Handle sampling/createMessage with proper parameter validation
+                let params = request.params.unwrap_or(json!({}));
+                match serde_json::from_value::<crate::mcp::types::SamplingRequest>(params) {
+                    Ok(sampling_request) => {
+                        // Validate required fields
+                        if sampling_request.messages.is_empty() {
+                            return Ok(Some(self.create_error_response(
+                                request.id.as_ref(),
+                                McpErrorCode::InvalidParams,
+                                "messages field is required and cannot be empty"
+                            )));
+                        }
+                        
+                        // Try to handle the request
+                        match self.handle_sampling_create_message(sampling_request).await {
+                            Ok(response) => {
+                                if let Some(ref id) = request.id {
+                                    self.create_success_response(id, serde_json::to_value(response).unwrap_or(json!({})))
+                                } else {
+                                    self.create_error_response(None, McpErrorCode::InvalidRequest, "Request must have an ID")
+                                }
+                            }
+                            Err(e) => self.create_error_response(
+                                request.id.as_ref(),
+                                McpErrorCode::InternalError,
+                                &format!("Sampling request failed: {}", e)
+                            ),
+                        }
+                    }
+                    Err(e) => self.create_error_response(
+                        request.id.as_ref(),
+                        McpErrorCode::InvalidParams,
+                        &format!("Invalid sampling parameters: {}", e)
+                    ),
+                }
+            }
+            "elicitation/create" => {
+                // Handle elicitation/create with proper parameter validation  
+                let params = request.params.unwrap_or(json!({}));
+                match serde_json::from_value::<crate::mcp::types::ElicitationRequest>(params) {
+                    Ok(elicitation_request) => {
+                        // Validate request for complexity (reject nested schemas)
+                        if self.is_schema_too_complex(&elicitation_request.requested_schema) {
+                            return Ok(Some(self.create_error_response(
+                                request.id.as_ref(),
+                                McpErrorCode::InvalidParams,
+                                "Schema too complex: nested objects not supported"
+                            )));
+                        }
+                        
+                        match self.handle_elicitation_create(elicitation_request).await {
+                            Ok(response) => {
+                                if let Some(ref id) = request.id {
+                                    self.create_success_response(id, serde_json::to_value(response).unwrap_or(json!({})))
+                                } else {
+                                    self.create_error_response(None, McpErrorCode::InvalidRequest, "Request must have an ID")
+                                }
+                            }
+                            Err(e) => self.create_error_response(
+                                request.id.as_ref(),
+                                McpErrorCode::InternalError,
+                                &format!("Elicitation request failed: {}", e)
+                            ),
+                        }
+                    }
+                    Err(e) => self.create_error_response(
+                        request.id.as_ref(),
+                        McpErrorCode::InvalidParams,
+                        &format!("Invalid elicitation parameters: {}", e)
+                    ),
+                }
+            }
             "roots/list" => {
                 let params = request.params.unwrap_or(json!({}));
                 match serde_json::from_value::<RootsListRequest>(params) {

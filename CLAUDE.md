@@ -499,14 +499,65 @@ smart_discovery:
 
 ## Testing
 
+**IMPORTANT**: All tests must be run with `--test-threads=1` for thread safety and resource isolation:
+
 ```bash
-cargo test                          # All tests
-cargo test discovery                # Specific module
-cargo test --test integration       # Integration tests
-cargo test smart_discovery          # Smart discovery
-cargo test visibility               # Visibility management
-cargo test semantic                 # Semantic search
+# Complete test suite with SINGLE COMPREHENSIVE SUMMARY (recommended)
+cargo test --workspace -- --test-threads=1
+
+# All tests in current crate only
+cargo test -- --test-threads=1
+
+# Specific test categories
+cargo test discovery -- --test-threads=1                    # Specific module
+cargo test --test integration -- --test-threads=1           # Integration tests  
+cargo test smart_discovery -- --test-threads=1              # Smart discovery
+cargo test visibility -- --test-threads=1                   # Visibility management
+cargo test semantic -- --test-threads=1                     # Semantic search
+
+# Individual test files
+cargo test --test pattern_performance_test -- --test-threads=1
+cargo test --test visibility_cli_tests -- --test-threads=1
+
+# Test breakdown by type (each gives separate summary)
+cargo test --lib -- --test-threads=1        # Unit tests in src/ (502 tests)
+cargo test --tests -- --test-threads=1      # Integration tests in tests/ (2,055 tests)  
+cargo test --doc -- --test-threads=1        # Doc tests
 ```
+
+### Test Summary & Analysis
+```bash
+# Run ALL tests - gives MULTIPLE individual summaries (one per test binary)
+cargo test --workspace -- --test-threads=1
+
+# BEST: Get single comprehensive total summary  
+cargo test --workspace -- --test-threads=1 2>/dev/null | grep "test result:" | \
+awk '{passed+=$4; failed+=$6; ignored+=$8; measured+=$10; filtered+=$12} END {print "TOTAL: " passed " passed; " failed " failed; " ignored " ignored; " measured " measured; " filtered " filtered out"}'
+
+# Get test counts by type
+echo "Unit tests: $(cargo test --lib --list 2>/dev/null | grep -c 'test ')"
+echo "Integration tests: $(cargo test --tests --list 2>/dev/null | grep -c 'test ')"  
+echo "Total workspace tests: $(cargo test --workspace --list 2>/dev/null | grep -c 'test ')"
+
+# Individual test type summaries (single summary each)
+cargo test --lib -- --test-threads=1        # Unit tests only
+cargo test --tests -- --test-threads=1      # Integration tests only
+cargo test --doc -- --test-threads=1        # Doc tests only
+
+# Verbose output (shows each individual test result)
+cargo test --workspace --verbose -- --test-threads=1
+
+# JSON output for detailed analysis
+cargo test --workspace --message-format=json -- --test-threads=1
+```
+
+**Summary Notes:**
+- `--workspace` gives **101+ individual summaries** (one per test binary/file), NOT one total
+- **To get single total**: Use the awk command above to sum all individual results
+- **Current totals**: ~1,874 tests total (502 unit + ~1,372 integration/other)
+- `--lib` and `--tests` give single summaries for their respective test types  
+- For **complete overview**, use `--workspace` + awk summation
+- For **debugging specific types**, use `--lib`, `--tests`, or individual test files
 
 ## CLI Tools
 

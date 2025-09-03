@@ -199,10 +199,8 @@ async fn test_elicitation_nested_schema_rejection() {
         "id": "test-elicitation-nested",
         "method": "elicitation/create",
         "params": {
-            "prompt": "Please provide complex nested data",
-            "inputType": "object",
-            "required": true,
-            "validation": {
+            "message": "Please provide complex nested data",
+            "requested_schema": {
                 "type": "object",
                 "properties": {
                     "user": {

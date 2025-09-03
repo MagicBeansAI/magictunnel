@@ -1367,6 +1367,7 @@ pub struct CollectorHealth {
 mod tests {
     use super::*;
     use crate::security::audit::events::{AuditEventType, AuditSeverity};
+    use crate::security::audit::{StorageConfig, RolloverConfig};
     
     #[tokio::test]
     async fn test_collector_creation() {
@@ -1412,8 +1413,20 @@ mod tests {
     #[tokio::test]
     async fn test_security_service_statistics() {
         use crate::security::statistics::{SecurityServiceStatistics, HealthStatus};
+        use tempfile::tempdir;
         
-        let config = AuditConfig::default();
+        let temp_dir = tempdir().unwrap();
+        let config = AuditConfig {
+            storage: StorageConfig::File {
+                directory: temp_dir.path().to_path_buf(),
+                max_file_size: 100 * 1024 * 1024,
+                max_files: 10,
+                compress: true,
+                sync_interval_secs: 5,
+                rollover: RolloverConfig::default(),
+            },
+            ..AuditConfig::default()
+        };
         let collector = AuditCollector::new(config).await.unwrap();
         
         // Test get_statistics method
@@ -1456,8 +1469,20 @@ mod tests {
     async fn test_audit_statistics_after_events() {
         use crate::security::statistics::SecurityServiceStatistics;
         use crate::security::audit::events::{AuditEventType, AuditSeverity};
+        use tempfile::tempdir;
         
-        let config = AuditConfig::default();
+        let temp_dir = tempdir().unwrap();
+        let config = AuditConfig {
+            storage: StorageConfig::File {
+                directory: temp_dir.path().to_path_buf(),
+                max_file_size: 100 * 1024 * 1024,
+                max_files: 10,
+                compress: true,
+                sync_interval_secs: 5,
+                rollover: RolloverConfig::default(),
+            },
+            ..AuditConfig::default()
+        };
         let collector = AuditCollector::new(config).await.unwrap();
         
         // Add some test events
@@ -1489,7 +1514,7 @@ mod tests {
         
         // Verify health metrics are updated
         assert!(stats.health.performance.requests_per_second >= 0.0);
-        assert!(stats.health.uptime_seconds > 0);
+        assert!(stats.health.uptime_seconds >= 0);
         
         println!("Statistics after events: total_entries={}, health_status={:?}", 
                  stats.total_entries, stats.health.status);

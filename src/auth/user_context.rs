@@ -508,7 +508,23 @@ mod tests {
 
     #[test]
     fn test_secure_storage_detection() {
+        // Save current environment variable state
+        let original_env = std::env::var("MAGICTUNNEL_TEST_STORAGE_BACKEND").ok();
+        
+        // Temporarily remove the test override to test actual platform detection
+        std::env::remove_var("MAGICTUNNEL_TEST_STORAGE_BACKEND");
+        
         let storage_type = UserContext::detect_secure_storage_type();
+        
+        // Print the detected storage type for debugging
+        println!("Detected storage type: {:?}", storage_type);
+        println!("Environment override: {:?}", std::env::var("MAGICTUNNEL_TEST_STORAGE_BACKEND"));
+        
+        #[cfg(target_os = "linux")]
+        {
+            println!("DISPLAY: {:?}", std::env::var("DISPLAY"));
+            println!("WAYLAND_DISPLAY: {:?}", std::env::var("WAYLAND_DISPLAY"));
+        }
         
         #[cfg(target_os = "macos")]
         assert_eq!(storage_type, SecureStorageType::Keychain);
@@ -519,6 +535,11 @@ mod tests {
         // Linux/Unix might be SecretService or Filesystem depending on environment
         #[cfg(target_os = "linux")]
         assert!(matches!(storage_type, SecureStorageType::SecretService | SecureStorageType::Filesystem));
+        
+        // Restore original environment variable state
+        if let Some(original_value) = original_env {
+            std::env::set_var("MAGICTUNNEL_TEST_STORAGE_BACKEND", original_value);
+        }
     }
 
     #[test]

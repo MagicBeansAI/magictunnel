@@ -20,6 +20,11 @@ patterns:
     action: deny
     reason: Credential operations require security review
     enabled: true
+  - name: execution_operations
+    regex: .*(?:execute|exec|run|shell|script|command|bash|sh).*
+    action: deny
+    reason: Execution operations require security review
+    enabled: true
   tools:
   - name: file_operations
     regex: file_(?:read|get|list|stat|info).*

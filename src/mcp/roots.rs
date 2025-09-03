@@ -393,12 +393,21 @@ impl RootsService {
         let mut filtered_roots = Vec::new();
 
         for root in roots {
+            // Extract the path component for pattern matching
+            let check_path = if root.root_type == RootType::Filesystem && root.uri.starts_with("file://") {
+                // For file:// URIs, extract the path component
+                &root.uri[7..] // Remove "file://" prefix
+            } else {
+                // For other URIs, use the full URI
+                &root.uri
+            };
+
             // Check against blocked patterns
             let mut blocked = false;
             for pattern in &self.config.security.blocked_patterns {
                 if let Ok(regex) = regex::Regex::new(pattern) {
-                    if regex.is_match(&root.uri) {
-                        debug!("Root {} blocked by pattern: {}", root.id, pattern);
+                    if regex.is_match(check_path) {
+                        debug!("Root {} blocked by pattern: {} (matched against: {})", root.id, pattern, check_path);
                         blocked = true;
                         break;
                     }
@@ -414,7 +423,7 @@ impl RootsService {
                 let mut allowed = false;
                 for pattern in allowed_patterns {
                     if let Ok(regex) = regex::Regex::new(pattern) {
-                        if regex.is_match(&root.uri) {
+                        if regex.is_match(check_path) {
                             allowed = true;
                             break;
                         }
@@ -422,14 +431,14 @@ impl RootsService {
                 }
 
                 if !allowed {
-                    debug!("Root {} not in allowed patterns", root.id);
+                    debug!("Root {} not in allowed patterns (checked against: {})", root.id, check_path);
                     continue;
                 }
             }
 
             // Check file extensions for filesystem roots
             if root.root_type == RootType::Filesystem {
-                if let Some(extension) = Path::new(&root.uri).extension() {
+                if let Some(extension) = Path::new(check_path).extension() {
                     if let Some(ext_str) = extension.to_str() {
                         if self.config.security.blocked_extensions.contains(&ext_str.to_lowercase()) {
                             debug!("Root {} blocked by extension: {}", root.id, ext_str);
@@ -766,7 +775,18 @@ mod tests {
             Root::filesystem("unsafe", "/etc/passwd"),
         ];
 
+        println!("Security enabled: {}", service.config.security.enabled);
+        println!("Blocked patterns: {:?}", service.config.security.blocked_patterns);
+        for root in &roots {
+            println!("Root: {} -> {}", root.id, root.uri);
+        }
+
         let filtered = service.apply_security_filtering(roots).await.unwrap();
+        
+        println!("Filtered roots: {}", filtered.len());
+        for root in &filtered {
+            println!("Filtered root: {} -> {}", root.id, root.uri);
+        }
         
         // Should filter out the /etc/ path
         assert_eq!(filtered.len(), 1);

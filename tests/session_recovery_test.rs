@@ -33,7 +33,7 @@ fn create_test_user_context() -> Result<UserContext> {
 
 /// Create a test token storage
 async fn create_test_token_storage(user_context: UserContext) -> Result<Arc<TokenStorage>> {
-    TokenStorage::new(user_context).await.map(Arc::new)
+    TokenStorage::new_with_mock_backend(user_context).await.map(Arc::new)
 }
 
 /// Create test OAuth provider configurations

@@ -227,7 +227,7 @@ async fn test_auth_headers_generation() -> Result<()> {
 
     let auth_header = oauth_headers.get("Authorization").unwrap();
     assert!(auth_header.starts_with("Bearer "));
-    assert!(auth_header.contains("oauth_token"));
+    assert!(auth_header.contains("oauth_access_token"));
 
     // Test automatic provider selection (no provider specified)
     let auto_headers = auth_context.get_auth_headers(None);
@@ -440,7 +440,8 @@ async fn test_complete_authentication_flow() -> Result<()> {
     assert!(auth_headers.contains_key("X-Auth-Provider"));
 
     let auth_header = auth_headers.get("Authorization").unwrap();
-    assert!(auth_header.starts_with("Bearer oauth_token"));
+    assert!(auth_header.starts_with("Bearer "));
+    assert!(auth_header.contains("oauth_access_token"));
     println!("✓ Authentication header validated: {}", auth_header);
 
     // Step 8: Verify user context

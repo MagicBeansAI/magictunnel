@@ -109,7 +109,7 @@ impl ElicitationService {
             enabled: config.smart_discovery.as_ref()
                 .map(|sd| sd.enabled)
                 .unwrap_or(false),
-            max_schema_complexity: SchemaComplexity::WithArrays,
+            max_schema_complexity: SchemaComplexity::WithArrays, // Allow arrays but not nested objects
             default_timeout_seconds: 300, // 5 minutes
             max_timeout_seconds: 1800, // 30 minutes
             rate_limit: Some(ElicitationRateLimit {
@@ -172,7 +172,7 @@ impl ElicitationService {
         }
 
         // Generate request ID and store pending request
-        let request_id = uuid::Uuid::new_v4().to_string();
+        let request_id = format!("elicit_{}", uuid::Uuid::new_v4());
         let timeout_seconds = request.timeout_seconds.unwrap_or(self.config.default_timeout_seconds);
         
         let pending = PendingElicitation {

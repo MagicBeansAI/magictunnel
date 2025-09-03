@@ -7,13 +7,16 @@
 //! - Service container health checks
 //! - Service loading order and lifecycle
 
-use std::sync::Arc;
-
 use magictunnel::config::{
     Config, DeploymentConfig, RuntimeMode, ConfigResolution, EnvironmentOverrides,
     ConfigSource, ValidationResult
 };
-use magictunnel::services::{ServiceLoader, ServiceContainer, ServiceState};
+use magictunnel::services::ServiceLoader;
+use magictunnel::security::{
+    SecurityConfig, AllowlistConfig, SanitizationConfig, RbacConfig, AuditConfig,
+    EmergencyLockdownConfig, PolicyEngineConfig, ThreatDetectionConfig,
+};
+use magictunnel::security::allowlist_types::AllowlistAction;
 use magictunnel::error::Result;
 
 /// Create test configuration resolution for given runtime mode
@@ -27,6 +30,40 @@ fn create_test_resolution(mode: RuntimeMode) -> ConfigResolution {
     config.server.host = "127.0.0.1".to_string();
     config.server.port = 3001;
     config.registry.paths = vec!["capabilities".to_string()];
+
+    // Enable security configuration for advanced mode
+    if matches!(mode, RuntimeMode::Advanced) {
+        config.security = Some(SecurityConfig {
+            enabled: true,
+            allowlist: Some(AllowlistConfig {
+                enabled: true,
+                default_action: AllowlistAction::Deny,
+                emergency_lockdown: false,
+                tools: std::collections::HashMap::new(),
+                tool_patterns: vec![],
+                capabilities: std::collections::HashMap::new(),
+                capability_patterns: vec![],
+                global_patterns: vec![],
+                mt_level_rules: std::collections::HashMap::new(),
+                data_file: "security/test-allowlist.yaml".to_string(),
+            }),
+            sanitization: Some(SanitizationConfig::default()),
+            rbac: Some(RbacConfig::default()),
+            audit: Some(AuditConfig::default()),
+            emergency_lockdown: Some(EmergencyLockdownConfig {
+                enabled: true,
+                state_file_path: std::path::PathBuf::from("./data/test-emergency-lockdown.json"),
+                log_blocked_requests: true,
+                authorized_users: vec![],
+            }),
+            policy_engine: Some(PolicyEngineConfig {
+                enabled: true,
+            }),
+            threat_detection: Some(ThreatDetectionConfig {
+                enabled: true,
+            }),
+        });
+    }
 
     ConfigResolution {
         config,

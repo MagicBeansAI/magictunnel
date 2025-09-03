@@ -10,9 +10,12 @@ mod tests {
     #[tokio::test]
     async fn test_notification_capabilities() {
         let default_caps = NotificationCapabilities::default();
-        assert!(default_caps.resources_list_changed);
-        assert!(default_caps.prompts_list_changed);
-        assert!(default_caps.resource_subscriptions);
+        // TODO: Change to true when resource list change notifications are implemented
+        assert!(!default_caps.resources_list_changed);
+        // TODO: Change to true when prompt list change notifications are implemented
+        assert!(!default_caps.prompts_list_changed);
+        // TODO: Change to true when resource subscriptions are fully exposed via MCP protocol
+        assert!(!default_caps.resource_subscriptions);
         
         let custom_caps = NotificationCapabilities {
             resources_list_changed: false,
@@ -32,12 +35,17 @@ mod tests {
     async fn test_notification_manager_creation() {
         let manager = McpNotificationManager::new();
         let caps = manager.capabilities();
-        assert!(caps.resources_list_changed);
-        assert!(caps.prompts_list_changed);
-        assert!(caps.resource_subscriptions);
+        // TODO: Change to true when resource list change notifications are implemented
+        assert!(!caps.resources_list_changed);
+        // TODO: Change to true when prompt list change notifications are implemented
+        assert!(!caps.prompts_list_changed);
+        // TODO: Change to true when resource subscriptions are fully exposed via MCP protocol
+        assert!(!caps.resource_subscriptions);
         
-        let subscriptions = manager.get_resource_subscriptions().unwrap();
-        assert!(subscriptions.is_empty());
+        // TODO: Update when resource subscriptions are implemented - currently returns Ok(empty_vec) even when capability disabled
+        let subscriptions_result = manager.get_resource_subscriptions();
+        assert!(subscriptions_result.is_ok(), "get_resource_subscriptions always succeeds");
+        assert!(subscriptions_result.unwrap().is_empty(), "Should return empty list when no subscriptions");
     }
 
     #[tokio::test]
@@ -45,15 +53,14 @@ mod tests {
         let manager = McpNotificationManager::new();
         let mut receiver = manager.subscribe();
         
-        manager.notify_resources_list_changed().unwrap();
+        // TODO: Replace with actual notification test when resource list change notifications are implemented
+        // Method succeeds but doesn't send notification when capability is disabled
+        let result = manager.notify_resources_list_changed();
+        assert!(result.is_ok(), "Method should succeed even when capability is disabled");
         
-        let notification = timeout(Duration::from_millis(100), receiver.recv())
-            .await
-            .expect("Should receive notification")
-            .expect("Should not have error");
-        
-        assert_eq!(notification.method, "notifications/resources/list_changed");
-        assert!(notification.params.is_none());
+        // Should not receive any notification because capability is disabled
+        let result = timeout(Duration::from_millis(100), receiver.recv()).await;
+        assert!(result.is_err(), "Should not receive notification when capability is disabled");
     }
 
     #[tokio::test]
@@ -61,15 +68,14 @@ mod tests {
         let manager = McpNotificationManager::new();
         let mut receiver = manager.subscribe();
         
-        manager.notify_prompts_list_changed().unwrap();
+        // TODO: Replace with actual notification test when prompt list change notifications are implemented
+        // Method succeeds but doesn't send notification when capability is disabled
+        let result = manager.notify_prompts_list_changed();
+        assert!(result.is_ok(), "Method should succeed even when capability is disabled");
         
-        let notification = timeout(Duration::from_millis(100), receiver.recv())
-            .await
-            .expect("Should receive notification")
-            .expect("Should not have error");
-        
-        assert_eq!(notification.method, "notifications/prompts/list_changed");
-        assert!(notification.params.is_none());
+        // Should not receive any notification because capability is disabled
+        let result = timeout(Duration::from_millis(100), receiver.recv()).await;
+        assert!(result.is_err(), "Should not receive notification when capability is disabled");
     }
 
     #[tokio::test]
@@ -77,52 +83,32 @@ mod tests {
         let manager = McpNotificationManager::new();
         let test_uri = "file:///test/resource.txt".to_string();
         
-        // Initially no subscriptions
-        let subscriptions = manager.get_resource_subscriptions().unwrap();
-        assert!(subscriptions.is_empty());
+        // TODO: Replace with actual resource subscription test when feature is implemented
+        // For now, verify that resource subscriptions return errors when not implemented
         
-        // Subscribe to resource
-        manager.subscribe_to_resource(test_uri.clone()).unwrap();
+        // Should return Ok(empty_vec) even when capability is disabled (backend exists)
+        let result = manager.get_resource_subscriptions();
+        assert!(result.is_ok(), "get_resource_subscriptions always succeeds");
+        assert!(result.unwrap().is_empty(), "Should return empty list when no subscriptions");
         
-        let subscriptions = manager.get_resource_subscriptions().unwrap();
-        assert_eq!(subscriptions.len(), 1);
-        assert!(subscriptions.contains(&test_uri));
+        // Should return error when trying to subscribe
+        let result = manager.subscribe_to_resource(test_uri.clone());
+        assert!(result.is_err(), "subscribe_to_resource should return error when not implemented");
         
-        // Subscribe to same resource again (should be idempotent)
-        manager.subscribe_to_resource(test_uri.clone()).unwrap();
-        
-        let subscriptions = manager.get_resource_subscriptions().unwrap();
-        assert_eq!(subscriptions.len(), 1);
-        
-        // Unsubscribe from resource
-        manager.unsubscribe_from_resource(&test_uri).unwrap();
-        
-        let subscriptions = manager.get_resource_subscriptions().unwrap();
-        assert!(subscriptions.is_empty());
+        // Should return error when trying to unsubscribe
+        let result = manager.unsubscribe_from_resource(&test_uri);
+        assert!(result.is_err(), "unsubscribe_from_resource should return error when not implemented");
     }
 
     #[tokio::test]
     async fn test_resource_updated_notification() {
         let manager = McpNotificationManager::new();
-        let mut receiver = manager.subscribe();
         let test_uri = "file:///test/resource.txt".to_string();
         
-        // Subscribe to resource first
-        manager.subscribe_to_resource(test_uri.clone()).unwrap();
-        
-        // Notify resource updated
-        manager.notify_resource_updated(test_uri.clone()).unwrap();
-        
-        let notification = timeout(Duration::from_millis(100), receiver.recv())
-            .await
-            .expect("Should receive notification")
-            .expect("Should not have error");
-        
-        assert_eq!(notification.method, "notifications/resources/updated");
-        assert!(notification.params.is_some());
-        
-        let params = notification.params.unwrap();
-        assert_eq!(params["uri"], test_uri);
+        // TODO: Replace with actual resource update notification test when feature is implemented
+        // Method succeeds but doesn't send notification when capability is disabled
+        let result = manager.notify_resource_updated(test_uri.clone());
+        assert!(result.is_ok(), "Method should succeed even when capability is disabled");
     }
 
     #[tokio::test]
@@ -239,17 +225,22 @@ mod tests {
     async fn test_notification_stats() {
         let manager = McpNotificationManager::new();
         
-        // Initially no subscriptions
+        // TODO: Replace with actual stats test when resource subscriptions are implemented
+        // For now, verify stats reflect unimplemented capabilities
         let stats = manager.get_stats().unwrap();
         assert_eq!(stats.resource_subscriptions_count, 0);
-        assert!(stats.capabilities.resources_list_changed);
+        // TODO: Change to true when resource list change notifications are implemented
+        assert!(!stats.capabilities.resources_list_changed);
         
-        // Add some subscriptions
-        manager.subscribe_to_resource("file:///test1.txt".to_string()).unwrap();
-        manager.subscribe_to_resource("file:///test2.txt".to_string()).unwrap();
+        // Resource subscription operations should fail when not implemented
+        let result = manager.subscribe_to_resource("file:///test1.txt".to_string());
+        assert!(result.is_err(), "subscribe_to_resource should fail when not implemented");
+        let result = manager.subscribe_to_resource("file:///test2.txt".to_string());
+        assert!(result.is_err(), "subscribe_to_resource should fail when not implemented");
         
+        // Stats should still show 0 subscriptions
         let stats = manager.get_stats().unwrap();
-        assert_eq!(stats.resource_subscriptions_count, 2);
+        assert_eq!(stats.resource_subscriptions_count, 0);
     }
 
     #[tokio::test]
@@ -317,21 +308,17 @@ mod tests {
         let mut receiver1 = manager.subscribe();
         let mut receiver2 = manager.subscribe();
         
-        manager.notify_resources_list_changed().unwrap();
+        // TODO: Replace with actual multiple subscriber test when resource list change notifications are implemented
+        // Method succeeds but doesn't send notification when capability is disabled
+        let result = manager.notify_resources_list_changed();
+        assert!(result.is_ok(), "Method should succeed even when capability is disabled");
         
-        // Both subscribers should receive the notification
-        let notification1 = timeout(Duration::from_millis(100), receiver1.recv())
-            .await
-            .expect("Should receive notification")
-            .expect("Should not have error");
+        // Neither subscriber should receive notification when capability is disabled
+        let result1 = timeout(Duration::from_millis(100), receiver1.recv()).await;
+        assert!(result1.is_err(), "Should not receive notification when capability is disabled");
         
-        let notification2 = timeout(Duration::from_millis(100), receiver2.recv())
-            .await
-            .expect("Should receive notification")
-            .expect("Should not have error");
-        
-        assert_eq!(notification1.method, "notifications/resources/list_changed");
-        assert_eq!(notification2.method, "notifications/resources/list_changed");
+        let result2 = timeout(Duration::from_millis(100), receiver2.recv()).await;
+        assert!(result2.is_err(), "Should not receive notification when capability is disabled");
     }
 
     #[tokio::test]

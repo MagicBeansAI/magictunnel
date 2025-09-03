@@ -8287,19 +8287,31 @@ impl DashboardApi {
             }
         }
         
-        // Apply the configuration to the actual web rate limiter
+        // Apply the configuration to the actual web rate limiter using proper update_config method
         {
             let config = RATE_LIMITING_CONFIG.read().unwrap();
             let web_config = convert_dashboard_to_web_config(&config);
             
-            // Update the global web rate limiter with new configuration
-            match GLOBAL_WEB_RATE_LIMITER.write() {
-                Ok(mut rate_limiter) => {
-                    *rate_limiter = WebRateLimiter::new(web_config);
-                    info!("Global web rate limiter updated with new configuration");
+            // Update the global web rate limiter configuration using the proper update_config method
+            match GLOBAL_WEB_RATE_LIMITER.read() {
+                Ok(rate_limiter) => {
+                    match rate_limiter.update_config(web_config) {
+                        Ok(()) => {
+                            info!("Global web rate limiter configuration updated successfully using update_config()");
+                        },
+                        Err(e) => {
+                            warn!("Failed to update rate limiter configuration: {}", e);
+                            return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                                "error": format!("Failed to update rate limiter configuration: {}", e)
+                            })));
+                        }
+                    }
                 },
                 Err(e) => {
-                    warn!("Failed to update global web rate limiter: {}", e);
+                    warn!("Failed to acquire global rate limiter lock for configuration update: {}", e);
+                    return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": "Failed to acquire rate limiter lock for configuration update"
+                    })));
                 }
             }
         }
@@ -8317,13 +8329,54 @@ impl DashboardApi {
     
     /// Get rate limiting statistics
     pub async fn get_rate_limiting_statistics(&self) -> Result<HttpResponse> {
-        let stats = RATE_LIMITING_STATS.read().unwrap().clone();
-        Ok(HttpResponse::Ok().json(stats))
+        // Get real statistics from the active rate limiter instead of separate store
+        match GLOBAL_WEB_RATE_LIMITER.read() {
+            Ok(rate_limiter) => {
+                match rate_limiter.get_stats() {
+                    Ok(real_stats) => {
+                        info!("Retrieved real-time rate limiting statistics from active rate limiter");
+                        Ok(HttpResponse::Ok().json(real_stats))
+                    },
+                    Err(e) => {
+                        warn!("Failed to get rate limiter statistics: {}, falling back to cached stats", e);
+                        // Fallback to cached statistics if rate limiter stats fail
+                        let fallback_stats = RATE_LIMITING_STATS.read().unwrap().clone();
+                        Ok(HttpResponse::Ok().json(fallback_stats))
+                    }
+                }
+            },
+            Err(e) => {
+                warn!("Failed to acquire rate limiter lock for statistics: {}, using cached stats", e);
+                // Fallback to cached statistics if lock acquisition fails
+                let fallback_stats = RATE_LIMITING_STATS.read().unwrap().clone();
+                Ok(HttpResponse::Ok().json(fallback_stats))
+            }
+        }
     }
     
     /// Reset rate limiting counters
     pub async fn reset_rate_limiting_counters(&self) -> Result<HttpResponse> {
-        // Reset the actual statistics
+        // Reset the actual rate limiter state using proper reset() method
+        let reset_result = match GLOBAL_WEB_RATE_LIMITER.read() {
+            Ok(rate_limiter) => {
+                match rate_limiter.reset() {
+                    Ok(()) => {
+                        info!("Rate limiter state reset successfully using reset() method");
+                        true
+                    },
+                    Err(e) => {
+                        warn!("Failed to reset rate limiter state: {}", e);
+                        false
+                    }
+                }
+            },
+            Err(e) => {
+                warn!("Failed to acquire rate limiter lock for reset: {}", e);
+                false
+            }
+        };
+        
+        // Also reset the cached dashboard statistics for consistency
         {
             let mut stats = RATE_LIMITING_STATS.write().unwrap();
             stats.total_requests = 0;
@@ -8336,13 +8389,21 @@ impl DashboardApi {
             stats.recent_blocks.clear();
         }
         
-        info!("Rate limiting counters reset successfully");
-        
-        Ok(HttpResponse::Ok().json(serde_json::json!({
-            "success": true,
-            "message": "Rate limiting counters reset successfully",
-            "reset_time": chrono::Utc::now().to_rfc3339()
-        })))
+        if reset_result {
+            info!("Rate limiting counters and state reset successfully");
+            Ok(HttpResponse::Ok().json(serde_json::json!({
+                "success": true,
+                "message": "Rate limiting counters and state reset successfully",
+                "reset_time": chrono::Utc::now().to_rfc3339()
+            })))
+        } else {
+            warn!("Rate limiter state reset failed, but dashboard counters were reset");
+            Ok(HttpResponse::Ok().json(serde_json::json!({
+                "success": false,
+                "message": "Rate limiter state reset failed, but dashboard counters were reset",
+                "reset_time": chrono::Utc::now().to_rfc3339()
+            })))
+        }
     }
     
     /// Get rate limiting whitelist
@@ -8408,15 +8469,21 @@ impl DashboardApi {
             // Add the IP to the whitelist
             config.whitelist.push(ip.to_string());
             
-            // Update the global web rate limiter with new configuration
+            // Update the global web rate limiter with new configuration using proper update_config
             let web_config = convert_dashboard_to_web_config(&config);
-            match GLOBAL_WEB_RATE_LIMITER.write() {
-                Ok(mut rate_limiter) => {
-                    *rate_limiter = WebRateLimiter::new(web_config);
-                    debug!("Updated global web rate limiter after adding IP to whitelist");
+            match GLOBAL_WEB_RATE_LIMITER.read() {
+                Ok(rate_limiter) => {
+                    match rate_limiter.update_config(web_config) {
+                        Ok(()) => {
+                            debug!("Updated global web rate limiter configuration after adding IP to whitelist using update_config()");
+                        },
+                        Err(e) => {
+                            warn!("Failed to update rate limiter configuration after adding IP: {}", e);
+                        }
+                    }
                 },
                 Err(e) => {
-                    warn!("Failed to update global web rate limiter: {}", e);
+                    warn!("Failed to acquire rate limiter lock for whitelist update: {}", e);
                 }
             }
         }
@@ -8460,16 +8527,22 @@ impl DashboardApi {
             
             let was_removed = config.whitelist.len() < original_len;
             
-            // Update the global web rate limiter if IP was removed
+            // Update the global web rate limiter if IP was removed using proper update_config
             if was_removed {
                 let web_config = convert_dashboard_to_web_config(&config);
-                match GLOBAL_WEB_RATE_LIMITER.write() {
-                    Ok(mut rate_limiter) => {
-                        *rate_limiter = WebRateLimiter::new(web_config);
-                        debug!("Updated global web rate limiter after removing IP from whitelist");
+                match GLOBAL_WEB_RATE_LIMITER.read() {
+                    Ok(rate_limiter) => {
+                        match rate_limiter.update_config(web_config) {
+                            Ok(()) => {
+                                debug!("Updated global web rate limiter configuration after removing IP from whitelist using update_config()");
+                            },
+                            Err(e) => {
+                                warn!("Failed to update rate limiter configuration after removing IP: {}", e);
+                            }
+                        }
                     },
                     Err(e) => {
-                        warn!("Failed to update global web rate limiter: {}", e);
+                        warn!("Failed to acquire rate limiter lock for whitelist removal: {}", e);
                     }
                 }
             }

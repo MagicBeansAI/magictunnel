@@ -2181,9 +2181,11 @@ mod tests {
         assert!(result.is_ok(), "Failed to generate from OpenAPI spec: {:?}", result.err());
 
         let capability_file = result.unwrap();
-        assert_eq!(capability_file.tools.len(), 1);
-        assert_eq!(capability_file.tools[0].name, "getUsers");
-        assert_eq!(capability_file.tools[0].description, "Get all users");
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].name, "enhanced_getusers");
+        assert!(tools[0].core.description.contains("Get all users"));
     }
 
     #[test]
@@ -2227,16 +2229,18 @@ mod tests {
         assert!(result.is_ok(), "Failed to generate from OpenAPI spec: {:?}", result.err());
 
         let capability_file = result.unwrap();
-        assert_eq!(capability_file.tools.len(), 1);
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+        assert_eq!(tools.len(), 1);
 
-        let tool = &capability_file.tools[0];
-        assert_eq!(tool.name, "getUserById");
+        let tool = &tools[0];
+        assert_eq!(tool.name, "enhanced_getuserbyid");
 
         // Check that the input schema includes the path parameter
-        let properties = tool.input_schema["properties"].as_object().unwrap();
+        let properties = tool.core.input_schema["properties"].as_object().unwrap();
         assert!(properties.contains_key("id"));
 
-        let required = tool.input_schema["required"].as_array().unwrap();
+        let required = tool.core.input_schema["required"].as_array().unwrap();
         assert!(required.contains(&json!("id")));
     }
 
@@ -2271,7 +2275,9 @@ mod tests {
         assert!(result.is_ok());
 
         let capability_file = result.unwrap();
-        assert_eq!(capability_file.tools.len(), 1);
-        assert_eq!(capability_file.tools[0].name, "post__users");
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].name, "enhanced_post_users");
     }
 }

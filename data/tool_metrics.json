@@ -1,103 +1,9 @@
 {
   "tool_metrics": {
-    "calc_tool": {
-      "tool_name": "calc_tool",
-      "category": "utilities",
-      "last_updated": "2025-07-30T07:51:40.441878Z",
-      "total_executions": 6,
-      "successful_executions": 6,
-      "failed_executions": 0,
-      "timeout_count": 0,
-      "success_rate": 1.0,
-      "avg_execution_time_ms": 55.0,
-      "median_execution_time_ms": 55.0,
-      "p95_execution_time_ms": 60.0,
-      "recent_execution_times": [
-        50,
-        55,
-        60,
-        50,
-        55,
-        60
-      ],
-      "top_30_appearances": 6,
-      "top_10_appearances": 6,
-      "top_3_appearances": 0,
-      "avg_confidence_score": 0.75,
-      "avg_discovery_position": 6.0,
-      "recent_confidence_scores": [
-        0.7,
-        0.75,
-        0.7999999999999999,
-        0.7,
-        0.75,
-        0.7999999999999999
-      ],
-      "primary_execution_source": "api",
-      "execution_sources": {
-        "api": 6
-      },
-      "error_types": {},
-      "usage_by_hour": {
-        "7": 6
-      },
-      "usage_by_day": {
-        "3": 6
-      },
-      "first_execution": "2025-07-30T07:51:40.355855Z",
-      "last_execution": "2025-07-30T07:51:40.441872Z",
-      "last_successful_execution": "2025-07-30T07:51:40.441872Z",
-      "avg_output_size": 64.0,
-      "output_types": {
-        "json": 6
-      }
-    },
-    "list_directory_filesystem": {
-      "tool_name": "list_directory_filesystem",
-      "category": "unknown",
-      "last_updated": "2025-08-20T08:26:04.494221Z",
-      "total_executions": 1,
-      "successful_executions": 1,
-      "failed_executions": 0,
-      "timeout_count": 0,
-      "success_rate": 1.0,
-      "avg_execution_time_ms": 1.0,
-      "median_execution_time_ms": 1.0,
-      "p95_execution_time_ms": 1.0,
-      "recent_execution_times": [
-        1
-      ],
-      "top_30_appearances": 1,
-      "top_10_appearances": 1,
-      "top_3_appearances": 1,
-      "avg_confidence_score": 0.1425,
-      "avg_discovery_position": 1.0,
-      "recent_confidence_scores": [
-        0.1425
-      ],
-      "primary_execution_source": "smart_discovery",
-      "execution_sources": {
-        "smart_discovery": 1
-      },
-      "error_types": {},
-      "usage_by_hour": {
-        "8": 1
-      },
-      "usage_by_day": {
-        "3": 1
-      },
-      "first_execution": "2025-08-20T08:26:04.492656Z",
-      "last_execution": "2025-08-20T08:26:04.492656Z",
-      "last_successful_execution": "2025-08-20T08:26:04.492656Z",
-      "avg_output_size": 1465.0,
-      "output_types": {
-        "json": 1
-      }
-    },
     "test_file_tool": {
       "tool_name": "test_file_tool",
       "category": "filesystem",
-      "last_updated": "2025-08-11T12:07:55.224710Z",
+      "last_updated": "2025-09-03T03:08:35.193502Z",
       "total_executions": 8,
       "successful_executions": 6,
       "failed_executions": 2,
@@ -139,245 +45,23 @@
         "FileNotFound": 2
       },
       "usage_by_hour": {
-        "12": 8
+        "3": 8
       },
       "usage_by_day": {
-        "1": 8
+        "3": 8
       },
-      "first_execution": "2025-08-11T12:07:55.211561Z",
-      "last_execution": "2025-08-11T12:07:55.224707Z",
-      "last_successful_execution": "2025-08-11T12:07:55.220902Z",
+      "first_execution": "2025-09-03T03:08:35.192564Z",
+      "last_execution": "2025-09-03T03:08:35.193501Z",
+      "last_successful_execution": "2025-09-03T03:08:35.193266Z",
       "avg_output_size": 1024.0,
       "output_types": {
         "text": 6
       }
     },
-    "file_tool": {
-      "tool_name": "file_tool",
-      "category": "filesystem",
-      "last_updated": "2025-07-30T07:51:40.437821Z",
-      "total_executions": 16,
-      "successful_executions": 12,
-      "failed_executions": 4,
-      "timeout_count": 0,
-      "success_rate": 0.75,
-      "avg_execution_time_ms": 1175.0,
-      "median_execution_time_ms": 1175.0,
-      "p95_execution_time_ms": 1350.0,
-      "recent_execution_times": [
-        1000,
-        1050,
-        1100,
-        1150,
-        1200,
-        1250,
-        1300,
-        1350,
-        1000,
-        1050,
-        1100,
-        1150,
-        1200,
-        1250,
-        1300,
-        1350
-      ],
-      "top_30_appearances": 16,
-      "top_10_appearances": 16,
-      "top_3_appearances": 12,
-      "avg_confidence_score": 0.73,
-      "avg_discovery_position": 2.875,
-      "recent_confidence_scores": [
-        0.8,
-        0.78,
-        0.76,
-        0.74,
-        0.7200000000000001,
-        0.7000000000000001,
-        0.68,
-        0.66,
-        0.8,
-        0.78,
-        0.76,
-        0.74,
-        0.7200000000000001,
-        0.7000000000000001,
-        0.68,
-        0.66
-      ],
-      "primary_execution_source": "direct",
-      "execution_sources": {
-        "direct": 16
-      },
-      "error_types": {
-        "FileNotFound": 4
-      },
-      "usage_by_hour": {
-        "7": 16
-      },
-      "usage_by_day": {
-        "3": 16
-      },
-      "first_execution": "2025-07-30T07:51:40.350429Z",
-      "last_execution": "2025-07-30T07:51:40.437815Z",
-      "last_successful_execution": "2025-07-30T07:51:40.435140Z",
-      "avg_output_size": 1024.0,
-      "output_types": {
-        "text": 12
-      }
-    },
-    "enhanced_memory_stress_test": {
-      "tool_name": "enhanced_memory_stress_test",
-      "category": "unknown",
-      "last_updated": "2025-08-20T02:29:04.093631Z",
-      "total_executions": 1,
-      "successful_executions": 0,
-      "failed_executions": 1,
-      "timeout_count": 0,
-      "success_rate": 0.0,
-      "avg_execution_time_ms": 0.0,
-      "median_execution_time_ms": 0.0,
-      "p95_execution_time_ms": 0.0,
-      "recent_execution_times": [
-        0
-      ],
-      "top_30_appearances": 5,
-      "top_10_appearances": 5,
-      "top_3_appearances": 1,
-      "avg_confidence_score": 0.20121820421971776,
-      "avg_discovery_position": 7.6,
-      "recent_confidence_scores": [
-        0.800643652677536,
-        0.065,
-        0.05147368421052632,
-        0.05147368421052632,
-        0.0375
-      ],
-      "primary_execution_source": "smart_discovery",
-      "execution_sources": {
-        "smart_discovery": 1
-      },
-      "error_types": {
-        "execution_error": 1
-      },
-      "usage_by_hour": {
-        "2": 1
-      },
-      "usage_by_day": {
-        "3": 1
-      },
-      "first_execution": "2025-08-20T02:29:04.093600Z",
-      "last_execution": "2025-08-20T02:29:04.093600Z",
-      "last_successful_execution": null,
-      "avg_output_size": 0.0,
-      "output_types": {}
-    },
-    "ping_tool": {
-      "tool_name": "ping_tool",
-      "category": "networking",
-      "last_updated": "2025-07-30T07:51:40.425265Z",
-      "total_executions": 30,
-      "successful_executions": 28,
-      "failed_executions": 2,
-      "timeout_count": 2,
-      "success_rate": 0.9333333333333332,
-      "avg_execution_time_ms": 270.0,
-      "median_execution_time_ms": 270.0,
-      "p95_execution_time_ms": 340.0,
-      "recent_execution_times": [
-        200,
-        210,
-        220,
-        230,
-        240,
-        250,
-        260,
-        270,
-        280,
-        290,
-        300,
-        310,
-        320,
-        330,
-        340,
-        200,
-        210,
-        220,
-        230,
-        240,
-        250,
-        260,
-        270,
-        280,
-        290,
-        300,
-        310,
-        320,
-        330,
-        340
-      ],
-      "top_30_appearances": 30,
-      "top_10_appearances": 30,
-      "top_3_appearances": 30,
-      "avg_confidence_score": 0.935,
-      "avg_discovery_position": 1.0,
-      "recent_confidence_scores": [
-        0.9,
-        0.905,
-        0.91,
-        0.915,
-        0.92,
-        0.925,
-        0.93,
-        0.935,
-        0.94,
-        0.945,
-        0.95,
-        0.955,
-        0.96,
-        0.965,
-        0.97,
-        0.9,
-        0.905,
-        0.91,
-        0.915,
-        0.92,
-        0.925,
-        0.93,
-        0.935,
-        0.94,
-        0.945,
-        0.95,
-        0.955,
-        0.96,
-        0.965,
-        0.97
-      ],
-      "primary_execution_source": "smart_discovery",
-      "execution_sources": {
-        "smart_discovery": 30
-      },
-      "error_types": {
-        "NetworkError": 2
-      },
-      "usage_by_hour": {
-        "7": 30
-      },
-      "usage_by_day": {
-        "3": 30
-      },
-      "first_execution": "2025-07-30T07:51:40.338502Z",
-      "last_execution": "2025-07-30T07:51:40.425261Z",
-      "last_successful_execution": "2025-07-30T07:51:40.424100Z",
-      "avg_output_size": 512.0,
-      "output_types": {
-        "json": 28
-      }
-    },
     "test_calc_tool": {
       "tool_name": "test_calc_tool",
       "category": "utilities",
-      "last_updated": "2025-08-11T12:07:55.230511Z",
+      "last_updated": "2025-09-03T03:08:35.193842Z",
       "total_executions": 3,
       "successful_executions": 3,
       "failed_executions": 0,
@@ -407,180 +91,23 @@
       },
       "error_types": {},
       "usage_by_hour": {
-        "12": 3
+        "3": 3
       },
       "usage_by_day": {
-        "1": 3
+        "3": 3
       },
-      "first_execution": "2025-08-11T12:07:55.226613Z",
-      "last_execution": "2025-08-11T12:07:55.230509Z",
-      "last_successful_execution": "2025-08-11T12:07:55.230509Z",
+      "first_execution": "2025-09-03T03:08:35.193612Z",
+      "last_execution": "2025-09-03T03:08:35.193841Z",
+      "last_successful_execution": "2025-09-03T03:08:35.193841Z",
       "avg_output_size": 64.0,
       "output_types": {
         "json": 3
       }
     },
-    "enhanced_api_health_checker": {
-      "tool_name": "enhanced_api_health_checker",
-      "category": "unknown",
-      "last_updated": "2025-08-20T08:26:19.702205Z",
-      "total_executions": 1,
-      "successful_executions": 0,
-      "failed_executions": 1,
-      "timeout_count": 0,
-      "success_rate": 0.0,
-      "avg_execution_time_ms": 0.0,
-      "median_execution_time_ms": 0.0,
-      "p95_execution_time_ms": 0.0,
-      "recent_execution_times": [
-        0
-      ],
-      "top_30_appearances": 1,
-      "top_10_appearances": 1,
-      "top_3_appearances": 1,
-      "avg_confidence_score": 0.13,
-      "avg_discovery_position": 1.0,
-      "recent_confidence_scores": [
-        0.13
-      ],
-      "primary_execution_source": "smart_discovery",
-      "execution_sources": {
-        "smart_discovery": 1
-      },
-      "error_types": {
-        "execution_error": 1
-      },
-      "usage_by_hour": {
-        "8": 1
-      },
-      "usage_by_day": {
-        "3": 1
-      },
-      "first_execution": "2025-08-20T08:26:19.702164Z",
-      "last_execution": "2025-08-20T08:26:19.702164Z",
-      "last_successful_execution": null,
-      "avg_output_size": 0.0,
-      "output_types": {}
-    },
-    "so_today_visit_performance": {
-      "tool_name": "so_today_visit_performance",
-      "category": "unknown",
-      "last_updated": "2025-07-31T05:48:48.800904Z",
-      "total_executions": 1,
-      "successful_executions": 1,
-      "failed_executions": 0,
-      "timeout_count": 0,
-      "success_rate": 1.0,
-      "avg_execution_time_ms": 8263.0,
-      "median_execution_time_ms": 8263.0,
-      "p95_execution_time_ms": 8263.0,
-      "recent_execution_times": [
-        8263
-      ],
-      "top_30_appearances": 1,
-      "top_10_appearances": 1,
-      "top_3_appearances": 1,
-      "avg_confidence_score": 0.27464618682861325,
-      "avg_discovery_position": 1.0,
-      "recent_confidence_scores": [
-        0.27464618682861325
-      ],
-      "primary_execution_source": "smart_discovery",
-      "execution_sources": {
-        "smart_discovery": 1
-      },
-      "error_types": {},
-      "usage_by_hour": {
-        "5": 1
-      },
-      "usage_by_day": {
-        "4": 1
-      },
-      "first_execution": "2025-07-31T05:48:40.537310Z",
-      "last_execution": "2025-07-31T05:48:40.537310Z",
-      "last_successful_execution": "2025-07-31T05:48:40.537310Z",
-      "avg_output_size": 34701.0,
-      "output_types": {
-        "json": 1
-      }
-    },
-    "read_text_file_filesystem": {
-      "tool_name": "read_text_file_filesystem",
-      "category": "unknown",
-      "last_updated": "2025-08-20T07:47:03.409674Z",
-      "total_executions": 5,
-      "successful_executions": 5,
-      "failed_executions": 0,
-      "timeout_count": 0,
-      "success_rate": 1.0,
-      "avg_execution_time_ms": 1.4,
-      "median_execution_time_ms": 1.0,
-      "p95_execution_time_ms": 2.0,
-      "recent_execution_times": [
-        1,
-        1,
-        2,
-        2,
-        1
-      ],
-      "top_30_appearances": 26,
-      "top_10_appearances": 26,
-      "top_3_appearances": 14,
-      "avg_confidence_score": 0.2604391391552413,
-      "avg_discovery_position": 3.807692307692307,
-      "recent_confidence_scores": [
-        0.8166236531734468,
-        0.9448912620544434,
-        0.9448912620544434,
-        0.22540963888168336,
-        0.22540963888168336,
-        0.22540963888168336,
-        0.05,
-        0.05,
-        0.9448912620544434,
-        0.9448912620544434,
-        0.056999999999999995,
-        0.114,
-        0.056999999999999995,
-        0.056999999999999995,
-        0.056999999999999995,
-        0.056999999999999995,
-        0.065,
-        0.09,
-        0.09,
-        0.15,
-        0.15,
-        0.15,
-        0.15,
-        0.0525,
-        0.0525,
-        0.05
-      ],
-      "primary_execution_source": "smart_discovery",
-      "execution_sources": {
-        "smart_discovery": 5
-      },
-      "error_types": {},
-      "usage_by_hour": {
-        "4": 1,
-        "5": 2,
-        "7": 2
-      },
-      "usage_by_day": {
-        "3": 5
-      },
-      "first_execution": "2025-08-20T04:45:12.829354Z",
-      "last_execution": "2025-08-20T07:47:03.408457Z",
-      "last_successful_execution": "2025-08-20T07:47:03.408457Z",
-      "avg_output_size": 3049.8,
-      "output_types": {
-        "json": 5
-      }
-    },
     "test_ping_tool": {
       "tool_name": "test_ping_tool",
       "category": "networking",
-      "last_updated": "2025-08-11T12:07:55.209748Z",
+      "last_updated": "2025-09-03T03:08:35.192414Z",
       "total_executions": 15,
       "successful_executions": 14,
       "failed_executions": 1,
@@ -636,325 +163,25 @@
         "NetworkError": 1
       },
       "usage_by_hour": {
-        "12": 15
+        "3": 15
       },
       "usage_by_day": {
-        "1": 15
+        "3": 15
       },
-      "first_execution": "2025-08-11T12:07:55.098489Z",
-      "last_execution": "2025-08-11T12:07:55.209745Z",
-      "last_successful_execution": "2025-08-11T12:07:55.207962Z",
+      "first_execution": "2025-09-03T03:08:35.151024Z",
+      "last_execution": "2025-09-03T03:08:35.192413Z",
+      "last_successful_execution": "2025-09-03T03:08:35.192252Z",
       "avg_output_size": 512.0,
       "output_types": {
         "json": 14
       }
-    },
-    "move_file_filesystem": {
-      "tool_name": "move_file_filesystem",
-      "category": "unknown",
-      "last_updated": "2025-08-20T05:49:40.203712Z",
-      "total_executions": 8,
-      "successful_executions": 8,
-      "failed_executions": 0,
-      "timeout_count": 0,
-      "success_rate": 1.0,
-      "avg_execution_time_ms": 1.0,
-      "median_execution_time_ms": 1.0,
-      "p95_execution_time_ms": 2.0,
-      "recent_execution_times": [
-        1,
-        0,
-        1,
-        0,
-        2,
-        1,
-        1,
-        2
-      ],
-      "top_30_appearances": 31,
-      "top_10_appearances": 31,
-      "top_3_appearances": 29,
-      "avg_confidence_score": 0.3882912981740889,
-      "avg_discovery_position": 1.3870967741935485,
-      "recent_confidence_scores": [
-        0.2564120388031006,
-        0.22492870759963987,
-        0.22492870759963987,
-        0.7868983805179597,
-        0.7868983805179597,
-        0.795646402835846,
-        0.795646402835846,
-        0.795646402835846,
-        0.795646402835846,
-        0.795646402835846,
-        0.795646402835846,
-        0.795646402835846,
-        0.795646402835846,
-        0.795646402835846,
-        0.795646402835846,
-        0.075,
-        0.1,
-        0.075,
-        0.075,
-        0.15,
-        0.099,
-        0.099,
-        0.115,
-        0.15,
-        0.15,
-        0.15,
-        0.15,
-        0.15,
-        0.09,
-        0.09,
-        0.0825
-      ],
-      "primary_execution_source": "smart_discovery",
-      "execution_sources": {
-        "smart_discovery": 8
-      },
-      "error_types": {},
-      "usage_by_hour": {
-        "3": 1,
-        "5": 5,
-        "4": 2
-      },
-      "usage_by_day": {
-        "3": 8
-      },
-      "first_execution": "2025-08-20T03:32:04.873032Z",
-      "last_execution": "2025-08-20T05:49:40.201231Z",
-      "last_successful_execution": "2025-08-20T05:49:40.201231Z",
-      "avg_output_size": 394.5,
-      "output_types": {
-        "json": 8
-      }
-    },
-    "ping_globalping": {
-      "tool_name": "ping_globalping",
-      "category": "unknown",
-      "last_updated": "2025-07-30T07:35:12.135911Z",
-      "total_executions": 1,
-      "successful_executions": 1,
-      "failed_executions": 0,
-      "timeout_count": 0,
-      "success_rate": 1.0,
-      "avg_execution_time_ms": 60001.0,
-      "median_execution_time_ms": 60001.0,
-      "p95_execution_time_ms": 60001.0,
-      "recent_execution_times": [
-        60001
-      ],
-      "top_30_appearances": 3,
-      "top_10_appearances": 3,
-      "top_3_appearances": 3,
-      "avg_confidence_score": 0.3505784025267949,
-      "avg_discovery_position": 1.6666666666666667,
-      "recent_confidence_scores": [
-        0.8393542551994324,
-        0.1061904761904762,
-        0.1061904761904762
-      ],
-      "primary_execution_source": "smart_discovery",
-      "execution_sources": {
-        "smart_discovery": 1
-      },
-      "error_types": {},
-      "usage_by_hour": {
-        "7": 1
-      },
-      "usage_by_day": {
-        "3": 1
-      },
-      "first_execution": "2025-07-30T07:34:12.134872Z",
-      "last_execution": "2025-07-30T07:34:12.134872Z",
-      "last_successful_execution": "2025-07-30T07:34:12.134872Z",
-      "avg_output_size": 0.0,
-      "output_types": {
-        "json": 1
-      }
-    },
-    "write_file_filesystem": {
-      "tool_name": "write_file_filesystem",
-      "category": "unknown",
-      "last_updated": "2025-08-20T04:40:57.115464Z",
-      "total_executions": 1,
-      "successful_executions": 1,
-      "failed_executions": 0,
-      "timeout_count": 0,
-      "success_rate": 1.0,
-      "avg_execution_time_ms": 8.0,
-      "median_execution_time_ms": 8.0,
-      "p95_execution_time_ms": 8.0,
-      "recent_execution_times": [
-        8
-      ],
-      "top_30_appearances": 13,
-      "top_10_appearances": 13,
-      "top_3_appearances": 3,
-      "avg_confidence_score": 0.21188841711557824,
-      "avg_discovery_position": 5.461538461538462,
-      "recent_confidence_scores": [
-        0.552,
-        0.056999999999999995,
-        0.2664703047275543,
-        0.1865217626094818,
-        0.3515217626094818,
-        0.3515217626094818,
-        0.1865217626094818,
-        0.1865217626094818,
-        0.2664703047275543,
-        0.09,
-        0.09,
-        0.08499999999999999,
-        0.08499999999999999
-      ],
-      "primary_execution_source": "smart_discovery",
-      "execution_sources": {
-        "smart_discovery": 1
-      },
-      "error_types": {},
-      "usage_by_hour": {
-        "4": 1
-      },
-      "usage_by_day": {
-        "3": 1
-      },
-      "first_execution": "2025-08-20T04:40:57.106944Z",
-      "last_execution": "2025-08-20T04:40:57.106944Z",
-      "last_successful_execution": "2025-08-20T04:40:57.106944Z",
-      "avg_output_size": 75.0,
-      "output_types": {
-        "json": 1
-      }
-    },
-    "list_allowed_directories_filesystem": {
-      "tool_name": "list_allowed_directories_filesystem",
-      "category": "unknown",
-      "last_updated": "2025-08-20T02:28:38.476173Z",
-      "total_executions": 1,
-      "successful_executions": 1,
-      "failed_executions": 0,
-      "timeout_count": 0,
-      "success_rate": 1.0,
-      "avg_execution_time_ms": 1.0,
-      "median_execution_time_ms": 1.0,
-      "p95_execution_time_ms": 1.0,
-      "recent_execution_times": [
-        1
-      ],
-      "top_30_appearances": 10,
-      "top_10_appearances": 10,
-      "top_3_appearances": 3,
-      "avg_confidence_score": 0.20356513781547547,
-      "avg_discovery_position": 4.1,
-      "recent_confidence_scores": [
-        0.6668256890773774,
-        0.115,
-        0.6943256890773772,
-        0.056999999999999995,
-        0.115,
-        0.09,
-        0.065,
-        0.09,
-        0.0525,
-        0.09
-      ],
-      "primary_execution_source": "smart_discovery",
-      "execution_sources": {
-        "smart_discovery": 1
-      },
-      "error_types": {},
-      "usage_by_hour": {
-        "2": 1
-      },
-      "usage_by_day": {
-        "3": 1
-      },
-      "first_execution": "2025-08-20T02:28:38.475019Z",
-      "last_execution": "2025-08-20T02:28:38.475019Z",
-      "last_successful_execution": "2025-08-20T02:28:38.475019Z",
-      "avg_output_size": 81.0,
-      "output_types": {
-        "json": 1
-      }
-    },
-    "enhanced_concurrent_request_test": {
-      "tool_name": "enhanced_concurrent_request_test",
-      "category": "unknown",
-      "last_updated": "2025-08-20T04:35:01.213798Z",
-      "total_executions": 2,
-      "successful_executions": 0,
-      "failed_executions": 2,
-      "timeout_count": 0,
-      "success_rate": 0.0,
-      "avg_execution_time_ms": 0.0,
-      "median_execution_time_ms": 0.0,
-      "p95_execution_time_ms": 0.0,
-      "recent_execution_times": [
-        0,
-        0
-      ],
-      "top_30_appearances": 5,
-      "top_10_appearances": 5,
-      "top_3_appearances": 4,
-      "avg_confidence_score": 0.5538895184993745,
-      "avg_discovery_position": 2.2,
-      "recent_confidence_scores": [
-        0.7487806117534639,
-        0.2537806117534638,
-        0.26932514548301695,
-        0.7487806117534639,
-        0.7487806117534639
-      ],
-      "primary_execution_source": "smart_discovery",
-      "execution_sources": {
-        "smart_discovery": 2
-      },
-      "error_types": {
-        "execution_error": 2
-      },
-      "usage_by_hour": {
-        "4": 1,
-        "1": 1
-      },
-      "usage_by_day": {
-        "3": 2
-      },
-      "first_execution": "2025-08-20T01:56:44.342845Z",
-      "last_execution": "2025-08-20T04:35:01.213754Z",
-      "last_successful_execution": null,
-      "avg_output_size": 0.0,
-      "output_types": {}
     }
   },
   "execution_history": [
     {
-      "execution_id": "cc73031c-12a0-4a23-97c2-0a8bf457087b",
-      "tool_name": "ping_globalping",
-      "start_time": "2025-07-30T07:34:12.134872Z",
-      "duration_ms": 60001,
-      "result": {
-        "Success": {
-          "output_size": 0,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ce743a2e588e8ba34c9e735f3f86f72c",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.8393542551994324,
-        "discovery_method": "hybrid",
-        "query": "ping google.com",
-        "timestamp": "2025-07-30T07:34:12.134872Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "5282914f-7077-447a-932d-24fef34af958",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.338502Z",
+      "execution_id": "8c486840-df77-4c65-b5b0-88829e10793b",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-09-03T03:08:35.151024Z",
       "duration_ms": 200,
       "result": {
         "Success": {
@@ -968,15 +195,15 @@
         "confidence_score": 0.9,
         "discovery_method": "hybrid",
         "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.338518Z"
+        "timestamp": "2025-09-03T03:08:35.151025Z"
       },
       "execution_source": "smart_discovery",
       "service_source": null
     },
     {
-      "execution_id": "73dead7a-5516-4557-89d6-2ad51a49149b",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.339456Z",
+      "execution_id": "7259f86d-3a91-4ec7-806c-8e34716882b6",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-09-03T03:08:35.190351Z",
       "duration_ms": 210,
       "result": {
         "Success": {
@@ -990,15 +217,15 @@
         "confidence_score": 0.905,
         "discovery_method": "hybrid",
         "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.339457Z"
+        "timestamp": "2025-09-03T03:08:35.190352Z"
       },
       "execution_source": "smart_discovery",
       "service_source": null
     },
     {
-      "execution_id": "229bdd39-ab6f-4756-9000-4ef3f6208ed9",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.339872Z",
+      "execution_id": "f5f17df3-d202-48df-b6b4-86afd07f00fb",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-09-03T03:08:35.190478Z",
       "duration_ms": 220,
       "result": {
         "Success": {
@@ -1012,15 +239,15 @@
         "confidence_score": 0.91,
         "discovery_method": "hybrid",
         "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.339874Z"
+        "timestamp": "2025-09-03T03:08:35.190479Z"
       },
       "execution_source": "smart_discovery",
       "service_source": null
     },
     {
-      "execution_id": "b5ce8b85-94fe-4cb1-8ade-7e2b72b059ef",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.340276Z",
+      "execution_id": "bae01a99-478e-4c9f-a302-04b05774c7bc",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-09-03T03:08:35.190666Z",
       "duration_ms": 230,
       "result": {
         "Success": {
@@ -1034,15 +261,15 @@
         "confidence_score": 0.915,
         "discovery_method": "hybrid",
         "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.340277Z"
+        "timestamp": "2025-09-03T03:08:35.190667Z"
       },
       "execution_source": "smart_discovery",
       "service_source": null
     },
     {
-      "execution_id": "40309fbe-b1ab-457d-bc50-cd4cea606a15",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.340707Z",
+      "execution_id": "04600957-6949-4016-bfa5-f29f995a4d81",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-09-03T03:08:35.190793Z",
       "duration_ms": 240,
       "result": {
         "Success": {
@@ -1056,15 +283,15 @@
         "confidence_score": 0.92,
         "discovery_method": "hybrid",
         "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.340708Z"
+        "timestamp": "2025-09-03T03:08:35.190793Z"
       },
       "execution_source": "smart_discovery",
       "service_source": null
     },
     {
-      "execution_id": "4f9de99e-476e-4438-9511-e8809c077256",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.341510Z",
+      "execution_id": "d53bc491-fb40-4ade-b81a-f40be7dada69",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-09-03T03:08:35.190889Z",
       "duration_ms": 250,
       "result": {
         "Success": {
@@ -1078,15 +305,15 @@
         "confidence_score": 0.925,
         "discovery_method": "hybrid",
         "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.341511Z"
+        "timestamp": "2025-09-03T03:08:35.190890Z"
       },
       "execution_source": "smart_discovery",
       "service_source": null
     },
     {
-      "execution_id": "099515d6-4953-4bb6-adc5-6cbbd780f087",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.342387Z",
+      "execution_id": "07370600-7015-4f39-b037-fd8668641bfb",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-09-03T03:08:35.190979Z",
       "duration_ms": 260,
       "result": {
         "Success": {
@@ -1100,15 +327,15 @@
         "confidence_score": 0.93,
         "discovery_method": "hybrid",
         "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.342388Z"
+        "timestamp": "2025-09-03T03:08:35.190980Z"
       },
       "execution_source": "smart_discovery",
       "service_source": null
     },
     {
-      "execution_id": "7be92d6b-85da-4d66-b233-b27705606129",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.345144Z",
+      "execution_id": "09cb3795-1076-4a4f-8d71-76c9779ed32c",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-09-03T03:08:35.191061Z",
       "duration_ms": 270,
       "result": {
         "Success": {
@@ -1122,15 +349,15 @@
         "confidence_score": 0.935,
         "discovery_method": "hybrid",
         "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.345147Z"
+        "timestamp": "2025-09-03T03:08:35.191061Z"
       },
       "execution_source": "smart_discovery",
       "service_source": null
     },
     {
-      "execution_id": "444940f8-37dc-4bfd-949f-d105898453e3",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.345861Z",
+      "execution_id": "8cc98616-510c-49ca-af55-f098fe51f97c",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-09-03T03:08:35.191238Z",
       "duration_ms": 280,
       "result": {
         "Success": {
@@ -1144,15 +371,15 @@
         "confidence_score": 0.94,
         "discovery_method": "hybrid",
         "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.345862Z"
+        "timestamp": "2025-09-03T03:08:35.191238Z"
       },
       "execution_source": "smart_discovery",
       "service_source": null
     },
     {
-      "execution_id": "f712c019-0fd3-42c5-8171-6007e7973854",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.346738Z",
+      "execution_id": "493ac7da-b5b4-4212-be9f-1c580368e364",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-09-03T03:08:35.191441Z",
       "duration_ms": 290,
       "result": {
         "Success": {
@@ -1166,15 +393,15 @@
         "confidence_score": 0.945,
         "discovery_method": "hybrid",
         "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.346740Z"
+        "timestamp": "2025-09-03T03:08:35.191441Z"
       },
       "execution_source": "smart_discovery",
       "service_source": null
     },
     {
-      "execution_id": "3b681b37-21d5-4f7f-aefd-d505ea7d0e47",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.347596Z",
+      "execution_id": "c48b152f-4089-4a80-aaa0-7aa353cb36ce",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-09-03T03:08:35.191638Z",
       "duration_ms": 300,
       "result": {
         "Success": {
@@ -1188,15 +415,15 @@
         "confidence_score": 0.95,
         "discovery_method": "hybrid",
         "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.347599Z"
+        "timestamp": "2025-09-03T03:08:35.191638Z"
       },
       "execution_source": "smart_discovery",
       "service_source": null
     },
     {
-      "execution_id": "c34def74-bec3-4b87-9a82-2167528f8306",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.348173Z",
+      "execution_id": "27dfc20f-3437-417c-86cd-b9eab977261e",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-09-03T03:08:35.191836Z",
       "duration_ms": 310,
       "result": {
         "Success": {
@@ -1210,15 +437,15 @@
         "confidence_score": 0.955,
         "discovery_method": "hybrid",
         "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.348174Z"
+        "timestamp": "2025-09-03T03:08:35.191836Z"
       },
       "execution_source": "smart_discovery",
       "service_source": null
     },
     {
-      "execution_id": "4aaf3d6f-f558-4c77-b783-00483925e59b",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.348687Z",
+      "execution_id": "f38ad356-ac12-4fdf-adf1-8afd9e916e62",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-09-03T03:08:35.192055Z",
       "duration_ms": 320,
       "result": {
         "Success": {
@@ -1232,15 +459,15 @@
         "confidence_score": 0.96,
         "discovery_method": "hybrid",
         "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.348687Z"
+        "timestamp": "2025-09-03T03:08:35.192056Z"
       },
       "execution_source": "smart_discovery",
       "service_source": null
     },
     {
-      "execution_id": "c4c8a1a0-f4e1-4d16-bce0-9c08e2f0a096",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.349249Z",
+      "execution_id": "4306ab06-2eb0-46cb-9e33-467bb2ba223c",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-09-03T03:08:35.192252Z",
       "duration_ms": 330,
       "result": {
         "Success": {
@@ -1254,15 +481,15 @@
         "confidence_score": 0.965,
         "discovery_method": "hybrid",
         "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.349250Z"
+        "timestamp": "2025-09-03T03:08:35.192252Z"
       },
       "execution_source": "smart_discovery",
       "service_source": null
     },
     {
-      "execution_id": "fa70cb87-02df-4f6e-8b9a-ea1aaf9c0de5",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.349846Z",
+      "execution_id": "e67cdfb4-c9cf-4bd7-8594-f6481cc81a07",
+      "tool_name": "test_ping_tool",
+      "start_time": "2025-09-03T03:08:35.192413Z",
       "duration_ms": 340,
       "result": {
         "Error": {
@@ -1277,15 +504,15 @@
         "confidence_score": 0.97,
         "discovery_method": "hybrid",
         "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.349847Z"
+        "timestamp": "2025-09-03T03:08:35.192414Z"
       },
       "execution_source": "smart_discovery",
       "service_source": null
     },
     {
-      "execution_id": "66ccf8b0-5cb4-4177-8c49-b39aa48ae692",
-      "tool_name": "file_tool",
-      "start_time": "2025-07-30T07:51:40.350429Z",
+      "execution_id": "9bf4f098-a9be-49ab-8ab9-75a64b00eaff",
+      "tool_name": "test_file_tool",
+      "start_time": "2025-09-03T03:08:35.192564Z",
       "duration_ms": 1000,
       "result": {
         "Success": {
@@ -1299,15 +526,15 @@
         "confidence_score": 0.8,
         "discovery_method": "semantic",
         "query": "file operation",
-        "timestamp": "2025-07-30T07:51:40.350429Z"
+        "timestamp": "2025-09-03T03:08:35.192564Z"
       },
       "execution_source": "direct",
       "service_source": "filesystem_service"
     },
     {
-      "execution_id": "94179dbe-f5f4-498b-a1f6-13c191162e27",
-      "tool_name": "file_tool",
-      "start_time": "2025-07-30T07:51:40.351055Z",
+      "execution_id": "c0ca1d40-09ce-47b2-8385-808f0810b885",
+      "tool_name": "test_file_tool",
+      "start_time": "2025-09-03T03:08:35.192707Z",
       "duration_ms": 1050,
       "result": {
         "Success": {
@@ -1321,15 +548,15 @@
         "confidence_score": 0.78,
         "discovery_method": "semantic",
         "query": "file operation",
-        "timestamp": "2025-07-30T07:51:40.351057Z"
+        "timestamp": "2025-09-03T03:08:35.192707Z"
       },
       "execution_source": "direct",
       "service_source": "filesystem_service"
     },
     {
-      "execution_id": "de42ff83-fcd4-4af4-8619-0d24144e2e15",
-      "tool_name": "file_tool",
-      "start_time": "2025-07-30T07:51:40.351707Z",
+      "execution_id": "2ae0c36e-12ed-46c5-8c9d-2841468dc74c",
+      "tool_name": "test_file_tool",
+      "start_time": "2025-09-03T03:08:35.192855Z",
       "duration_ms": 1100,
       "result": {
         "Success": {
@@ -1343,15 +570,15 @@
         "confidence_score": 0.76,
         "discovery_method": "semantic",
         "query": "file operation",
-        "timestamp": "2025-07-30T07:51:40.351708Z"
+        "timestamp": "2025-09-03T03:08:35.192855Z"
       },
       "execution_source": "direct",
       "service_source": "filesystem_service"
     },
     {
-      "execution_id": "8718a09d-f50b-4de6-b8d1-f6508080689e",
-      "tool_name": "file_tool",
-      "start_time": "2025-07-30T07:51:40.352357Z",
+      "execution_id": "808edd67-3133-40ef-94f4-7706233b14ae",
+      "tool_name": "test_file_tool",
+      "start_time": "2025-09-03T03:08:35.192994Z",
       "duration_ms": 1150,
       "result": {
         "Success": {
@@ -1365,15 +592,15 @@
         "confidence_score": 0.74,
         "discovery_method": "semantic",
         "query": "file operation",
-        "timestamp": "2025-07-30T07:51:40.352358Z"
+        "timestamp": "2025-09-03T03:08:35.192994Z"
       },
       "execution_source": "direct",
       "service_source": "filesystem_service"
     },
     {
-      "execution_id": "f5e50d5b-4f54-4e5d-8de0-ca9edbcdcc38",
-      "tool_name": "file_tool",
-      "start_time": "2025-07-30T07:51:40.352999Z",
+      "execution_id": "a6492f2a-c570-4590-af48-8145664b7155",
+      "tool_name": "test_file_tool",
+      "start_time": "2025-09-03T03:08:35.193148Z",
       "duration_ms": 1200,
       "result": {
         "Success": {
@@ -1387,15 +614,15 @@
         "confidence_score": 0.7200000000000001,
         "discovery_method": "semantic",
         "query": "file operation",
-        "timestamp": "2025-07-30T07:51:40.353Z"
+        "timestamp": "2025-09-03T03:08:35.193148Z"
       },
       "execution_source": "direct",
       "service_source": "filesystem_service"
     },
     {
-      "execution_id": "16274960-d391-4068-8f5a-c6fb17e50866",
-      "tool_name": "file_tool",
-      "start_time": "2025-07-30T07:51:40.353692Z",
+      "execution_id": "a2b94424-c14c-45fb-8026-35d514b18182",
+      "tool_name": "test_file_tool",
+      "start_time": "2025-09-03T03:08:35.193266Z",
       "duration_ms": 1250,
       "result": {
         "Success": {
@@ -1409,15 +636,15 @@
         "confidence_score": 0.7000000000000001,
         "discovery_method": "semantic",
         "query": "file operation",
-        "timestamp": "2025-07-30T07:51:40.353693Z"
+        "timestamp": "2025-09-03T03:08:35.193266Z"
       },
       "execution_source": "direct",
       "service_source": "filesystem_service"
     },
     {
-      "execution_id": "b386af4f-2c33-4d50-8074-4d53ea7d55fb",
-      "tool_name": "file_tool",
-      "start_time": "2025-07-30T07:51:40.354385Z",
+      "execution_id": "9b372107-8db7-45f9-a867-9c3d3235c2b8",
+      "tool_name": "test_file_tool",
+      "start_time": "2025-09-03T03:08:35.193385Z",
       "duration_ms": 1300,
       "result": {
         "Error": {
@@ -1432,15 +659,15 @@
         "confidence_score": 0.68,
         "discovery_method": "semantic",
         "query": "file operation",
-        "timestamp": "2025-07-30T07:51:40.354386Z"
+        "timestamp": "2025-09-03T03:08:35.193385Z"
       },
       "execution_source": "direct",
       "service_source": "filesystem_service"
     },
     {
-      "execution_id": "8233747c-7002-4680-8c61-cdcc1494a46c",
-      "tool_name": "file_tool",
-      "start_time": "2025-07-30T07:51:40.355096Z",
+      "execution_id": "927c585a-a6e0-4104-b4b5-524a2c931810",
+      "tool_name": "test_file_tool",
+      "start_time": "2025-09-03T03:08:35.193501Z",
       "duration_ms": 1350,
       "result": {
         "Error": {
@@ -1455,15 +682,15 @@
         "confidence_score": 0.66,
         "discovery_method": "semantic",
         "query": "file operation",
-        "timestamp": "2025-07-30T07:51:40.355097Z"
+        "timestamp": "2025-09-03T03:08:35.193501Z"
       },
       "execution_source": "direct",
       "service_source": "filesystem_service"
     },
     {
-      "execution_id": "253a55d4-35cf-4ddd-9861-8590bea4730e",
-      "tool_name": "calc_tool",
-      "start_time": "2025-07-30T07:51:40.355855Z",
+      "execution_id": "a3ea92f2-d98c-43ff-84e9-3f7577967444",
+      "tool_name": "test_calc_tool",
+      "start_time": "2025-09-03T03:08:35.193612Z",
       "duration_ms": 50,
       "result": {
         "Success": {
@@ -1477,15 +704,15 @@
         "confidence_score": 0.7,
         "discovery_method": "rule_based",
         "query": "calculate",
-        "timestamp": "2025-07-30T07:51:40.355856Z"
+        "timestamp": "2025-09-03T03:08:35.193613Z"
       },
       "execution_source": "api",
       "service_source": null
     },
     {
-      "execution_id": "0544cfc6-8de4-4ae9-acd4-7a6a8474a557",
-      "tool_name": "calc_tool",
-      "start_time": "2025-07-30T07:51:40.356624Z",
+      "execution_id": "019ec96f-7af6-4c41-b32e-cbc2ce616c94",
+      "tool_name": "test_calc_tool",
+      "start_time": "2025-09-03T03:08:35.193725Z",
       "duration_ms": 55,
       "result": {
         "Success": {
@@ -1499,15 +726,15 @@
         "confidence_score": 0.75,
         "discovery_method": "rule_based",
         "query": "calculate",
-        "timestamp": "2025-07-30T07:51:40.356624Z"
+        "timestamp": "2025-09-03T03:08:35.193725Z"
       },
       "execution_source": "api",
       "service_source": null
     },
     {
-      "execution_id": "32b4be51-c131-49ba-8116-7a23ad840837",
-      "tool_name": "calc_tool",
-      "start_time": "2025-07-30T07:51:40.357390Z",
+      "execution_id": "a470bcd0-ee95-4280-829a-a15a46361b89",
+      "tool_name": "test_calc_tool",
+      "start_time": "2025-09-03T03:08:35.193841Z",
       "duration_ms": 60,
       "result": {
         "Success": {
@@ -1521,1627 +748,11 @@
         "confidence_score": 0.7999999999999999,
         "discovery_method": "rule_based",
         "query": "calculate",
-        "timestamp": "2025-07-30T07:51:40.357391Z"
+        "timestamp": "2025-09-03T03:08:35.193841Z"
       },
       "execution_source": "api",
-      "service_source": null
-    },
-    {
-      "execution_id": "05deb712-65b7-45c4-8118-33a053380382",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.384785Z",
-      "duration_ms": 200,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_0",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.9,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.384788Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "d0501600-140d-42f9-b43d-d8d307ba684a",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.411340Z",
-      "duration_ms": 210,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_1",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.905,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.411343Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "8d04c0e8-8b9d-4b7c-a5ba-d29b54d56bb7",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.412356Z",
-      "duration_ms": 220,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_2",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.91,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.412358Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "b8b21f66-11e1-4146-82eb-d1a898fb50ec",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.413361Z",
-      "duration_ms": 230,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_3",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.915,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.413363Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "510ba595-166b-4947-ad82-e4aa91721621",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.414288Z",
-      "duration_ms": 240,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_4",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.92,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.414288Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "aa686de6-da5d-4d42-b85b-2a42d505c659",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.415234Z",
-      "duration_ms": 250,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_5",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.925,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.415235Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "771ebce2-69f9-45fe-85d5-603cf0c5f084",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.416189Z",
-      "duration_ms": 260,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_6",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.93,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.416191Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "73cd30be-15b9-40e8-a68c-b1eac1dab64e",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.417202Z",
-      "duration_ms": 270,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_7",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.935,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.417203Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "a32eadb4-74df-4377-92f1-fbdad35f6399",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.418213Z",
-      "duration_ms": 280,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_8",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.94,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.418214Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "6178e49a-6f59-44ae-8c12-4ce8fc2c4da5",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.419222Z",
-      "duration_ms": 290,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_9",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.945,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.419223Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "32a78efa-c059-4bc5-afb6-2350d928ad84",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.420464Z",
-      "duration_ms": 300,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_10",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.95,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.420466Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "bf862959-4c8a-405c-aebc-8a7519600eb4",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.421844Z",
-      "duration_ms": 310,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_11",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.955,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.421846Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "afd9d493-4752-4fcf-8646-2596c6609be8",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.422973Z",
-      "duration_ms": 320,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_12",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.96,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.422975Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "dfcf57b1-456b-416a-a856-fe988b5efc12",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.424100Z",
-      "duration_ms": 330,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_13",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.965,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.424101Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "df3cca63-c1ac-4f45-9d1e-d03b203c5c6b",
-      "tool_name": "ping_tool",
-      "start_time": "2025-07-30T07:51:40.425261Z",
-      "duration_ms": 340,
-      "result": {
-        "Error": {
-          "error_type": "NetworkError",
-          "error_message": "Timeout",
-          "is_timeout": true
-        }
-      },
-      "input_hash": "ping_hash_14",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.97,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-07-30T07:51:40.425262Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "8f84058e-3d0f-410b-b8a1-7960d3d1fff5",
-      "tool_name": "file_tool",
-      "start_time": "2025-07-30T07:51:40.426425Z",
-      "duration_ms": 1000,
-      "result": {
-        "Success": {
-          "output_size": 1024,
-          "output_type": "text"
-        }
-      },
-      "input_hash": "file_hash_0",
-      "discovery_context": {
-        "position": 2,
-        "confidence_score": 0.8,
-        "discovery_method": "semantic",
-        "query": "file operation",
-        "timestamp": "2025-07-30T07:51:40.426426Z"
-      },
-      "execution_source": "direct",
-      "service_source": "filesystem_service"
-    },
-    {
-      "execution_id": "e73be12f-5a8f-4b89-8962-6c268471f8ce",
-      "tool_name": "file_tool",
-      "start_time": "2025-07-30T07:51:40.427619Z",
-      "duration_ms": 1050,
-      "result": {
-        "Success": {
-          "output_size": 1024,
-          "output_type": "text"
-        }
-      },
-      "input_hash": "file_hash_1",
-      "discovery_context": {
-        "position": 3,
-        "confidence_score": 0.78,
-        "discovery_method": "semantic",
-        "query": "file operation",
-        "timestamp": "2025-07-30T07:51:40.427620Z"
-      },
-      "execution_source": "direct",
-      "service_source": "filesystem_service"
-    },
-    {
-      "execution_id": "7532a6c4-8bc1-499c-b728-fc6708d40546",
-      "tool_name": "file_tool",
-      "start_time": "2025-07-30T07:51:40.428907Z",
-      "duration_ms": 1100,
-      "result": {
-        "Success": {
-          "output_size": 1024,
-          "output_type": "text"
-        }
-      },
-      "input_hash": "file_hash_2",
-      "discovery_context": {
-        "position": 4,
-        "confidence_score": 0.76,
-        "discovery_method": "semantic",
-        "query": "file operation",
-        "timestamp": "2025-07-30T07:51:40.428908Z"
-      },
-      "execution_source": "direct",
-      "service_source": "filesystem_service"
-    },
-    {
-      "execution_id": "49432f8d-d4de-481a-9d97-70cbf653d560",
-      "tool_name": "file_tool",
-      "start_time": "2025-07-30T07:51:40.430168Z",
-      "duration_ms": 1150,
-      "result": {
-        "Success": {
-          "output_size": 1024,
-          "output_type": "text"
-        }
-      },
-      "input_hash": "file_hash_3",
-      "discovery_context": {
-        "position": 2,
-        "confidence_score": 0.74,
-        "discovery_method": "semantic",
-        "query": "file operation",
-        "timestamp": "2025-07-30T07:51:40.430169Z"
-      },
-      "execution_source": "direct",
-      "service_source": "filesystem_service"
-    },
-    {
-      "execution_id": "011708a1-3d32-46ab-bcf8-2a4227dcd963",
-      "tool_name": "file_tool",
-      "start_time": "2025-07-30T07:51:40.431460Z",
-      "duration_ms": 1200,
-      "result": {
-        "Success": {
-          "output_size": 1024,
-          "output_type": "text"
-        }
-      },
-      "input_hash": "file_hash_4",
-      "discovery_context": {
-        "position": 3,
-        "confidence_score": 0.7200000000000001,
-        "discovery_method": "semantic",
-        "query": "file operation",
-        "timestamp": "2025-07-30T07:51:40.431462Z"
-      },
-      "execution_source": "direct",
-      "service_source": "filesystem_service"
-    },
-    {
-      "execution_id": "db464b5a-cd41-48b1-aabd-e0f2f367282c",
-      "tool_name": "file_tool",
-      "start_time": "2025-07-30T07:51:40.435140Z",
-      "duration_ms": 1250,
-      "result": {
-        "Success": {
-          "output_size": 1024,
-          "output_type": "text"
-        }
-      },
-      "input_hash": "file_hash_5",
-      "discovery_context": {
-        "position": 4,
-        "confidence_score": 0.7000000000000001,
-        "discovery_method": "semantic",
-        "query": "file operation",
-        "timestamp": "2025-07-30T07:51:40.435141Z"
-      },
-      "execution_source": "direct",
-      "service_source": "filesystem_service"
-    },
-    {
-      "execution_id": "ef4647ea-461e-4c8b-a1e6-a152b00a90f0",
-      "tool_name": "file_tool",
-      "start_time": "2025-07-30T07:51:40.436483Z",
-      "duration_ms": 1300,
-      "result": {
-        "Error": {
-          "error_type": "FileNotFound",
-          "error_message": "File does not exist",
-          "is_timeout": false
-        }
-      },
-      "input_hash": "file_hash_6",
-      "discovery_context": {
-        "position": 2,
-        "confidence_score": 0.68,
-        "discovery_method": "semantic",
-        "query": "file operation",
-        "timestamp": "2025-07-30T07:51:40.436485Z"
-      },
-      "execution_source": "direct",
-      "service_source": "filesystem_service"
-    },
-    {
-      "execution_id": "6a608548-4575-409a-9543-03aef2aa2fa2",
-      "tool_name": "file_tool",
-      "start_time": "2025-07-30T07:51:40.437815Z",
-      "duration_ms": 1350,
-      "result": {
-        "Error": {
-          "error_type": "FileNotFound",
-          "error_message": "File does not exist",
-          "is_timeout": false
-        }
-      },
-      "input_hash": "file_hash_7",
-      "discovery_context": {
-        "position": 3,
-        "confidence_score": 0.66,
-        "discovery_method": "semantic",
-        "query": "file operation",
-        "timestamp": "2025-07-30T07:51:40.437818Z"
-      },
-      "execution_source": "direct",
-      "service_source": "filesystem_service"
-    },
-    {
-      "execution_id": "9686ce38-5821-48ea-aeb0-f058d3cb49e8",
-      "tool_name": "calc_tool",
-      "start_time": "2025-07-30T07:51:40.439203Z",
-      "duration_ms": 50,
-      "result": {
-        "Success": {
-          "output_size": 64,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "calc_hash_0",
-      "discovery_context": {
-        "position": 5,
-        "confidence_score": 0.7,
-        "discovery_method": "rule_based",
-        "query": "calculate",
-        "timestamp": "2025-07-30T07:51:40.439204Z"
-      },
-      "execution_source": "api",
-      "service_source": null
-    },
-    {
-      "execution_id": "d1eb4292-df1e-4bc1-aef9-c7e0befc6fd5",
-      "tool_name": "calc_tool",
-      "start_time": "2025-07-30T07:51:40.440512Z",
-      "duration_ms": 55,
-      "result": {
-        "Success": {
-          "output_size": 64,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "calc_hash_1",
-      "discovery_context": {
-        "position": 6,
-        "confidence_score": 0.75,
-        "discovery_method": "rule_based",
-        "query": "calculate",
-        "timestamp": "2025-07-30T07:51:40.440513Z"
-      },
-      "execution_source": "api",
-      "service_source": null
-    },
-    {
-      "execution_id": "d48c1560-09cb-4aa9-8049-0f7e2e9bd57a",
-      "tool_name": "calc_tool",
-      "start_time": "2025-07-30T07:51:40.441872Z",
-      "duration_ms": 60,
-      "result": {
-        "Success": {
-          "output_size": 64,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "calc_hash_2",
-      "discovery_context": {
-        "position": 7,
-        "confidence_score": 0.7999999999999999,
-        "discovery_method": "rule_based",
-        "query": "calculate",
-        "timestamp": "2025-07-30T07:51:40.441873Z"
-      },
-      "execution_source": "api",
-      "service_source": null
-    },
-    {
-      "execution_id": "508bfb28-7b9e-4498-8d18-4fe6fe381e9a",
-      "tool_name": "so_today_visit_performance",
-      "start_time": "2025-07-31T05:48:40.537310Z",
-      "duration_ms": 8263,
-      "result": {
-        "Success": {
-          "output_size": 34701,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "f1f8175b28af4ec08b410684bd07ce11",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.27464618682861325,
-        "discovery_method": "hybrid",
-        "query": "get me SO performnce for today",
-        "timestamp": "2025-07-31T05:48:40.537310Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "14ee1c51-fbf6-4e5d-a970-07a77971b6c8",
-      "tool_name": "test_ping_tool",
-      "start_time": "2025-08-11T12:07:55.098489Z",
-      "duration_ms": 200,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_0",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.9,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-08-11T12:07:55.098490Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "70bd6e95-84dc-424a-9c31-6b3e6d0d9123",
-      "tool_name": "test_ping_tool",
-      "start_time": "2025-08-11T12:07:55.183752Z",
-      "duration_ms": 210,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_1",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.905,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-08-11T12:07:55.183752Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "7abab2d0-a457-4bf4-adb2-4c65a8ae3a7e",
-      "tool_name": "test_ping_tool",
-      "start_time": "2025-08-11T12:07:55.185270Z",
-      "duration_ms": 220,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_2",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.91,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-08-11T12:07:55.185270Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "d7d85d97-f173-441f-a51c-a22b6cd828c8",
-      "tool_name": "test_ping_tool",
-      "start_time": "2025-08-11T12:07:55.186827Z",
-      "duration_ms": 230,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_3",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.915,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-08-11T12:07:55.186828Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "04eb1420-99be-4be2-bffa-ede5505a492d",
-      "tool_name": "test_ping_tool",
-      "start_time": "2025-08-11T12:07:55.189872Z",
-      "duration_ms": 240,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_4",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.92,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-08-11T12:07:55.189873Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "316fb576-6642-47d0-898f-e26dff87206c",
-      "tool_name": "test_ping_tool",
-      "start_time": "2025-08-11T12:07:55.192673Z",
-      "duration_ms": 250,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_5",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.925,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-08-11T12:07:55.192673Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "77495e47-6353-4b52-b899-46782cab46c8",
-      "tool_name": "test_ping_tool",
-      "start_time": "2025-08-11T12:07:55.194305Z",
-      "duration_ms": 260,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_6",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.93,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-08-11T12:07:55.194306Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "6b4e3dcf-1568-448b-a40e-1a305cf6922a",
-      "tool_name": "test_ping_tool",
-      "start_time": "2025-08-11T12:07:55.195915Z",
-      "duration_ms": 270,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_7",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.935,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-08-11T12:07:55.195915Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "b8a7e967-ac22-4585-b804-469d25a305b4",
-      "tool_name": "test_ping_tool",
-      "start_time": "2025-08-11T12:07:55.197578Z",
-      "duration_ms": 280,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_8",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.94,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-08-11T12:07:55.197579Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "ca33f7f8-1ded-41c6-9966-a97ff2d87187",
-      "tool_name": "test_ping_tool",
-      "start_time": "2025-08-11T12:07:55.199260Z",
-      "duration_ms": 290,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_9",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.945,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-08-11T12:07:55.199261Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "a985d701-19bd-4524-aeac-1363e5cb1211",
-      "tool_name": "test_ping_tool",
-      "start_time": "2025-08-11T12:07:55.200964Z",
-      "duration_ms": 300,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_10",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.95,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-08-11T12:07:55.200965Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "aea81448-7557-46cc-9c7f-a25ce1c95727",
-      "tool_name": "test_ping_tool",
-      "start_time": "2025-08-11T12:07:55.204013Z",
-      "duration_ms": 310,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_11",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.955,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-08-11T12:07:55.204014Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "29173b40-7727-4c89-8413-e68e95b678de",
-      "tool_name": "test_ping_tool",
-      "start_time": "2025-08-11T12:07:55.206209Z",
-      "duration_ms": 320,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_12",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.96,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-08-11T12:07:55.206210Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "b8df628b-d54c-42cd-ac28-7578689a1094",
-      "tool_name": "test_ping_tool",
-      "start_time": "2025-08-11T12:07:55.207962Z",
-      "duration_ms": 330,
-      "result": {
-        "Success": {
-          "output_size": 512,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "ping_hash_13",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.965,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-08-11T12:07:55.207962Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "fb5c99bc-4708-41b1-ad01-b93e071eb71a",
-      "tool_name": "test_ping_tool",
-      "start_time": "2025-08-11T12:07:55.209745Z",
-      "duration_ms": 340,
-      "result": {
-        "Error": {
-          "error_type": "NetworkError",
-          "error_message": "Timeout",
-          "is_timeout": true
-        }
-      },
-      "input_hash": "ping_hash_14",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.97,
-        "discovery_method": "hybrid",
-        "query": "ping server",
-        "timestamp": "2025-08-11T12:07:55.209746Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "d8f3d5eb-13da-43d3-b0ef-0a2ee272403e",
-      "tool_name": "test_file_tool",
-      "start_time": "2025-08-11T12:07:55.211561Z",
-      "duration_ms": 1000,
-      "result": {
-        "Success": {
-          "output_size": 1024,
-          "output_type": "text"
-        }
-      },
-      "input_hash": "file_hash_0",
-      "discovery_context": {
-        "position": 2,
-        "confidence_score": 0.8,
-        "discovery_method": "semantic",
-        "query": "file operation",
-        "timestamp": "2025-08-11T12:07:55.211562Z"
-      },
-      "execution_source": "direct",
-      "service_source": "filesystem_service"
-    },
-    {
-      "execution_id": "2c8d8cfc-4fc8-461e-a2f3-5e6d6e8c1386",
-      "tool_name": "test_file_tool",
-      "start_time": "2025-08-11T12:07:55.213380Z",
-      "duration_ms": 1050,
-      "result": {
-        "Success": {
-          "output_size": 1024,
-          "output_type": "text"
-        }
-      },
-      "input_hash": "file_hash_1",
-      "discovery_context": {
-        "position": 3,
-        "confidence_score": 0.78,
-        "discovery_method": "semantic",
-        "query": "file operation",
-        "timestamp": "2025-08-11T12:07:55.213381Z"
-      },
-      "execution_source": "direct",
-      "service_source": "filesystem_service"
-    },
-    {
-      "execution_id": "9f6978a9-7b14-4267-8845-61e2ce03d1a3",
-      "tool_name": "test_file_tool",
-      "start_time": "2025-08-11T12:07:55.215229Z",
-      "duration_ms": 1100,
-      "result": {
-        "Success": {
-          "output_size": 1024,
-          "output_type": "text"
-        }
-      },
-      "input_hash": "file_hash_2",
-      "discovery_context": {
-        "position": 4,
-        "confidence_score": 0.76,
-        "discovery_method": "semantic",
-        "query": "file operation",
-        "timestamp": "2025-08-11T12:07:55.215229Z"
-      },
-      "execution_source": "direct",
-      "service_source": "filesystem_service"
-    },
-    {
-      "execution_id": "92801a5f-e6ff-49c2-9432-6de1ab84162f",
-      "tool_name": "test_file_tool",
-      "start_time": "2025-08-11T12:07:55.217083Z",
-      "duration_ms": 1150,
-      "result": {
-        "Success": {
-          "output_size": 1024,
-          "output_type": "text"
-        }
-      },
-      "input_hash": "file_hash_3",
-      "discovery_context": {
-        "position": 2,
-        "confidence_score": 0.74,
-        "discovery_method": "semantic",
-        "query": "file operation",
-        "timestamp": "2025-08-11T12:07:55.217084Z"
-      },
-      "execution_source": "direct",
-      "service_source": "filesystem_service"
-    },
-    {
-      "execution_id": "817c74b9-634a-4c8d-b96a-db6922ebcf1f",
-      "tool_name": "test_file_tool",
-      "start_time": "2025-08-11T12:07:55.218988Z",
-      "duration_ms": 1200,
-      "result": {
-        "Success": {
-          "output_size": 1024,
-          "output_type": "text"
-        }
-      },
-      "input_hash": "file_hash_4",
-      "discovery_context": {
-        "position": 3,
-        "confidence_score": 0.7200000000000001,
-        "discovery_method": "semantic",
-        "query": "file operation",
-        "timestamp": "2025-08-11T12:07:55.218989Z"
-      },
-      "execution_source": "direct",
-      "service_source": "filesystem_service"
-    },
-    {
-      "execution_id": "3f2b6084-cc5d-434e-8bde-8d702e81ada2",
-      "tool_name": "test_file_tool",
-      "start_time": "2025-08-11T12:07:55.220902Z",
-      "duration_ms": 1250,
-      "result": {
-        "Success": {
-          "output_size": 1024,
-          "output_type": "text"
-        }
-      },
-      "input_hash": "file_hash_5",
-      "discovery_context": {
-        "position": 4,
-        "confidence_score": 0.7000000000000001,
-        "discovery_method": "semantic",
-        "query": "file operation",
-        "timestamp": "2025-08-11T12:07:55.220903Z"
-      },
-      "execution_source": "direct",
-      "service_source": "filesystem_service"
-    },
-    {
-      "execution_id": "48f43e22-ea12-40e0-a7c8-50daac9066a7",
-      "tool_name": "test_file_tool",
-      "start_time": "2025-08-11T12:07:55.222852Z",
-      "duration_ms": 1300,
-      "result": {
-        "Error": {
-          "error_type": "FileNotFound",
-          "error_message": "File does not exist",
-          "is_timeout": false
-        }
-      },
-      "input_hash": "file_hash_6",
-      "discovery_context": {
-        "position": 2,
-        "confidence_score": 0.68,
-        "discovery_method": "semantic",
-        "query": "file operation",
-        "timestamp": "2025-08-11T12:07:55.222854Z"
-      },
-      "execution_source": "direct",
-      "service_source": "filesystem_service"
-    },
-    {
-      "execution_id": "3a148418-0193-494f-ac82-f5a92eaed9ba",
-      "tool_name": "test_file_tool",
-      "start_time": "2025-08-11T12:07:55.224707Z",
-      "duration_ms": 1350,
-      "result": {
-        "Error": {
-          "error_type": "FileNotFound",
-          "error_message": "File does not exist",
-          "is_timeout": false
-        }
-      },
-      "input_hash": "file_hash_7",
-      "discovery_context": {
-        "position": 3,
-        "confidence_score": 0.66,
-        "discovery_method": "semantic",
-        "query": "file operation",
-        "timestamp": "2025-08-11T12:07:55.224708Z"
-      },
-      "execution_source": "direct",
-      "service_source": "filesystem_service"
-    },
-    {
-      "execution_id": "0708ee34-6e8e-447d-8c02-0a560662399e",
-      "tool_name": "test_calc_tool",
-      "start_time": "2025-08-11T12:07:55.226613Z",
-      "duration_ms": 50,
-      "result": {
-        "Success": {
-          "output_size": 64,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "calc_hash_0",
-      "discovery_context": {
-        "position": 5,
-        "confidence_score": 0.7,
-        "discovery_method": "rule_based",
-        "query": "calculate",
-        "timestamp": "2025-08-11T12:07:55.226614Z"
-      },
-      "execution_source": "api",
-      "service_source": null
-    },
-    {
-      "execution_id": "95c441fb-50c8-4272-a627-e35dfdd23900",
-      "tool_name": "test_calc_tool",
-      "start_time": "2025-08-11T12:07:55.228570Z",
-      "duration_ms": 55,
-      "result": {
-        "Success": {
-          "output_size": 64,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "calc_hash_1",
-      "discovery_context": {
-        "position": 6,
-        "confidence_score": 0.75,
-        "discovery_method": "rule_based",
-        "query": "calculate",
-        "timestamp": "2025-08-11T12:07:55.228570Z"
-      },
-      "execution_source": "api",
-      "service_source": null
-    },
-    {
-      "execution_id": "1ba7a091-2926-449f-9ce8-339441ef7a32",
-      "tool_name": "test_calc_tool",
-      "start_time": "2025-08-11T12:07:55.230509Z",
-      "duration_ms": 60,
-      "result": {
-        "Success": {
-          "output_size": 64,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "calc_hash_2",
-      "discovery_context": {
-        "position": 7,
-        "confidence_score": 0.7999999999999999,
-        "discovery_method": "rule_based",
-        "query": "calculate",
-        "timestamp": "2025-08-11T12:07:55.230509Z"
-      },
-      "execution_source": "api",
-      "service_source": null
-    },
-    {
-      "execution_id": "ec35c13f-4137-47ef-aac0-bf584fe074c3",
-      "tool_name": "enhanced_concurrent_request_test",
-      "start_time": "2025-08-20T01:56:44.342845Z",
-      "duration_ms": 0,
-      "result": {
-        "Error": {
-          "error_type": "execution_error",
-          "error_message": "Routing error: Unknown routing type: enhanced_http",
-          "is_timeout": false
-        }
-      },
-      "input_hash": "9d929433f3efd79717adedaa3e90f737",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.7487806117534639,
-        "discovery_method": "hybrid",
-        "query": "test allowlist hierarchy",
-        "timestamp": "2025-08-20T01:56:44.342845Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "20b8880c-08ca-4873-9ed7-aed002eae800",
-      "tool_name": "list_allowed_directories_filesystem",
-      "start_time": "2025-08-20T02:28:38.475019Z",
-      "duration_ms": 1,
-      "result": {
-        "Success": {
-          "output_size": 81,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "99914b932bd37a50b983c5e7c90ae93b",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.6668256890773774,
-        "discovery_method": "hybrid",
-        "query": "test allowlist hierarchy",
-        "timestamp": "2025-08-20T02:28:38.475019Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "c6634fc9-ebcd-4d52-8c28-561a4561724a",
-      "tool_name": "enhanced_memory_stress_test",
-      "start_time": "2025-08-20T02:29:04.093600Z",
-      "duration_ms": 0,
-      "result": {
-        "Error": {
-          "error_type": "execution_error",
-          "error_message": "Routing error: Unknown routing type: enhanced_subprocess",
-          "is_timeout": false
-        }
-      },
-      "input_hash": "2e3782c64076e60ab3ce365433a69b16",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.800643652677536,
-        "discovery_method": "hybrid",
-        "query": "run enhanced_memory_stress_test",
-        "timestamp": "2025-08-20T02:29:04.093600Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "6d726ddb-3e31-4354-ab4e-f3313ec9ea16",
-      "tool_name": "move_file_filesystem",
-      "start_time": "2025-08-20T03:32:04.873032Z",
-      "duration_ms": 1,
-      "result": {
-        "Success": {
-          "output_size": 285,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "6418f2e59b42e7b79a80e945302452ca",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.2564120388031006,
-        "discovery_method": "hybrid",
-        "query": "delete all files",
-        "timestamp": "2025-08-20T03:32:04.873032Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "847a7d57-5022-4caa-b062-ea48222975f0",
-      "tool_name": "enhanced_concurrent_request_test",
-      "start_time": "2025-08-20T04:35:01.213754Z",
-      "duration_ms": 0,
-      "result": {
-        "Error": {
-          "error_type": "execution_error",
-          "error_message": "Routing error: Unknown routing type: enhanced_http",
-          "is_timeout": false
-        }
-      },
-      "input_hash": "7237425f3cf071b610c26ec18df0adde",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.7487806117534639,
-        "discovery_method": "hybrid",
-        "query": "test allowlist hierarchy",
-        "timestamp": "2025-08-20T04:35:01.213754Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "ccbb2736-8106-4852-a3af-fc0a545d1008",
-      "tool_name": "write_file_filesystem",
-      "start_time": "2025-08-20T04:40:57.106944Z",
-      "duration_ms": 8,
-      "result": {
-        "Success": {
-          "output_size": 75,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "6d0d30ea20e1544e9832627ad6c6b7be",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.552,
-        "discovery_method": "hybrid",
-        "query": "delete my user data file completely",
-        "timestamp": "2025-08-20T04:40:57.106944Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "aa73de9f-8dde-4baa-9602-81cb8f3e7954",
-      "tool_name": "move_file_filesystem",
-      "start_time": "2025-08-20T04:41:28.235364Z",
-      "duration_ms": 0,
-      "result": {
-        "Success": {
-          "output_size": 285,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "be1942f42b099865064ea01d9c461050",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.22492870759963987,
-        "discovery_method": "hybrid",
-        "query": "use file_delete_user_data to remove user files",
-        "timestamp": "2025-08-20T04:41:28.235364Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "506199be-38a2-4975-ba7e-a7e0211e4106",
-      "tool_name": "move_file_filesystem",
-      "start_time": "2025-08-20T04:44:21.378940Z",
-      "duration_ms": 1,
-      "result": {
-        "Success": {
-          "output_size": 246,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "3ef0bafe1bb115fdb405a89fa5bc0dc8",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.7868983805179597,
-        "discovery_method": "hybrid",
-        "query": "move source.txt to destination.txt",
-        "timestamp": "2025-08-20T04:44:21.378940Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "9fcd8ef4-472a-4701-b79c-4e5912f0f75b",
-      "tool_name": "read_text_file_filesystem",
-      "start_time": "2025-08-20T04:45:12.829354Z",
-      "duration_ms": 1,
-      "result": {
-        "Success": {
-          "output_size": 14581,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "c211c02a08a9b9f5fcbbc6a8b37c7e46",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.8166236531734468,
-        "discovery_method": "hybrid",
-        "query": "read the contents of README.md",
-        "timestamp": "2025-08-20T04:45:12.829354Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "16c5c470-5a49-4b2b-8457-79354831792c",
-      "tool_name": "read_text_file_filesystem",
-      "start_time": "2025-08-20T05:14:00.246714Z",
-      "duration_ms": 1,
-      "result": {
-        "Success": {
-          "output_size": 167,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "cd116f57ff6f7d94cb0d6a811a6d98e2",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.9448912620544434,
-        "discovery_method": "hybrid",
-        "query": "read a text file",
-        "timestamp": "2025-08-20T05:14:00.246714Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "4faf8708-2e3b-43d9-bde3-6ab3e63a6fc3",
-      "tool_name": "move_file_filesystem",
-      "start_time": "2025-08-20T05:14:34.166292Z",
-      "duration_ms": 0,
-      "result": {
-        "Success": {
-          "output_size": 468,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "99914b932bd37a50b983c5e7c90ae93b",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.795646402835846,
-        "discovery_method": "hybrid",
-        "query": "move a file from one location to another",
-        "timestamp": "2025-08-20T05:14:34.166292Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "cf66153a-c7ce-43ad-b6bb-02bcb262ae06",
-      "tool_name": "move_file_filesystem",
-      "start_time": "2025-08-20T05:22:11.998072Z",
-      "duration_ms": 2,
-      "result": {
-        "Success": {
-          "output_size": 468,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "99914b932bd37a50b983c5e7c90ae93b",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.795646402835846,
-        "discovery_method": "hybrid",
-        "query": "move a file from one location to another",
-        "timestamp": "2025-08-20T05:22:11.998072Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "52e404f1-73e9-4970-8461-2d735ca11a05",
-      "tool_name": "move_file_filesystem",
-      "start_time": "2025-08-20T05:32:56.055441Z",
-      "duration_ms": 1,
-      "result": {
-        "Success": {
-          "output_size": 468,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "99914b932bd37a50b983c5e7c90ae93b",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.795646402835846,
-        "discovery_method": "hybrid",
-        "query": "move a file from one location to another",
-        "timestamp": "2025-08-20T05:32:56.055441Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "34eb00eb-5f9e-4d09-98e8-08630d43c8aa",
-      "tool_name": "move_file_filesystem",
-      "start_time": "2025-08-20T05:42:09.238081Z",
-      "duration_ms": 1,
-      "result": {
-        "Success": {
-          "output_size": 468,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "99914b932bd37a50b983c5e7c90ae93b",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.795646402835846,
-        "discovery_method": "hybrid",
-        "query": "move a file from one location to another",
-        "timestamp": "2025-08-20T05:42:09.238081Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "3e274749-8f44-4f4a-830c-a68440a2fbdc",
-      "tool_name": "move_file_filesystem",
-      "start_time": "2025-08-20T05:49:40.201231Z",
-      "duration_ms": 2,
-      "result": {
-        "Success": {
-          "output_size": 468,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "99914b932bd37a50b983c5e7c90ae93b",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.795646402835846,
-        "discovery_method": "hybrid",
-        "query": "move a file from one location to another",
-        "timestamp": "2025-08-20T05:49:40.201231Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "023755b3-b6b5-452d-9579-d500bfa6468e",
-      "tool_name": "read_text_file_filesystem",
-      "start_time": "2025-08-20T05:50:30.125557Z",
-      "duration_ms": 2,
-      "result": {
-        "Success": {
-          "output_size": 167,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "cd116f57ff6f7d94cb0d6a811a6d98e2",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.9448912620544434,
-        "discovery_method": "hybrid",
-        "query": "read a text file",
-        "timestamp": "2025-08-20T05:50:30.125557Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "2a44a5f7-cc6d-4fe6-8157-49411da1ad9f",
-      "tool_name": "read_text_file_filesystem",
-      "start_time": "2025-08-20T07:40:43.032560Z",
-      "duration_ms": 2,
-      "result": {
-        "Success": {
-          "output_size": 167,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "cd116f57ff6f7d94cb0d6a811a6d98e2",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.15,
-        "discovery_method": "hybrid",
-        "query": "read a text file",
-        "timestamp": "2025-08-20T07:40:43.032560Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "208adea2-153a-47aa-bfa3-1e24e0bd11b0",
-      "tool_name": "read_text_file_filesystem",
-      "start_time": "2025-08-20T07:47:03.408457Z",
-      "duration_ms": 1,
-      "result": {
-        "Success": {
-          "output_size": 167,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "cd116f57ff6f7d94cb0d6a811a6d98e2",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.15,
-        "discovery_method": "hybrid",
-        "query": "read a text file",
-        "timestamp": "2025-08-20T07:47:03.408457Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "c91b8760-9a4d-4072-a493-ac1f4752d4e7",
-      "tool_name": "list_directory_filesystem",
-      "start_time": "2025-08-20T08:26:04.492656Z",
-      "duration_ms": 1,
-      "result": {
-        "Success": {
-          "output_size": 1465,
-          "output_type": "json"
-        }
-      },
-      "input_hash": "2ec2feb6af835f72a4277322b94bc1a1",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.1425,
-        "discovery_method": "hybrid",
-        "query": "list files in current directory",
-        "timestamp": "2025-08-20T08:26:04.492656Z"
-      },
-      "execution_source": "smart_discovery",
-      "service_source": null
-    },
-    {
-      "execution_id": "37cd3efb-f7a9-421c-b39b-4ac04cf1471e",
-      "tool_name": "enhanced_api_health_checker",
-      "start_time": "2025-08-20T08:26:19.702164Z",
-      "duration_ms": 0,
-      "result": {
-        "Error": {
-          "error_type": "execution_error",
-          "error_message": "Routing error: Unknown routing type: enhanced_http",
-          "is_timeout": false
-        }
-      },
-      "input_hash": "c876dc764d331d3d092c5f764b96b0cb",
-      "discovery_context": {
-        "position": 1,
-        "confidence_score": 0.13,
-        "discovery_method": "hybrid",
-        "query": "check system health",
-        "timestamp": "2025-08-20T08:26:19.702164Z"
-      },
-      "execution_source": "smart_discovery",
       "service_source": null
     }
   ],
-  "last_saved": "2025-09-01T00:35:04.602067Z"
+  "last_saved": "2025-09-03T03:09:15.367299Z"
 }

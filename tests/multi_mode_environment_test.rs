@@ -23,24 +23,50 @@ struct EnvTestHelper {
 
 impl EnvTestHelper {
     fn new() -> Self {
-        Self {
+        let mut helper = Self {
             original_vars: Vec::new(),
+        };
+        
+        // Proactively clean up any existing MagicTunnel environment variables
+        // to ensure test isolation
+        helper.ensure_clean_environment();
+        
+        helper
+    }
+
+    fn ensure_clean_environment(&mut self) {
+        let magictunnel_vars = [
+            "MAGICTUNNEL_RUNTIME_MODE",
+            "MAGICTUNNEL_SMART_DISCOVERY", 
+            "MAGICTUNNEL_CONFIG_PATH",
+        ];
+        
+        for var in &magictunnel_vars {
+            let original_value = env::var(var).ok();
+            if original_value.is_some() {
+                self.original_vars.push((var.to_string(), original_value));
+                env::remove_var(var);
+            }
         }
     }
 
     fn set_var(&mut self, key: &str, value: &str) {
-        // Store original value for cleanup
-        let original_value = env::var(key).ok();
-        self.original_vars.push((key.to_string(), original_value));
+        // Store original value for cleanup (only if we haven't already stored it)
+        if !self.original_vars.iter().any(|(k, _)| k == key) {
+            let original_value = env::var(key).ok();
+            self.original_vars.push((key.to_string(), original_value));
+        }
         
         // Set new value
         env::set_var(key, value);
     }
 
     fn remove_var(&mut self, key: &str) {
-        // Store original value for cleanup
-        let original_value = env::var(key).ok();
-        self.original_vars.push((key.to_string(), original_value));
+        // Store original value for cleanup (only if we haven't already stored it)
+        if !self.original_vars.iter().any(|(k, _)| k == key) {
+            let original_value = env::var(key).ok();
+            self.original_vars.push((key.to_string(), original_value));
+        }
         
         // Remove variable
         env::remove_var(key);
@@ -125,12 +151,21 @@ async fn test_config_path_environment_variable() -> Result<()> {
 server:
   host: "0.0.0.0"
   port: 8080
+  websocket: true
+  timeout: 30
+registry:
+  type: "file"
+  paths: ["capabilities"]
+  hot_reload: false
+  validation:
+    strict: false
+    allow_unknown_fields: true
 deployment:
   runtime_mode: advanced
 "#).unwrap();
     
-    // Set CONFIG_PATH environment variable
-    env_helper.set_var("CONFIG_PATH", config_path.to_str().unwrap());
+    // Set MAGICTUNNEL_CONFIG_PATH environment variable
+    env_helper.set_var("MAGICTUNNEL_CONFIG_PATH", config_path.to_str().unwrap());
     
     let env_overrides = EnvironmentOverrides::load()?;
     assert_eq!(env_overrides.config_path, Some(config_path.clone()));
@@ -157,10 +192,83 @@ async fn test_environment_override_priority() -> Result<()> {
 server:
   host: "127.0.0.1"
   port: 3001
+  websocket: true
+  timeout: 30
+registry:
+  type: "file"
+  paths: ["capabilities"]
+  hot_reload: false
+  validation:
+    strict: false
+    allow_unknown_fields: true
 deployment:
   runtime_mode: proxy
 smart_discovery:
   enabled: false
+  tool_selection_mode: hybrid
+  default_confidence_threshold: 0.05
+  max_tools_to_consider: 10
+  max_high_quality_matches: 3
+  high_quality_threshold: 0.95
+  use_fuzzy_matching: true
+  llm_mapper:
+    provider: openai
+    model: gpt-4o-mini
+    api_key_env: OPENAI_API_KEY
+    base_url: null
+    timeout: 30
+    max_retries: 3
+    enabled: true
+  llm_tool_selection:
+    enabled: false
+    provider: openai
+    model: gpt-4o-mini
+    api_key: null
+    api_key_env: OPENAI_API_KEY
+    base_url: null
+    timeout: 30
+    max_retries: 3
+    batch_size: 15
+    max_context_tokens: 4000
+  cache:
+    max_tool_matches: 1000
+    tool_match_ttl: 3600
+    max_llm_responses: 500
+    llm_response_ttl: 1800
+    max_registry_entries: 100
+    registry_ttl: 300
+    enabled: true
+  fallback:
+    enabled: true
+    min_confidence_threshold: 0.3
+    max_fallback_suggestions: 5
+    enable_fuzzy_fallback: true
+    enable_keyword_fallback: true
+    enable_category_fallback: true
+    enable_partial_match_fallback: true
+  semantic_search:
+    enabled: true
+    model_name: ollama:nomic-embed-text
+    similarity_threshold: 0.55
+    max_results: 10
+    storage:
+      embeddings_file: "./data/embeddings/tool_embeddings.bin"
+      metadata_file: "./data/embeddings/tool_metadata.json"
+      hash_file: "./data/embeddings/content_hashes.json"
+      backup_count: 3
+      auto_backup: true
+      compression: false
+    model:
+      cache_dir: "./data/models"
+      device: cpu
+      max_sequence_length: 512
+      batch_size: 32
+      normalize_embeddings: true
+    performance:
+      lazy_loading: true
+      embedding_cache_size: 1000
+      parallel_processing: true
+      worker_threads: 4
 "#).unwrap();
     
     // Set environment to override config
@@ -273,12 +381,83 @@ async fn test_environment_variables_in_config_resolution() -> Result<()> {
 server:
   host: "127.0.0.1"
   port: 3001
+  websocket: true
+  timeout: 30
+registry:
+  type: "file"
+  paths: ["capabilities"]
+  hot_reload: false
+  validation:
+    strict: false
+    allow_unknown_fields: true
 deployment:
   runtime_mode: proxy
 smart_discovery:
   enabled: false
-registry:
-  capabilities_dir: "capabilities"
+  tool_selection_mode: hybrid
+  default_confidence_threshold: 0.05
+  max_tools_to_consider: 10
+  max_high_quality_matches: 3
+  high_quality_threshold: 0.95
+  use_fuzzy_matching: true
+  llm_mapper:
+    provider: openai
+    model: gpt-4o-mini
+    api_key_env: OPENAI_API_KEY
+    base_url: null
+    timeout: 30
+    max_retries: 3
+    enabled: true
+  llm_tool_selection:
+    enabled: false
+    provider: openai
+    model: gpt-4o-mini
+    api_key: null
+    api_key_env: OPENAI_API_KEY
+    base_url: null
+    timeout: 30
+    max_retries: 3
+    batch_size: 15
+    max_context_tokens: 4000
+  cache:
+    max_tool_matches: 1000
+    tool_match_ttl: 3600
+    max_llm_responses: 500
+    llm_response_ttl: 1800
+    max_registry_entries: 100
+    registry_ttl: 300
+    enabled: true
+  fallback:
+    enabled: true
+    min_confidence_threshold: 0.3
+    max_fallback_suggestions: 5
+    enable_fuzzy_fallback: true
+    enable_keyword_fallback: true
+    enable_category_fallback: true
+    enable_partial_match_fallback: true
+  semantic_search:
+    enabled: true
+    model_name: ollama:nomic-embed-text
+    similarity_threshold: 0.55
+    max_results: 10
+    storage:
+      embeddings_file: "./data/embeddings/tool_embeddings.bin"
+      metadata_file: "./data/embeddings/tool_metadata.json"
+      hash_file: "./data/embeddings/content_hashes.json"
+      backup_count: 3
+      auto_backup: true
+      compression: false
+    model:
+      cache_dir: "./data/models"
+      device: cpu
+      max_sequence_length: 512
+      batch_size: 32
+      normalize_embeddings: true
+    performance:
+      lazy_loading: true
+      embedding_cache_size: 1000
+      parallel_processing: true
+      worker_threads: 4
 "#).unwrap();
     
     // Set environment overrides
@@ -367,7 +546,7 @@ async fn test_no_environment_variables() -> Result<()> {
     // Ensure no MagicTunnel environment variables are set
     env_helper.remove_var("MAGICTUNNEL_RUNTIME_MODE");
     env_helper.remove_var("MAGICTUNNEL_SMART_DISCOVERY");
-    env_helper.remove_var("CONFIG_PATH");
+    env_helper.remove_var("MAGICTUNNEL_CONFIG_PATH");
     
     let env_overrides = EnvironmentOverrides::load()?;
     

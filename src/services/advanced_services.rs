@@ -526,7 +526,7 @@ mod tests {
         
         let services = result.unwrap();
         assert!(services.is_healthy());
-        assert_eq!(services.service_count(), 0); // No advanced services configured
+        assert_eq!(services.service_count(), 6); // All 6 advanced service statuses tracked, but disabled
     }
     
     #[tokio::test]

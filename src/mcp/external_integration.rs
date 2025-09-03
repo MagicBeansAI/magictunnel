@@ -341,10 +341,6 @@ impl ExternalMcpIntegration {
         None
     }
 
-    /// Check if the integration is running
-    pub fn is_running(&self) -> bool {
-        self.manager.is_some()
-    }
 
     /// Get status information for the integration
     pub async fn get_status(&self) -> HashMap<String, serde_json::Value> {
@@ -423,8 +419,16 @@ impl ExternalMcpIntegration {
         }
     }
 
-    /// Check if External MCP is enabled and running
+    /// Check if External MCP is enabled in configuration
     pub fn is_enabled(&self) -> bool {
+        self.config.external_mcp
+            .as_ref()
+            .map(|config| config.enabled)
+            .unwrap_or(false)
+    }
+    
+    /// Check if External MCP manager is started and running
+    pub fn is_running(&self) -> bool {
         self.manager.is_some()
     }
 

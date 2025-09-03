@@ -17,12 +17,26 @@ mod tests {
                 "title": "Test API",
                 "version": "1.0.0"
             },
-            "paths": {}
+            "paths": {
+                "/test": {
+                    "get": {
+                        "operationId": "testGet",
+                        "responses": {
+                            "200": {
+                                "description": "Success"
+                            }
+                        }
+                    }
+                }
+            }
         }
         "#;
         
         // Should not error when detecting Swagger 2.0 format
         let result = generator.generate_from_spec(swagger2_spec);
+        if let Err(ref e) = result {
+            println!("Format detection error: {:?}", e);
+        }
         assert!(result.is_ok());
     }
 
@@ -61,9 +75,11 @@ mod tests {
         assert!(result.is_ok());
         
         let capability_file = result.unwrap();
-        assert_eq!(capability_file.tools.len(), 1);
-        assert_eq!(capability_file.tools[0].name, "listPets");
-        assert_eq!(capability_file.tools[0].description, "List pets");
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].name, "enhanced_listpets");
+        assert!(tools[0].core.description.contains("List pets"));
     }
 
     #[test]
@@ -115,13 +131,15 @@ mod tests {
         assert!(result.is_ok());
         
         let capability_file = result.unwrap();
-        assert_eq!(capability_file.tools.len(), 1);
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+        assert_eq!(tools.len(), 1);
         
-        let tool = &capability_file.tools[0];
-        assert_eq!(tool.name, "getPetById");
+        let tool = &tools[0];
+        assert_eq!(tool.name, "enhanced_getpetbyid");
         
         // Check that parameters are properly converted
-        let input_schema = &tool.input_schema;
+        let input_schema = &tool.core.input_schema;
         let properties = input_schema.get("properties").unwrap().as_object().unwrap();
         
         // Should have petId parameter
@@ -192,14 +210,18 @@ mod tests {
         assert!(result.is_ok());
         
         let capability_file = result.unwrap();
-        assert_eq!(capability_file.tools.len(), 1);
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+        assert_eq!(tools.len(), 1);
         
-        let tool = &capability_file.tools[0];
-        assert_eq!(tool.name, "createPet");
+        let tool = &tools[0];
+        assert_eq!(tool.name, "enhanced_createpet");
         
         // Check routing configuration for body parameter
-        assert_eq!(tool.routing.routing_type(), "http");
-        let config = &tool.routing.config;
+        assert!(tool.execution.routing.r#type == "http" || tool.execution.routing.r#type == "enhanced_http");
+        // Enhanced routing stores actual routing config in the 'primary' field
+        let empty_config = serde_json::Value::Object(serde_json::Map::new());
+        let config = tool.execution.routing.primary.as_ref().unwrap_or(&empty_config).as_object().unwrap();
         assert_eq!(config.get("method").unwrap().as_str().unwrap(), "POST");
         assert!(config.get("body_param").is_some());
         assert_eq!(config.get("body_param").unwrap().as_str().unwrap(), "body");
@@ -253,14 +275,16 @@ mod tests {
         assert!(result.is_ok());
         
         let capability_file = result.unwrap();
-        assert_eq!(capability_file.tools.len(), 1);
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+        assert_eq!(tools.len(), 1);
         
-        let tool = &capability_file.tools[0];
-        assert_eq!(tool.name, "listPets");
+        let tool = &tools[0];
+        assert_eq!(tool.name, "enhanced_listpets");
         
         // The response conversion is internal to the generator
         // We mainly test that it doesn't error and produces a valid tool
-        assert!(!tool.description.is_empty());
+        assert!(!tool.core.description.is_empty());
     }
 
     #[test]
@@ -301,11 +325,13 @@ mod tests {
         assert!(result.is_ok());
         
         let capability_file = result.unwrap();
-        assert_eq!(capability_file.tools.len(), 1);
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+        assert_eq!(tools.len(), 1);
         
         // Extensions should be handled without errors
-        let tool = &capability_file.tools[0];
-        assert_eq!(tool.name, "listPets");
+        let tool = &tools[0];
+        assert_eq!(tool.name, "enhanced_listpets");
     }
 
     #[test]
@@ -350,8 +376,10 @@ mod tests {
         assert!(result.is_ok());
         
         let capability_file = result.unwrap();
-        assert_eq!(capability_file.tools.len(), 1);
-        assert_eq!(capability_file.tools[0].name, "createPet");
+        let empty_tools = vec![];
+        let tools = capability_file.get_enhanced_tools().unwrap_or(&empty_tools);
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].name, "enhanced_createpet");
         
         // Test with deprecated operations included
         let mut generator_with_deprecated = OpenAPICapabilityGenerator::new("https://api.example.com".to_string())
@@ -361,12 +389,14 @@ mod tests {
         assert!(result_with_deprecated.is_ok());
         
         let capability_file_with_deprecated = result_with_deprecated.unwrap();
-        assert_eq!(capability_file_with_deprecated.tools.len(), 2);
+        let empty_tools_deprecated = vec![];
+        let tools_with_deprecated = capability_file_with_deprecated.get_enhanced_tools().unwrap_or(&empty_tools_deprecated);
+        assert_eq!(tools_with_deprecated.len(), 2);
         
-        let tool_names: Vec<&str> = capability_file_with_deprecated.tools.iter()
+        let tool_names: Vec<&str> = tools_with_deprecated.iter()
             .map(|t| t.name.as_str())
             .collect();
-        assert!(tool_names.contains(&"listPets"));
-        assert!(tool_names.contains(&"createPet"));
+        assert!(tool_names.contains(&"enhanced_listpets"));
+        assert!(tool_names.contains(&"enhanced_createpet"));
     }
 }

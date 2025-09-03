@@ -110,6 +110,59 @@ smart_discovery:
   high_quality_threshold: 0.95
   use_fuzzy_matching: true
   enable_sequential_mode: true
+  llm_tool_selection:
+    enabled: false
+    provider: "mock"
+    model: "test-model"
+    timeout: 30
+    max_retries: 3
+    batch_size: 15
+    max_context_tokens: 4000
+  llm_mapper:
+    provider: "mock"
+    model: "test-model"
+    enabled: false
+    timeout: 30
+    max_retries: 3
+  cache:
+    enabled: true
+    max_tool_matches: 100
+    tool_match_ttl: 300
+    max_llm_responses: 50
+    llm_response_ttl: 600
+    max_registry_entries: 50
+    registry_ttl: 300
+  fallback:
+    enabled: true
+    min_confidence_threshold: 0.3
+    max_fallback_suggestions: 5
+    enable_fuzzy_fallback: true
+    enable_keyword_fallback: true
+    enable_category_fallback: true
+    enable_partial_match_fallback: true
+  semantic_search:
+    enabled: false
+    model_name: "all-MiniLM-L6-v2"
+    similarity_threshold: 0.55
+    max_results: 10
+    storage:
+      embeddings_file: "/tmp/test_embeddings.bin"
+      metadata_file: "/tmp/test_metadata.json"
+      hash_file: "/tmp/test_hashes.json"
+      backup_count: 3
+      auto_backup: true
+      compression: true
+    model:
+      cache_dir: "/tmp/test_models"
+      device: "cpu"
+      max_sequence_length: 512
+      batch_size: 32
+      normalize_embeddings: true
+    performance:
+      lazy_loading: true
+      embedding_cache_size: 1000
+      parallel_processing: true
+      worker_threads: 4
   
 # Configure sampling/elicitation at service level, not smart_discovery level
 elicitation:
@@ -487,6 +540,59 @@ smart_discovery:
   high_quality_threshold: 0.95
   use_fuzzy_matching: true
   enable_sequential_mode: true
+  llm_tool_selection:
+    enabled: false
+    provider: "mock"
+    model: "test-model"
+    timeout: 30
+    max_retries: 3
+    batch_size: 15
+    max_context_tokens: 4000
+  llm_mapper:
+    provider: "mock"
+    model: "test-model"
+    enabled: false
+    timeout: 30
+    max_retries: 3
+  cache:
+    enabled: true
+    max_tool_matches: 100
+    tool_match_ttl: 300
+    max_llm_responses: 50
+    llm_response_ttl: 600
+    max_registry_entries: 50
+    registry_ttl: 300
+  fallback:
+    enabled: true
+    min_confidence_threshold: 0.3
+    max_fallback_suggestions: 5
+    enable_fuzzy_fallback: true
+    enable_keyword_fallback: true
+    enable_category_fallback: true
+    enable_partial_match_fallback: true
+  semantic_search:
+    enabled: false
+    model_name: "all-MiniLM-L6-v2"
+    similarity_threshold: 0.55
+    max_results: 10
+    storage:
+      embeddings_file: "/tmp/test_embeddings.bin"
+      metadata_file: "/tmp/test_metadata.json"
+      hash_file: "/tmp/test_hashes.json"
+      backup_count: 3
+      auto_backup: true
+      compression: true
+    model:
+      cache_dir: "/tmp/test_models"
+      device: "cpu"
+      max_sequence_length: 512
+      batch_size: 32
+      normalize_embeddings: true
+    performance:
+      lazy_loading: true
+      embedding_cache_size: 1000
+      parallel_processing: true
+      worker_threads: 4
 
 # Configure sampling/elicitation at service level, not smart_discovery level  
 sampling:

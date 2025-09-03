@@ -61,7 +61,7 @@ impl Default for RateLimitConfig {
 }
 
 /// Rate limiting statistics
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RateLimitStats {
     /// Total requests processed
     pub total_requests: u64,
@@ -71,8 +71,8 @@ pub struct RateLimitStats {
     pub active_ips: u32,
     /// DDoS events detected
     pub ddos_events: u32,
-    /// Last reset time
-    pub last_reset: Instant,
+    /// Last reset time (as RFC3339 string for JSON serialization)
+    pub last_reset: String,
 }
 
 /// Rate limiter implementation
@@ -216,7 +216,7 @@ impl RateLimiter {
                 blocked_requests: 0,
                 active_ips: 0,
                 ddos_events: 0,
-                last_reset: Instant::now(),
+                last_reset: chrono::Utc::now().to_rfc3339(),
             })),
         }
     }
@@ -414,7 +414,7 @@ impl RateLimiter {
             stats.blocked_requests = 0;
             stats.active_ips = 0;
             stats.ddos_events = 0;
-            stats.last_reset = Instant::now();
+            stats.last_reset = chrono::Utc::now().to_rfc3339();
         }
         
         info!("Rate limiting counters reset");

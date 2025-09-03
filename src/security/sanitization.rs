@@ -297,7 +297,7 @@ impl SanitizationService {
         // Compile secret detection patterns
         secret_patterns.insert(
             SecretType::ApiKey,
-            Regex::new(r"(?i)(api[_-]?key|token|secret)[\s\:=]*[a-zA-Z0-9_-]{16,}")?,
+            Regex::new(r"(?i)(api[_-]?key|token|secret).*[a-zA-Z0-9_-]{16,}")?,
         );
         
         secret_patterns.insert(
@@ -1238,6 +1238,8 @@ mod tests {
         });
         
         let result = service.sanitize_request(&mut request_data, Some("test_tool"));
+        println!("Debug: sanitization result: should_block={}, matched_policies={:?}", result.should_block, result.matched_policies);
+        println!("Debug: request_data after sanitization: {:?}", request_data);
         assert!(result.should_block);
         assert!(!result.matched_policies.is_empty());
     }

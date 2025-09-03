@@ -10,15 +10,54 @@ use magictunnel::mcp::types::tool_enhancement::ModelPreferences;
 use magictunnel::config::Config;
 use serde_json::json;
 
+/// Helper function to create config with smart discovery enabled (enables elicitation and roots services)
+fn create_config_with_smart_discovery_enabled() -> Config {
+    let mut config = Config::default();
+    
+    // Enable smart discovery so elicitation service is enabled
+    config.smart_discovery = Some(magictunnel::discovery::SmartDiscoveryConfig {
+        enabled: true,
+        tool_selection_mode: "rule_based".to_string(),
+        default_confidence_threshold: 0.7,
+        max_tools_to_consider: 5,
+        max_high_quality_matches: 3,
+        high_quality_threshold: 0.95,
+        use_fuzzy_matching: true,
+        llm_mapper: magictunnel::discovery::LlmMapperConfig::default(),
+        llm_tool_selection: magictunnel::discovery::LlmToolSelectionConfig::default(),
+        cache: magictunnel::discovery::DiscoveryCacheConfig::default(),
+        fallback: magictunnel::discovery::FallbackConfig::default(),
+        semantic_search: magictunnel::discovery::SemanticSearchConfig::default(),
+        enable_sequential_mode: false,
+        tool_metrics_enabled: None,
+    });
+    
+    config
+}
+
 /// Test ToolEnhancementService initialization and configuration
 #[tokio::test]
 async fn test_tool_enhancement_service_initialization() {
-    let config = Config::default();
+    let mut config = Config::default();
+    
+    // Configure tool enhancement service with minimal settings
+    config.tool_enhancement = Some(magictunnel::config::ToolEnhancementConfig {
+        enabled: true,
+        llm_config: Some(magictunnel::config::LlmConfig {
+            provider: "mock".to_string(),
+            model: "test-model".to_string(),
+            api_key_env: None,
+            temperature: Some(0.7),
+            max_tokens: Some(1000),
+            api_base_url: None,
+            additional_params: None,
+        }),
+    });
     
     // Test service creation from config
     let result = ToolEnhancementService::from_config(&config);
     
-    // Service should be created successfully even without LLM config
+    // Service should be created successfully with proper config
     assert!(result.is_ok());
     
     let service = result.unwrap();
@@ -26,7 +65,7 @@ async fn test_tool_enhancement_service_initialization() {
     
     // Status should include service information
     assert!(status["enabled"].is_boolean());
-    assert!(status["providers"].is_object());
+    assert!(status["providers"].is_array());
 }
 
 /// Test ToolEnhancementService with valid request
@@ -50,6 +89,20 @@ async fn test_tool_enhancement_service_request_handling() {
         semantic_search: magictunnel::discovery::SemanticSearchConfig::default(),
         enable_sequential_mode: false,
         tool_metrics_enabled: None,
+    });
+    
+    // Configure tool enhancement service with minimal settings
+    config.tool_enhancement = Some(magictunnel::config::ToolEnhancementConfig {
+        enabled: true,
+        llm_config: Some(magictunnel::config::LlmConfig {
+            provider: "mock".to_string(),
+            model: "test-model".to_string(),
+            api_key_env: None,
+            temperature: Some(0.7),
+            max_tokens: Some(1000),
+            api_base_url: None,
+            additional_params: None,
+        }),
     });
     
     let service = ToolEnhancementService::from_config(&config).unwrap();
@@ -112,7 +165,7 @@ async fn test_elicitation_service_initialization() {
 /// Test ElicitationService with valid flat schema
 #[tokio::test]
 async fn test_elicitation_service_flat_schema() {
-    let config = Config::default();
+    let config = create_config_with_smart_discovery_enabled();
     let service = ElicitationService::from_config(&config).unwrap();
     
     let request = ElicitationRequest {
@@ -151,7 +204,7 @@ async fn test_elicitation_service_flat_schema() {
 /// Test ElicitationService with invalid nested schema
 #[tokio::test]
 async fn test_elicitation_service_nested_schema_rejection() {
-    let config = Config::default();
+    let config = create_config_with_smart_discovery_enabled();
     let service = ElicitationService::from_config(&config).unwrap();
     
     let request = ElicitationRequest {
@@ -193,7 +246,7 @@ async fn test_elicitation_service_nested_schema_rejection() {
 /// Test ElicitationService schema validation edge cases
 #[tokio::test]
 async fn test_elicitation_schema_validation_edge_cases() {
-    let config = Config::default();
+    let config = create_config_with_smart_discovery_enabled();
     let service = ElicitationService::from_config(&config).unwrap();
     
     // Test empty schema
@@ -327,7 +380,7 @@ async fn test_roots_service_list_roots() {
 /// Test RootsService with filtering
 #[tokio::test]
 async fn test_roots_service_filtering() {
-    let config = Config::default();
+    let config = create_config_with_smart_discovery_enabled();
     let service = RootsService::from_config(&config).unwrap();
     
     // Test type filtering
@@ -376,7 +429,7 @@ async fn test_roots_service_filtering() {
 /// Test RootsService pagination
 #[tokio::test]
 async fn test_roots_service_pagination() {
-    let config = Config::default();
+    let config = create_config_with_smart_discovery_enabled();
     let service = RootsService::from_config(&config).unwrap();
     
     // First page request
@@ -419,7 +472,7 @@ async fn test_roots_service_pagination() {
 /// Test RootsService manual root management
 #[tokio::test]
 async fn test_roots_service_manual_root_management() {
-    let config = Config::default();
+    let config = create_config_with_smart_discovery_enabled();
     let service = RootsService::from_config(&config).unwrap();
     
     // Create a test root
@@ -474,7 +527,7 @@ async fn test_roots_service_manual_root_management() {
 /// Test RootsService security filtering
 #[tokio::test]
 async fn test_roots_service_security_filtering() {
-    let config = Config::default();
+    let config = create_config_with_smart_discovery_enabled();
     let service = RootsService::from_config(&config).unwrap();
     
     // Try to add a root in a blocked directory
@@ -510,7 +563,23 @@ async fn test_services_error_handling() {
     let config = Config::default();
     
     // Test ToolEnhancementService error handling
-    let tool_enhancement_service = ToolEnhancementService::from_config(&config).unwrap();
+    let mut config_with_enhancement = Config::default();
+    
+    // Configure tool enhancement service with minimal settings
+    config_with_enhancement.tool_enhancement = Some(magictunnel::config::ToolEnhancementConfig {
+        enabled: true,
+        llm_config: Some(magictunnel::config::LlmConfig {
+            provider: "mock".to_string(),
+            model: "test-model".to_string(),
+            api_key_env: None,
+            temperature: Some(0.7),
+            max_tokens: Some(1000),
+            api_base_url: None,
+            additional_params: None,
+        }),
+    });
+    
+    let tool_enhancement_service = ToolEnhancementService::from_config(&config_with_enhancement).unwrap();
     
     let invalid_enhancement_request = ToolEnhancementRequest {
         messages: vec![], // Empty messages should cause error
