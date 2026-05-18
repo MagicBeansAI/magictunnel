@@ -3,11 +3,14 @@
 **/*.rs.bk
 *.pdb
 
-# MagjcTunnel binaries
+# MagicTunnel binaries
 ./magictunnel
 magictunnel
+magictunnel-supervisor
 target/release/magictunnel
+target/release/magictunnel-supervisor
 target/debug/magictunnel
+target/debug/magictunnel-supervisor
 
 # Cargo
 Cargo.lock
@@ -39,6 +42,7 @@ log/
 config.yaml
 config.yml
 config.json
+magictunnel-config.yaml
 .env
 .env.local
 .env.development
