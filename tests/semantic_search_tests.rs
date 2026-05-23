@@ -16,7 +16,6 @@ use magictunnel::registry::types::{ToolDefinition, RoutingConfig};
 use serde_json::json;
 use std::sync::Arc;
 use tempfile::TempDir;
-use tokio;
 
 /// Helper function to create a test semantic search config
 fn create_test_semantic_config(temp_dir: &TempDir) -> SemanticSearchConfig {
@@ -363,7 +362,7 @@ async fn test_search_mode_selection() {
         assert!(init_result.is_ok(), "Discovery service initialization failed for mode: {}", mode);
         
         // Test that service reports correct enabled state
-        assert_eq!(discovery_service.is_enabled(), true);
+        assert!(discovery_service.is_enabled());
     }
 }
 

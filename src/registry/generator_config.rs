@@ -44,9 +44,8 @@
 //! - OAuth: `auth_type = { OAuth = { token = "TOKEN", token_type = "Bearer" } }`
 
 use crate::error::{ProxyError, Result};
-use crate::registry::generator_common::{AuthConfig, AuthType, BaseGeneratorConfig};
+use crate::registry::generator_common::{AuthConfig, BaseGeneratorConfig};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::Path;
 
 /// Generator configuration file
@@ -402,8 +401,7 @@ impl GeneratorConfigFile {
         
         // Apply output configuration
         let output_dir = self.output.directory.as_ref()
-            .or(self.global.output_dir.as_ref())
-            .map(|dir| dir.clone());
+            .or(self.global.output_dir.as_ref()).cloned();
         
         if let Some(dir) = output_dir {
             let file_name = self.output.file_pattern
@@ -733,12 +731,12 @@ output:
         assert_eq!(openapi_config.tool_prefix, Some("api".to_string()));
         assert_eq!(openapi_config.naming_convention, "operation-id".to_string());
         assert_eq!(openapi_config.methods, Some(vec!["GET".to_string(), "POST".to_string()]));
-        assert_eq!(openapi_config.include_deprecated, false);
+        assert!(!openapi_config.include_deprecated);
 
         // Validate output settings
         let output_config = &config.output;
         assert_eq!(output_config.format, "yaml".to_string());
-        assert_eq!(output_config.pretty, true);
+        assert!(output_config.pretty);
     }
 
 

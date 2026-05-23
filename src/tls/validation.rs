@@ -193,15 +193,15 @@ impl ProxyValidator {
             let has_required_headers = self.check_required_proxy_headers(proxy_headers);
             if has_required_headers {
                 debug!("Auto-detection: proxy headers present and valid, using BehindProxy mode");
-                return Ok(TlsMode::BehindProxy);
+                Ok(TlsMode::BehindProxy)
             } else {
                 debug!("Auto-detection: proxy headers incomplete, using fallback mode");
-                return Ok(self.tls_config.fallback_mode.clone());
+                Ok(self.tls_config.fallback_mode.clone())
             }
         } else {
             // No proxy headers - likely direct connection
             debug!("Auto-detection: no proxy headers, using Application mode");
-            return Ok(TlsMode::Application);
+            Ok(TlsMode::Application)
         }
     }
 

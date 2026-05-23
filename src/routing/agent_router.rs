@@ -1597,7 +1597,7 @@ impl DefaultAgentRouter {
         endpoint: &str,
         query: &Option<String>,
         variables: &Option<serde_json::Value>,
-        headers: &Option<std::collections::HashMap<String, String>>,
+        _headers: &Option<std::collections::HashMap<String, String>>,
         operation_name: &Option<String>,
     ) -> Result<serde_json::Value> {
         use serde_json::json;

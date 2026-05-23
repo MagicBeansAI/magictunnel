@@ -160,7 +160,7 @@ mod session_management_tests {
         
         // Create sessions
         let session1 = manager.create_session().expect("Should create session");
-        let session2 = manager.create_session().expect("Should create session");
+        let _session2 = manager.create_session().expect("Should create session");
         
         // Stats after creation
         let stats = manager.get_stats();

@@ -7,9 +7,7 @@ use crate::registry::RegistryService;
 use crate::mcp::{McpServer, types::ToolCall};
 use crate::mcp::resources::{ResourceManager, ResourceProvider};
 use crate::mcp::prompts::{PromptManager, PromptProvider};
-use crate::mcp::types::{Resource, ResourceContent, PromptTemplate, PromptGetResponse};
 use crate::supervisor::{SupervisorClient, types::{CustomCommand, CommandType}};
-use crate::error::ProxyError;
 use crate::openai::OpenApiGenerator;
 use serde::{Deserialize, Serialize};
 use std::process::Stdio;
@@ -1421,7 +1419,7 @@ impl DashboardApi {
                         let mut errors = Vec::new();
                         
                         for section in required_sections {
-                            if !config.get(section).is_some() {
+                            if config.get(section).is_none() {
                                 warnings.push(format!("Optional section '{}' is missing", section));
                             }
                         }
@@ -1809,7 +1807,7 @@ impl DashboardApi {
                 // Save previous server if we have complete info
                 if let (Some(server), Some(cmd), Some(args)) = (&current_server, &current_command, &current_args) {
                     let desc = if description_lines.is_empty() {
-                        format!("{} operations", server.replace('-', " ").replace('_', " "))
+                        format!("{} operations", server.replace(['-', '_'], " "))
                     } else {
                         description_lines.join(" ")
                     };
@@ -1849,7 +1847,7 @@ impl DashboardApi {
         // Save the last server
         if let (Some(server), Some(cmd), Some(args)) = (&current_server, &current_command, &current_args) {
             let desc = if description_lines.is_empty() {
-                format!("{} operations", server.replace('-', " ").replace('_', " "))
+                format!("{} operations", server.replace(['-', '_'], " "))
             } else {
                 description_lines.join(" ")
             };
@@ -2135,7 +2133,7 @@ impl DashboardApi {
             if let Ok(entries) = std::fs::read_dir(dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path.extension().map_or(false, |ext| ext == "yaml" || ext == "yml") {
+                    if path.extension().is_some_and(|ext| ext == "yaml" || ext == "yml") {
                         if let Ok(content) = std::fs::read_to_string(&path) {
                             return content;
                         }
@@ -2514,7 +2512,7 @@ tools:
         info!("🔧 [DASHBOARD] Environment variables: {:?}", env_vars);
         
         let mut child = Command::new(&magictunnel_path)
-            .args(&["--mcp-client", "--config", &config_path.to_string_lossy()])
+            .args(["--mcp-client", "--config", &config_path.to_string_lossy()])
             .envs(&env_vars)
             .current_dir(&current_dir)
             .stdin(Stdio::piped())
@@ -2636,7 +2634,7 @@ tools:
         info!("🔧 [DASHBOARD] Environment variables: {:?}", env_vars);
         
         let mut child = Command::new(&magictunnel_path)
-            .args(&["--stdio", "--config", &config_path.to_string_lossy()])
+            .args(["--stdio", "--config", &config_path.to_string_lossy()])
             .envs(&env_vars)
             .current_dir(&current_dir)
             .stdin(Stdio::piped())
@@ -2666,8 +2664,8 @@ tools:
         drop(stdin); // Close stdin to signal we're done sending
 
         // Read response from stdout with timeout
-        let mut stdout_reader = BufReader::new(stdout);
-        let mut stderr_reader = BufReader::new(stderr);
+        let stdout_reader = BufReader::new(stdout);
+        let stderr_reader = BufReader::new(stderr);
         
         // Start tasks to read stdout and stderr
         let stdout_task = {
@@ -2817,7 +2815,7 @@ tools:
         
         // Method 1: Try to read from journal if available
         if let Ok(output) = Command::new("journalctl")
-            .args(&[
+            .args([
                 "_COMM=magictunnel", 
                 "--since", "10 minutes ago",
                 "--lines", &limit.to_string(),
@@ -2985,9 +2983,9 @@ tools:
 
         let mut variables = Vec::new();
         let mut sensitive_count = 0;
-        let mut file_count = 0;
+        let file_count = 0;
         let mut system_count = 0;
-        let mut runtime_count = 0;
+        let runtime_count = 0;
 
         // Known sensitive environment variable patterns
         let sensitive_patterns = [
@@ -3543,7 +3541,7 @@ tools:
 
                     // Get metrics from the metrics collector if available
                     if let Some(metrics_collector) = external_integration.metrics_collector() {
-                        let all_metrics = metrics_collector.get_all_metrics().await;
+                        let _all_metrics = metrics_collector.get_all_metrics().await;
                         let summary = metrics_collector.get_summary().await;
                         
                         mcp_total_requests = summary.total_requests;
@@ -3554,7 +3552,7 @@ tools:
             }
         }
 
-        let mut metrics = json!({
+        let metrics = json!({
             "timestamp": chrono::Utc::now().to_rfc3339(),
             "uptime_seconds": self.start_time.elapsed().as_secs(),
             "system": {
@@ -3684,7 +3682,7 @@ tools:
                 // Process services
                 if let Some(manager) = external_integration.get_manager() {
                     let health_status = manager.get_health_status().await;
-                    for (service_id, status) in health_status {
+                    for (_service_id, status) in health_status {
                         total_services += 1;
                         match status {
                             crate::mcp::metrics::HealthStatus::Healthy => healthy_services += 1,
@@ -3700,7 +3698,7 @@ tools:
                 // Network services
                 if let Some(network_manager) = external_integration.get_network_manager() {
                     let network_health = network_manager.get_health_status().await;
-                    for (service_id, status) in network_health {
+                    for (_service_id, status) in network_health {
                         total_services += 1;
                         match status {
                             crate::mcp::metrics::HealthStatus::Healthy => healthy_services += 1,

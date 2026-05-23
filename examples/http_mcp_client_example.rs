@@ -4,7 +4,6 @@
 //! external MCP services over HTTP.
 
 use magictunnel::mcp::{HttpMcpClient, HttpClientConfig, HttpAuthConfig};
-use tokio;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -109,7 +108,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n⚙️  Example 6: Configuration examples for different scenarios");
     
     // High-performance configuration
-    let high_perf_config = HttpClientConfig {
+    let _high_perf_config = HttpClientConfig {
         base_url: "https://api.highperf.com/mcp".to_string(),
         auth: HttpAuthConfig::None,
         timeout: 10,                    // Fast timeout
@@ -121,7 +120,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🏎️  High-performance config: 10s timeout, 50 connections, minimal retries");
 
     // Resilient configuration
-    let resilient_config = HttpClientConfig {
+    let _resilient_config = HttpClientConfig {
         base_url: "https://api.unreliable.com/mcp".to_string(),
         auth: HttpAuthConfig::None,
         timeout: 120,                   // Long timeout
@@ -133,7 +132,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🛡️  Resilient config: 120s timeout, 10 retries, long delays");
 
     // Real-world production configuration
-    let production_config = HttpClientConfig {
+    let _production_config = HttpClientConfig {
         base_url: "https://api.production.com/mcp".to_string(),
         auth: HttpAuthConfig::Bearer {
             token: std::env::var("MCP_TOKEN").unwrap_or_default(),

@@ -4,13 +4,11 @@
 //! Moved from src/tls/tests/integration_tests.rs to follow Rust best practices.
 
 mod tls_test_utils;
-use tls_test_utils::{TlsTestUtils, TestResultAggregator, TestResult, TestStatus};
+use tls_test_utils::TlsTestUtils;
 
 use magictunnel::tls::*;
-use magictunnel::config::{TlsMode, TlsConfig};
-use magictunnel::error::Result;
+use magictunnel::config::TlsMode;
 use actix_web::test::TestRequest;
-use std::time::Duration;
 
 #[cfg(test)]
 mod tests {

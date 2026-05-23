@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use jsonschema::{JSONSchema, ValidationError};
+use jsonschema::JSONSchema;
 use crate::error::Result;
 use crate::mcp::errors::McpError;
 
@@ -122,7 +122,7 @@ impl Tool {
     pub fn is_mcp_compliant(&self) -> bool {
         // Basic MCP compliance checks
         !self.name.is_empty() &&
-        self.description.as_ref().map_or(true, |d| !d.is_empty()) &&
+        self.description.as_ref().is_none_or(|d| !d.is_empty()) &&
         self.validate_input_schema().is_ok()
     }
 }

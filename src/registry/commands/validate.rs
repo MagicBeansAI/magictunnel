@@ -29,7 +29,7 @@
 //! validation during development.
 
 use crate::error::{ProxyError, Result};
-use crate::registry::types::{CapabilityFile, ToolDefinition};
+use crate::registry::types::CapabilityFile;
 use std::collections::HashSet;
 
 /// Capability Validator

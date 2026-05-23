@@ -3,12 +3,10 @@
 //! This module provides an adapter for the gRPC capability generator
 //! that implements the CapabilityGeneratorBase trait.
 
-use crate::error::{ProxyError, Result};
+use crate::error::Result;
 use crate::registry::generator_common::CapabilityGeneratorBase;
 use crate::registry::grpc_generator::{GrpcCapabilityGenerator, GrpcGeneratorConfig, StreamingStrategy};
 use crate::registry::types::CapabilityFile;
-use std::path::Path;
-use std::collections::HashMap;
 
 /// gRPC Generator Adapter
 /// 

@@ -4,7 +4,7 @@
 //! Moved from src/tls/tests/trusted_proxy_tests.rs to follow Rust best practices.
 
 mod tls_test_utils;
-use tls_test_utils::{TlsTestUtils, TestResultAggregator, TestResult, TestStatus};
+use tls_test_utils::TlsTestUtils;
 
 use magictunnel::tls::TrustedProxyValidator;
 use std::net::IpAddr;
@@ -235,7 +235,7 @@ mod tests {
         ];
         
         for malformed in malformed_cidrs {
-            let result = TrustedProxyValidator::new(&vec![malformed.clone()]);
+            let result = TrustedProxyValidator::new(&[malformed.clone()]);
             assert!(result.is_err(), "Should fail for malformed CIDR: {}", malformed);
         }
     }
@@ -291,8 +291,8 @@ mod tests {
         let validator = TrustedProxyValidator::new(&config.trusted_proxies).unwrap();
         
         // Test with test utility generated requests
-        let proxied_req = TlsTestUtils::create_proxied_request();
-        let untrusted_req = TlsTestUtils::create_untrusted_proxy_request();
+        let _proxied_req = TlsTestUtils::create_proxied_request();
+        let _untrusted_req = TlsTestUtils::create_untrusted_proxy_request();
         
         // The test utilities should create requests that work with the validator
         // Note: This is more of an integration test to ensure test utilities are consistent

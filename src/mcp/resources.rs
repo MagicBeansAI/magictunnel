@@ -135,14 +135,14 @@ impl ResourceProvider for FileResourceProvider {
         
         let mut resources = Vec::new();
         let mut entries = fs::read_dir(&self.base_dir).await
-            .map_err(|e| ProxyError::Io(e))?;
+            .map_err(ProxyError::Io)?;
         
         while let Some(entry) = entries.next_entry().await
-            .map_err(|e| ProxyError::Io(e))? {
+            .map_err(ProxyError::Io)? {
 
             let path = entry.path();
             let metadata = entry.metadata().await
-                .map_err(|e| ProxyError::Io(e))?;
+                .map_err(ProxyError::Io)?;
             
             // Skip directories for now (basic implementation)
             if metadata.is_dir() {
@@ -163,8 +163,7 @@ impl ResourceProvider for FileResourceProvider {
                     metadata.modified()
                         .ok()
                         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                        .map(|d| chrono::DateTime::from_timestamp(d.as_secs() as i64, 0))
-                        .flatten()
+                        .and_then(|d| chrono::DateTime::from_timestamp(d.as_secs() as i64, 0))
                         .map(|dt| dt.format("%Y-%m-%dT%H:%M:%SZ").to_string())
                         .unwrap_or_else(|| "unknown".to_string())
                 );
@@ -195,7 +194,7 @@ impl ResourceProvider for FileResourceProvider {
         }
 
         let metadata = fs::metadata(&path).await
-            .map_err(|e| ProxyError::Io(e))?;
+            .map_err(ProxyError::Io)?;
         
         if metadata.is_dir() {
             return Err(ProxyError::validation(format!("Cannot read directory as resource: {}", uri)));
@@ -216,13 +215,13 @@ impl ResourceProvider for FileResourceProvider {
         
         if is_text {
             let content = fs::read_to_string(&path).await
-                .map_err(|e| ProxyError::Io(e))?;
+                .map_err(ProxyError::Io)?;
 
             debug!("Read text resource: {} ({} bytes)", uri, content.len());
             Ok(ResourceContent::text(uri.to_string(), content, mime_type))
         } else {
             let content = fs::read(&path).await
-                .map_err(|e| ProxyError::Io(e))?;
+                .map_err(ProxyError::Io)?;
             
             debug!("Read binary resource: {} ({} bytes)", uri, content.len());
             Ok(ResourceContent::blob(uri.to_string(), content, mime_type))

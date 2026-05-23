@@ -344,9 +344,9 @@ async fn test_tool_metrics_summary() {
     assert_eq!(summary.total_successful_executions, 31); // 19 + 2 + 10
     assert!((summary.overall_success_rate - 0.838).abs() < 0.01); // 31/37
     
-    // Check performance categories (may vary based on implementation)
-    assert!(summary.high_performing_tools >= 0); // high_perf_tool (95% success rate, >10 executions)
-    assert!(summary.low_performing_tools >= 0); // low_perf_tool (40% success rate, but only 5 total executions)
+    // Check performance categories (may vary based on implementation; usize >= 0 by type)
+    let _ = summary.high_performing_tools;
+    let _ = summary.low_performing_tools;
     
     // Check most popular tool
     assert_eq!(summary.most_popular_tool, Some("high_perf_tool".to_string()));
@@ -461,15 +461,14 @@ async fn test_tool_metrics_edge_cases() {
     
     // Test get_top_tools with different metrics
     let top_by_discovery = collector.get_top_tools("discovery_appearances", 5).await;
-    assert!(top_by_discovery.len() >= 0); // May be empty based on implementation
-    
+    let _ = top_by_discovery; // .len() returns usize so >= 0 by type; just ensure call succeeds
+
     let top_by_confidence = collector.get_top_tools("avg_confidence", 5).await;
-    // Should be empty since no discovery context was provided
-    assert!(top_by_confidence.len() >= 0);
-    
+    let _ = top_by_confidence;
+
     // Test invalid metric
     let invalid_metric = collector.get_top_tools("invalid_metric", 5).await;
-    assert!(invalid_metric.len() >= 0); // May return empty or filtered results
+    let _ = invalid_metric;
 }
 
 /// Test concurrent access to tool metrics

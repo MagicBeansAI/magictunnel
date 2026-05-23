@@ -3,7 +3,7 @@
 #[cfg(test)]
 mod tests {
     use super::super::*;
-    use crate::registry::types::RoutingConfig;
+    
     use serde_json::json;
 
     #[test]

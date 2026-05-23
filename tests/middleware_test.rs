@@ -8,7 +8,6 @@ use magictunnel::routing::{
 };
 use serde_json::json;
 use std::sync::Arc;
-use tokio;
 
 /// Helper function to create a test tool call
 fn create_test_tool_call() -> ToolCall {

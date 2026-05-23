@@ -109,7 +109,7 @@ impl<T: Clone> RequestDeduplicator<T> {
             let mut pending = self.pending.write().await;
             
             // Clean up expired requests
-            let now = Instant::now();
+            let _now = Instant::now();
             pending.retain(|_, req| !req.is_expired(self.timeout));
             
             if let Some(existing) = pending.get(&key) {
@@ -152,7 +152,7 @@ impl<T: Clone> RequestDeduplicator<T> {
         
         // Store the result and notify waiters
         {
-            let mut pending = self.pending.write().await;
+            let pending = self.pending.write().await;
             if let Some(pending_req) = pending.get(&key) {
                 let waiter_count = pending_req.waiter_count().await;
                 debug!("Request deduplication: notifying {} waiters", waiter_count);
@@ -292,7 +292,7 @@ impl PerformanceMetrics {
         if cache_hit {
             self.cache_hit_rate = (self.cache_hit_rate * 0.9) + (1.0 * 0.1);
         } else {
-            self.cache_hit_rate = self.cache_hit_rate * 0.9;
+            self.cache_hit_rate *= 0.9;
         }
     }
 
@@ -389,7 +389,7 @@ impl PerformanceOptimizer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::sleep;
+    
 
     #[test]
     fn test_request_key_creation() {

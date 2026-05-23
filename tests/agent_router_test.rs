@@ -1,6 +1,5 @@
 //! Tests for the AgentRouter trait and implementations
 
-use magictunnel::error::Result;
 use magictunnel::mcp::{Tool, ToolCall};
 use magictunnel::registry::{RoutingConfig, ToolDefinition};
 use magictunnel::routing::{AgentRouter, DefaultAgentRouter, Router, AgentType};
@@ -30,20 +29,20 @@ fn create_test_tool_definition(routing_type: &str, config: serde_json::Value) ->
 
 #[tokio::test]
 async fn test_default_agent_router_creation() {
-    let router = DefaultAgentRouter::new();
+    let _router = DefaultAgentRouter::new();
     // Should create without error
     assert!(true);
 }
 
 #[tokio::test]
 async fn test_router_creation() {
-    let router = Router::new();
+    let _router = Router::new();
     // Should create without error
     assert!(true);
     
     // Test with custom agent router
     let agent_router = Arc::new(DefaultAgentRouter::new());
-    let custom_router = Router::with_agent_router(agent_router);
+    let _custom_router = Router::with_agent_router(agent_router);
     // Should create without error
     assert!(true);
 }

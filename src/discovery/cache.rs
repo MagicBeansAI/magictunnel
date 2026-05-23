@@ -5,12 +5,11 @@
 //! cache, and request deduplication.
 
 use crate::discovery::types::*;
-use crate::error::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Serde helper for Duration as seconds
 mod duration_secs {

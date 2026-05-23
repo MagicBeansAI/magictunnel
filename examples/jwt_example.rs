@@ -5,7 +5,6 @@
 
 use magictunnel::auth::{JwtValidator, JwtUserInfo};
 use magictunnel::config::JwtConfig;
-use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

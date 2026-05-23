@@ -48,7 +48,7 @@ mod yaml_parsing_tests {
             println!("Testing file: {}", file_path);
             
             let content = fs::read_to_string(file_path)
-                .expect(&format!("Should be able to read {}", file_path));
+                .unwrap_or_else(|_| panic!("Should be able to read {}", file_path));
             
             let result: Result<CapabilityFile, _> = serde_yaml::from_str(&content);
             

@@ -5,15 +5,15 @@
 
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::RwLock;
 use tokio::time::{sleep, timeout, Instant};
 use uuid::Uuid;
 
 use magictunnel::{
     config::{SseServiceConfig, SseAuthType as ConfigSseAuthType},
     mcp::{
-        clients::sse_client::{SseMcpClient, SseClientConfig, SseAuthConfig},
-        types::{McpRequest, McpResponse, Tool, ToolCall},
+        clients::sse_client::{SseClientConfig, SseAuthConfig},
+        types::{McpRequest, McpResponse},
     },
     error::{ProxyError, Result},
 };
@@ -280,7 +280,7 @@ async fn test_connection_state_management() {
     };
     
     // Test connection configuration
-    assert_eq!(config.reconnect, true);
+    assert!(config.reconnect);
     assert_eq!(config.max_reconnect_attempts, 3);
     assert_eq!(config.reconnect_delay_ms, 100);
     assert_eq!(config.max_reconnect_delay_ms, 1000);

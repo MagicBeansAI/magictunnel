@@ -168,14 +168,13 @@ impl McpMessageValidator {
         }
 
         // Strict method validation
-        if self.config.strict_method_validation {
-            if !self.valid_methods.contains(method) {
+        if self.config.strict_method_validation
+            && !self.valid_methods.contains(method) {
                 return Err(ProxyError::mcp(format!(
                     "Unknown method '{}'. Valid methods: {:?}",
                     method, VALID_MCP_METHODS
                 )));
             }
-        }
 
         Ok(())
     }

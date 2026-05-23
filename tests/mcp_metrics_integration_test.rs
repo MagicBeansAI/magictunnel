@@ -4,21 +4,13 @@
 
 use chrono::Utc;
 use magictunnel::{
-    config::Config,
-    discovery::SmartDiscoveryService,
-    mcp::{
-        metrics::{McpMetricsCollector, McpServiceMetrics, McpHealthThresholds},
-        server::McpServer,
-    },
-    registry::RegistryService,
+    mcp::metrics::{McpMetricsCollector, McpHealthThresholds},
     metrics::tool_metrics::{
         ToolMetricsCollector, ToolExecutionRecord, ToolExecutionResult, DiscoveryRanking
     },
 };
-use serde_json::json;
 use std::sync::Arc;
 use tempfile::TempDir;
-use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 
 /// Test MCP metrics collection

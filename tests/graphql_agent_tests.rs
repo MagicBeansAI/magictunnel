@@ -312,6 +312,6 @@ async fn test_graphql_agent_timeout_configuration() {
     let result = router.execute_with_agent(&tool_call, &agent).await.unwrap();
     
     // The mock implementation should succeed, but in a real scenario with a slow endpoint,
-    // this would test timeout behavior
-    assert!(result.success || !result.success); // Either outcome is valid for mock
+    // this would test timeout behavior. Both outcomes are acceptable for the mock.
+    let _ = result.success;
 }

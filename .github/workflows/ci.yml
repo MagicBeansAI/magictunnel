@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [master, "phase-*"]
+  pull_request:
+    branches: [master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # NOTE: rustfmt job intentionally omitted. The repo's rustfmt.toml uses nightly-only
+  # options (wrap_comments, imports_granularity, group_imports), and running
+  # `cargo +nightly fmt` against current main produces a 23,000-line diff across
+  # 151 files — meaning the codebase has drifted from the author-declared style.
+  # Enforcing fmt here would either block every PR or require a sweep commit.
+  # Recommend addressing as a separate PR after maintainer decides between:
+  # (a) re-running nightly fmt across the tree, (b) trimming rustfmt.toml to
+  # stable-only options, or (c) dropping rustfmt.toml entirely.
+
+  build_and_test:
+    name: build & test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: Swatinem/rust-cache@v2
+      # `-D warnings` deferred: this PR establishes the workflow and clears all
+      # *errors* + the 8 most actionable bugs. ~114 residual warnings remain
+      # (type_complexity, too_many_arguments, etc.) — ratcheting clippy to deny
+      # mode is a follow-up PR once those are addressed or explicitly allowed.
+      - name: cargo clippy
+        run: cargo clippy --all-targets
+      - name: cargo test
+        run: cargo test
+      - name: cargo build --release
+        run: cargo build --release
+
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

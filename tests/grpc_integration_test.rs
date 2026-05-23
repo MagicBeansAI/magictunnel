@@ -28,7 +28,7 @@ mod grpc_tests {
         let registry = Arc::new(RegistryService::new(config).await.expect("Failed to create registry"));
         
         // Create gRPC server
-        let grpc_server = McpGrpcServer::new(registry);
+        let _grpc_server = McpGrpcServer::new(registry);
         
         // Verify server was created successfully
         assert!(true, "gRPC server created successfully");

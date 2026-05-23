@@ -3,12 +3,10 @@
 //! This module provides an adapter for the GraphQL capability generator
 //! that implements the CapabilityGeneratorBase trait.
 
-use crate::error::{ProxyError, Result};
+use crate::error::Result;
 use crate::registry::generator_common::CapabilityGeneratorBase;
-use crate::registry::graphql_generator::{GraphQLCapabilityGenerator, AuthConfig, AuthType};
+use crate::registry::graphql_generator::{GraphQLCapabilityGenerator, AuthConfig};
 use crate::registry::types::CapabilityFile;
-use std::path::Path;
-use std::collections::HashMap;
 
 /// GraphQL Generator Adapter
 /// 
@@ -51,7 +49,7 @@ impl GraphQLGeneratorAdapter {
     }
 
     /// Set whether to include deprecated fields and operations
-    pub fn with_include_deprecated(mut self, include_deprecated: bool) -> Self {
+    pub fn with_include_deprecated(self, _include_deprecated: bool) -> Self {
         // This would need to be implemented in the GraphQLCapabilityGenerator
         // For now, we'll just log a warning
         eprintln!("Warning: include_deprecated not implemented for GraphQLCapabilityGenerator");
@@ -59,7 +57,7 @@ impl GraphQLGeneratorAdapter {
     }
 
     /// Set whether to include descriptions in schemas
-    pub fn with_include_descriptions(mut self, include_descriptions: bool) -> Self {
+    pub fn with_include_descriptions(self, _include_descriptions: bool) -> Self {
         // This would need to be implemented in the GraphQLCapabilityGenerator
         // For now, we'll just log a warning
         eprintln!("Warning: include_descriptions not implemented for GraphQLCapabilityGenerator");
@@ -67,7 +65,7 @@ impl GraphQLGeneratorAdapter {
     }
 
     /// Set whether to generate separate tools for mutations and queries
-    pub fn with_separate_mutation_query(mut self, separate: bool) -> Self {
+    pub fn with_separate_mutation_query(self, _separate: bool) -> Self {
         // This would need to be implemented in the GraphQLCapabilityGenerator
         // For now, we'll just log a warning
         eprintln!("Warning: separate_mutation_query not implemented for GraphQLCapabilityGenerator");

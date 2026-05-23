@@ -97,6 +97,7 @@ pub enum CertificateStatus {
 
 /// Certificate monitoring statistics
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct CertMonitoringStats {
     /// Total certificates monitored
     pub total_certificates: u32,
@@ -387,20 +388,6 @@ impl CertificateMonitor {
     }
 }
 
-impl Default for CertMonitoringStats {
-    fn default() -> Self {
-        Self {
-            total_certificates: 0,
-            valid_certificates: 0,
-            expiring_soon: 0,
-            expiring_critical: 0,
-            expired_certificates: 0,
-            invalid_certificates: 0,
-            last_check: None,
-            next_check: None,
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

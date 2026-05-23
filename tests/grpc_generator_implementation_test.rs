@@ -8,10 +8,8 @@ use magictunnel::registry::grpc_generator::{
     GrpcCapabilityGenerator, GrpcGeneratorConfig, StreamingStrategy,
     AuthConfig, AuthType
 };
-use magictunnel::registry::types::CapabilityFile;
 use std::collections::HashMap;
 use std::path::Path;
-use std::fs;
 
 /// Test basic generator creation
 #[test]
@@ -286,7 +284,7 @@ fn test_authentication_configuration() {
         ),
     ];
     
-    for (auth_name, auth_config) in auth_configs {
+    for (_auth_name, auth_config) in auth_configs {
         // Create a generator with the current auth config
         let config = GrpcGeneratorConfig {
             endpoint: "localhost:50051".to_string(),
@@ -365,7 +363,7 @@ fn test_streaming_strategy_configuration() {
         (StreamingStrategy::AgentLevel, "agent-level"),
     ];
     
-    for (strategy, strategy_name) in test_strategies {
+    for (strategy, _strategy_name) in test_strategies {
         // Create a generator with the current strategy
         let config = GrpcGeneratorConfig {
             endpoint: "localhost:50051".to_string(),

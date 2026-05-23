@@ -86,7 +86,7 @@ output:
     if let Some(ref graphql) = config.graphql {
         assert_eq!(graphql.endpoint, "https://graphql.example.com");
         assert_eq!(graphql.tool_prefix, Some("gql".to_string()));
-        assert_eq!(graphql.include_deprecated, true);
+        assert!(graphql.include_deprecated);
         
         // Validate GraphQL auth
         if let Some(ref auth) = graphql.auth {
@@ -121,14 +121,14 @@ output:
         assert_eq!(openapi.tool_prefix, Some("api".to_string()));
         assert_eq!(openapi.naming_convention, "method-path");
         assert_eq!(openapi.methods, Some(vec!["GET".to_string(), "POST".to_string()]));
-        assert_eq!(openapi.include_deprecated, false);
+        assert!(!openapi.include_deprecated);
     } else {
         panic!("OpenAPI config not found");
     }
 
     // Validate output settings
     assert_eq!(config.output.format, "yaml");
-    assert_eq!(config.output.pretty, true);
+    assert!(config.output.pretty);
     assert_eq!(config.output.directory, Some("./output".to_string()));
     assert_eq!(config.output.file_pattern, "{name}_capabilities.{ext}");
 }

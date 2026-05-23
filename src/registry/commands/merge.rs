@@ -97,7 +97,7 @@ impl CapabilityMerger {
                 if tool_names.contains(&name) {
                     // Add to duplicates
                     duplicates.entry(name.clone())
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(tool.clone());
                 } else {
                     // Add to unique tools
@@ -234,6 +234,7 @@ impl CapabilityMerger {
 /// - `Rename`: Keep all tools but rename duplicates with version suffixes (e.g., `tool_v1`, `tool_v2`)
 /// - `Error`: Fail with an error when duplicates are found (default behavior)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default)]
 pub enum MergeStrategy {
     /// Keep the first occurrence of each tool
     KeepFirst,
@@ -242,14 +243,10 @@ pub enum MergeStrategy {
     /// Rename duplicate tools
     Rename,
     /// Return an error on duplicates
+    #[default]
     Error,
 }
 
-impl Default for MergeStrategy {
-    fn default() -> Self {
-        MergeStrategy::Error
-    }
-}
 
 impl Default for CapabilityMerger {
     fn default() -> Self {

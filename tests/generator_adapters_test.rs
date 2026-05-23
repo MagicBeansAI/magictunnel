@@ -6,12 +6,9 @@
 use magictunnel::registry::commands::{
     GraphQLGeneratorAdapter, GrpcGeneratorAdapter, OpenAPIGeneratorAdapter
 };
-use magictunnel::registry::generator_common::{
-    CapabilityGeneratorBase, AuthConfig, AuthType
-};
+use magictunnel::registry::generator_common::CapabilityGeneratorBase;
 use magictunnel::registry::graphql_generator::AuthConfig as GraphQLAuthConfig;
 use magictunnel::registry::openapi_generator::NamingConvention;
-use magictunnel::error::Result;
 use std::collections::HashMap;
 
 #[test]

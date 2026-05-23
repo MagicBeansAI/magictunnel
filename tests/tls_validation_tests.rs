@@ -4,7 +4,7 @@
 //! Moved from src/tls/tests/validation_tests.rs to follow Rust best practices.
 
 mod tls_test_utils;
-use tls_test_utils::{TlsTestUtils, TestResultAggregator, TestResult, TestStatus};
+use tls_test_utils::TlsTestUtils;
 
 use magictunnel::tls::{ProxyValidator, ProxyValidationUtils};
 use magictunnel::config::TlsMode;

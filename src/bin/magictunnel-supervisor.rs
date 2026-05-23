@@ -503,7 +503,7 @@ impl MagicTunnelProcess {
                             let stdout = if let Some(stdout) = child.stdout.take() {
                                 let mut output = Vec::new();
                                 let mut reader = tokio::io::BufReader::new(stdout);
-                                if let Ok(_) = tokio::io::AsyncReadExt::read_to_end(&mut reader, &mut output).await {
+                                if (tokio::io::AsyncReadExt::read_to_end(&mut reader, &mut output).await).is_ok() {
                                     Some(String::from_utf8_lossy(&output).to_string())
                                 } else {
                                     None
@@ -515,7 +515,7 @@ impl MagicTunnelProcess {
                             let stderr = if let Some(stderr) = child.stderr.take() {
                                 let mut output = Vec::new();
                                 let mut reader = tokio::io::BufReader::new(stderr);
-                                if let Ok(_) = tokio::io::AsyncReadExt::read_to_end(&mut reader, &mut output).await {
+                                if (tokio::io::AsyncReadExt::read_to_end(&mut reader, &mut output).await).is_ok() {
                                     Some(String::from_utf8_lossy(&output).to_string())
                                 } else {
                                     None

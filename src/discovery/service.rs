@@ -13,7 +13,7 @@ use crate::error::{ProxyError, Result};
 use crate::registry::service::RegistryService;
 use crate::registry::types::ToolDefinition;
 use crate::routing::Router;
-use crate::mcp::types::{ToolCall, ToolResult};
+use crate::mcp::types::ToolCall;
 use crate::metrics::tool_metrics::{ToolMetricsCollector, ToolExecutionRecord, ToolExecutionResult, DiscoveryRanking};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
@@ -780,7 +780,7 @@ impl SmartDiscoveryService {
         // Exact name match gets highest confidence
         if tool_name_lower == request_lower {
             confidence += 0.8;
-            score_breakdown.push(format!("exact_name_match: +0.8"));
+            score_breakdown.push("exact_name_match: +0.8".to_string());
         }
         // Partial name match - check if any significant words from the request appear in the tool name
         else {
@@ -904,13 +904,12 @@ impl SmartDiscoveryService {
         
         let mut score = 0.0f64;
         
-        for (category, terms) in keywords {
+        for (_category, terms) in keywords {
             for term in terms {
-                if request.contains(term) {
-                    if tool_name.contains(term) || tool_desc.contains(term) {
+                if request.contains(term)
+                    && (tool_name.contains(term) || tool_desc.contains(term)) {
                         score += 0.1f64;
                     }
-                }
             }
         }
         
@@ -1439,7 +1438,7 @@ impl SmartDiscoveryService {
         
         // Process tools in batches to manage context limits
         let batch_size = self.config.llm_tool_selection.batch_size;
-        let mut remaining_tools: Vec<_> = all_tools.iter()
+        let remaining_tools: Vec<_> = all_tools.iter()
             .filter(|(tool_name, _)| {
                 // Skip smart_tool_discovery to avoid recursion
                 if tool_name == "smart_discovery_tool" || tool_name == "smart_tool_discovery" {
@@ -1670,7 +1669,7 @@ impl SmartDiscoveryService {
         
         for (tool_name, tool_def) in all_tools {
             // Calculate base confidence without constraints
-            let dummy_request = SmartDiscoveryRequest {
+            let _dummy_request = SmartDiscoveryRequest {
                 request: user_request.to_string(),
                 context: None,
                 preferred_tools: None,
@@ -2112,7 +2111,7 @@ impl SmartDiscoveryService {
                 continue;
             }
             
-            if let Some((_, tool_def)) = all_tools.iter().find(|(name, _)| name == &semantic_match.tool_name) {
+            if let Some((_, _tool_def)) = all_tools.iter().find(|(name, _)| name == &semantic_match.tool_name) {
                 let reasoning = format!("Semantic similarity: {:.3}", semantic_match.similarity_score);
                 
                 matches.push(ToolMatch {
@@ -2246,7 +2245,7 @@ impl SmartDiscoveryService {
             // - 5 random sample (discovery of unexpected matches)  
             // - 5 from low scorers (<=0.2, catch tools other methods missed)
             // - 10 from most likely category (focused domain relevance)
-            let llm_candidates = self.select_llm_candidates(&request, &all_matches, all_tools).await?;
+            let llm_candidates = self.select_llm_candidates(request, &all_matches, all_tools).await?;
                 
             if !llm_candidates.is_empty() {
                 // Convert to the expected format for evaluate_tools_with_llm (&[&(String, ToolDefinition)])
@@ -2408,7 +2407,7 @@ impl SmartDiscoveryService {
             let category_tools: Vec<_> = all_tools.iter()
                 .filter(|(name, tool_def)| {
                     !already_selected.contains(name) && 
-                    self.tool_matches_category(tool_def, &category)
+                    self.tool_matches_category(tool_def, category)
                 })
                 .take(max_count / num_categories.max(1)) // Distribute across categories
                 .collect();
@@ -2734,8 +2733,7 @@ Respond in JSON format:
             return Err(ProxyError::routing("API key required for OpenAI LLM".to_string()));
         };
 
-        let base_url = config.base_url.as_ref()
-            .map(|u| u.clone())
+        let base_url = config.base_url.clone()
             .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
 
         let max_tokens = match operation_type {
@@ -2808,8 +2806,7 @@ Respond in JSON format:
             return Err(ProxyError::routing("API key required for Anthropic LLM".to_string()));
         };
 
-        let base_url = config.base_url.as_ref()
-            .map(|u| u.clone())
+        let base_url = config.base_url.clone()
             .unwrap_or_else(|| "https://api.anthropic.com/v1".to_string());
 
         let max_tokens = match operation_type {
@@ -2874,8 +2871,7 @@ Respond in JSON format:
     async fn call_ollama_llm_sequential(&self, prompt: &str, operation_type: &str) -> Result<String> {
         let config = &self.config.llm_mapper;
         
-        let base_url = config.base_url.as_ref()
-            .map(|u| u.clone())
+        let base_url = config.base_url.clone()
             .unwrap_or_else(|| "http://localhost:11434".to_string());
 
         let max_predict = match operation_type {

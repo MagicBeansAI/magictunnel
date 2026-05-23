@@ -8,13 +8,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
-use tokio_tungstenite::{connect_async, tungstenite::Message, tungstenite::client::IntoClientRequest, tungstenite::http::HeaderName};
+use tokio_tungstenite::{connect_async, tungstenite::Message, tungstenite::client::IntoClientRequest};
 use futures_util::{SinkExt, StreamExt};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use base64::{Engine as _, engine::general_purpose};
+use base64::Engine as _;
 use reqwest;
 
 #[derive(Debug, Clone)]
@@ -351,7 +351,7 @@ impl McpClient {
         let url = url::Url::parse(&self.endpoint)
             .map_err(|e| ProxyError::connection(format!("Invalid WebSocket URL '{}': {}", self.endpoint, e)))?;
 
-        let mut request = url.into_client_request()
+        let request = url.into_client_request()
             .map_err(|e| ProxyError::connection(format!("Failed to create WebSocket request: {}", e)))?;
 
         // Authentication removed - External MCP uses local processes, no auth needed
@@ -523,7 +523,7 @@ impl McpClient {
         info!("Connecting to SSE endpoint: {}", sse_url);
 
         // Build HTTP client with authentication headers
-        let mut client_builder = reqwest::Client::builder()
+        let client_builder = reqwest::Client::builder()
             .timeout(Duration::from_secs(self.config.connect_timeout_secs));
 
         // Create default headers for authentication
@@ -626,7 +626,7 @@ impl McpClient {
         info!("SSE stream connected successfully");
 
         // Create channel for SSE events
-        let (sse_tx, sse_rx) = mpsc::unbounded_channel();
+        let (_sse_tx, sse_rx) = mpsc::unbounded_channel();
         self.sse_receiver = Some(sse_rx);
 
         // Spawn task to handle SSE stream

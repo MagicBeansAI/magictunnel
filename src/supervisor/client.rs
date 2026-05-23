@@ -8,7 +8,7 @@ use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::time::timeout;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// Client for communicating with the supervisor server
 pub struct SupervisorClient {

@@ -198,7 +198,7 @@ impl ConflictResolver {
     /// Resolve conflict by preferring local tools
     fn resolve_local_first(
         &mut self,
-        original_name: String,
+        _original_name: String,
         tools: Vec<(String, ToolDefinition, CapabilitySource)>,
     ) -> Result<Vec<(String, ToolDefinition, CapabilitySource)>> {
         // Find the first local tool
@@ -221,7 +221,7 @@ impl ConflictResolver {
     /// Resolve conflict by preferring proxy tools
     fn resolve_proxy_first(
         &mut self,
-        original_name: String,
+        _original_name: String,
         tools: Vec<(String, ToolDefinition, CapabilitySource)>,
     ) -> Result<Vec<(String, ToolDefinition, CapabilitySource)>> {
         // Find the first proxy tool
@@ -244,7 +244,7 @@ impl ConflictResolver {
     /// Resolve conflict by using the first tool found
     fn resolve_first_found(
         &mut self,
-        original_name: String,
+        _original_name: String,
         tools: Vec<(String, ToolDefinition, CapabilitySource)>,
     ) -> Result<Vec<(String, ToolDefinition, CapabilitySource)>> {
         let tool_count = tools.len();

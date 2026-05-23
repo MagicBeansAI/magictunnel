@@ -13,8 +13,10 @@ use base64::Engine;
 
 /// Streaming strategy for gRPC streaming methods
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum StreamingStrategy {
     /// Polling strategy (start/poll/stop tools)
+    #[default]
     Polling,
     /// Pagination strategy (paginated tools with tokens)
     Pagination,
@@ -196,11 +198,6 @@ impl Default for AuthConfig {
     }
 }
 
-impl Default for StreamingStrategy {
-    fn default() -> Self {
-        StreamingStrategy::Polling
-    }
-}
 
 impl GrpcCapabilityGenerator {
     /// Create a new gRPC capability generator with the given configuration

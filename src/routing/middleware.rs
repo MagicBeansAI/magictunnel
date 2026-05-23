@@ -463,7 +463,7 @@ impl RouterMiddleware for MetricsMiddleware {
         metrics.total_requests += 1;
 
         // Update tool-specific metrics
-        let tool_metrics = metrics.tool_metrics.entry(tool_name.clone()).or_insert_with(ToolMetrics::default);
+        let tool_metrics = metrics.tool_metrics.entry(tool_name.clone()).or_default();
         tool_metrics.requests += 1;
 
         debug!(
@@ -482,7 +482,7 @@ impl RouterMiddleware for MetricsMiddleware {
         let elapsed_ms = context.elapsed().as_millis() as u64;
 
         // Record response time by agent type
-        metrics.response_times.entry(agent_type.clone()).or_insert_with(Vec::new).push(elapsed_ms);
+        metrics.response_times.entry(agent_type.clone()).or_default().push(elapsed_ms);
 
         // Update tool-specific metrics
         if let Some(tool_metrics) = metrics.tool_metrics.get_mut(&tool_name) {
@@ -545,7 +545,7 @@ impl RouterMiddleware for MetricsMiddleware {
         let elapsed_ms = context.elapsed().as_millis() as u64;
 
         // Record response time even for errors
-        metrics.response_times.entry(agent_type.clone()).or_insert_with(Vec::new).push(elapsed_ms);
+        metrics.response_times.entry(agent_type.clone()).or_default().push(elapsed_ms);
 
         // Increment error counts by agent type
         *metrics.error_counts.entry(agent_type.clone()).or_insert(0) += 1;

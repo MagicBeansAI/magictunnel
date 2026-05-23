@@ -149,8 +149,10 @@ pub struct OpenAPICapabilityGenerator {
 
 /// Naming convention for generated tools
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub enum NamingConvention {
     /// Use operation ID as tool name
+    #[default]
     OperationId,
     /// Use method + path combination
     MethodPath,
@@ -158,11 +160,6 @@ pub enum NamingConvention {
     Custom(String),
 }
 
-impl Default for NamingConvention {
-    fn default() -> Self {
-        NamingConvention::OperationId
-    }
-}
 
 // ===== Swagger 2.0 Data Structures =====
 
@@ -509,7 +506,7 @@ impl OpenAPICapabilityGenerator {
 
     /// Extract schema from parameter
     fn extract_parameter_schema(&self, parameter: &Parameter) -> Result<Value> {
-        let parameter_data = parameter.parameter_data_ref();
+        let _parameter_data = parameter.parameter_data_ref();
 
         // Extract actual schema from parameter if available
         match parameter {
@@ -1406,11 +1403,11 @@ impl OpenAPICapabilityGenerator {
             NamingConvention::OperationId => {
                 operation.operation_id.clone()
                     .unwrap_or_else(|| format!("{}_{}", operation.method.to_lowercase(),
-                        operation.path.replace('/', "_").replace('{', "").replace('}', "")))
+                        operation.path.replace('/', "_").replace(['{', '}'], "")))
             }
             NamingConvention::MethodPath => {
                 format!("{}_{}", operation.method.to_lowercase(),
-                    operation.path.replace('/', "_").replace('{', "").replace('}', ""))
+                    operation.path.replace('/', "_").replace(['{', '}'], ""))
             }
             NamingConvention::Custom(format) => {
                 // Simple template substitution

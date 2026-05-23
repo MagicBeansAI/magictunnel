@@ -9,7 +9,6 @@ use async_stream;
 
 use crate::registry::RegistryService;
 use crate::mcp::types::{ToolCall, ToolResult as McpToolResult, Tool as McpTool};
-use crate::error::Result;
 
 // Include the generated protobuf code
 tonic::include_proto!("mcp");
@@ -110,7 +109,7 @@ impl mcp_service_server::McpService for McpGrpcServer {
             // Get tool definition from registry
             if let Some(tool_def) = registry.get_tool(&tool_call.name) {
                 // Create MCP tool for validation
-                let mcp_tool = match crate::mcp::types::Tool::new(
+                let _mcp_tool = match crate::mcp::types::Tool::new(
                     tool_def.name().to_string(),
                     tool_def.description().to_string(),
                     tool_def.input_schema.clone(),
@@ -188,7 +187,7 @@ impl mcp_service_server::McpService for McpGrpcServer {
                                 Ok(mcp_request) => {
                                     // Use unified MCP handler
                                     match mcp_server.handle_mcp_request(mcp_request).await {
-                                        Ok(Some(response)) => {
+                                        Ok(Some(_response)) => {
                                             let response_msg = McpMessage {
                                                 id: msg.id,
                                                 message_type: Some(mcp_message::MessageType::Heartbeat(HeartbeatMessage {

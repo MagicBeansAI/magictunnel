@@ -634,13 +634,11 @@ async fn test_smart_discovery_memory_stability() {
     
     // Perform many requests to test memory stability
     let num_requests = 200;
-    let request_patterns = vec![
-        "read data from source",
+    let request_patterns = ["read data from source",
         "process input data",
         "generate output report",
         "validate information",
-        "transform content",
-    ];
+        "transform content"];
     
     for i in 0..num_requests {
         let pattern = &request_patterns[i % request_patterns.len()];

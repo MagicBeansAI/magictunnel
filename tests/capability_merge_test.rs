@@ -6,8 +6,6 @@
 use magictunnel::registry::commands::{CapabilityMerger, MergeStrategy};
 use magictunnel::registry::types::{CapabilityFile, ToolDefinition, FileMetadata};
 use magictunnel::error::Result;
-use std::collections::HashMap;
-use std::path::PathBuf;
 use tempfile::tempdir;
 use std::fs;
 use serde_json::json;

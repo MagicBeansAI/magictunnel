@@ -4,10 +4,9 @@
 //! process fails or returns insufficient results.
 
 use crate::discovery::types::*;
-use crate::error::{ProxyError, Result};
 use crate::registry::types::ToolDefinition;
 use std::collections::HashMap;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Fallback strategy configuration
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -180,7 +179,7 @@ impl FallbackManager {
         &mut self,
         request: &SmartDiscoveryRequest,
         available_tools: &[(String, ToolDefinition)],
-        primary_error: &str,
+        _primary_error: &str,
     ) -> FallbackResult {
         if !self.config.enabled {
             return FallbackResult {
@@ -310,7 +309,7 @@ impl FallbackManager {
             let tool_desc_lower = tool_def.description.to_lowercase();
             
             let mut matches = 0;
-            let mut total_keywords = keywords.len();
+            let total_keywords = keywords.len();
 
             for keyword in &keywords {
                 if tool_name_lower.contains(keyword) || tool_desc_lower.contains(keyword) {
@@ -433,7 +432,7 @@ impl FallbackManager {
                 }
             }
 
-            if matches > 0 && request_words.len() > 0 {
+            if matches > 0 && !request_words.is_empty() {
                 let confidence = (matches as f64 / request_words.len() as f64) * 0.5; // Cap at 0.5 for partial matching
                 
                 if confidence >= self.config.min_confidence_threshold {

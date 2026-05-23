@@ -6,7 +6,6 @@
 use magictunnel::registry::commands::validate::CapabilityValidator;
 use magictunnel::registry::types::{CapabilityFile, ToolDefinition, FileMetadata, RoutingConfig};
 use magictunnel::error::Result;
-use magictunnel::mcp::types::Tool;
 use serde_json::json;
 
 /// Helper function to create a valid capability file for testing
@@ -110,7 +109,7 @@ fn test_validate_invalid_capability_missing_metadata() -> Result<()> {
     assert!(result.is_ok());
 
     // Test getting validation issues
-    let issues = validator.get_validation_issues(&capability);
+    let _issues = validator.get_validation_issues(&capability);
     // Should have no issues since missing metadata is not validated by default rules
     
     Ok(())
@@ -140,7 +139,7 @@ fn test_validate_invalid_capability_empty_tools() -> Result<()> {
     assert!(result.is_ok());
 
     // Test getting validation issues
-    let issues = validator.get_validation_issues(&capability);
+    let _issues = validator.get_validation_issues(&capability);
     // Should have no issues since empty tools is not validated by default rules
     
     Ok(())

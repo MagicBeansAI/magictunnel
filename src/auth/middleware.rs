@@ -1,7 +1,7 @@
 //! Authentication middleware for MCP Proxy
 
 use crate::auth::{ApiKeyValidator, JwtValidator, JwtValidationResult, OAuthValidator, OAuthValidationResult};
-use crate::config::{AuthConfig, ApiKeyEntry, AuthType};
+use crate::config::{AuthConfig, ApiKeyEntry};
 use crate::error::{ProxyError, Result};
 use crate::mcp::errors::McpErrorCode;
 use crate::routing::middleware::{MiddlewareContext, RouterMiddleware};

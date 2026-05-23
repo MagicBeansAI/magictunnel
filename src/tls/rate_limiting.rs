@@ -1,4 +1,4 @@
-use actix_web::{HttpRequest, HttpResponse};
+use actix_web::HttpRequest;
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::Error as ActixError;
 use futures_util::future::{ok, Ready};
@@ -454,9 +454,7 @@ where
         // For now, just pass through all requests without rate limiting
         // TODO: Implement proper rate limiting middleware
         let fut = self.service.call(req);
-        Box::pin(async move {
-            fut.await
-        })
+        Box::pin(fut)
     }
 }
 

@@ -3,6 +3,74 @@ use magictunnel::error::{ProxyError, Result};
 use magictunnel::mcp::types::{ToolCall, ToolResult};
 use serde_json::json;
 
+/// Validate tool call for security issues (demonstration function)
+fn validate_tool_call_security(tool_call: &ToolCall) -> Result<()> {
+    // This is a demonstration function showing what security validation could look like
+    // In a real implementation, this would be integrated into the main codebase
+
+    // For now, just validate basic structure and return Ok
+    // This allows the tests to pass while demonstrating the security concepts
+
+    // Basic validation - ensure tool call has required fields
+    if tool_call.name.is_empty() {
+        return Err(ProxyError::validation("Tool name cannot be empty".to_string()));
+    }
+
+    // Check input size limits (basic implementation)
+    let serialized = serde_json::to_string(&tool_call.arguments).unwrap_or_default();
+    if serialized.len() > 10_000_000 { // 10MB limit for demo
+        return Err(ProxyError::validation(
+            "Input too large, exceeds size limit".to_string()
+        ));
+    }
+
+    // TODO: Implement actual security validation patterns:
+    // - SQL injection detection
+    // - Command injection detection
+    // - Path traversal detection
+    // - XSS prevention
+    // - Input sanitization
+
+    Ok(())
+}
+
+/// Sanitize tool result to prevent XSS
+fn sanitize_tool_result(result: &ToolResult) -> ToolResult {
+    if let Some(data) = &result.data {
+        if let Some(text) = data.get("text") {
+            if let Some(text_str) = text.as_str() {
+                let sanitized_text = text_str
+                    .replace("<script>", "&lt;script&gt;")
+                    .replace("</script>", "&lt;/script&gt;")
+                    .replace("javascript:", "")
+                    .replace("onerror=", "")
+                    .replace("onload=", "")
+                    .replace("onclick=", "");
+
+                let sanitized_data = json!({
+                    "type": data.get("type").unwrap_or(&json!("text")),
+                    "text": sanitized_text
+                });
+
+                if result.success {
+                    return ToolResult::success_with_metadata(
+                        sanitized_data,
+                        result.metadata.clone().unwrap_or(json!({}))
+                    );
+                } else {
+                    return ToolResult::error_with_metadata(
+                        result.error.clone().unwrap_or("Unknown error".to_string()),
+                        result.metadata.clone().unwrap_or(json!({}))
+                    );
+                }
+            }
+        }
+    }
+
+    // Return original if no text to sanitize
+    result.clone()
+}
+
 /// Security validation tests for input validation and injection prevention
 #[cfg(test)]
 mod security_tests {
@@ -291,72 +359,4 @@ mod security_tests {
             assert!(result.is_ok(), "Safe input should be allowed for tool: {}", tool_name);
         }
     }
-}
-
-/// Validate tool call for security issues (demonstration function)
-fn validate_tool_call_security(tool_call: &ToolCall) -> Result<()> {
-    // This is a demonstration function showing what security validation could look like
-    // In a real implementation, this would be integrated into the main codebase
-
-    // For now, just validate basic structure and return Ok
-    // This allows the tests to pass while demonstrating the security concepts
-
-    // Basic validation - ensure tool call has required fields
-    if tool_call.name.is_empty() {
-        return Err(ProxyError::validation("Tool name cannot be empty".to_string()));
-    }
-
-    // Check input size limits (basic implementation)
-    let serialized = serde_json::to_string(&tool_call.arguments).unwrap_or_default();
-    if serialized.len() > 10_000_000 { // 10MB limit for demo
-        return Err(ProxyError::validation(
-            "Input too large, exceeds size limit".to_string()
-        ));
-    }
-
-    // TODO: Implement actual security validation patterns:
-    // - SQL injection detection
-    // - Command injection detection
-    // - Path traversal detection
-    // - XSS prevention
-    // - Input sanitization
-
-    Ok(())
-}
-
-/// Sanitize tool result to prevent XSS
-fn sanitize_tool_result(result: &ToolResult) -> ToolResult {
-    if let Some(data) = &result.data {
-        if let Some(text) = data.get("text") {
-            if let Some(text_str) = text.as_str() {
-                let sanitized_text = text_str
-                    .replace("<script>", "&lt;script&gt;")
-                    .replace("</script>", "&lt;/script&gt;")
-                    .replace("javascript:", "")
-                    .replace("onerror=", "")
-                    .replace("onload=", "")
-                    .replace("onclick=", "");
-
-                let sanitized_data = json!({
-                    "type": data.get("type").unwrap_or(&json!("text")),
-                    "text": sanitized_text
-                });
-
-                if result.success {
-                    return ToolResult::success_with_metadata(
-                        sanitized_data,
-                        result.metadata.clone().unwrap_or(json!({}))
-                    );
-                } else {
-                    return ToolResult::error_with_metadata(
-                        result.error.clone().unwrap_or("Unknown error".to_string()),
-                        result.metadata.clone().unwrap_or(json!({}))
-                    );
-                }
-            }
-        }
-    }
-
-    // Return original if no text to sanitize
-    result.clone()
 }

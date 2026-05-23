@@ -279,7 +279,7 @@ async fn test_websocket_message_types() {
     assert!(serde_json::from_str::<Value>(&text_message).is_ok());
     
     // Binary message should be handled gracefully
-    let binary_data = vec![0x01, 0x02, 0x03, 0x04];
+    let binary_data = [0x01, 0x02, 0x03, 0x04];
     assert!(!binary_data.is_empty());
     
     // Close message should be handled

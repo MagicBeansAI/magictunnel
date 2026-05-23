@@ -57,7 +57,7 @@ pub struct McpServer {
 
 impl McpServer {
     /// Convert AgentResult to MCP-compliant ToolResult
-    fn agent_result_to_tool_result(agent_result: AgentResult, tool_name: &str, metadata: Option<Value>) -> ToolResult {
+    fn agent_result_to_tool_result(agent_result: AgentResult, _tool_name: &str, metadata: Option<Value>) -> ToolResult {
         if agent_result.success {
             let data = agent_result.data.unwrap_or(json!({}));
             let mut result = ToolResult::success_with_metadata(data, metadata.unwrap_or(json!({})));
@@ -693,7 +693,7 @@ impl McpServer {
 
         // Get tools from high-performance registry
         let tool_names = self.registry.list_tools();
-        let tool_count = tool_names.len();
+        let _tool_count = tool_names.len();
         let mut tools = Vec::new();
 
         for tool_name in tool_names {
@@ -1925,7 +1925,7 @@ fn create_proxy_error_response(id: Option<&serde_json::Value>, error: ProxyError
 
 /// OAuth authorization endpoint - redirects to OAuth provider
 async fn oauth_authorize_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     query: web::Query<std::collections::HashMap<String, String>>,
     mcp_server: web::Data<Arc<McpServer>>,
 ) -> HttpResponse {
@@ -1975,7 +1975,7 @@ async fn oauth_authorize_handler(
 
 /// OAuth callback endpoint - handles authorization code exchange
 async fn oauth_callback_handler(
-    req: HttpRequest,
+    _req: HttpRequest,
     query: web::Query<std::collections::HashMap<String, String>>,
     mcp_server: web::Data<Arc<McpServer>>,
 ) -> HttpResponse {

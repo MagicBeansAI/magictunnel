@@ -5,10 +5,7 @@
 
 use magictunnel::{
     config::{SseServiceConfig, SseAuthType},
-    mcp::{
-        clients::sse_client::{SseMcpClient, SseClientConfig, SseAuthConfig},
-        types::{McpRequest, McpResponse},
-    },
+    mcp::clients::sse_client::{SseClientConfig, SseAuthConfig},
 };
 
 /// Test SSE client configuration and defaults
@@ -17,12 +14,12 @@ async fn test_sse_client_config_defaults() {
     let config = SseClientConfig::default();
     
     // Verify default configuration values
-    assert_eq!(config.single_session, true);
+    assert!(config.single_session);
     assert_eq!(config.connection_timeout, 30);
     assert_eq!(config.request_timeout, 60);
     assert_eq!(config.max_queue_size, 100);
     assert_eq!(config.heartbeat_interval, 30);
-    assert_eq!(config.reconnect, true);
+    assert!(config.reconnect);
     assert_eq!(config.max_reconnect_attempts, 10);
     assert_eq!(config.reconnect_delay_ms, 1000);
     assert_eq!(config.max_reconnect_delay_ms, 30000);
@@ -55,12 +52,12 @@ async fn test_sse_client_custom_config() {
     
     // Verify custom configuration values
     assert_eq!(config.base_url, "https://api.example.com/mcp");
-    assert_eq!(config.single_session, false);
+    assert!(!config.single_session);
     assert_eq!(config.connection_timeout, 60);
     assert_eq!(config.request_timeout, 120);
     assert_eq!(config.max_queue_size, 50);
     assert_eq!(config.heartbeat_interval, 15);
-    assert_eq!(config.reconnect, false);
+    assert!(!config.reconnect);
     assert_eq!(config.max_reconnect_attempts, 5);
     assert_eq!(config.reconnect_delay_ms, 500);
     assert_eq!(config.max_reconnect_delay_ms, 10000);
@@ -155,7 +152,7 @@ async fn test_single_session_queue_behavior() {
     
     // Note: This test would require mocking the SSE client behavior
     // For now, we test the configuration aspects
-    assert_eq!(config.single_session, true);
+    assert!(config.single_session);
     assert_eq!(config.max_queue_size, 3);
     assert_eq!(config.request_timeout, 5);
 }
@@ -171,7 +168,7 @@ async fn test_multi_session_direct_requests() {
     };
     
     // Verify multi-session configuration
-    assert_eq!(config.single_session, false);
+    assert!(!config.single_session);
     assert_eq!(config.request_timeout, 30);
     
     // Multi-session services should support concurrent requests
@@ -209,7 +206,7 @@ async fn test_reconnection_configuration() {
         ..SseClientConfig::default()
     };
     
-    assert_eq!(reconnect_config.reconnect, true);
+    assert!(reconnect_config.reconnect);
     assert_eq!(reconnect_config.max_reconnect_attempts, 5);
     assert_eq!(reconnect_config.reconnect_delay_ms, 1000);
     assert_eq!(reconnect_config.max_reconnect_delay_ms, 10000);
@@ -221,7 +218,7 @@ async fn test_reconnection_configuration() {
         ..SseClientConfig::default()
     };
     
-    assert_eq!(no_reconnect_config.reconnect, false);
+    assert!(!no_reconnect_config.reconnect);
     assert_eq!(no_reconnect_config.max_reconnect_attempts, 0);
 }
 
@@ -295,12 +292,12 @@ async fn test_protocol_portability_config_integration() {
     
     // Verify conversion maintains all settings
     assert_eq!(client_config.base_url, "https://portable.test/mcp");
-    assert_eq!(client_config.single_session, true);
+    assert!(client_config.single_session);
     assert_eq!(client_config.connection_timeout, 45);
     assert_eq!(client_config.request_timeout, 90);
     assert_eq!(client_config.max_queue_size, 150);
     assert_eq!(client_config.heartbeat_interval, 20);
-    assert_eq!(client_config.reconnect, true);
+    assert!(client_config.reconnect);
     assert_eq!(client_config.max_reconnect_attempts, 8);
     assert_eq!(client_config.reconnect_delay_ms, 750);
     assert_eq!(client_config.max_reconnect_delay_ms, 25000);
@@ -324,7 +321,7 @@ async fn test_concurrent_request_handling() {
     };
     
     // Verify multi-session configuration
-    assert_eq!(multi_session_config.single_session, false);
+    assert!(!multi_session_config.single_session);
     
     // In a real test, this would:
     // 1. Create multiple concurrent requests
@@ -399,7 +396,7 @@ async fn test_performance_under_load() {
         ..SseClientConfig::default()
     };
     
-    assert_eq!(high_performance_config.single_session, false);
+    assert!(!high_performance_config.single_session);
     assert_eq!(high_performance_config.max_queue_size, 1000);
     assert_eq!(high_performance_config.heartbeat_interval, 60);
     

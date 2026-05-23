@@ -7,9 +7,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// Health status levels for MCP services
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -329,7 +328,7 @@ impl McpMetricsStorage {
         let storage = self.recent_metrics.read().await;
         let mut summary = McpMetricsSummary::default();
         
-        for (service_name, metrics) in storage.iter() {
+        for (_service_name, metrics) in storage.iter() {
             if let Some(latest) = metrics.back() {
                 summary.total_services += 1;
                 
@@ -474,7 +473,7 @@ impl McpMetricsCollector {
                 metrics.consecutive_failures = 0;
             }
             
-            metrics.current_status = status.clone();
+            metrics.current_status = status;
             metrics.timestamp = Utc::now();
             
             if let Some(latency) = response_time_ms {

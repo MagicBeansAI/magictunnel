@@ -228,11 +228,11 @@ fn test_environment_variable_overrides() {
     // Verify environment variables were applied
     assert_eq!(config.server.host, "0.0.0.0");
     assert_eq!(config.server.port, 8080);
-    assert_eq!(config.server.websocket, false);
+    assert!(!config.server.websocket);
     assert_eq!(config.server.timeout, 60);
     assert_eq!(config.registry.r#type, "file");
     assert_eq!(config.registry.paths, vec!["path1", "path2", "path3"]);
-    assert_eq!(config.registry.hot_reload, false);
+    assert!(!config.registry.hot_reload);
     assert_eq!(config.logging.as_ref().unwrap().level, "debug");
     assert_eq!(config.logging.as_ref().unwrap().format, "json");
 
@@ -412,7 +412,7 @@ fn test_mcp_server_config_validation() {
     // Test with working directory
     let _valid_config_with_cwd = McpServerConfig {
         command: "python".to_string(),
-        args: vec!["-m", "mcp_server"].iter().map(|s| s.to_string()).collect(),
+        args: ["-m", "mcp_server"].iter().map(|s| s.to_string()).collect(),
         env: None,
         cwd: Some("/home/user/mcp".to_string()),
     };

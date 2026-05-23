@@ -334,7 +334,7 @@ impl SseMcpClient {
         
         let request_id = request.id.as_ref()
             .and_then(|id| id.as_str())
-            .unwrap_or_else(|| "unknown")
+            .unwrap_or("unknown")
             .to_string();
 
         let (response_tx, response_rx) = oneshot::channel();
@@ -395,7 +395,7 @@ impl SseMcpClient {
     /// Start the connection task
     async fn start_connection_task(
         &self,
-        client_builder: eventsource_client::ClientBuilder,
+        _client_builder: eventsource_client::ClientBuilder,
         _event_tx: mpsc::UnboundedSender<SSE>,
     ) -> Result<tokio::task::JoinHandle<()>> {
         let service_id = self.service_id.clone();
@@ -825,7 +825,7 @@ mod tests {
 
         for auth in auth_configs {
             let serialized = serde_json::to_string(&auth).unwrap();
-            let deserialized: SseAuthConfig = serde_json::from_str(&serialized).unwrap();
+            let _deserialized: SseAuthConfig = serde_json::from_str(&serialized).unwrap();
             // Note: We can't directly compare because of private fields, but this tests serialization
         }
     }

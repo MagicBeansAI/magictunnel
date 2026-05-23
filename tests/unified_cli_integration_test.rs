@@ -5,7 +5,7 @@
 //! and execution of the different generators.
 
 use magictunnel::registry::generator_config::{
-    GeneratorConfigFile, GlobalConfig, GraphQLGeneratorConfig, GrpcGeneratorConfig, OpenAPIGeneratorConfig, OutputConfig
+    GeneratorConfigFile, GlobalConfig, GraphQLGeneratorConfig, OutputConfig
 };
 use magictunnel::registry::generator_common::{AuthConfig, AuthType};
 use magictunnel::error::Result;

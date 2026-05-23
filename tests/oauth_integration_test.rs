@@ -3,7 +3,6 @@
 use actix_web::test::TestRequest;
 use magictunnel::auth::{AuthenticationMiddleware, AuthenticationResult, OAuthValidator};
 use magictunnel::config::{AuthConfig, AuthType, OAuthConfig};
-use serde_json::json;
 
 fn create_test_oauth_config() -> AuthConfig {
     let mut config = AuthConfig::default();
@@ -40,7 +39,7 @@ mod oauth_validator_tests {
     #[test]
     fn test_oauth_validator_creation() {
         let config = create_test_oauth_config();
-        let validator = OAuthValidator::new(config);
+        let _validator = OAuthValidator::new(config);
         // Validator should be created successfully
         assert!(true);
     }

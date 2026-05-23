@@ -30,9 +30,9 @@ mod registry_service_tests {
         let service = result.unwrap();
         let metadata = service.metadata();
 
-        // Verify metadata is populated
-        assert!(metadata.file_count >= 0);
-        assert!(metadata.tool_count >= 0);
+        // Verify metadata is populated (file_count/tool_count are usize so >= 0 by type)
+        let _ = metadata.file_count;
+        let _ = metadata.tool_count;
         assert!(metadata.load_duration_ms > 0);
 
         println!("Registry initialized with {} files, {} tools",

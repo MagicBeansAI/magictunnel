@@ -10,7 +10,7 @@ use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::fs;
-use tracing::{debug, info, warn, error};
+use tracing::{debug, info, warn};
 
 /// Execution result for a tool
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -278,7 +278,7 @@ impl ToolMetrics {
             
             // Calculate median
             let mid = times.len() / 2;
-            self.median_execution_time_ms = if times.len() % 2 == 0 {
+            self.median_execution_time_ms = if times.len().is_multiple_of(2) {
                 (times[mid - 1] + times[mid]) as f64 / 2.0
             } else {
                 times[mid] as f64
@@ -365,7 +365,7 @@ impl ToolMetricsCollector {
     pub async fn new_with_storage<P: AsRef<Path>>(max_history_size: usize, storage_path: P) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let storage_path_str = storage_path.as_ref().to_string_lossy().to_string();
         
-        let mut collector = Self {
+        let collector = Self {
             tool_metrics: Arc::new(RwLock::new(HashMap::new())),
             execution_history: Arc::new(RwLock::new(VecDeque::with_capacity(max_history_size))),
             max_history_size,

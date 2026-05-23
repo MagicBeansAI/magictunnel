@@ -3,7 +3,7 @@
 //! This module provides shared traits, structures, and utilities for all capability generators.
 
 use crate::error::{ProxyError, Result};
-use crate::registry::types::{CapabilityFile, ToolDefinition, FileMetadata};
+use crate::registry::types::{CapabilityFile, FileMetadata};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
@@ -117,6 +117,7 @@ impl<T: CapabilityGeneratorBase> CapabilityGenerator for T {}
 
 /// Base configuration for all generators
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct BaseGeneratorConfig {
     /// Tool name prefix
     pub tool_prefix: Option<String>,
@@ -126,15 +127,6 @@ pub struct BaseGeneratorConfig {
     pub output_path: Option<String>,
 }
 
-impl Default for BaseGeneratorConfig {
-    fn default() -> Self {
-        Self {
-            tool_prefix: None,
-            auth_config: None,
-            output_path: None,
-        }
-    }
-}
 
 /// Helper function to read file content
 pub fn read_file_content<P: AsRef<Path>>(file_path: P) -> Result<String> {

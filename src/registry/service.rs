@@ -22,7 +22,6 @@ use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
-use walkdir::WalkDir;
 
 /// High-performance registry service with hot-reloading
 pub struct RegistryService {
@@ -147,7 +146,7 @@ impl RegistryService {
 
     /// Create and start the registry service with hot-reload in background
     pub async fn start_with_hot_reload(config: RegistryConfig) -> Result<Arc<Self>> {
-        let mut service = Self::new(config.clone()).await?;
+        let service = Self::new(config.clone()).await?;
         
         if config.hot_reload {
             info!("🔧 DEBUG: Hot-reload is enabled in start_with_hot_reload() - skipping duplicate setup (already done in new())");
@@ -816,7 +815,7 @@ impl RegistryService {
         self.cache.clear();
 
         // Populate cache with most frequently accessed tools
-        for (name, _tool_def) in &registry.tools {
+        for name in registry.tools.keys() {
             if let Some(file) = registry.files.values().find(|f| f.get_tool(name).is_some()) {
                 self.cache.insert(name.clone(), file.clone());
             }

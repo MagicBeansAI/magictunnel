@@ -6,18 +6,18 @@
 use crate::config::{ExternalMcpServersConfig, HttpServiceConfig, SseServiceConfig};
 use crate::error::{ProxyError, Result};
 use crate::mcp::clients::{HttpMcpClient, SseMcpClient};
-use crate::mcp::types::{Tool, McpRequest, McpResponse};
+use crate::mcp::types::Tool;
 use crate::mcp::metrics::{McpMetricsCollector, McpHealthThresholds, HealthStatus};
 use crate::mcp::health_checker::{McpHealthChecker, HealthCheckConfig};
 use crate::registry::types::{CapabilityFile, ToolDefinition, RoutingConfig};
-use serde_json::{json, Value};
-use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use serde_json::Value;
+use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
 use tokio::time::{interval, Duration};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// Network MCP Service Types
 #[derive(Debug, Clone)]
@@ -285,7 +285,7 @@ impl NetworkMcpServiceManager {
     /// Start background monitoring tasks
     async fn start_background_tasks(&self) {
         let services = Arc::clone(&self.services);
-        let capabilities = Arc::clone(&self.capabilities);
+        let _capabilities = Arc::clone(&self.capabilities);
         let metrics_collector = Arc::clone(&self.metrics_collector);
 
         // Health check task
@@ -434,7 +434,7 @@ impl NetworkMcpServiceManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{HttpAuthType, SseAuthType};
+    
 
     #[test]
     fn test_network_service_manager_creation() {

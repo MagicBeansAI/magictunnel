@@ -139,7 +139,7 @@ async fn test_all_graphql_type_systems() {
     
     // Test Scalar Types (check for any string types which include custom scalars)
     let scalar_tools: Vec<_> = tools.iter().filter(|t| {
-        t.input_schema["properties"].as_object().map_or(false, |props| {
+        t.input_schema["properties"].as_object().is_some_and(|props| {
             props.values().any(|prop| {
                 prop.get("type").and_then(|t| t.as_str()) == Some("string")
             })
@@ -150,7 +150,7 @@ async fn test_all_graphql_type_systems() {
     
     // Test Enum Types
     let enum_tools: Vec<_> = tools.iter().filter(|t| {
-        t.input_schema["properties"].as_object().map_or(false, |props| {
+        t.input_schema["properties"].as_object().is_some_and(|props| {
             props.values().any(|prop| prop.get("enum").is_some())
         })
     }).collect();
@@ -159,7 +159,7 @@ async fn test_all_graphql_type_systems() {
     
     // Test Input Object Types
     let input_object_tools: Vec<_> = tools.iter().filter(|t| {
-        t.input_schema["properties"].as_object().map_or(false, |props| {
+        t.input_schema["properties"].as_object().is_some_and(|props| {
             props.values().any(|prop| {
                 prop.get("type").and_then(|t| t.as_str()) == Some("object") &&
                 prop.get("properties").is_some()
@@ -171,7 +171,7 @@ async fn test_all_graphql_type_systems() {
     
     // Test List Types
     let list_tools: Vec<_> = tools.iter().filter(|t| {
-        t.input_schema["properties"].as_object().map_or(false, |props| {
+        t.input_schema["properties"].as_object().is_some_and(|props| {
             props.values().any(|prop| {
                 prop.get("type").and_then(|t| t.as_str()) == Some("array")
             })

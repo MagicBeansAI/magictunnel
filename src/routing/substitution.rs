@@ -245,9 +245,18 @@ impl ParameterSubstitution {
             }
         }
 
-        // Find {param} patterns (but not {{param}} which we already found)
-        if let Ok(single_brace_regex) = regex::Regex::new(r"(?<!\{)\{([^{}]+)\}(?!\})") {
+        // Find {param} patterns (but not {{param}} which we already found).
+        // Rust's regex crate doesn't support lookaround, so match `{...}` then
+        // filter out matches that are part of `{{...}}` via byte-context check.
+        if let Ok(single_brace_regex) = regex::Regex::new(r"\{([^{}]+)\}") {
+            let bytes = template.as_bytes();
             for cap in single_brace_regex.captures_iter(template) {
+                let m = cap.get(0).expect("regex match has group 0");
+                let before_is_brace = m.start() > 0 && bytes[m.start() - 1] == b'{';
+                let after_is_brace = m.end() < bytes.len() && bytes[m.end()] == b'}';
+                if before_is_brace || after_is_brace {
+                    continue;
+                }
                 placeholders.push(Placeholder {
                     name: cap[1].to_string(),
                     full_match: cap[0].to_string(),

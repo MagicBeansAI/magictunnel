@@ -65,9 +65,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use reqwest::Client;
 use serde_json::{json, Value};
-use std::io::{self, Write};
 use base64::{Engine as _, engine::general_purpose};
-use tokio;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -751,7 +749,7 @@ fn convert_to_graphql_auth(auth: &AuthConfig) -> GraphQLAuthConfig {
                 headers,
             }
         },
-        AuthType::OAuth { token, token_type } => {
+        AuthType::OAuth { token, token_type: _ } => {
             // GraphQL doesn't support OAuth directly, so we'll use a Bearer token
             GraphQLAuthConfig {
                 auth_type: GraphQLAuthType::Bearer { token: token.clone() },
@@ -844,7 +842,7 @@ fn convert_to_openapi_auth(auth: &AuthConfig) -> OpenAPIAuthConfig {
             },
             headers: auth.headers.clone(),
         },
-        AuthType::OAuth { token, token_type } => {
+        AuthType::OAuth { token, token_type: _ } => {
             // OpenAPI doesn't have OAuth directly, so we'll use Bearer
             OpenAPIAuthConfig {
                 auth_type: OpenAPIAuthType::Bearer { token: token.clone() },
@@ -998,10 +996,10 @@ fn generate_from_config(config_file: &str, generator_type: &str) -> Result<()> {
                 }
                 
                 // Create generator
-                let generator = GrpcCapabilityGenerator::new(generator_config);
+                let _generator = GrpcCapabilityGenerator::new(generator_config);
                 
                 // Determine output path
-                let output_path = determine_output_path(&config, "grpc")?;
+                let _output_path = determine_output_path(&config, "grpc")?;
                 
                 // Find proto files
                 // For now, we'll just use a placeholder
@@ -1057,7 +1055,7 @@ fn generate_from_config(config_file: &str, generator_type: &str) -> Result<()> {
                 }
                 
                 // Determine output path
-                let output_path = determine_output_path(&config, "openapi")?;
+                let _output_path = determine_output_path(&config, "openapi")?;
                 
                 // Find OpenAPI spec files
                 // For now, we'll just use a placeholder
@@ -1101,8 +1099,7 @@ fn generate_from_config(config_file: &str, generator_type: &str) -> Result<()> {
 fn determine_output_path(config: &GeneratorConfigFile, generator_type: &str) -> Result<PathBuf> {
     // Check for output directory in configuration
     let output_dir = config.output.directory.as_ref()
-        .or(config.global.output_dir.as_ref())
-        .map(|dir| dir.clone())
+        .or(config.global.output_dir.as_ref()).cloned()
         .unwrap_or_else(|| ".".to_string());
     
     // Create output directory if it doesn't exist
@@ -1797,7 +1794,7 @@ async fn handle_resources_command(matches: &ArgMatches, server_url: &str) -> Res
             println!("📚 Fetching MCP resources from {}...", server_url);
             
             let response = client
-                .get(&format!("{}/dashboard/api/resources", server_url))
+                .get(format!("{}/dashboard/api/resources", server_url))
                 .send()
                 .await
                 .map_err(|e| ProxyError::connection(format!("Failed to fetch resources: {}", e)))?;
@@ -1832,7 +1829,7 @@ async fn handle_resources_command(matches: &ArgMatches, server_url: &str) -> Res
             println!("📖 Reading resource content for: {}", uri);
             
             let response = client
-                .post(&format!("{}/dashboard/api/resources/read", server_url))
+                .post(format!("{}/dashboard/api/resources/read", server_url))
                 .json(&json!({ "uri": uri }))
                 .send()
                 .await
@@ -1862,7 +1859,7 @@ async fn handle_resources_command(matches: &ArgMatches, server_url: &str) -> Res
             println!("💾 Exporting resource {} to {}...", uri, output_file);
             
             let response = client
-                .post(&format!("{}/dashboard/api/resources/read", server_url))
+                .post(format!("{}/dashboard/api/resources/read", server_url))
                 .json(&json!({ "uri": uri }))
                 .send()
                 .await
@@ -1908,7 +1905,7 @@ async fn handle_prompts_command(matches: &ArgMatches, server_url: &str) -> Resul
             println!("💬 Fetching MCP prompts from {}...", server_url);
             
             let response = client
-                .get(&format!("{}/dashboard/api/prompts", server_url))
+                .get(format!("{}/dashboard/api/prompts", server_url))
                 .send()
                 .await
                 .map_err(|e| ProxyError::connection(format!("Failed to fetch prompts: {}", e)))?;
@@ -1963,7 +1960,7 @@ async fn handle_prompts_command(matches: &ArgMatches, server_url: &str) -> Resul
             }
             
             let response = client
-                .post(&format!("{}/dashboard/api/prompts/execute", server_url))
+                .post(format!("{}/dashboard/api/prompts/execute", server_url))
                 .json(&request_body)
                 .send()
                 .await
@@ -2014,7 +2011,7 @@ async fn handle_prompts_command(matches: &ArgMatches, server_url: &str) -> Resul
             }
             
             let response = client
-                .post(&format!("{}/dashboard/api/prompts/execute", server_url))
+                .post(format!("{}/dashboard/api/prompts/execute", server_url))
                 .json(&request_body)
                 .send()
                 .await
@@ -2052,7 +2049,7 @@ async fn handle_tools_command(matches: &ArgMatches, server_url: &str) -> Result<
             println!("🔧 Fetching tools from {}...", server_url);
             
             let response = client
-                .get(&format!("{}/dashboard/api/tools", server_url))
+                .get(format!("{}/dashboard/api/tools", server_url))
                 .send()
                 .await
                 .map_err(|e| ProxyError::connection(format!("Failed to fetch tools: {}", e)))?;
@@ -2100,7 +2097,7 @@ async fn handle_tools_command(matches: &ArgMatches, server_url: &str) -> Result<
             }
             
             let response = client
-                .post(&format!("{}/v1/mcp/call", server_url))
+                .post(format!("{}/v1/mcp/call", server_url))
                 .json(&request_body)
                 .send()
                 .await
@@ -2122,7 +2119,7 @@ async fn handle_tools_command(matches: &ArgMatches, server_url: &str) -> Result<
             println!("ℹ️  Getting tool info: {}", name);
             
             let response = client
-                .get(&format!("{}/dashboard/api/tools", server_url))
+                .get(format!("{}/dashboard/api/tools", server_url))
                 .send()
                 .await
                 .map_err(|e| ProxyError::connection(format!("Failed to fetch tools: {}", e)))?;
@@ -2168,7 +2165,7 @@ async fn handle_services_command(matches: &ArgMatches, server_url: &str) -> Resu
             println!("🛠️  Fetching services from {}...", server_url);
             
             let response = client
-                .get(&format!("{}/dashboard/api/services", server_url))
+                .get(format!("{}/dashboard/api/services", server_url))
                 .send()
                 .await
                 .map_err(|e| ProxyError::connection(format!("Failed to fetch services: {}", e)))?;
@@ -2208,7 +2205,7 @@ async fn handle_services_command(matches: &ArgMatches, server_url: &str) -> Resu
             println!("🔄 Restarting service: {}", name);
             
             let response = client
-                .post(&format!("{}/dashboard/api/services/{}/restart", server_url, name))
+                .post(format!("{}/dashboard/api/services/{}/restart", server_url, name))
                 .send()
                 .await
                 .map_err(|e| ProxyError::connection(format!("Failed to restart service: {}", e)))?;
@@ -2225,7 +2222,7 @@ async fn handle_services_command(matches: &ArgMatches, server_url: &str) -> Resu
             println!("▶️  Starting service: {}", name);
             
             let response = client
-                .post(&format!("{}/dashboard/api/services/{}/start", server_url, name))
+                .post(format!("{}/dashboard/api/services/{}/start", server_url, name))
                 .send()
                 .await
                 .map_err(|e| ProxyError::connection(format!("Failed to start service: {}", e)))?;
@@ -2242,7 +2239,7 @@ async fn handle_services_command(matches: &ArgMatches, server_url: &str) -> Resu
             println!("⏹️  Stopping service: {}", name);
             
             let response = client
-                .post(&format!("{}/dashboard/api/services/{}/stop", server_url, name))
+                .post(format!("{}/dashboard/api/services/{}/stop", server_url, name))
                 .send()
                 .await
                 .map_err(|e| ProxyError::connection(format!("Failed to stop service: {}", e)))?;
@@ -2269,7 +2266,7 @@ async fn handle_server_command(matches: &ArgMatches, server_url: &str) -> Result
             println!("🩺 Checking server status at {}...", server_url);
             
             let response = client
-                .get(&format!("{}/dashboard/api/status", server_url))
+                .get(format!("{}/dashboard/api/status", server_url))
                 .send()
                 .await
                 .map_err(|e| ProxyError::connection(format!("Failed to get server status: {}", e)))?;
@@ -2288,7 +2285,7 @@ async fn handle_server_command(matches: &ArgMatches, server_url: &str) -> Result
             println!("🔄 Restarting server at {}...", server_url);
             
             let response = client
-                .post(&format!("{}/dashboard/api/restart", server_url))
+                .post(format!("{}/dashboard/api/restart", server_url))
                 .send()
                 .await
                 .map_err(|e| ProxyError::connection(format!("Failed to restart server: {}", e)))?;
@@ -2303,7 +2300,7 @@ async fn handle_server_command(matches: &ArgMatches, server_url: &str) -> Result
             println!("💓 Checking server health at {}...", server_url);
             
             let response = client
-                .get(&format!("{}/health", server_url))
+                .get(format!("{}/health", server_url))
                 .send()
                 .await
                 .map_err(|e| ProxyError::connection(format!("Failed to check health: {}", e)))?;

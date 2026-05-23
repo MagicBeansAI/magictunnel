@@ -5,7 +5,6 @@
 use crate::openai::types::OpenApiSpec;
 use crate::registry::service::RegistryService;
 use crate::registry::types::ToolDefinition;
-use anyhow::Result;
 use serde_json::Value;
 use std::sync::Arc;
 use tracing::{debug, info, warn};

@@ -1,6 +1,5 @@
 //! Error types and handling for the MCP Proxy
 
-use std::fmt;
 use thiserror::Error;
 
 /// Result type alias for MCP Proxy operations

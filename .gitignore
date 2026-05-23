@@ -3,20 +3,24 @@
 **/*.rs.bk
 *.pdb
 
-# MagjcTunnel binaries
+# MagicTunnel binaries
 ./magictunnel
 magictunnel
+magictunnel-supervisor
 target/release/magictunnel
+target/release/magictunnel-supervisor
 target/debug/magictunnel
+target/debug/magictunnel-supervisor
 
 # Cargo
-Cargo.lock
+# Cargo.lock IS tracked for this binary project (reproducible builds + audit)
 Cargo.toml.bak
 
 # IDE and editor files
 .vscode/
 .idea/
 .cursorignore
+.claude/
 *.swp
 *.swo
 *~
@@ -39,6 +43,7 @@ log/
 config.yaml
 config.yml
 config.json
+magictunnel-config.yaml
 .env
 .env.local
 .env.development

@@ -2,7 +2,6 @@ use clap::{Arg, Command};
 use magictunnel::registry::graphql_generator::{GraphQLCapabilityGenerator, AuthConfig, AuthType};
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = Command::new("GraphQL Schema Capability Generator")

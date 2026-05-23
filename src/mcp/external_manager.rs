@@ -6,12 +6,12 @@
 use crate::config::{ExternalMcpConfig, ExternalMcpServersConfig, ContainerConfig, McpClientConfig};
 use crate::error::{ProxyError, Result};
 use crate::mcp::external_process::ExternalMcpProcess;
-use crate::mcp::types::{Tool, McpRequest, McpResponse};
+use crate::mcp::types::Tool;
 use crate::mcp::metrics::{McpMetricsCollector, McpHealthThresholds, HealthStatus};
 use crate::mcp::health_checker::{McpHealthChecker, HealthCheckConfig};
 use crate::registry::types::{CapabilityFile, ToolDefinition, RoutingConfig};
 use serde_json::{json, Value};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
@@ -178,7 +178,7 @@ impl ExternalMcpManager {
 
         info!("Loaded {} External MCP servers from config", servers_config.mcp_servers.as_ref().map(|s| s.len()).unwrap_or(0));
         if let Some(ref mcp_servers) = servers_config.mcp_servers {
-            for (name, _) in mcp_servers {
+            for name in mcp_servers.keys() {
                 debug!("Found server configuration: {}", name);
             }
         }

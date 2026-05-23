@@ -279,8 +279,7 @@ JSON Response:"#,
             ProxyError::routing("API key required for OpenAI LLM".to_string())
         })?;
 
-        let base_url = self.config.base_url.as_ref()
-            .map(|u| u.clone())
+        let base_url = self.config.base_url.clone()
             .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
 
         let request_body = OpenAIRequest {
@@ -336,8 +335,7 @@ JSON Response:"#,
 
     /// Call Ollama LLM
     async fn call_ollama_llm(&self, prompt: &str) -> Result<String> {
-        let base_url = self.config.base_url.as_ref()
-            .map(|u| u.clone())
+        let base_url = self.config.base_url.clone()
             .unwrap_or_else(|| "http://localhost:11434".to_string());
 
         let request_body = json!({

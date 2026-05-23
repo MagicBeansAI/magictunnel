@@ -311,7 +311,7 @@ impl HttpMcpClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
+    
 
     #[test]
     fn test_http_client_config_default() {
@@ -361,7 +361,7 @@ mod tests {
 
         for auth in auth_configs {
             let serialized = serde_json::to_string(&auth).unwrap();
-            let deserialized: HttpAuthConfig = serde_json::from_str(&serialized).unwrap();
+            let _deserialized: HttpAuthConfig = serde_json::from_str(&serialized).unwrap();
             // Note: We can't directly compare because of private fields, but this tests serialization
         }
     }

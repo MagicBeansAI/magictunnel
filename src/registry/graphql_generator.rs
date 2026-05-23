@@ -827,7 +827,7 @@ impl GraphQLCapabilityGenerator {
     fn merge_interface_extension(&self, schema: &str, extension: &SchemaExtension) -> Result<String, ProxyError> {
         let interface_pattern = format!("interface {}", extension.target_name);
 
-        if let Some(interface_start) = schema.find(&interface_pattern) {
+        if let Some(_interface_start) = schema.find(&interface_pattern) {
             // Similar logic to type extension but for interfaces
             self.merge_type_like_extension(schema, extension, "interface")
         } else {
@@ -841,7 +841,7 @@ impl GraphQLCapabilityGenerator {
     fn merge_enum_extension(&self, schema: &str, extension: &SchemaExtension) -> Result<String, ProxyError> {
         let enum_pattern = format!("enum {}", extension.target_name);
 
-        if let Some(enum_start) = schema.find(&enum_pattern) {
+        if let Some(_enum_start) = schema.find(&enum_pattern) {
             self.merge_type_like_extension(schema, extension, "enum")
         } else {
             // Create new enum if not found
@@ -854,7 +854,7 @@ impl GraphQLCapabilityGenerator {
     fn merge_input_extension(&self, schema: &str, extension: &SchemaExtension) -> Result<String, ProxyError> {
         let input_pattern = format!("input {}", extension.target_name);
 
-        if let Some(input_start) = schema.find(&input_pattern) {
+        if let Some(_input_start) = schema.find(&input_pattern) {
             self.merge_type_like_extension(schema, extension, "input")
         } else {
             // Create new input type if not found
@@ -867,7 +867,7 @@ impl GraphQLCapabilityGenerator {
     fn merge_union_extension(&self, schema: &str, extension: &SchemaExtension) -> Result<String, ProxyError> {
         let union_pattern = format!("union {}", extension.target_name);
 
-        if let Some(union_start) = schema.find(&union_pattern) {
+        if let Some(_union_start) = schema.find(&union_pattern) {
             // For unions, we need to merge the union members
             self.merge_union_members(schema, extension)
         } else {
@@ -911,7 +911,7 @@ impl GraphQLCapabilityGenerator {
 
     /// Merge a schema extension with the base schema
     fn merge_schema_extension(&self, schema: &str, extension: &SchemaExtension) -> Result<String, ProxyError> {
-        if let Some(schema_start) = schema.find("schema") {
+        if let Some(_schema_start) = schema.find("schema") {
             self.merge_type_like_extension(schema, extension, "schema")
         } else {
             // Create new schema if not found
@@ -2907,7 +2907,7 @@ impl GraphQLCapabilityGenerator {
             // Check for common syntax errors that need location tracking
             if line.contains("type ") && !line.contains("{") && !line.ends_with("{") {
                 // Check if this is a complete type definition on one line
-                if !line.contains(":") && !schema.lines().nth(line_num + 1).map_or(false, |next| next.trim().starts_with("{")) {
+                if !line.contains(":") && !schema.lines().nth(line_num + 1).is_some_and(|next| next.trim().starts_with("{")) {
                     // This could be a malformed type definition
                     continue;
                 }
@@ -3231,7 +3231,7 @@ impl GraphQLCapabilityGenerator {
         let deprecated_enum_values = self.extract_deprecated_enum_values(schema)?;
 
         // Check for usage of deprecated enum values in default values
-        for (enum_name, deprecated_values) in &deprecated_enum_values {
+        for deprecated_values in deprecated_enum_values.values() {
             for deprecated_value in deprecated_values {
                 // Look for usage in default values
                 let pattern = format!("= {}", deprecated_value);
@@ -3279,7 +3279,7 @@ impl GraphQLCapabilityGenerator {
 
                             // Check if this value or the next line has @deprecated
                             let has_deprecated = line.contains("@deprecated") ||
-                                lines.get(i + 1).map_or(false, |next| next.contains("@deprecated"));
+                                lines.get(i + 1).is_some_and(|next| next.contains("@deprecated"));
 
                             if has_deprecated {
                                 // Extract the enum value name
@@ -3528,7 +3528,7 @@ impl GraphQLCapabilityGenerator {
 
         // Check for PascalCase in type names
         for type_name in &type_names {
-            if !type_name.chars().next().map_or(false, |c| c.is_uppercase()) {
+            if !type_name.chars().next().is_some_and(|c| c.is_uppercase()) {
                 return Err(ProxyError::validation(
                     format!("Type name '{}' should start with uppercase letter", type_name)
                 ));
@@ -4857,7 +4857,7 @@ impl GraphQLCapabilityGenerator {
                     }
                 }
 
-                type_sdl.push_str("}");
+                type_sdl.push('}');
             },
             "INTERFACE" => {
                 type_sdl.push_str(&format!("interface {} {{\n", name));
@@ -4871,7 +4871,7 @@ impl GraphQLCapabilityGenerator {
                     }
                 }
 
-                type_sdl.push_str("}");
+                type_sdl.push('}');
             },
             "UNION" => {
                 type_sdl.push_str(&format!("union {} = ", name));
@@ -4909,7 +4909,7 @@ impl GraphQLCapabilityGenerator {
                     }
                 }
 
-                type_sdl.push_str("}");
+                type_sdl.push('}');
             },
             "INPUT_OBJECT" => {
                 type_sdl.push_str(&format!("input {} {{\n", name));
@@ -4922,7 +4922,7 @@ impl GraphQLCapabilityGenerator {
                     }
                 }
 
-                type_sdl.push_str("}");
+                type_sdl.push('}');
             },
             "SCALAR" => {
                 type_sdl.push_str(&format!("scalar {}", name));
@@ -5350,7 +5350,7 @@ impl GraphQLCapabilityGenerator {
             let remaining = &text_without_directives[absolute_pos..];
 
             // Find the end of the directive
-            let directive_end = if remaining.len() > 1 && remaining.chars().nth(1).map_or(false, |c| c.is_alphabetic()) {
+            let directive_end = if remaining.len() > 1 && remaining.chars().nth(1).is_some_and(|c| c.is_alphabetic()) {
                 // This looks like a directive, find its end
                 let mut end_pos = 1; // Start after @
                 let chars: Vec<char> = remaining.chars().collect();
@@ -5609,9 +5609,9 @@ impl GraphQLCapabilityGenerator {
         let mut current_arg = String::new();
         let mut bracket_depth = 0;
         let mut in_string = false;
-        let mut chars = args_str.chars().peekable();
+        let chars = args_str.chars().peekable();
 
-        while let Some(ch) = chars.next() {
+        for ch in chars {
             match ch {
                 '"' => {
                     in_string = !in_string;
@@ -5698,7 +5698,7 @@ impl GraphQLCapabilityGenerator {
                     .unwrap_or(name_content.len());
 
                 if name_end > 0 {
-                    let scalar_name = name_content[..name_end].trim().to_string();
+                    let _scalar_name = name_content[..name_end].trim().to_string();
 
                     // Register the scalar type (we don't need to store anything special,
                     // just knowing it exists helps with type resolution)
@@ -6110,14 +6110,12 @@ impl GraphQLCapabilityGenerator {
                     if !content.trim().is_empty() {
                         desc_lines.insert(0, content.trim());
                     }
-                } else if desc_line.starts_with("\"\"\"") {
+                } else if let Some(content) = desc_line.strip_prefix("\"\"\"") {
                     // First line - extract content after """
-                    if desc_line.len() > 3 {
-                        let content = &desc_line[3..];
-                        if !content.trim().is_empty() {
+                    if desc_line.len() > 3
+                        && !content.trim().is_empty() {
                             desc_lines.insert(0, content.trim());
                         }
-                    }
                     break;
                 } else {
                     // Middle line
@@ -6897,7 +6895,7 @@ impl GraphQLCapabilityGenerator {
 
                 // Handle custom types or enums
                 // First check if it looks like a custom scalar (starts with uppercase, has lowercase)
-                if base_type.chars().next().map_or(false, |c| c.is_ascii_uppercase()) &&
+                if base_type.chars().next().is_some_and(|c| c.is_ascii_uppercase()) &&
                    base_type.chars().any(|c| c.is_ascii_lowercase()) {
                     // Likely a custom scalar type (starts with uppercase, has lowercase)
                     schema.insert("type".to_string(), Value::String("string".to_string()));
@@ -7574,7 +7572,7 @@ impl GraphQLCapabilityGenerator {
                     }
                 }
                 // Check for invalid arguments
-                for (arg_name, _) in arguments {
+                for arg_name in arguments.keys() {
                     if arg_name != "reason" {
                         return Err(ProxyError::validation(format!(
                             "Unknown argument '{}' for @deprecated directive in {}",
@@ -7599,7 +7597,7 @@ impl GraphQLCapabilityGenerator {
                     )));
                 }
                 // Check for invalid arguments
-                for (arg_name, _) in arguments {
+                for arg_name in arguments.keys() {
                     if arg_name != "if" {
                         return Err(ProxyError::validation(format!(
                             "Unknown argument '{}' for @{} directive in {}",
@@ -7624,7 +7622,7 @@ impl GraphQLCapabilityGenerator {
                     )));
                 }
                 // Check for invalid arguments
-                for (arg_name, _) in arguments {
+                for arg_name in arguments.keys() {
                     if arg_name != "url" {
                         return Err(ProxyError::validation(format!(
                             "Unknown argument '{}' for @specifiedBy directive in {}",
@@ -8007,7 +8005,7 @@ mod tests {
         let capability_file = result.unwrap();
 
         // The introspection should have some operations
-        assert!(capability_file.tools.len() > 0, "Expected some tools from introspection, got {}", capability_file.tools.len());
+        assert!(!capability_file.tools.is_empty(), "Expected some tools from introspection, got {}", capability_file.tools.len());
 
         // Check that tools have proper routing configuration
         if let Some(first_tool) = capability_file.tools.first() {
@@ -8279,10 +8277,10 @@ type User {
         assert!(search_users_tool.is_some(), "searchUsers tool should exist");
 
         // Should NOT have separate tools for arguments
-        assert!(capability_file.tools.iter().find(|t| t.name == "list_names").is_none(), "names should not be a separate tool");
-        assert!(capability_file.tools.iter().find(|t| t.name == "list_ages").is_none(), "ages should not be a separate tool");
-        assert!(capability_file.tools.iter().find(|t| t.name == "list_tags").is_none(), "tags should not be a separate tool");
-        assert!(capability_file.tools.iter().find(|t| t.name == "list_filters").is_none(), "filters should not be a separate tool");
+        assert!(!capability_file.tools.iter().any(|t| t.name == "list_names"), "names should not be a separate tool");
+        assert!(!capability_file.tools.iter().any(|t| t.name == "list_ages"), "ages should not be a separate tool");
+        assert!(!capability_file.tools.iter().any(|t| t.name == "list_tags"), "tags should not be a separate tool");
+        assert!(!capability_file.tools.iter().any(|t| t.name == "list_filters"), "filters should not be a separate tool");
 
         // Check that searchUsers has the correct arguments
         let search_users_tool = search_users_tool.unwrap();
@@ -9533,7 +9531,7 @@ type User {
         let string_value = serde_json::Value::String("test".to_string());
         let int_value = serde_json::Value::Number(serde_json::Number::from(42));
         let bool_value = serde_json::Value::Bool(true);
-        let float_value = serde_json::Value::Number(serde_json::Number::from_f64(3.14).unwrap());
+        let float_value = serde_json::Value::Number(serde_json::Number::from_f64(2.5).unwrap());
 
         // Valid type matches
         assert!(generator.validate_default_value_type(&string_value, "String").is_ok());

@@ -121,8 +121,10 @@ pub struct TlsConfig {
 /// TLS operation mode
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum TlsMode {
     /// TLS disabled (plain HTTP)
+    #[default]
     Disabled,
     /// Application-level TLS (direct HTTPS)
     Application,
@@ -172,8 +174,10 @@ pub struct AuthConfig {
 /// Authentication type enumeration
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum AuthType {
     /// No authentication
+    #[default]
     None,
     /// API key authentication
     ApiKey,
@@ -275,9 +279,11 @@ pub struct LoggingConfig {
 
 /// Conflict resolution strategy for duplicate tool names
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum ConflictResolutionStrategy {
     /// Local tools take precedence over MCP proxy tools
     #[serde(rename = "local_first")]
+    #[default]
     LocalFirst,
     /// MCP proxy tools take precedence over local tools
     #[serde(rename = "proxy_first")]
@@ -310,11 +316,6 @@ pub struct AggregationConfig {
 
 // HybridRoutingConfig Default implementation removed
 
-impl Default for ConflictResolutionStrategy {
-    fn default() -> Self {
-        ConflictResolutionStrategy::LocalFirst
-    }
-}
 
 impl Default for AggregationConfig {
     fn default() -> Self {
@@ -441,6 +442,7 @@ pub struct McpServerConfig {
 
 /// External MCP Servers Configuration (Claude Desktop format)
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct ExternalMcpServersConfig {
     /// MCP servers configuration (matches Claude Desktop format exactly)
     #[serde(rename = "mcpServers")]
@@ -608,16 +610,6 @@ impl Default for ExternalMcpConfig {
     }
 }
 
-impl Default for ExternalMcpServersConfig {
-    fn default() -> Self {
-        Self {
-            mcp_servers: None,
-            http_services: None,
-            sse_services: None,
-            websocket_services: None,
-        }
-    }
-}
 
 // Conversion implementations for HTTP services
 impl From<&HttpServiceConfig> for crate::mcp::clients::HttpClientConfig {
@@ -817,11 +809,6 @@ impl Default for TlsConfig {
     }
 }
 
-impl Default for TlsMode {
-    fn default() -> Self {
-        TlsMode::Disabled
-    }
-}
 
 impl TlsConfig {
     /// Validate TLS configuration
@@ -1226,11 +1213,6 @@ impl Default for AuthConfig {
     }
 }
 
-impl Default for AuthType {
-    fn default() -> Self {
-        AuthType::None
-    }
-}
 
 impl Default for ApiKeyConfig {
     fn default() -> Self {
@@ -1982,7 +1964,7 @@ impl Config {
     /// Validate cross-dependencies between configuration sections
     fn validate_cross_dependencies(&self) -> Result<()> {
         // Validate that gRPC port doesn't conflict with HTTP port
-        let grpc_port = match self.server.port.checked_add(1000) {
+        let _grpc_port = match self.server.port.checked_add(1000) {
             Some(port) => port,
             None => {
                 return Err(ProxyError::config(format!(
@@ -1991,19 +1973,13 @@ impl Config {
                 )));
             }
         };
-        if grpc_port > 65535 {
-            return Err(ProxyError::config(format!(
-                "gRPC port {} (HTTP port + 1000) exceeds maximum port number 65535",
-                grpc_port
-            )));
-        }
 
         // Validate that authentication is properly configured if enabled
         if let Some(ref auth) = self.auth {
             if auth.enabled {
                 match auth.r#type {
                     AuthType::ApiKey => {
-                        if auth.api_keys.as_ref().map_or(true, |keys| keys.is_empty()) {
+                        if auth.api_keys.as_ref().is_none_or(|keys| keys.is_empty()) {
                             return Err(ProxyError::config(
                                 "API key authentication enabled but no API keys provided"
                             ));
